@@ -1,20 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import { Editor } from "./Editor.js";
+import { GraphBackdrop, type GraphData } from "./GraphBackdrop.js";
+import { IconChevron, IconLock, IconPlus, IconPromote } from "./icons.js";
 import { onWs, sendEditing } from "./ws.js";
 
-/** Notes workspace: permission-filtered tree · editor · backlinks/tags/related panel (spec §8). */
-export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
+type Scope = { kind: "all" } | { kind: "team"; slug: string; name: string } | { kind: "personal" };
+
+function inScope(note: TreeNote, scope: Scope, username: string): boolean {
+  const top = note.path.split("/")[0] ?? "";
+  if (scope.kind === "all") return !note.path.startsWith("Personal/") || note.path.startsWith(`Personal/${username}`);
+  if (scope.kind === "personal") return note.path.startsWith(`Personal/${username}`);
+  // team scope: top-level folder named like the team, or note tagged with the team slug
+  return top.toLowerCase() === scope.name.toLowerCase() || top.toLowerCase() === scope.slug || note.tags.includes(scope.slug);
+}
+
+/** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
+ *  personal, with the link graph glowing faintly behind — structure you can feel. */
+export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   const [tree, setTree] = useState<TreeNote[]>([]);
+  const [graph, setGraph] = useState<GraphData | null>(null);
+  const [scope, setScope] = useState<Scope>({ kind: "all" });
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openRef = useRef<NoteDetail | null>(null);
   openRef.current = open;
 
-  const loadTree = useCallback(async () => setTree(await api<TreeNote[]>("GET", "/api/vault/tree")), []);
+  const loadTree = useCallback(async () => {
+    setTree(await api<TreeNote[]>("GET", "/api/vault/tree"));
+    setGraph(await api<GraphData>("GET", "/api/vault/graph"));
+  }, []);
 
   const openNote = useCallback(async (id: string) => {
     const note = await api<NoteDetail>("GET", `/api/vault/note/${id}`);
@@ -31,9 +50,6 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
     if (noteId) void openNote(noteId);
   }, [noteId, openNote]);
 
-  // Live sync: remote edits refresh the open note (the Editor only swaps content
-  // when unfocused, so a local typist never gets clobbered) and the tree.
-  const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
   useEffect(() => {
     const off = onWs((msg) => {
       if (msg.type === "note-changed") {
@@ -45,9 +61,7 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
         if (current && msg.noteId === current.id) setEditingBy({ username: msg.username, at: msg.at });
       }
     });
-    const expire = setInterval(() => {
-      setEditingBy((e) => (e && Date.now() - e.at > 6000 ? null : e));
-    }, 2000);
+    const expire = setInterval(() => setEditingBy((e) => (e && Date.now() - e.at > 6000 ? null : e)), 2000);
     return () => {
       off();
       clearInterval(expire);
@@ -63,17 +77,12 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         try {
-          const res = await api<{ id: string; hash: string; content: string }>("PUT", "/api/vault/note", {
-            path: note.path,
-            content,
-            baseHash: note.hash,
-          });
-          // Refresh metadata (links/tags/tasks) without stealing the caret.
+          const res = await api<{ id: string }>("PUT", "/api/vault/note", { path: note.path, content, baseHash: note.hash });
           const fresh = await api<NoteDetail>("GET", `/api/vault/note/${res.id}`);
           setOpen(fresh);
           setStatus("saved");
           void loadTree();
-        } catch (e) {
+        } catch {
           setStatus("error");
         }
       }, 600);
@@ -82,8 +91,10 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
   );
 
   const createNote = async () => {
-    const name = prompt("Note path (e.g. Engineering/New Idea.md):");
-    if (!name) return;
+    const suggestion =
+      scope.kind === "personal" ? `Personal/${me.username}/` : scope.kind === "team" ? `${scope.name}/` : "";
+    const name = prompt("Note path:", suggestion);
+    if (!name || name.endsWith("/")) return;
     const path = name.endsWith(".md") ? name : `${name}.md`;
     try {
       const res = await api<{ id: string }>("PUT", "/api/vault/note", {
@@ -109,53 +120,88 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
     await openNote(open.id);
   };
 
+  const scoped = useMemo(() => tree.filter((n) => inScope(n, scope, me.username)), [tree, scope, me.username]);
+  const scopedIds = useMemo(() => new Set(scoped.map((n) => n.id)), [scoped]);
+
   const folders = useMemo(() => {
     const map = new Map<string, TreeNote[]>();
-    for (const n of tree) {
+    for (const n of scoped) {
       const list = map.get(n.folder) ?? [];
       list.push(n);
       map.set(n.folder, list);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [tree]);
+  }, [scoped]);
 
   const completions = useMemo(
     () => ({
       titles: tree.map((n) => n.title),
-      users: [me.username, ...new Set(tree.flatMap(() => []))],
+      users: [me.username],
       tags: [...new Set(tree.flatMap((n) => n.tags))],
     }),
     [tree, me.username],
   );
 
+  const scopes: Scope[] = [
+    { kind: "all" },
+    ...me.teams.map((t) => ({ kind: "team" as const, slug: t.slug, name: t.name })),
+    { kind: "personal" },
+  ];
+
   return (
-    <div className="notes">
-      <aside className="tree" aria-label="Files">
-        <div className="tree-head">
-          <span>Vault</span>
-          <button className="ghost" onClick={createNote} title="New note">
-            ＋
-          </button>
-        </div>
-        {folders.map(([folder, notes]) => (
-          <div key={folder || "(root)"} className="tree-folder">
-            <button className="tree-folder-name ghost" onClick={() => setCollapsed((s) => toggle(s, folder))}>
-              <span className={`disclosure ${collapsed.has(folder) ? "" : "open"}`}>▸</span>
-              {folder === "" ? "/" : folder}
-            </button>
-            {!collapsed.has(folder) &&
-              notes.map((n) => (
+    <div className="arch">
+      <aside className="arch-files">
+        <GraphBackdrop graph={graph} visibleIds={scopedIds} activeId={open?.id ?? null} />
+        <div className="arch-files-inner">
+          <div className="scope-tabs" role="tablist" aria-label="Scope">
+            {scopes.map((s) => {
+              const key = s.kind === "team" ? s.slug : s.kind;
+              const label = s.kind === "all" ? "All" : s.kind === "personal" ? "Personal" : s.name;
+              const active = JSON.stringify(s) === JSON.stringify(scope);
+              const color = s.kind === "team" ? me.teams.find((t) => t.slug === s.slug)?.color : undefined;
+              return (
                 <button
-                  key={n.id}
-                  className={`tree-note ghost ${open?.id === n.id ? "active" : ""}`}
-                  onClick={() => openNote(n.id)}
+                  key={key}
+                  role="tab"
+                  aria-selected={active}
+                  className={`scope-tab ${active ? "active" : ""}`}
+                  style={color ? ({ "--team": color } as React.CSSProperties) : undefined}
+                  onClick={() => setScope(s)}
                 >
-                  <span className="tree-note-title">{n.title}</span>
-                  {n.openTasks > 0 && <span className="tree-note-count">{n.openTasks}</span>}
+                  {s.kind === "team" && <span className="scope-dot" />}
+                  {label}
                 </button>
-              ))}
+              );
+            })}
+            <span className="scope-count">{scoped.length}</span>
+            <button className="ghost scope-new" onClick={createNote} title="New note" aria-label="New note">
+              <IconPlus />
+            </button>
           </div>
-        ))}
+
+          <div className="arch-tree">
+            {folders.map(([folder, notes]) => (
+              <div key={folder || "(root)"} className="tree-folder">
+                <button className="tree-folder-name ghost" onClick={() => setCollapsed((s) => toggle(s, folder))}>
+                  <IconChevron open={!collapsed.has(folder)} />
+                  {folder === "" ? "/" : folder}
+                </button>
+                {!collapsed.has(folder) &&
+                  notes.map((n) => (
+                    <button
+                      key={n.id}
+                      className={`tree-note ghost ${open?.id === n.id ? "active" : ""}`}
+                      onClick={() => openNote(n.id)}
+                    >
+                      <span className="tree-note-title">{n.title}</span>
+                      {n.openTasks > 0 && <span className="tree-note-count">{n.openTasks}</span>}
+                    </button>
+                  ))}
+              </div>
+            ))}
+            {folders.length === 0 && <p className="empty">Nothing in this scope yet.</p>}
+          </div>
+        </div>
       </aside>
 
       <section className="editor-pane">
@@ -167,27 +213,19 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
                 <span className="editor-path">{open.path}</span>
               </div>
               <span className="editor-presence">
-                {editingBy && (
-                  <span className="presence-badge" title={`${editingBy.username} is editing this note`}>
-                    ● {editingBy.username} is editing
-                  </span>
-                )}
+                {editingBy && <span className="presence-badge">{editingBy.username} is editing</span>}
                 <span className={`save-state ${status}`}>
-                  {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "⚠ save failed") : "read-only"}
+                  {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "save failed") : "read-only"}
                 </span>
               </span>
             </header>
-            <Editor
-              noteId={open.id}
-              content={open.content}
-              readOnly={!open.canEdit}
-              completions={completions}
-              onChange={save}
-            />
+            <Editor noteId={open.id} content={open.content} readOnly={!open.canEdit} completions={completions} onChange={save} />
           </>
         ) : (
           <div className="editor-empty">
-            <p>Select a note — or press <kbd>⌘K</kbd> to search, <kbd>c</kbd> to capture.</p>
+            <p>
+              Select a note — <kbd>⌘K</kbd> to search, <kbd>c</kbd> to capture.
+            </p>
           </div>
         )}
       </section>
@@ -203,11 +241,13 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
                     <input type="checkbox" checked={t.checked} onChange={(e) => checkTask(t.line, e.target.checked)} aria-label={t.text} />
                     <span>{t.text}</span>
                     {t.blockId ? (
-                      <span className="badge">◆</span>
+                      <span className="promoted-mark" title="Promoted task">
+                        <IconPromote />
+                      </span>
                     ) : (
                       open.canEdit && (
                         <button className="ghost promote" title="Promote to task object" onClick={() => promote(t.line)}>
-                          ◇
+                          <IconPromote />
                         </button>
                       )
                     )}
@@ -231,9 +271,8 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
             {open.links.length === 0 && <p className="empty">No outgoing links</p>}
             {open.links.map((l, i) =>
               l.locked ? (
-                // Locked stub (§5.4): the text the author wrote, nothing more.
                 <span key={i} className="side-link locked" title="You don't have access to this note">
-                  🔒 {l.alias ?? l.target}
+                  <IconLock /> {l.alias ?? l.target}
                 </span>
               ) : (
                 <button key={i} className="side-link ghost" disabled={!l.targetId} onClick={() => l.targetId && openNote(l.targetId)}>
@@ -248,7 +287,7 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
               <h3>Possibly related</h3>
               {related.map((r) => (
                 <button key={r.id} className="side-link ghost" onClick={() => openNote(r.id)}>
-                  ✦ {r.title}
+                  {r.title}
                 </button>
               ))}
             </section>

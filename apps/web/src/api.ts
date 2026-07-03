@@ -16,6 +16,7 @@ export interface Me {
   username: string;
   displayName: string;
   isOwner: boolean;
+  avatar: string;
   teams: Team[];
 }
 
@@ -97,6 +98,7 @@ export interface DashboardData {
     id: string;
     username: string;
     displayName: string;
+    avatar: string;
     openTasks: number;
     inProgress: { text: string; noteId: string; project: string | null }[];
     assigned: { text: string; noteId: string; due?: string; priority?: number }[];

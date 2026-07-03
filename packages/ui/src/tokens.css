@@ -18,11 +18,11 @@
   --danger: #f87171;
   --warn: #fbbf24;
   --ok: #34d399;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --radius: 10px;
-  --radius-sm: 6px;
+  --radius: 6px;
+  --radius-sm: 4px;
   --editor-line-height: 1.6;
   color-scheme: dark;
 }

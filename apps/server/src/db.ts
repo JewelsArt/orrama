@@ -66,6 +66,12 @@ export function createDb(file = dbPath()) {
   const sqlite = new Database(file);
   sqlite.pragma("journal_mode = WAL");
   sqlite.exec(BOOTSTRAP);
+  // Additive migrations for existing volumes; ALTER is a no-op error when present.
+  try {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN avatar TEXT NOT NULL DEFAULT 'basalt'`);
+  } catch {
+    /* column exists */
+  }
   return drizzle(sqlite, { schema: tables });
 }
 

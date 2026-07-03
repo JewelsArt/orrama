@@ -55,6 +55,20 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.get("/api/me", { preHandler: [app.authenticate] }, async (req) => {
     return publicUser(db, store, req.userId);
   });
+
+  /** Profile self-service: character avatar + display name. */
+  app.patch("/api/me", { preHandler: [app.authenticate] }, async (req) => {
+    const body = (req.body ?? {}) as { avatar?: string; displayName?: string };
+    const set: Record<string, string> = {};
+    if (body.avatar && /^[a-z-]{2,24}$/.test(body.avatar)) set["avatar"] = body.avatar;
+    if (body.displayName && body.displayName.trim().length >= 1 && body.displayName.length <= 80) {
+      set["displayName"] = body.displayName.trim();
+    }
+    if (Object.keys(set).length > 0) {
+      db.update(tables.users).set(set).where(eq(tables.users.id, req.userId)).run();
+    }
+    return publicUser(db, store, req.userId);
+  });
 }
 
 export function publicUser(db: Db, store: VaultStore, id: string) {
@@ -68,6 +82,7 @@ export function publicUser(db: Db, store: VaultStore, id: string) {
     username: u.username,
     displayName: u.displayName,
     isOwner: u.isOwner,
+    avatar: u.avatar,
     teams,
   };
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
+import { IconAsk, IconX } from "./icons.js";
 
 interface Turn {
   role: "user" | "assistant";
@@ -43,9 +44,11 @@ export function AskPanel({ onClose, onOpenNote }: { onClose: () => void; onOpenN
   return (
     <aside className="ask-panel" aria-label="Ask your vault">
       <header className="ask-head">
-        <span>✦ Ask your vault</span>
+        <span className="ask-title">
+          <IconAsk /> Ask your vault
+        </span>
         <button className="ghost" onClick={onClose} aria-label="Close">
-          ✕
+          <IconX />
         </button>
       </header>
       {configured === false && (

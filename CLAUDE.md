@@ -28,7 +28,7 @@ lives DB-only).
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, admin, ai, ws — one file each |
-| `apps/web/src/` | React: `Dashboard` `Notes`/`Editor` (CodeMirror 6) `Admin` (DnD grants) `AskPanel` `ws.ts` |
+| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Architecture` (scoped files + `GraphBackdrop` canvas + `Editor`), `Planning` (est. via `/api/plan`), `Overview` (team board), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -68,6 +68,14 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   Drizzle table defs in `packages/schema/src/db.ts` in lockstep with it.
 - Task objects are keyed `(noteId, blockId)`; file wins on conflict; deleted lines
   orphan the object (surfaced on the dashboard, never auto-deleted).
+
+## Design rules
+
+Flat surfaces, 1px borders, 4–6px radii, mono for numbers/paths/micro-labels.
+No gradients, no glow shadows, no emoji as icons (use `icons.tsx`), no drifting
+particles — the graph backdrop is static and seeded. Team color is data, not
+decoration: it may appear only where it identifies a team. Members are hex-column
+characters (`avatars.tsx`), picked in Settings, stored as `users.avatar`.
 
 ## Dev loop
 

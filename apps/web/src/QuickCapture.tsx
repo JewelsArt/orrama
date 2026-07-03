@@ -20,7 +20,7 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay" onClick={onClose} onKeyDown={(e) => e.key === "Escape" && onClose()}>
       <form className="capture-box" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <span className="capture-icon">{saved ? "✓" : "＋"}</span>
+        <span className="capture-icon">{saved ? "✓" : "+"}</span>
         <input
           ref={ref}
           placeholder="Capture a task to your inbox…"

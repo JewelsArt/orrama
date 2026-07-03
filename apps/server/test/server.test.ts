@@ -246,6 +246,43 @@ describe("AI", () => {
   });
 });
 
+describe("graph + plan + profile", () => {
+  it("graph is ACL-filtered: no nodes or edges for unreadable notes", async () => {
+    const g = await api("GET", "/api/vault/graph", "erin");
+    expect(g.status).toBe(200);
+    const titles = g.json.nodes.map((n: { title: string }) => n.title);
+    expect(titles).toContain("Atlas Roadmap");
+    expect(titles).not.toContain("Surprise Campaign");
+    const ids = new Set(g.json.nodes.map((n: { id: string }) => n.id));
+    for (const e of g.json.edges) {
+      expect(ids.has(e.from)).toBe(true);
+      expect(ids.has(e.to)).toBe(true);
+    }
+  });
+
+  it("plan estimates open project tasks with schedule + risk, heuristic without AI", async () => {
+    const p = await api("GET", "/api/plan/engineering", "erin");
+    expect(p.status).toBe(200);
+    expect(p.json.source).toBe("heuristic");
+    expect(p.json.totalHours).toBeGreaterThan(0);
+    const erinRow = p.json.assignees.find((a: { assignee: string }) => a.assignee === "erin");
+    expect(erinRow.tasks.length).toBeGreaterThan(0);
+    for (const t of erinRow.tasks) {
+      expect(t.estimateHours).toBeGreaterThan(0);
+      expect(t.expectedFinish).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    // team scoping mirrors the dashboard
+    expect((await api("GET", "/api/plan/engineering", "mara")).status).toBe(404);
+  });
+
+  it("profile PATCH updates avatar and rejects junk", async () => {
+    const r = await api("PATCH", "/api/me", "mara", { avatar: "ember" });
+    expect(r.json.avatar).toBe("ember");
+    const r2 = await api("PATCH", "/api/me", "mara", { avatar: "<script>" });
+    expect(r2.json.avatar).toBe("ember"); // junk ignored, not applied
+  });
+});
+
 describe("history (§10)", () => {
   it("keeps per-note versions from the update log", async () => {
     const jules = await api("GET", "/api/vault/tree", "jules");

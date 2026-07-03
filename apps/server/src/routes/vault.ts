@@ -95,6 +95,31 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     });
   });
 
+  /**
+   * Link graph over the requester's readable notes (Architecture backdrop + local
+   * graph). Edges to unreadable notes are dropped entirely — not stubbed (§5.4).
+   */
+  app.get("/api/vault/graph", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    const readable = store.readable(user);
+    const ids = new Set(readable.map((n) => n.id));
+    const nodes = readable.map((n) => ({
+      id: n.id,
+      title: n.title,
+      folder: n.folder,
+      links: n.links.length,
+      tasks: n.tasks.filter((t) => !t.checked).length,
+    }));
+    const edges: { from: string; to: string }[] = [];
+    for (const n of readable) {
+      for (const l of n.links) {
+        const t = store.index.resolveLink(l.target);
+        if (t && ids.has(t.id) && t.id !== n.id) edges.push({ from: n.id, to: t.id });
+      }
+    }
+    return { nodes, edges };
+  });
+
   /** Sync manifest (§10): the desktop client's partial checkout list. */
   app.get("/api/sync/manifest", auth, async (req) => {
     const user = store.aclUser(req.userId);

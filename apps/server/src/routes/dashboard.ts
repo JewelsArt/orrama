@@ -66,6 +66,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
         id: m.id,
         username: m.username,
         displayName: m.displayName,
+        avatar: m.avatar,
         openTasks: open.length,
         inProgress: inProgress.map((t) => ({ text: t.text, noteId: t.noteId, project: t.project })),
         assigned: open.slice(0, 5).map((t) => ({ text: t.text, noteId: t.noteId, due: t.due, priority: t.priority })),
@@ -113,6 +114,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
         username: tables.users.username,
         displayName: tables.users.displayName,
         isOwner: tables.users.isOwner,
+        avatar: tables.users.avatar,
       })
       .from(tables.users)
       .all();

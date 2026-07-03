@@ -17,6 +17,7 @@ import { dashboardRoutes } from "./routes/dashboard.js";
 import { adminRoutes } from "./routes/admin.js";
 import { aiRoutes } from "./routes/ai.js";
 import { wsRoutes } from "./routes/ws.js";
+import { planRoutes } from "./routes/plan.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -64,6 +65,7 @@ export async function buildServer() {
   await adminRoutes(app, db, store);
   await aiRoutes(app, db, store);
   await wsRoutes(app, db, store);
+  await planRoutes(app, db, store);
 
   app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));
 

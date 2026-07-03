@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, setToken, type Me } from "./api.js";
+import { IconMark } from "./icons.js";
 
 export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
   const [email, setEmail] = useState("");
@@ -26,7 +27,7 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
         <div className="wordmark login-wordmark">
-          <span className="wordmark-mark">⬡</span> basalt
+          <IconMark size={24} /> basalt
         </div>
         <p className="login-tagline">Your team's knowledge. Your files. Your server.</p>
         <label>

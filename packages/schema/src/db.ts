@@ -13,6 +13,8 @@ export const users = sqliteTable("users", {
   displayName: text("display_name").notNull(),
   passwordHash: text("password_hash").notNull(),
   isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
+  /** Chosen character id (see apps/web avatars) — a face, not a photo. */
+  avatar: text("avatar").notNull().default("basalt"),
   createdAt: integer("created_at").notNull(),
 });
 
