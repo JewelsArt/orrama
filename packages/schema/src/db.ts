@@ -1,0 +1,119 @@
+/**
+ * Drizzle table definitions (SQLite default self-host; Postgres option later).
+ * The DB is an index + task-object store — the vault's Markdown files on disk
+ * remain the source of truth for all content (spec §6: delete the DB, re-index,
+ * and everything but task-object extras must rebuild).
+ */
+import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  username: text("username").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const workspace = sqliteTable("workspace", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  // AI config (spec §9): BYO key, stored encrypted at rest on the admin's server.
+  aiProvider: text("ai_provider"), // "anthropic" | "openai-compatible"
+  aiKeyEncrypted: text("ai_key_encrypted"),
+  aiModel: text("ai_model"),
+});
+
+export const teams = sqliteTable("teams", {
+  id: text("id").primaryKey(),
+  /** URL/tag-safe slug — what #only/<team> and #share/<team> match. */
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  color: text("color").notNull(),
+  icon: text("icon").notNull().default("●"),
+});
+
+export const memberships = sqliteTable(
+  "memberships",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    teamId: text("team_id").notNull(),
+  },
+  (t) => [uniqueIndex("membership_unique").on(t.userId, t.teamId)],
+);
+
+export const folderGrants = sqliteTable(
+  "folder_grants",
+  {
+    id: text("id").primaryKey(),
+    teamId: text("team_id").notNull(),
+    folder: text("folder").notNull(), // vault-relative, "" = root
+    role: text("role", { enum: ["viewer", "editor", "admin"] }).notNull(),
+  },
+  (t) => [uniqueIndex("grant_unique").on(t.teamId, t.folder)],
+);
+
+/** Metadata mirror of vault files; content lives on disk + in the Y.Doc update log. */
+export const notes = sqliteTable("notes", {
+  id: text("id").primaryKey(), // stable note id (front-matter)
+  path: text("path").notNull().unique(),
+  title: text("title").notNull(),
+  contentHash: text("content_hash").notNull(),
+  mtimeMs: integer("mtime_ms").notNull(),
+  deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
+});
+
+/** Per-note CRDT update log → version history + live merge (spec §10). */
+export const ydocUpdates = sqliteTable("ydoc_updates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  noteId: text("note_id").notNull(),
+  update: text("update").notNull(), // base64 Yjs update
+  authorId: text("author_id"),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** Promoted task objects (spec §7.2), keyed by (note id, block id). */
+export const taskObjects = sqliteTable(
+  "task_objects",
+  {
+    id: text("id").primaryKey(),
+    noteId: text("note_id").notNull(),
+    blockId: text("block_id").notNull(),
+    status: text("status", { enum: ["todo", "in-progress", "done", "blocked", "orphaned"] })
+      .notNull()
+      .default("todo"),
+    assigneeId: text("assignee_id"),
+    due: text("due"),
+    description: text("description").notNull().default(""),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("task_object_unique").on(t.noteId, t.blockId)],
+);
+
+export const taskComments = sqliteTable("task_comments", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull(),
+  authorId: text("author_id").notNull(),
+  body: text("body").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const invites = sqliteTable("invites", {
+  token: text("token").primaryKey(),
+  teamIds: text("team_ids").notNull(), // JSON array of team ids
+  createdBy: text("created_by").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  usedBy: text("used_by"),
+});
+
+/** Projects: a folder or tag designated as the unit progress is computed against (spec §3). */
+export const projects = sqliteTable("projects", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["folder", "tag"] }).notNull(),
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  teamId: text("team_id"), // owning team for dashboard grouping (null = all teams)
+});

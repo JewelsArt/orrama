@@ -1,0 +1,22 @@
+# Rust is only the shell (spec §4): window, FS access, file watcher, keychain, tray.
+# All product logic lives in TypeScript packages shared with web and server.
+[package]
+name = "basalt-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+notify = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lib]
+name = "basalt_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]

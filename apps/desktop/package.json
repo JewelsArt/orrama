@@ -1,0 +1,19 @@
+{
+  "name": "@basalt/desktop",
+  "version": "0.1.0",
+  "description": "Basalt desktop shell (Tauri 2): local vault access, file watcher, offline-first sync client.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@basalt/core": "workspace:*",
+    "@basalt/sync": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}

@@ -1,0 +1,14 @@
+# One `docker compose up` for the whole self-host (spec §4).
+# Your notes live in ./data/vault as plain Markdown — back it up with rsync/git.
+services:
+  basalt:
+    build: .
+    ports:
+      - "4623:4623"
+    volumes:
+      - ./data:/data
+    environment:
+      # CHANGE THESE for any real deployment:
+      BASALT_JWT_SECRET: ${BASALT_JWT_SECRET:-change-me-please}
+      BASALT_SECRET_KEY: ${BASALT_SECRET_KEY:-change-me-32-bytes-of-entropy!!}
+    restart: unless-stopped

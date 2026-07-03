@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.turbo/
+data/
+apps/server/data/
+*.db
+*.db-*
+target/
+.DS_Store

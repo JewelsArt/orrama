@@ -1,0 +1,11 @@
+{
+  "name": "@basalt/ui",
+  "version": "0.1.0",
+  "description": "Design tokens + base styles: Command Center (dark) and Paper (light) themes.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./src/tokens.css",
+    "./base.css": "./src/base.css"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  better-sqlite3: true
+  argon2: true
+  workerd: true

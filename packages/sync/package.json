@@ -1,0 +1,25 @@
+{
+  "name": "@basalt/sync",
+  "version": "0.1.0",
+  "description": "Sync protocol logic: Yjs note docs, update encoding, partial-checkout manifests.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@basalt/core": "workspace:*",
+    "yjs": "^13.6.20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}
