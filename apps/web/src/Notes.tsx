@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import { Editor } from "./Editor.js";
+import { onWs, sendEditing } from "./ws.js";
 
 /** Notes workspace: permission-filtered tree · editor · backlinks/tags/related panel (spec §8). */
 export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
@@ -30,10 +31,34 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
     if (noteId) void openNote(noteId);
   }, [noteId, openNote]);
 
+  // Live sync: remote edits refresh the open note (the Editor only swaps content
+  // when unfocused, so a local typist never gets clobbered) and the tree.
+  const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
+  useEffect(() => {
+    const off = onWs((msg) => {
+      if (msg.type === "note-changed") {
+        void loadTree();
+        const current = openRef.current;
+        if (current && msg.noteId === current.id && msg.authorId !== me.id) void openNote(current.id);
+      } else if (msg.type === "presence") {
+        const current = openRef.current;
+        if (current && msg.noteId === current.id) setEditingBy({ username: msg.username, at: msg.at });
+      }
+    });
+    const expire = setInterval(() => {
+      setEditingBy((e) => (e && Date.now() - e.at > 6000 ? null : e));
+    }, 2000);
+    return () => {
+      off();
+      clearInterval(expire);
+    };
+  }, [loadTree, openNote, me.id]);
+
   const save = useCallback(
     (content: string) => {
       const note = openRef.current;
       if (!note || content === note.content) return;
+      sendEditing(note.id);
       setStatus("saving");
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
@@ -141,8 +166,15 @@ export function Notes({ me, noteId }: { me: Me; noteId?: string }) {
                 <h1 className="editor-title">{open.title}</h1>
                 <span className="editor-path">{open.path}</span>
               </div>
-              <span className={`save-state ${status}`}>
-                {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "⚠ save failed") : "read-only"}
+              <span className="editor-presence">
+                {editingBy && (
+                  <span className="presence-badge" title={`${editingBy.username} is editing this note`}>
+                    ● {editingBy.username} is editing
+                  </span>
+                )}
+                <span className={`save-state ${status}`}>
+                  {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "⚠ save failed") : "read-only"}
+                </span>
               </span>
             </header>
             <Editor

@@ -143,8 +143,6 @@ async function main() {
     { id: uid("g"), teamId: mkt.id, folder: "Shared", role: "editor" },
     { id: uid("g"), teamId: eng.id, folder: "", role: "viewer" },
     { id: uid("g"), teamId: mkt.id, folder: "", role: "viewer" },
-    { id: uid("g"), teamId: eng.id, folder: "Inbox", role: "editor" },
-    { id: uid("g"), teamId: mkt.id, folder: "Inbox", role: "editor" },
   ]).run();
 
   db.insert(tables.projects).values([

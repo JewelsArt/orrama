@@ -150,6 +150,34 @@ describe("§5.3 abuse rules (server-enforced)", () => {
   });
 });
 
+describe("personal vaults", () => {
+  it("only the owning user (and workspace owners) can read or edit Personal/<username>", () => {
+    const erinNote = note("Personal/erin/Journal");
+    expect(canRead(eng(), erinNote, grants)).toBe(true); // erin's username is "erin"
+    expect(canEdit(eng(), erinNote, grants)).toBe(true);
+    expect(canRead(mkt(), erinNote, grants)).toBe(false);
+    expect(canEdit(mkt(), erinNote, grants)).toBe(false);
+    expect(canRead(owner, erinNote, grants)).toBe(true); // documented owner visibility
+  });
+
+  it("folder grants never leak into personal space", () => {
+    // even a root-level grant must not open someone else's personal folder
+    const g = [...grants, { team: "marketing", folder: "", role: "admin" as const }];
+    expect(canRead(mkt(), note("Personal/erin"), g)).toBe(false);
+  });
+
+  it("#share extends read (not edit) out of a personal folder", () => {
+    const shared = note("Personal/erin/Drafts", [], ["marketing"]);
+    expect(canRead(mkt(), shared, grants)).toBe(true);
+    expect(canEdit(mkt(), shared, grants)).toBe(false);
+  });
+
+  it("the bare Personal/ root is invisible to everyone but owners", () => {
+    expect(canRead(eng(), note("Personal"), grants)).toBe(false);
+    expect(canRead(owner, note("Personal"), grants)).toBe(true);
+  });
+});
+
 describe("§5.4 leak rules", () => {
   it("filterReadable drops unreadable notes entirely", () => {
     const notes = [

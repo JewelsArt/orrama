@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type DashboardData, type Me, type Team } from "./api.js";
+import { onWs } from "./ws.js";
 
 /**
  * The team command center (spec §6): What are we doing? How far along? Who's on what?
@@ -29,6 +30,25 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
     api<{ configured: boolean }>("GET", "/api/ai/status").then((s) => setDigest({ configured: s.configured }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live sync: any vault change re-computes the board (debounced — the numbers
+  // are cheap views over the index, so this keeps every open dashboard truthful).
+  const teamSlugRef = useRef(teamSlug);
+  teamSlugRef.current = teamSlug;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const off = onWs((msg) => {
+      if (msg.type !== "note-changed") return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (teamSlugRef.current) void load(teamSlugRef.current);
+      }, 400);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, [load]);
 
   const pickTeam = (slug: string) => {
     setTeamSlug(slug);

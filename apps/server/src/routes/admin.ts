@@ -15,6 +15,49 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   };
   const auth = { preHandler: [app.authenticate] };
 
+  /** Everything the admin console needs in one round-trip. */
+  app.get("/api/admin/overview", auth, async (req) => {
+    await requireOwner(req.userId);
+    const teams = db.select().from(tables.teams).all();
+    const memberships = db.select().from(tables.memberships).all();
+    const users = db
+      .select({ id: tables.users.id, username: tables.users.username, displayName: tables.users.displayName, isOwner: tables.users.isOwner })
+      .from(tables.users)
+      .all();
+    // Folder list from the vault itself (owners see all), personal space excluded —
+    // it is permissioned by path, not by grants.
+    const folders = new Set<string>();
+    for (const n of store.index.all()) {
+      if (n.folder.startsWith("Personal")) continue;
+      let cur = n.folder;
+      while (cur !== "") {
+        folders.add(cur);
+        const i = cur.lastIndexOf("/");
+        cur = i === -1 ? "" : cur.slice(0, i);
+      }
+    }
+    folders.add("");
+    const ws = db.select().from(tables.workspace).all()[0];
+    return {
+      teams: teams.map((t) => ({
+        ...t,
+        members: memberships.filter((m) => m.teamId === t.id).map((m) => m.userId),
+      })),
+      users,
+      folders: [...folders].sort(),
+      grants: db.select().from(tables.folderGrants).all(),
+      projects: db.select().from(tables.projects).all(),
+      invites: db.select().from(tables.invites).all().filter((i) => !i.usedBy && i.expiresAt > Date.now()),
+      ai: { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted },
+    };
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/admin/grants/:id", auth, async (req) => {
+    await requireOwner(req.userId);
+    db.delete(tables.folderGrants).where(eq(tables.folderGrants.id, req.params.id)).run();
+    return { ok: true };
+  });
+
   app.post("/api/admin/teams", auth, async (req) => {
     await requireOwner(req.userId);
     const body = teamCreateSchema.parse(req.body);

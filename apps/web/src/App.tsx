@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
+import { Admin } from "./Admin.js";
 import { api, clearToken, type Me } from "./api.js";
+import { AskPanel } from "./AskPanel.js";
 import { Dashboard } from "./Dashboard.js";
 import { Login } from "./Login.js";
 import { Notes } from "./Notes.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
+import { connectWs, disconnectWs } from "./ws.js";
 
-export type View = { kind: "dashboard" } | { kind: "notes"; noteId?: string };
+export type View = { kind: "dashboard" } | { kind: "notes"; noteId?: string } | { kind: "admin" };
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
@@ -14,6 +17,13 @@ export function App() {
   const [theme, setTheme] = useState(localStorage.getItem("basalt-theme") ?? "command");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+
+  // Live sync: one socket for the whole session.
+  useEffect(() => {
+    if (me) connectWs(localStorage.getItem("basalt-token") ?? "");
+    return () => disconnectWs();
+  }, [me]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -73,8 +83,16 @@ export function App() {
           <button role="tab" aria-selected={view.kind === "notes"} className={view.kind === "notes" ? "active" : ""} onClick={() => setView({ kind: "notes" })}>
             Notes
           </button>
+          {me.isOwner && (
+            <button role="tab" aria-selected={view.kind === "admin"} className={view.kind === "admin" ? "active" : ""} onClick={() => setView({ kind: "admin" })}>
+              Admin
+            </button>
+          )}
         </div>
         <div className="topbar-right">
+          <button className="ghost" onClick={() => setAskOpen((v) => !v)} title="Ask your vault">
+            ✦ Ask
+          </button>
           <button className="ghost" onClick={() => setPaletteOpen(true)} title="Search (⌘K)">
             ⌘K
           </button>
@@ -101,8 +119,15 @@ export function App() {
         </div>
       </nav>
       <main className="content">
-        {view.kind === "dashboard" ? <Dashboard me={me} onOpenNote={openNote} /> : <Notes me={me} noteId={view.noteId} />}
+        {view.kind === "dashboard" ? (
+          <Dashboard me={me} onOpenNote={openNote} />
+        ) : view.kind === "admin" ? (
+          <Admin />
+        ) : (
+          <Notes me={me} noteId={view.noteId} />
+        )}
       </main>
+      {askOpen && <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />}
       {paletteOpen && (
         <SearchPalette
           onClose={() => setPaletteOpen(false)}

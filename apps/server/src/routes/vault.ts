@@ -109,11 +109,11 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     return computeManifest(user, notes, store.grants());
   });
 
-  /** Quick capture (§6.5): append to the user's inbox note. */
+  /** Quick capture (§6.5): append to the user's PERSONAL inbox note. */
   app.post("/api/capture", auth, async (req) => {
     const body = quickCaptureSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const path = `Inbox/${user.username}.md`;
+    const path = `Personal/${user.username}/Inbox.md`;
     const existing = store.index.getByPath(path);
     const line = body.text.startsWith("- ") ? body.text : `- [ ] ${body.text} @${user.username}`;
     const content = appendLine(existing?.content ?? `---\ntitle: ${user.username}'s Inbox\n---\n# Inbox\n`, line);

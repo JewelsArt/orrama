@@ -4,6 +4,7 @@ import path from "node:path";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
+import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
@@ -15,6 +16,7 @@ import { taskRoutes } from "./routes/tasks.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { adminRoutes } from "./routes/admin.js";
 import { aiRoutes } from "./routes/ai.js";
+import { wsRoutes } from "./routes/ws.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -37,6 +39,7 @@ export async function buildServer() {
   const app = Fastify({ logger: { level: "info" } });
   await app.register(cors, { origin: env.corsOrigin });
   await app.register(jwt, { secret: env.jwtSecret });
+  await app.register(websocket);
 
   app.decorate("authenticate", async (req: any, reply: any) => {
     try {
@@ -60,6 +63,7 @@ export async function buildServer() {
   await dashboardRoutes(app, db, store);
   await adminRoutes(app, db, store);
   await aiRoutes(app, db, store);
+  await wsRoutes(app, db, store);
 
   app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));
 

@@ -203,13 +203,30 @@ describe("dashboard", () => {
     expect((await api("GET", "/api/dashboard/engineering", "mara")).status).toBe(404);
   });
 
-  it("quick capture appends to the user's inbox note", async () => {
+  it("quick capture appends to the user's PERSONAL inbox, invisible to teammates", async () => {
     const r = await api("POST", "/api/capture", "mara", { text: "call the venue" });
     expect(r.status).toBe(200);
     const tree = await api("GET", "/api/vault/tree", "mara");
-    const inbox = tree.json.find((n: { path: string }) => n.path === "Inbox/mara.md");
+    const inbox = tree.json.find((n: { path: string }) => n.path === "Personal/mara/Inbox.md");
     const note = await api("GET", `/api/vault/note/${inbox.id}`, "mara");
     expect(note.json.content).toContain("- [ ] call the venue @mara");
+    // personal space never reaches another member's tree or direct fetch
+    const erinTree = await api("GET", "/api/vault/tree", "erin");
+    expect(erinTree.json.some((n: { path: string }) => n.path.startsWith("Personal/mara"))).toBe(false);
+    expect((await api("GET", `/api/vault/note/${inbox.id}`, "erin")).status).toBe(404);
+  });
+
+  it("a member can write in their own personal folder without any grant", async () => {
+    const w = await api("PUT", "/api/vault/note", "erin", {
+      path: "Personal/erin/Ideas.md",
+      content: "---\ntitle: Ideas\n---\nquiet thoughts\n",
+    });
+    expect(w.status).toBe(200);
+    const w2 = await api("PUT", "/api/vault/note", "mara", {
+      path: "Personal/erin/Intrusion.md",
+      content: "nope",
+    });
+    expect(w2.status).toBe(403);
   });
 });
 

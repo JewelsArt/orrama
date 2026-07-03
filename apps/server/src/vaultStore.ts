@@ -5,6 +5,7 @@
  * Every read surface goes through @basalt/core ACL — implemented once, used everywhere.
  */
 import crypto from "node:crypto";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { and, desc, eq } from "drizzle-orm";
@@ -40,8 +41,16 @@ export class HttpError extends Error {
   }
 }
 
+export interface NoteChangedEvent {
+  noteId: string;
+  path: string;
+  authorId: string | null;
+}
+
 export class VaultStore {
   index = new VaultIndex();
+  /** Live-sync bus: "note-changed" (NoteChangedEvent) fired on every mutation. */
+  readonly events = new EventEmitter();
   private docs = new Map<string, Y.Doc>(); // noteId → Y.Doc
   private root = vaultDir();
 
@@ -208,6 +217,7 @@ export class VaultStore {
     }
     this.syncNoteRow(note);
     this.reconcileTaskObjects(note);
+    this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id } satisfies NoteChangedEvent);
     return note;
   }
 
@@ -230,6 +240,7 @@ export class VaultStore {
     this.index.remove(fromPath);
     const moved = this.index.upsert({ path: toPath, content: note.content, mtimeMs: Date.now() });
     this.syncNoteRow(moved);
+    this.events.emit("note-changed", { noteId: moved.id, path: moved.path, authorId: user.id } satisfies NoteChangedEvent);
     return moved;
   }
 

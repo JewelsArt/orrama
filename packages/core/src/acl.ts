@@ -69,6 +69,20 @@ function passesOnlyFilter(user: AclUser, note: AclNote): boolean {
 }
 
 /**
+ * Personal vaults: everything under `Personal/<username>/` belongs to that user.
+ * No grant rows needed — the path IS the permission. Workspace owners still see
+ * everything (§5.3.4, documented; no secret superuser), and a personal note can
+ * be shared read-only with `#share/<team>` like any other note.
+ */
+export const PERSONAL_ROOT = "Personal";
+
+export function personalOwner(folder: string): string | null {
+  if (folder === PERSONAL_ROOT) return "";
+  if (folder.startsWith(PERSONAL_ROOT + "/")) return folder.split("/")[1] ?? "";
+  return null;
+}
+
+/**
  * Read access (§5.2): owners always; otherwise the user must pass the #only/ filter
  * (restrict overlay wins over everything), and then either have folder read access
  * or be in a #share/ team (share grants read-only access across folder boundaries).
@@ -76,6 +90,11 @@ function passesOnlyFilter(user: AclUser, note: AclNote): boolean {
 export function canRead(user: AclUser, note: AclNote, grants: FolderGrant[]): boolean {
   if (user.isOwner) return true;
   if (!passesOnlyFilter(user, note)) return false;
+  const personal = personalOwner(note.folder);
+  if (personal !== null) {
+    // Personal space: the owner reads; #share can extend read; folder grants never apply.
+    return personal === user.username || note.shareTeams.some((t) => user.teams.includes(t));
+  }
   if (roleAtLeast(folderRole(user, note.folder, grants), "viewer")) return true;
   return note.shareTeams.some((t) => user.teams.includes(t));
 }
@@ -84,6 +103,8 @@ export function canRead(user: AclUser, note: AclNote, grants: FolderGrant[]): bo
 export function canEdit(user: AclUser, note: AclNote, grants: FolderGrant[]): boolean {
   if (user.isOwner) return true;
   if (!passesOnlyFilter(user, note)) return false;
+  const personal = personalOwner(note.folder);
+  if (personal !== null) return personal === user.username;
   return roleAtLeast(folderRole(user, note.folder, grants), "editor");
 }
 
