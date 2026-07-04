@@ -105,6 +105,30 @@ export const taskComments = sqliteTable("task_comments", {
   createdAt: integer("created_at").notNull(),
 });
 
+/**
+ * Calendar blocks: a promoted task can occupy several time slots across the
+ * week — drop 2h today, the remaining hours stay in the backlog for later.
+ */
+export const taskBlocks = sqliteTable("task_blocks", {
+  id: text("id").primaryKey(),
+  taskObjectId: text("task_object_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  startMin: integer("start_min").notNull(), // minutes from midnight
+  durationMin: integer("duration_min").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** Calendar events (meetings etc.) — personal, created by clicking a slot. */
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  title: text("title").notNull(),
+  date: text("date").notNull(),
+  startMin: integer("start_min").notNull(),
+  durationMin: integer("duration_min").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
 export const invites = sqliteTable("invites", {
   token: text("token").primaryKey(),
   teamIds: text("team_ids").notNull(), // JSON array of team ids

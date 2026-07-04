@@ -27,6 +27,11 @@ interface PlannedTask {
   /** Calendar placement, when the assignee has dragged it onto a day. */
   blockId: string | null;
   plannedDate: string | null;
+  objectId: string | null;
+  /** Time blocks booked on the calendar; estimate minus these = backlog remainder. */
+  blocks: { id: string; date: string; startMin: number; durationMin: number }[];
+  scheduledHours: number;
+  remainingHours: number;
 }
 
 const HOURS_PER_DAY = 6; // focused hours, not office hours
@@ -113,6 +118,13 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
 
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
+    const allBlocks = db.select().from(tables.taskBlocks).all();
+    const blocksByObj = new Map<string, typeof allBlocks>();
+    for (const b of allBlocks) {
+      const list = blocksByObj.get(b.taskObjectId) ?? [];
+      list.push(b);
+      blocksByObj.set(b.taskObjectId, list);
+    }
 
     // Schedule per assignee: earliest deadline first, then priority.
     const sorted = [...open].sort(
@@ -128,6 +140,13 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
       cursors.set(key, finish.getTime());
       const finishDay = finish.toISOString().slice(0, 10);
       const obj = t.blockId ? objByKey.get(`${t.noteId}:${t.blockId}`) : undefined;
+      const blocks = (obj ? (blocksByObj.get(obj.id) ?? []) : []).map((b) => ({
+        id: b.id,
+        date: b.date,
+        startMin: b.startMin,
+        durationMin: b.durationMin,
+      }));
+      const scheduledHours = Math.round((blocks.reduce((s, b) => s + b.durationMin, 0) / 60) * 2) / 2;
       return {
         noteId: t.noteId,
         noteTitle: t.noteTitle,
@@ -142,6 +161,10 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
         atRisk: t.due !== undefined && t.due !== null && finishDay > t.due,
         blockId: t.blockId ?? null,
         plannedDate: obj?.plannedDate ?? null,
+        objectId: obj?.id ?? null,
+        blocks,
+        scheduledHours,
+        remainingHours: Math.max(est - scheduledHours, 0),
       };
     });
 

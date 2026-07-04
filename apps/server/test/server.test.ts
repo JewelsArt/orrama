@@ -294,6 +294,47 @@ describe("graph + plan + profile", () => {
     expect(u.json.plannedDate).toBeNull();
   });
 
+  it("time blocks: default 2h capped by remaining estimate, resize, delete", async () => {
+    const erin = await api("GET", "/api/vault/tree", "erin");
+    const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
+    const note = await api("GET", `/api/vault/note/${road.id}`, "erin");
+    const line = note.json.content.split("\n").findIndex((l: string) => l.includes("dashboard API"));
+    const b1 = await api("POST", "/api/tasks/blocks", "erin", {
+      noteId: road.id, line, date: "2026-07-06", startMin: 9 * 60, estimateHours: 3,
+    });
+    expect(b1.status).toBe(200);
+    expect(b1.json.durationMin).toBe(120); // default 2h of the 3h estimate
+    // second drop books only the remaining hour
+    const b2 = await api("POST", "/api/tasks/blocks", "erin", {
+      noteId: road.id, blockId: b1.json.taskObject.blockId, date: "2026-07-07", startMin: 14 * 60, estimateHours: 3,
+    });
+    expect(b2.json.durationMin).toBe(60);
+    // plan reflects both blocks + scheduled/remaining bookkeeping
+    const p = await api("GET", "/api/plan/engineering", "erin");
+    const task = p.json.assignees.flatMap((a: { tasks: { text: string; blocks: unknown[]; scheduledHours: number; remainingHours: number }[] }) => a.tasks)
+      .find((t: { text: string }) => t.text === "dashboard API");
+    expect(task.blocks.length).toBe(2);
+    expect(task.scheduledHours).toBe(3);
+    expect(task.remainingHours).toBe(0);
+    // resize with 30-min snapping, then delete
+    const patched = await api("PATCH", `/api/blocks/${b1.json.id}`, "erin", { durationMin: 100 });
+    expect(patched.json.durationMin).toBe(90);
+    expect((await api("DELETE", `/api/blocks/${b1.json.id}`, "erin")).status).toBe(200);
+    expect((await api("DELETE", `/api/blocks/${b2.json.id}`, "erin")).status).toBe(200);
+  });
+
+  it("events: owner-only edit, range query marks mine", async () => {
+    const e = await api("POST", "/api/events", "mara", { title: "Acme kickoff call", date: "2026-07-07", startMin: 10 * 60, durationMin: 45 });
+    expect(e.status).toBe(200);
+    expect(e.json.durationMin).toBe(60); // snapped to 30-min grid, min 30 → 45→60? (rounded)
+    const list = await api("GET", "/api/events?from=2026-07-06&to=2026-07-12", "erin");
+    const found = list.json.find((x: { id: string }) => x.id === e.json.id);
+    expect(found.username).toBe("mara");
+    expect(found.mine).toBe(false);
+    expect((await api("PATCH", `/api/events/${e.json.id}`, "erin", { title: "hijack" })).status).toBe(403);
+    expect((await api("DELETE", `/api/events/${e.json.id}`, "mara")).status).toBe(200);
+  });
+
   it("profile PATCH updates avatar and rejects junk", async () => {
     const r = await api("PATCH", "/api/me", "mara", { avatar: "ember" });
     expect(r.json.avatar).toBe("ember");

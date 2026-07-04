@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS invites (
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT
 );
+CREATE TABLE IF NOT EXISTS task_blocks (
+  id TEXT PRIMARY KEY, task_object_id TEXT NOT NULL, date TEXT NOT NULL,
+  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS task_blocks_date ON task_blocks (date);
+CREATE TABLE IF NOT EXISTS events (
+  id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, title TEXT NOT NULL, date TEXT NOT NULL,
+  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS events_date ON events (date);
 `;
 
 export function createDb(file = dbPath()) {
