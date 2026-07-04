@@ -335,6 +335,22 @@ describe("graph + plan + profile", () => {
     expect((await api("DELETE", `/api/events/${e.json.id}`, "mara")).status).toBe(200);
   });
 
+  it("contacts: frontmatter view over #contact notes, personal ones stay private", async () => {
+    const list = await api("GET", "/api/contacts", "erin");
+    expect(list.status).toBe(200);
+    const freek = list.json.find((c: { name: string }) => c.name === "Pieter Haans");
+    expect(freek).toMatchObject({ sector: "Finance", company: "Scooperz", email: "p.haans@example.com" });
+    // mara files a private contact in her personal vault; erin never sees it
+    await api("PUT", "/api/vault/note", "mara", {
+      path: "Personal/mara/Contacts/Secret Source.md",
+      content: "---\ntitle: Secret Source\ntags: [contact]\nsector: Marketing\n---\n# Secret Source\n",
+    });
+    const maraList = await api("GET", "/api/contacts", "mara");
+    expect(maraList.json.some((c: { name: string; personal: boolean }) => c.name === "Secret Source" && c.personal)).toBe(true);
+    const erinList = await api("GET", "/api/contacts", "erin");
+    expect(erinList.json.some((c: { name: string }) => c.name === "Secret Source")).toBe(false);
+  });
+
   it("profile PATCH updates avatar and rejects junk", async () => {
     const r = await api("PATCH", "/api/me", "mara", { avatar: "ember" });
     expect(r.json.avatar).toBe("ember");

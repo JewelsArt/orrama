@@ -87,6 +87,56 @@ The teaser nobody outside marketing may see — not even in search counts.
 - [ ] book influencer slots @mara due:2026-07-11
 - [ ] draft teaser video script @mara !p1
 `,
+  "Contacts/Pieter Haans.md": `---
+title: Pieter Haans
+tags: [contact]
+sector: Finance
+role: Head of Finance (company coach)
+company: Scooperz
+email: p.haans@example.com
+phone: "+44 7700 900022"
+linkedin: ""
+---
+# Pieter Haans
+
+Company coach during the Scooperz internship.
+`,
+  "Contacts/Marijke Elzinga.md": `---
+title: Marijke Elzinga
+tags: [contact]
+sector: Leadership
+role: CEO
+company: Scooperz
+email: ""
+phone: ""
+linkedin: ""
+---
+# Marijke Elzinga
+`,
+  "Contacts/Wilma Doorn.md": `---
+title: Wilma Doorn
+tags: [contact]
+sector: Operations
+role: COO
+company: Scooperz
+email: ""
+phone: "+44 7700 900021"
+linkedin: linkedin.com/in/wilmadoorn
+---
+# Wilma Doorn
+`,
+  "Contacts/Claire Bertrand.md": `---
+title: Claire Bertrand
+tags: [contact]
+sector: University
+role: AMSIB Internship Supervisor
+company: AMSIB (HvA)
+email: ""
+phone: ""
+linkedin: ""
+---
+# Claire Bertrand
+`,
   "Shared/Meeting Notes 2026-07-01.md": `---
 title: Meeting Notes 2026-07-01
 tags: [meeting]
@@ -141,6 +191,8 @@ async function main() {
     { id: uid("g"), teamId: mkt.id, folder: "Marketing", role: "editor" },
     { id: uid("g"), teamId: eng.id, folder: "Shared", role: "editor" },
     { id: uid("g"), teamId: mkt.id, folder: "Shared", role: "editor" },
+    { id: uid("g"), teamId: eng.id, folder: "Contacts", role: "editor" },
+    { id: uid("g"), teamId: mkt.id, folder: "Contacts", role: "editor" },
     { id: uid("g"), teamId: eng.id, folder: "", role: "viewer" },
     { id: uid("g"), teamId: mkt.id, folder: "", role: "viewer" },
   ]).run();

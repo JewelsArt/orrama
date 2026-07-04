@@ -4,7 +4,8 @@ import { api, clearToken, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
-import { IconAdmin, IconArchitecture, IconAsk, IconMark, IconOverview, IconPlanning, IconSearch } from "./icons.js";
+import { Contacts } from "./Contacts.js";
+import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconMark, IconOverview, IconPlanning, IconSearch } from "./icons.js";
 import { Login } from "./Login.js";
 import { Overview } from "./Overview.js";
 import { Planning } from "./Planning.js";
@@ -17,12 +18,14 @@ export type View =
   | { kind: "architecture"; noteId?: string }
   | { kind: "planning" }
   | { kind: "overview" }
+  | { kind: "contacts" }
   | { kind: "admin" };
 
 const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
   { kind: "architecture", label: "Architecture", icon: IconArchitecture },
   { kind: "planning", label: "Planning", icon: IconPlanning },
   { kind: "overview", label: "Overview", icon: IconOverview },
+  { kind: "contacts", label: "Contacts", icon: IconContacts },
   { kind: "admin", label: "Admin", icon: IconAdmin, ownerOnly: true },
 ];
 
@@ -69,6 +72,7 @@ export function App() {
       } else if (e.key === "1") setView({ kind: "architecture" });
       else if (e.key === "2") setView({ kind: "planning" });
       else if (e.key === "3") setView({ kind: "overview" });
+      else if (e.key === "4") setView({ kind: "contacts" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -138,6 +142,8 @@ export function App() {
           <Planning me={me} onOpenNote={openNote} />
         ) : view.kind === "overview" ? (
           <Overview me={me} onOpenNote={openNote} />
+        ) : view.kind === "contacts" ? (
+          <Contacts me={me} onOpenNote={openNote} />
         ) : (
           <Admin />
         )}

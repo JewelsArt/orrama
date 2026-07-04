@@ -107,6 +107,15 @@ export const IconSignOut = () => (
   </svg>
 );
 
+export const IconContacts = () => (
+  <svg {...base}>
+    <circle cx="6" cy="5.5" r="2.6" />
+    <path d="M1.8 13.5 c0-2.6 1.9-4.2 4.2-4.2 s4.2 1.6 4.2 4.2" />
+    <circle cx="11.8" cy="5" r="1.9" />
+    <path d="M10.8 9.1 c2.2 0 3.5 1.5 3.5 3.6" />
+  </svg>
+);
+
 export const IconChevron = ({ open = false }: { open?: boolean }) => (
   <svg {...base} style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform .12s" }}>
     <path d="M6 3.5 L10.5 8 L6 12.5" />
