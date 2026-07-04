@@ -22,6 +22,15 @@ export const IconMark = ({ size = 18 }: { size?: number }) => (
   </svg>
 );
 
+export const IconDashboard = () => (
+  <svg {...base}>
+    <rect x="2" y="2.5" width="5" height="6.5" rx="1" />
+    <rect x="9" y="2.5" width="5" height="4" rx="1" />
+    <rect x="2" y="11" width="5" height="2.5" rx="1" />
+    <rect x="9" y="8.5" width="5" height="5" rx="1" />
+  </svg>
+);
+
 export const IconArchitecture = () => (
   <svg {...base}>
     <rect x="2" y="2.5" width="3.4" height="11" rx="0.5" />

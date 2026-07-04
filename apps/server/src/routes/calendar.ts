@@ -11,6 +11,7 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { promoteTaskLine } from "@basalt/core";
 import { tables, type Db } from "../db.js";
+import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -194,6 +195,11 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       .innerJoin(tables.users, eq(tables.events.ownerId, tables.users.id))
       .where(and(gte(tables.events.date, from), lte(tables.events.date, to)))
       .all();
-    return rows.map((r) => ({ ...r, mine: r.ownerId === req.userId }));
+    const own = rows.map((r) => ({ ...r, mine: r.ownerId === req.userId }));
+    // Subscribed external calendars (Google/Outlook/uni ICS): read-only layer,
+    // returned only to the feed's owner — an external calendar is personal.
+    const me = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
+    const ics = me ? await icsEventsFor(db, req.userId, me.username, from, to) : [];
+    return [...own, ...ics];
   });
 }

@@ -351,6 +351,21 @@ describe("graph + plan + profile", () => {
     expect(erinList.json.some((c: { name: string }) => c.name === "Secret Source")).toBe(false);
   });
 
+  it("home aggregates personal stats, trend, agenda and focus", async () => {
+    const r = await api("GET", "/api/home", "erin");
+    expect(r.status).toBe(200);
+    expect(r.json.stats.notes).toBeGreaterThan(0);
+    expect(r.json.stats.openTasks).toBeGreaterThanOrEqual(0);
+    expect(r.json.trend).toHaveLength(14);
+    expect(Array.isArray(r.json.agenda)).toBe(true);
+    expect(r.json.focus.length).toBeGreaterThan(0);
+    // focus is ACL-filtered: no #only/marketing task leaks to erin
+    expect(r.json.focus.some((f: { text: string }) => f.text === "finalize budget")).toBe(false);
+    // and sorted by priority (p1 before unprioritised)
+    const prios = r.json.focus.map((f: { priority: number | null }) => f.priority ?? 4);
+    expect(prios).toEqual([...prios].sort((a: number, b: number) => a - b));
+  });
+
   it("profile PATCH updates avatar and rejects junk", async () => {
     const r = await api("PATCH", "/api/me", "mara", { avatar: "ember" });
     expect(r.json.avatar).toBe("ember");

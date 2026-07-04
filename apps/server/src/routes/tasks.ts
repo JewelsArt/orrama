@@ -32,6 +32,13 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const updated = setTaskChecked(note.content, { line: body.line, blockId: body.blockId }, body.checked);
     if (updated === null) throw new HttpError(409, "task line no longer exists");
     const saved = store.write(user, note.path, updated);
+    if (body.checked) {
+      const parsed = store.index.get(saved.id)?.tasks.find((t) => (body.blockId ? t.blockId === body.blockId : t.line === body.line));
+      store.events.emit("task-completed", {
+        noteId: saved.id, path: note.path, authorId: user.id,
+        blockId: parsed?.blockId ?? body.blockId ?? null, text: parsed?.text ?? "",
+      });
+    }
     return { id: saved.id, checked: body.checked };
   });
 
@@ -130,6 +137,12 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     if (body.status && body.status !== obj.status && (body.status === "done" || obj.status === "done")) {
       const updated = setTaskChecked(note.content, { blockId: obj.blockId }, body.status === "done");
       if (updated !== null) store.write(user, note.path, updated); // file edit through CRDT
+      if (body.status === "done") {
+        const parsed = store.index.get(obj.noteId)?.tasks.find((t) => t.blockId === obj.blockId);
+        store.events.emit("task-completed", {
+          noteId: obj.noteId, path: note.path, authorId: user.id, blockId: obj.blockId, text: parsed?.text ?? "",
+        });
+      }
     }
     db.update(tables.taskObjects)
       .set({

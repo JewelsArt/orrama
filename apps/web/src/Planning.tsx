@@ -45,6 +45,11 @@ interface CalEvent {
   durationMin: number;
   username: string;
   mine: boolean;
+  /** Set on occurrences from a subscribed ICS feed (Google/uni/…): render-only. */
+  source?: "ics";
+  readonly?: boolean;
+  feedLabel?: string;
+  allDay?: boolean;
 }
 
 interface Member {
@@ -363,14 +368,23 @@ function WeekGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
 
+  // An item's *effective* day honors an in-flight drag: while dragging, the
+  // stored date hasn't changed yet (that waits on the drop PATCH), so bucket by
+  // the live drag date instead — otherwise crossing a day boundary drops the
+  // item out of its old column before the new one has claimed it, and it blinks
+  // out mid-drag.
+  const effectiveDate = (itemKind: "block" | "event", id: string, stored: string) =>
+    drag && drag.itemKind === itemKind && drag.id === id ? drag.date : stored;
+
   const laneItems = (u: string, date: string) => {
     const blocks: { block: TimeBlock; task: PlanTask }[] = [];
     for (const t of tasks) {
       if (t.assignee !== u) continue;
-      for (const b of t.blocks) if (b.date === date) blocks.push({ block: b, task: t });
+      for (const b of t.blocks) if (effectiveDate("block", b.id, b.date) === date) blocks.push({ block: b, task: t });
     }
-    const evs = events.filter((e) => e.username === u && e.date === date);
-    return { blocks, evs };
+    const evs = events.filter((e) => e.username === u && !e.allDay && effectiveDate("event", e.id, e.date) === date);
+    const allDay = events.filter((e) => e.username === u && e.date === date && e.allDay);
+    return { blocks, evs, allDay };
   };
 
   /** Live geometry for an item, honoring an in-flight drag. */
@@ -451,7 +465,7 @@ function WeekGrid({
               >
                 {selected.map((u) => {
                   const mine = u === me.username;
-                  const { blocks, evs } = laneItems(u, day);
+                  const { blocks, evs, allDay } = laneItems(u, day);
                   return (
                     <div
                       key={u}
@@ -463,6 +477,11 @@ function WeekGrid({
                       }}
                     >
                       {mine && <span className="cal-lane-hint">double-click for event</span>}
+                      {allDay.map((ev, i) => (
+                        <span key={ev.id} className="cal-allday" style={{ top: 2 + i * 18 }} title={`${ev.title}${ev.feedLabel ? ` — ${ev.feedLabel}` : ""}`}>
+                          {ev.title}
+                        </span>
+                      ))}
                       {blocks.map(({ block, task }) => {
                         const g = geo(block.id, "block", block.date, block.startMin, block.durationMin);
                         if (g.date !== day) return null;
@@ -504,10 +523,10 @@ function WeekGrid({
                         return (
                           <div
                             key={ev.id}
-                            className={`cal-item event ${ev.mine ? "" : "readonly"} ${g.dragging ? "dragging" : ""}`}
+                            className={`cal-item event ${ev.source === "ics" ? "ics" : ""} ${ev.mine && !ev.readonly ? "" : "readonly"} ${g.dragging ? "dragging" : ""}`}
                             style={{ top: g.top, height: g.height }}
                             onPointerDown={(e) => {
-                              if (!ev.mine || (e.target as HTMLElement).closest(".cal-resize")) return;
+                              if (!ev.mine || ev.readonly || (e.target as HTMLElement).closest(".cal-resize")) return;
                               e.preventDefault();
                               setDrag({ kind: "move", itemKind: "event", id: ev.id, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin, moved: false });
                             }}
@@ -518,9 +537,10 @@ function WeekGrid({
                           >
                             <span className="cal-item-time">
                               {fmtMin(g.startMin)} · {fmtH(g.durationMin)}
+                              {ev.feedLabel ? ` · ${ev.feedLabel}` : ""}
                             </span>
                             <span className="cal-item-title">{ev.title}</span>
-                            {ev.mine && (
+                            {ev.mine && !ev.readonly && (
                               <span
                                 className="cal-resize"
                                 onPointerDown={(e) => {
@@ -621,7 +641,7 @@ function CalPopup({
 
         {popup.kind === "event" && (
           <>
-            {popup.event.mine ? (
+            {popup.event.mine && !popup.event.readonly ? (
               <input
                 className="cal-popup-input"
                 value={title}
@@ -638,9 +658,10 @@ function CalPopup({
               <p className="cal-popup-title">{popup.event.title}</p>
             )}
             <p className="cal-popup-meta">
-              {popup.event.date} · {fmtMin(popup.event.startMin)} · {popup.event.username}
+              {popup.event.date} · {fmtMin(popup.event.startMin)} ·{" "}
+              {popup.event.source === "ics" ? `${popup.event.feedLabel} (subscribed calendar)` : popup.event.username}
             </p>
-            {popup.event.mine && (
+            {popup.event.mine && !popup.event.readonly && (
               <>
                 <DurationStepper value={duration} onChange={patchDuration} />
                 <div className="cal-popup-actions">
@@ -735,7 +756,10 @@ function MonthGrid({
   const today = iso(new Date());
   const blockMin = new Map<string, number>();
   for (const t of tasks) for (const b of t.blocks) blockMin.set(b.date, (blockMin.get(b.date) ?? 0) + b.durationMin);
-  for (const e of events) blockMin.set(e.date, (blockMin.get(e.date) ?? 0) + e.durationMin);
+  for (const e of events) {
+    if (e.allDay) continue; // an all-day chip isn't 24h of load
+    blockMin.set(e.date, (blockMin.get(e.date) ?? 0) + e.durationMin);
+  }
 
   return (
     <div className="cal-month">

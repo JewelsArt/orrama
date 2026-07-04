@@ -69,6 +69,20 @@ CREATE TABLE IF NOT EXISTS events (
   start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS events_date ON events (date);
+CREATE TABLE IF NOT EXISTS ics_feeds (
+  id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, label TEXT NOT NULL, url_encrypted TEXT NOT NULL,
+  created_at INTEGER NOT NULL, last_synced_at INTEGER, last_error TEXT
+);
+CREATE TABLE IF NOT EXISTS api_tokens (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,
+  created_at INTEGER NOT NULL, last_used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL,
+  events TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL, last_status INTEGER, last_fired_at INTEGER
+);
 `;
 
 export function createDb(file = dbPath()) {
@@ -84,6 +98,11 @@ export function createDb(file = dbPath()) {
   }
   try {
     sqlite.exec(`ALTER TABLE task_objects ADD COLUMN planned_date TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN ics_token TEXT`);
   } catch {
     /* column exists */
   }

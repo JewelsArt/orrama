@@ -20,6 +20,11 @@ import { wsRoutes } from "./routes/ws.js";
 import { planRoutes } from "./routes/plan.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { contactRoutes } from "./routes/contacts.js";
+import { homeRoutes } from "./routes/home.js";
+import { icsRoutes } from "./routes/ics.js";
+import { integrationRoutes, hashToken } from "./routes/integrations.js";
+import { initWebhooks } from "./webhooks.js";
+import { eq } from "drizzle-orm";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -27,6 +32,8 @@ declare module "fastify" {
   }
   interface FastifyRequest {
     userId: string;
+    /** True when authenticated with a personal API token instead of a session JWT. */
+    viaToken?: boolean;
   }
 }
 
@@ -45,6 +52,17 @@ export async function buildServer() {
   await app.register(websocket);
 
   app.decorate("authenticate", async (req: any, reply: any) => {
+    // Personal API tokens (`bslt_…`) ride the same gate as JWTs: scripts and
+    // shortcuts get the caller's normal permissions, nothing more.
+    const header = (req.headers.authorization ?? "") as string;
+    if (header.startsWith("Bearer bslt_")) {
+      const row = db.select().from(tables.apiTokens).where(eq(tables.apiTokens.tokenHash, hashToken(header.slice(7)))).get();
+      if (!row) return reply.code(401).send({ error: "invalid API token" });
+      req.userId = row.userId;
+      req.viaToken = true;
+      db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();
+      return;
+    }
     try {
       const payload = await req.jwtVerify();
       req.userId = payload.sub as string;
@@ -70,6 +88,10 @@ export async function buildServer() {
   await planRoutes(app, db, store);
   await calendarRoutes(app, db, store);
   await contactRoutes(app, db, store);
+  await homeRoutes(app, db, store);
+  await icsRoutes(app, db, store);
+  await integrationRoutes(app, db, store);
+  initWebhooks(db, store);
 
   app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));
 

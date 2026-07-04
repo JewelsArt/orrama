@@ -15,6 +15,8 @@ export const users = sqliteTable("users", {
   isOwner: integer("is_owner", { mode: "boolean" }).notNull().default(false),
   /** Chosen character id (see apps/web avatars) — a face, not a photo. */
   avatar: text("avatar").notNull().default("basalt"),
+  /** Secret for the user's outbound ICS feed URL (null = feed disabled). */
+  icsToken: text("ics_token"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -135,6 +137,46 @@ export const invites = sqliteTable("invites", {
   createdBy: text("created_by").notNull(),
   expiresAt: integer("expires_at").notNull(),
   usedBy: text("used_by"),
+});
+
+/**
+ * Subscribed external calendars (Google "secret address", Outlook, uni
+ * timetables). The URL is a credential — encrypted at rest like the AI key.
+ * Events are fetched on demand, never stored: the feed stays the source of truth.
+ */
+export const icsFeeds = sqliteTable("ics_feeds", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  label: text("label").notNull(),
+  urlEncrypted: text("url_encrypted").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastSyncedAt: integer("last_synced_at"),
+  lastError: text("last_error"),
+});
+
+/** Personal API tokens (`bslt_…`) — stored as a hash, shown once on creation. */
+export const apiTokens = sqliteTable("api_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  label: text("label").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  /** First characters of the token, for recognizing it in the list. */
+  prefix: text("prefix").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+});
+
+/** Outgoing webhooks: HMAC-signed POSTs on vault activity the owner can read. */
+export const webhooks = sqliteTable("webhooks", {
+  id: text("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  url: text("url").notNull(),
+  secret: text("secret").notNull(),
+  events: text("events").notNull(), // JSON array: "note.changed" | "task.completed"
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at").notNull(),
+  lastStatus: integer("last_status"),
+  lastFiredAt: integer("last_fired_at"),
 });
 
 /** Projects: a folder or tag designated as the unit progress is computed against (spec §3). */

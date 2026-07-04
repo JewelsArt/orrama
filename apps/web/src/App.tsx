@@ -5,7 +5,8 @@ import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
 import { Contacts } from "./Contacts.js";
-import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconMark, IconOverview, IconPlanning, IconSearch } from "./icons.js";
+import { Dashboard } from "./Dashboard.js";
+import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMark, IconOverview, IconPlanning, IconSearch } from "./icons.js";
 import { Login } from "./Login.js";
 import { Overview } from "./Overview.js";
 import { Planning } from "./Planning.js";
@@ -15,6 +16,7 @@ import { Settings } from "./Settings.js";
 import { connectWs, disconnectWs } from "./ws.js";
 
 export type View =
+  | { kind: "dashboard" }
   | { kind: "architecture"; noteId?: string }
   | { kind: "planning" }
   | { kind: "overview" }
@@ -22,6 +24,7 @@ export type View =
   | { kind: "admin" };
 
 const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
+  { kind: "dashboard", label: "Dashboard", icon: IconDashboard },
   { kind: "architecture", label: "Architecture", icon: IconArchitecture },
   { kind: "planning", label: "Planning", icon: IconPlanning },
   { kind: "overview", label: "Overview", icon: IconOverview },
@@ -31,7 +34,7 @@ const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; own
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
-  const [view, setView] = useState<View>({ kind: "architecture" });
+  const [view, setView] = useState<View>({ kind: "dashboard" });
   const [theme, setTheme] = useState(localStorage.getItem("basalt-theme") ?? "command");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -69,10 +72,11 @@ export function App() {
       if (e.key === "c") {
         e.preventDefault();
         setCaptureOpen(true);
-      } else if (e.key === "1") setView({ kind: "architecture" });
-      else if (e.key === "2") setView({ kind: "planning" });
-      else if (e.key === "3") setView({ kind: "overview" });
-      else if (e.key === "4") setView({ kind: "contacts" });
+      } else if (e.key === "1") setView({ kind: "dashboard" });
+      else if (e.key === "2") setView({ kind: "architecture" });
+      else if (e.key === "3") setView({ kind: "planning" });
+      else if (e.key === "4") setView({ kind: "overview" });
+      else if (e.key === "5") setView({ kind: "contacts" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -136,7 +140,9 @@ export function App() {
       </nav>
 
       <main className="content">
-        {view.kind === "architecture" ? (
+        {view.kind === "dashboard" ? (
+          <Dashboard me={me} onOpenNote={openNote} />
+        ) : view.kind === "architecture" ? (
           <Architecture me={me} noteId={view.noteId} />
         ) : view.kind === "planning" ? (
           <Planning me={me} onOpenNote={openNote} />
