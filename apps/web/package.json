@@ -19,10 +19,12 @@
     "@codemirror/state": "^6.5.0",
     "@codemirror/view": "^6.36.0",
     "@lezer/highlight": "^1.2.3",
+    "d3-force": "^3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/d3-force": "^3.0.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.0",

@@ -1,3 +1,13 @@
+import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type Simulation,
+} from "d3-force";
 import { useEffect, useRef } from "react";
 
 export interface GraphData {
@@ -5,117 +15,136 @@ export interface GraphData {
   edges: { from: string; to: string }[];
 }
 
-/* Folder group colors — the same language as Jules's Obsidian graph. */
-const GROUP_COLORS = ["#4a9eff", "#e5383b", "#f5a623", "#a855f7", "#2dd4bf", "#8888aa"];
-
-interface LaidNode {
+interface SimNode {
   id: string;
   title: string;
-  folder: string;
+  color: string;
+  r: number;
   x: number;
   y: number;
-  r: number;
-  color: string;
+  vx: number;
+  vy: number;
+  fx?: number | null;
+  fy?: number | null;
+}
+interface SimLink {
+  source: SimNode;
+  target: SimNode;
 }
 
+/** Layout + view persist across note open/close so the map never re-scatters. */
+const savedPos = new Map<string, { x: number; y: number }>();
+const savedView = { x: 0, y: 0, k: 1, inited: false };
+
 /**
- * The map. Full-canvas link graph in the style of the owner's Obsidian graph:
- * near-black ground, muted nodes colored by top-level folder, quiet labels,
- * white highlight on hover, click to open. Static seeded layout — a map,
- * not a simulation.
+ * The map: a live force-directed graph, the way Obsidian does it. Nodes repel
+ * and collide (so they never stack), links pull like springs, and you can grab
+ * any node and drag it — the rest of the web reacts. Wheel to zoom, drag the
+ * background to pan, hover to light up a node's neighbourhood, click to open.
+ * Colour comes from the shared category palette, so a note is the same colour
+ * here as in the file list. Canvas (not SVG/WebGL) because at hundreds of nodes
+ * it stays smooth and the 2-D interaction model is exactly what this needs.
  */
 export function GraphCanvas({
   graph,
   visibleIds,
+  highlightIds,
+  colorForId,
   onOpen,
 }: {
   graph: GraphData | null;
   visibleIds: Set<string>;
+  highlightIds: Set<string> | null;
+  colorForId: (id: string) => string;
   onOpen: (id: string) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const nodesRef = useRef<LaidNode[]>([]);
   const hoverRef = useRef<string | null>(null);
+  const highlightRef = useRef(highlightIds);
+  highlightRef.current = highlightIds;
+  const colorRef = useRef(colorForId);
+  colorRef.current = colorForId;
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
+  const redrawRef = useRef<(() => void) | null>(null);
+  const recolorRef = useRef<(() => void) | null>(null);
+
+  // Rebuild the simulation only when the actual set of nodes/edges changes —
+  // not on every unrelated re-render (colour/highlight updates just redraw).
+  const graphKey = graph
+    ? graph.nodes
+        .filter((n) => visibleIds.has(n.id))
+        .map((n) => n.id)
+        .sort()
+        .join(",") +
+      "|" +
+      graph.edges.length
+    : "";
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas || !graph) return;
     const ctx = canvas.getContext("2d")!;
+    const parent = canvas.parentElement!;
 
-    const layout = (): void => {
-      const parent = canvas.parentElement!;
-      const w = parent.clientWidth;
-      const h = parent.clientHeight;
-      const nodes = graph.nodes.filter((n) => visibleIds.has(n.id));
-      const groups = [...new Set(nodes.map((n) => topFolder(n.folder)))].sort();
-      const groupColor = new Map(groups.map((g, i) => [g, GROUP_COLORS[i % GROUP_COLORS.length]!]));
-
-      // Cluster anchors on a loose ring, then seeded scatter + link relaxation.
-      const anchor = new Map<string, { x: number; y: number }>();
-      groups.forEach((g, i) => {
-        const a = (i / Math.max(groups.length, 1)) * Math.PI * 2 - Math.PI / 2;
-        anchor.set(g, { x: w / 2 + Math.cos(a) * w * 0.24, y: h / 2 + Math.sin(a) * h * 0.24 });
-      });
-      const pos = new Map<string, { x: number; y: number }>();
-      for (const n of nodes) {
-        const a = anchor.get(topFolder(n.folder))!;
-        pos.set(n.id, {
-          x: a.x + (seeded(n.id, 7) - 0.5) * w * 0.3,
-          y: a.y + (seeded(n.id, 13) - 0.5) * h * 0.3,
-        });
-      }
-      const shown = new Set(nodes.map((n) => n.id));
-      const edges = graph.edges.filter((e) => shown.has(e.from) && shown.has(e.to));
-      for (let pass = 0; pass < 4; pass++) {
-        for (const e of edges) {
-          const a = pos.get(e.from)!;
-          const b = pos.get(e.to)!;
-          const mx = (a.x + b.x) / 2;
-          const my = (a.y + b.y) / 2;
-          a.x += (mx - a.x) * 0.16;
-          a.y += (my - a.y) * 0.16;
-          b.x += (mx - b.x) * 0.16;
-          b.y += (my - b.y) * 0.16;
-        }
-        // gentle repulsion so relaxed nodes don't stack
-        for (let i = 0; i < nodes.length; i++) {
-          for (let j = i + 1; j < nodes.length; j++) {
-            const a = pos.get(nodes[i]!.id)!;
-            const b = pos.get(nodes[j]!.id)!;
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < 3600 && d2 > 0) {
-              const d = Math.sqrt(d2);
-              const push = (60 - d) / d / 2;
-              a.x -= dx * push;
-              a.y -= dy * push;
-              b.x += dx * push;
-              b.y += dy * push;
-            }
-          }
-        }
-      }
-      const pad = 50;
-      nodesRef.current = nodes.map((n) => {
-        const p = pos.get(n.id)!;
+    const nodes: SimNode[] = graph.nodes
+      .filter((n) => visibleIds.has(n.id))
+      .map((n) => {
+        const prev = savedPos.get(n.id);
         return {
           id: n.id,
           title: n.title,
-          folder: n.folder,
-          x: Math.max(pad, Math.min(w - pad, p.x)),
-          y: Math.max(pad, Math.min(h - pad, p.y)),
-          r: Math.min(4 + n.links * 1.1, 11),
-          color: groupColor.get(topFolder(n.folder))!,
+          color: colorRef.current(n.id),
+          r: Math.min(4 + n.links * 1.1, 12),
+          x: prev?.x ?? (Math.random() - 0.5) * 600,
+          y: prev?.y ?? (Math.random() - 0.5) * 600,
+          vx: 0,
+          vy: 0,
         };
       });
-    };
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const links: SimLink[] = graph.edges
+      .filter((e) => byId.has(e.from) && byId.has(e.to) && e.from !== e.to)
+      .map((e) => ({ source: byId.get(e.from)!, target: byId.get(e.to)! }));
 
-    const draw = (): void => {
-      const parent = canvas.parentElement!;
+    let w = parent.clientWidth;
+    let h = parent.clientHeight;
+
+    const sim: Simulation<SimNode, SimLink> = forceSimulation(nodes)
+      .force(
+        "link",
+        forceLink<SimNode, SimLink>(links)
+          .id((n) => n.id)
+          .distance(54)
+          .strength(0.22),
+      )
+      .force("charge", forceManyBody<SimNode>().strength(-190).distanceMax(520))
+      .force("collide", forceCollide<SimNode>((n) => n.r + 9).strength(0.95))
+      .force("center", forceCenter(0, 0).strength(0.05))
+      .force("x", forceX(0).strength(0.05))
+      .force("y", forceY(0).strength(0.05))
+      .velocityDecay(0.4)
+      .alphaDecay(0.025);
+
+    if (!savedView.inited) {
+      savedView.x = w / 2;
+      savedView.y = h / 2;
+      savedView.inited = true;
+    }
+
+    const project = (n: { x: number; y: number }) => ({
+      sx: n.x * savedView.k + savedView.x,
+      sy: n.y * savedView.k + savedView.y,
+    });
+    const toGraph = (cx: number, cy: number) => ({
+      x: (cx - savedView.x) / savedView.k,
+      y: (cy - savedView.y) / savedView.k,
+    });
+
+    const draw = () => {
       const dpr = window.devicePixelRatio || 1;
-      const w = parent.clientWidth;
-      const h = parent.clientHeight;
+      w = parent.clientWidth;
+      h = parent.clientHeight;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       canvas.style.width = `${w}px`;
@@ -124,104 +153,207 @@ export function GraphCanvas({
       ctx.clearRect(0, 0, w, h);
 
       const styles = getComputedStyle(document.documentElement);
-      const labelColor = styles.getPropertyValue("--text-dim").trim();
-      const lineColor = styles.getPropertyValue("--text-faint").trim();
+      const lineColor = styles.getPropertyValue("--text-faint").trim() || "#555";
+      const labelColor = styles.getPropertyValue("--text-dim").trim() || "#999";
+      const font = styles.getPropertyValue("--font-ui") || "sans-serif";
+      const k = savedView.k;
 
-      const nodes = nodesRef.current;
-      const byId = new Map(nodes.map((n) => [n.id, n]));
       const hover = hoverRef.current;
+      const highlight = highlightRef.current;
+      const lit = (id: string) => highlight === null || highlight.has(id);
       const neighbors = new Set<string>();
-      if (hover && graph) {
-        for (const e of graph.edges) {
-          if (e.from === hover) neighbors.add(e.to);
-          if (e.to === hover) neighbors.add(e.from);
+      if (hover) {
+        for (const l of links) {
+          if (l.source.id === hover) neighbors.add(l.target.id);
+          if (l.target.id === hover) neighbors.add(l.source.id);
         }
       }
 
-      for (const e of graph!.edges) {
-        const a = byId.get(e.from);
-        const b = byId.get(e.to);
-        if (!a || !b) continue;
-        const hot = hover === e.from || hover === e.to;
+      // edges
+      for (const l of links) {
+        const a = project(l.source);
+        const b = project(l.target);
+        const hot = hover === l.source.id || hover === l.target.id;
+        const faded = !lit(l.source.id) && !lit(l.target.id);
         ctx.strokeStyle = hot ? "#ffffff" : lineColor;
-        ctx.globalAlpha = hot ? 0.7 : 0.18;
-        ctx.lineWidth = hot ? 1.2 : 1;
+        ctx.globalAlpha = hot ? 0.6 : faded ? 0.04 : hover ? 0.08 : 0.14;
+        ctx.lineWidth = hot ? 1.4 : 1;
         ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
+        ctx.moveTo(a.sx, a.sy);
+        ctx.lineTo(b.sx, b.sy);
         ctx.stroke();
       }
 
+      // nodes
+      for (const n of nodes) {
+        const p = project(n);
+        const isHover = n.id === hover;
+        const isNeighbor = neighbors.has(n.id);
+        const isLit = lit(n.id);
+        const dimmed = hover ? !isHover && !isNeighbor : !isLit;
+        const rr = Math.max(n.r * k, 2);
+        ctx.globalAlpha = isHover ? 1 : dimmed ? (isLit ? 0.3 : 0.12) : 0.95;
+        ctx.fillStyle = n.color;
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, rr, 0, Math.PI * 2);
+        ctx.fill();
+        if (isHover) {
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+
+      // labels — Obsidian style: nothing at a glance, the hovered node and its
+      // neighbours always, and everything (lit) once you zoom in to read.
+      const showAll = k >= 1.3;
+      ctx.font = `500 11px ${font}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
       for (const n of nodes) {
         const isHover = n.id === hover;
         const isNeighbor = neighbors.has(n.id);
-        const dimmed = hover !== null && !isHover && !isNeighbor;
-        ctx.globalAlpha = dimmed ? 0.25 : 0.95;
-        ctx.fillStyle = isHover ? "#ffffff" : n.color;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r + (isHover ? 2 : 0), 0, Math.PI * 2);
-        ctx.fill();
-
-        // Labels: always for hover+neighbors and well-linked notes, quiet otherwise.
-        if (isHover || isNeighbor || n.r >= 6) {
-          ctx.globalAlpha = dimmed ? 0.2 : isHover ? 1 : 0.75;
-          ctx.fillStyle = isHover ? "#ffffff" : labelColor;
-          ctx.font = `${isHover ? 600 : 400} 11px ${styles.getPropertyValue("--font-ui")}`;
-          ctx.textAlign = "center";
-          ctx.fillText(n.title, n.x, n.y + n.r + 14);
-        }
+        const show = isHover || isNeighbor || (!hover && showAll && (highlight === null || highlight.has(n.id)));
+        if (!show) continue;
+        const p = project(n);
+        ctx.globalAlpha = isHover ? 1 : 0.75;
+        ctx.fillStyle = isHover ? "#ffffff" : labelColor;
+        const label = n.title.length > 26 ? n.title.slice(0, 25) + "…" : n.title;
+        ctx.fillText(label, p.sx, p.sy + Math.max(n.r * k, 2) + 3);
       }
       ctx.globalAlpha = 1;
     };
 
-    const relayout = () => {
-      layout();
+    sim.on("tick", () => {
+      for (const n of nodes) savedPos.set(n.id, { x: n.x, y: n.y });
+      draw();
+    });
+    redrawRef.current = draw;
+    recolorRef.current = () => {
+      for (const n of nodes) n.color = colorRef.current(n.id);
       draw();
     };
-    relayout();
 
-    const onMove = (ev: MouseEvent) => {
+    // ---- interaction ----
+    let dragNode: SimNode | null = null;
+    let panning = false;
+    let moved = false;
+    let downX = 0;
+    let downY = 0;
+    let startView = { x: 0, y: 0 };
+
+    const cssPos = (e: PointerEvent | WheelEvent) => {
       const rect = canvas.getBoundingClientRect();
-      const mx = ev.clientX - rect.left;
-      const my = ev.clientY - rect.top;
-      let hit: string | null = null;
-      for (const n of nodesRef.current) {
-        const dx = n.x - mx;
-        const dy = n.y - my;
-        if (dx * dx + dy * dy <= (n.r + 6) * (n.r + 6)) {
-          hit = n.id;
-          break;
-        }
+      return { cx: e.clientX - rect.left, cy: e.clientY - rect.top };
+    };
+    const hitTest = (cx: number, cy: number): SimNode | null => {
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        const n = nodes[i]!;
+        const p = project(n);
+        const rr = Math.max(n.r * savedView.k, 2) + 5;
+        if ((p.sx - cx) ** 2 + (p.sy - cy) ** 2 <= rr * rr) return n;
       }
-      if (hit !== hoverRef.current) {
-        hoverRef.current = hit;
-        canvas.style.cursor = hit ? "pointer" : "default";
+      return null;
+    };
+
+    const onDown = (e: PointerEvent) => {
+      const { cx, cy } = cssPos(e);
+      downX = cx;
+      downY = cy;
+      moved = false;
+      const hit = hitTest(cx, cy);
+      canvas.setPointerCapture(e.pointerId);
+      if (hit) {
+        dragNode = hit;
+        const g = toGraph(cx, cy);
+        dragNode.fx = g.x;
+        dragNode.fy = g.y;
+        sim.alphaTarget(0.3).restart();
+      } else {
+        panning = true;
+        startView = { x: savedView.x, y: savedView.y };
+      }
+    };
+    const onMove = (e: PointerEvent) => {
+      const { cx, cy } = cssPos(e);
+      if (!dragNode && !panning) {
+        const hit = hitTest(cx, cy);
+        const id = hit?.id ?? null;
+        if (id !== hoverRef.current) {
+          hoverRef.current = id;
+          canvas.style.cursor = id ? "pointer" : "grab";
+          draw();
+        }
+        return;
+      }
+      if ((cx - downX) ** 2 + (cy - downY) ** 2 > 16) moved = true;
+      if (dragNode) {
+        const g = toGraph(cx, cy);
+        dragNode.fx = g.x;
+        dragNode.fy = g.y;
+      } else if (panning) {
+        savedView.x = startView.x + (cx - downX);
+        savedView.y = startView.y + (cy - downY);
         draw();
       }
     };
-    const onClick = () => {
-      if (hoverRef.current) onOpen(hoverRef.current);
+    const onUp = (e: PointerEvent) => {
+      const { cx, cy } = cssPos(e);
+      if (dragNode) {
+        if (!moved) onOpenRef.current(dragNode.id);
+        dragNode.fx = null;
+        dragNode.fy = null;
+        sim.alphaTarget(0);
+        dragNode = null;
+      } else if (panning) {
+        panning = false;
+        if (!moved) {
+          const hit = hitTest(cx, cy);
+          if (hit) onOpenRef.current(hit.id);
+        }
+      }
     };
-    canvas.addEventListener("mousemove", onMove);
-    canvas.addEventListener("click", onClick);
-    const ro = new ResizeObserver(relayout);
-    ro.observe(canvas.parentElement!);
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const { cx, cy } = cssPos(e);
+      const k2 = Math.max(0.2, Math.min(4, savedView.k * (e.deltaY < 0 ? 1.12 : 0.893)));
+      const gx = (cx - savedView.x) / savedView.k;
+      const gy = (cy - savedView.y) / savedView.k;
+      savedView.k = k2;
+      savedView.x = cx - gx * k2;
+      savedView.y = cy - gy * k2;
+      draw();
+    };
+
+    canvas.style.cursor = "grab";
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    const ro = new ResizeObserver(draw);
+    ro.observe(parent);
+
     return () => {
-      canvas.removeEventListener("mousemove", onMove);
-      canvas.removeEventListener("click", onClick);
+      sim.stop();
+      redrawRef.current = null;
+      recolorRef.current = null;
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("wheel", onWheel);
       ro.disconnect();
     };
-  }, [graph, visibleIds, onOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphKey]);
+
+  // Category filter → repaint (fade); palette change → recolour. No sim rebuild.
+  useEffect(() => {
+    redrawRef.current?.();
+  }, [highlightIds]);
+  useEffect(() => {
+    recolorRef.current?.();
+  }, [colorForId]);
 
   return <canvas className="graph-canvas" ref={ref} />;
-}
-
-function topFolder(folder: string): string {
-  return folder.split("/")[0] || "(root)";
-}
-
-function seeded(s: string, salt: number): number {
-  let x = salt;
-  for (let i = 0; i < s.length; i++) x = (x * 31 + s.charCodeAt(i)) % 233280;
-  return x / 233280;
 }

@@ -3,25 +3,16 @@ import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
 import { GraphCanvas, type GraphData } from "./GraphCanvas.js";
+import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
 import { onWs, sendEditing } from "./ws.js";
-
-type Scope = { kind: "all" } | { kind: "team"; slug: string; name: string } | { kind: "personal" };
-
-function inScope(note: TreeNote, scope: Scope, username: string): boolean {
-  const top = note.path.split("/")[0] ?? "";
-  if (scope.kind === "all") return !note.path.startsWith("Personal/") || note.path.startsWith(`Personal/${username}`);
-  if (scope.kind === "personal") return note.path.startsWith(`Personal/${username}`);
-  // team scope: top-level folder named like the team, or note tagged with the team slug
-  return top.toLowerCase() === scope.name.toLowerCase() || top.toLowerCase() === scope.slug || note.tags.includes(scope.slug);
-}
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
 export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   const [tree, setTree] = useState<TreeNote[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
-  const [scope, setScope] = useState<Scope>({ kind: "all" });
+  const [category, setCategory] = useState("all");
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
@@ -91,9 +82,7 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   );
 
   const createNote = async () => {
-    const suggestion =
-      scope.kind === "personal" ? `Personal/${me.username}/` : scope.kind === "team" ? `${scope.name}/` : "";
-    const name = prompt("Note path:", suggestion);
+    const name = prompt("Note path:", "");
     if (!name || name.endsWith("/")) return;
     const path = name.endsWith(".md") ? name : `${name}.md`;
     try {
@@ -120,8 +109,26 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
     await openNote(open.id);
   };
 
-  const scoped = useMemo(() => tree.filter((n) => inScope(n, scope, me.username)), [tree, scope, me.username]);
+  const scoped = useMemo(
+    () => (category === "all" ? tree : tree.filter((n) => categoryOf(n) === category)),
+    [tree, category],
+  );
   const scopedIds = useMemo(() => new Set(scoped.map((n) => n.id)), [scoped]);
+  const allIds = useMemo(() => new Set(tree.map((n) => n.id)), [tree]);
+  const catCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of tree) m.set(categoryOf(n), (m.get(categoryOf(n)) ?? 0) + 1);
+    return m;
+  }, [tree]);
+
+  // One colour per note id, shared by the map and the file list so the vault is
+  // colour-coded consistently everywhere.
+  const noteColor = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const n of tree) m.set(n.id, categoryColor(categoryOf(n)));
+    return m;
+  }, [tree]);
+  const colorForId = useCallback((id: string) => noteColor.get(id) ?? "#8888aa", [noteColor]);
 
   const completions = useMemo(
     () => ({
@@ -132,40 +139,45 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
     [tree, me.username],
   );
 
-  const scopes: Scope[] = [
-    { kind: "all" },
-    ...me.teams.map((t) => ({ kind: "team" as const, slug: t.slug, name: t.name })),
-    { kind: "personal" },
-  ];
-
   return (
     <div className="arch">
       <aside className="arch-files">
-        <div className="scope-tabs" role="tablist" aria-label="Scope">
-          {scopes.map((s) => {
-            const key = s.kind === "team" ? s.slug : s.kind;
-            const label = s.kind === "all" ? "All" : s.kind === "personal" ? "Personal" : s.name;
-            const active = JSON.stringify(s) === JSON.stringify(scope);
-            const color = s.kind === "team" ? me.teams.find((t) => t.slug === s.slug)?.color : undefined;
-            return (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={active}
-                className={`scope-tab ${active ? "active" : ""}`}
-                style={color ? ({ "--team": color } as React.CSSProperties) : undefined}
-                onClick={() => setScope(s)}
-              >
-                {s.kind === "team" && <span className="scope-dot" />}
-                {label}
-              </button>
-            );
-          })}
+        <div className="cat-bar">
+          <label className="cat-picker">
+            <span className="cat-picker-label">Show</span>
+            <select
+              className="cat-select"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Filter notes by category"
+            >
+              <option value="all">All notes · {tree.length}</option>
+              {CATEGORIES.filter((c) => (catCounts.get(c.id) ?? 0) > 0).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label} · {catCounts.get(c.id)}
+                </option>
+              ))}
+            </select>
+          </label>
           <button className="ghost scope-new" onClick={createNote} title="New note" aria-label="New note">
             <IconPlus />
           </button>
         </div>
-        <FileTree notes={scoped} activeId={open?.id ?? null} onOpen={openNote} />
+        <div className="cat-legend" role="group" aria-label="Categories">
+          {CATEGORIES.filter((c) => (catCounts.get(c.id) ?? 0) > 0).map((c) => (
+            <button
+              key={c.id}
+              className={`legend-chip ${category === c.id ? "active" : ""}`}
+              style={{ ["--cat" as string]: c.color }}
+              onClick={() => setCategory(category === c.id ? "all" : c.id)}
+              title={`${c.label} · ${catCounts.get(c.id)}`}
+            >
+              <span className="legend-dot" />
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} />
         {open && (
           <button className="ft-map ghost" onClick={() => setOpen(null)}>
             ← Back to the map
@@ -202,9 +214,18 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
           </>
         ) : (
           <div className="map-stage">
-            <GraphCanvas graph={graph} visibleIds={scopedIds} onOpen={openNote} />
+            <GraphCanvas
+              graph={graph}
+              visibleIds={allIds}
+              highlightIds={category === "all" ? null : scopedIds}
+              colorForId={colorForId}
+              onOpen={openNote}
+            />
             <span className="map-hint">
-              {scoped.length} notes · click a node to open · <kbd>⌘K</kbd> search · <kbd>c</kbd> capture
+              {category === "all"
+                ? `${tree.length} notes`
+                : `${scoped.length} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
+              · drag a node · scroll to zoom · click to open
             </span>
           </div>
         )}

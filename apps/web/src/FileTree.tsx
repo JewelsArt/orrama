@@ -10,6 +10,11 @@ interface FolderNode {
   count: number;
 }
 
+/** Drop the "NN-" ordering prefix Jules uses on top-level PARA folders. */
+function cleanFolderName(name: string): string {
+  return name.replace(/^\d+[-_.\s]+/, "");
+}
+
 function buildTree(notes: TreeNote[]): FolderNode {
   const root: FolderNode = { name: "", path: "", folders: [], notes: [], count: 0 };
   const dir = (path: string): FolderNode => {
@@ -47,30 +52,49 @@ function buildTree(notes: TreeNote[]): FolderNode {
 export function FileTree({
   notes,
   activeId,
+  colorForId,
   onOpen,
 }: {
   notes: TreeNote[];
   activeId: string | null;
+  colorForId?: (id: string) => string;
   onOpen: (id: string) => void;
 }) {
+  const dot = (id: string) =>
+    colorForId ? <span className="ft-dot" style={{ background: colorForId(id) }} aria-hidden /> : null;
   const [filter, setFilter] = useState("");
-  const [closed, setClosed] = useState<Set<string>>(() => {
+  // null = user hasn't touched the tree yet → default to fully collapsed for a
+  // calm starting view; once they toggle, their exact choices persist.
+  const [closed, setClosed] = useState<Set<string> | null>(() => {
     try {
-      return new Set(JSON.parse(localStorage.getItem("basalt-tree-closed") ?? "[]"));
+      const saved = localStorage.getItem("basalt-tree-closed");
+      return saved ? new Set<string>(JSON.parse(saved)) : null;
     } catch {
-      return new Set();
+      return null;
     }
   });
 
+  const tree = useMemo(() => buildTree(notes), [notes]);
+
+  const allFolderPaths = useMemo(() => {
+    const s = new Set<string>();
+    const walk = (n: FolderNode) => {
+      if (n.path) s.add(n.path);
+      n.folders.forEach(walk);
+    };
+    walk(tree);
+    return s;
+  }, [tree]);
+
+  const effectiveClosed = closed ?? allFolderPaths;
+
   const toggle = (path: string) => {
-    const next = new Set(closed);
+    const next = new Set(effectiveClosed);
     if (next.has(path)) next.delete(path);
     else next.add(path);
     setClosed(next);
     localStorage.setItem("basalt-tree-closed", JSON.stringify([...next]));
   };
-
-  const tree = useMemo(() => buildTree(notes), [notes]);
 
   const q = filter.trim().toLowerCase();
   const matches = useMemo(
@@ -90,14 +114,14 @@ export function FileTree({
           className="ft-folder"
           style={{ paddingLeft: depth * 14 }}
           onClick={() => toggle(node.path)}
-          aria-expanded={!closed.has(node.path)}
+          aria-expanded={!effectiveClosed.has(node.path)}
         >
-          <IconChevron open={!closed.has(node.path)} />
-          <span className="ft-folder-name">{node.name}</span>
+          <IconChevron open={!effectiveClosed.has(node.path)} />
+          <span className="ft-folder-name">{cleanFolderName(node.name)}</span>
           <span className="ft-count">{node.count}</span>
         </button>
       )}
-      {(node.path === "" || !closed.has(node.path)) && (
+      {(node.path === "" || !effectiveClosed.has(node.path)) && (
         <>
           {node.folders.map((f) => renderFolder(f, depth + 1))}
           {node.notes.map((n) => (
@@ -107,6 +131,7 @@ export function FileTree({
               style={{ paddingLeft: (depth + 1) * 14 + 4 }}
               onClick={() => onOpen(n.id)}
             >
+              {dot(n.id)}
               <span className="ft-note-title">{n.title}</span>
               {n.openTasks > 0 && <span className="ft-count">{n.openTasks}</span>}
             </button>
@@ -139,6 +164,7 @@ export function FileTree({
           <>
             {matches.map((n) => (
               <button key={n.id} className={`ft-note ft-match ${n.id === activeId ? "active" : ""}`} onClick={() => onOpen(n.id)}>
+                {dot(n.id)}
                 <span className="ft-note-title">{n.title}</span>
                 <span className="ft-note-path">{n.folder || "/"}</span>
               </button>

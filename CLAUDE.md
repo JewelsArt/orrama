@@ -27,7 +27,9 @@ lives DB-only).
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
-| `apps/server/src/routes/` | auth, vault, tasks, dashboard, admin, ai, ws — one file each |
+| `apps/server/src/routes/` | auth, vault, tasks, dashboard, admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
+| `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
+| `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
 | `apps/web/src/` | React, left-rail shell in `App.tsx`: `Architecture` (scoped files + `GraphBackdrop` canvas + `Editor`), `Planning` (est. via `/api/plan`), `Overview` (team board), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
@@ -75,9 +77,14 @@ The palette is Jules's own Obsidian graph palette: ground `#0f0f17`, text family
 `#8888aa`, accent amber `#f5a623`, group colors blue `#4a9eff` / crimson `#e5383b`
 / purple `#a855f7` / teal `#2dd4bf`. Flat surfaces, 1px borders, 4–6px radii,
 mono for numbers/paths/micro-labels. No gradients, no glow shadows, no neon, no
-emoji as icons (use `icons.tsx`), no drifting particles — the map (`GraphCanvas`)
-is static and seeded, drawn on the main stage when no note is open. Team color is
-data, not decoration. Members are hex-column characters (`avatars.tsx`).
+emoji as icons (use `icons.tsx`). The map (`GraphCanvas`) is a live d3-force
+graph on canvas, Obsidian-style: repulsion + `forceCollide` (nodes never overlap),
+link springs, drag a node to move it (pointer sets `fx/fy`, release settles),
+wheel-zoom, background-pan, hover lights the neighbourhood, labels appear on
+hover/zoom only. Nodes are coloured by `categories.ts` — the SINGLE source of
+truth for vault grouping+colour, shared by the map, the file-list dots, and the
+category filter, so a note is the same colour everywhere. Team color is data,
+not decoration. Members are hex-column characters (`avatars.tsx`).
 
 The editor is live-preview (`livePreview.ts`): frontmatter collapses to a
 properties row (StateField — multi-line replaces can't live in view plugins),
