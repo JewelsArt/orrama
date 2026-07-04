@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import { Editor } from "./Editor.js";
-import { GraphBackdrop, type GraphData } from "./GraphBackdrop.js";
-import { IconChevron, IconLock, IconPlus, IconPromote } from "./icons.js";
+import { FileTree } from "./FileTree.js";
+import { GraphCanvas, type GraphData } from "./GraphCanvas.js";
+import { IconLock, IconPlus, IconPromote } from "./icons.js";
 import { onWs, sendEditing } from "./ws.js";
 
 type Scope = { kind: "all" } | { kind: "team"; slug: string; name: string } | { kind: "personal" };
@@ -24,7 +25,6 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openRef = useRef<NoteDetail | null>(null);
@@ -123,16 +123,6 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   const scoped = useMemo(() => tree.filter((n) => inScope(n, scope, me.username)), [tree, scope, me.username]);
   const scopedIds = useMemo(() => new Set(scoped.map((n) => n.id)), [scoped]);
 
-  const folders = useMemo(() => {
-    const map = new Map<string, TreeNote[]>();
-    for (const n of scoped) {
-      const list = map.get(n.folder) ?? [];
-      list.push(n);
-      map.set(n.folder, list);
-    }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [scoped]);
-
   const completions = useMemo(
     () => ({
       titles: tree.map((n) => n.title),
@@ -151,57 +141,36 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
   return (
     <div className="arch">
       <aside className="arch-files">
-        <GraphBackdrop graph={graph} visibleIds={scopedIds} activeId={open?.id ?? null} />
-        <div className="arch-files-inner">
-          <div className="scope-tabs" role="tablist" aria-label="Scope">
-            {scopes.map((s) => {
-              const key = s.kind === "team" ? s.slug : s.kind;
-              const label = s.kind === "all" ? "All" : s.kind === "personal" ? "Personal" : s.name;
-              const active = JSON.stringify(s) === JSON.stringify(scope);
-              const color = s.kind === "team" ? me.teams.find((t) => t.slug === s.slug)?.color : undefined;
-              return (
-                <button
-                  key={key}
-                  role="tab"
-                  aria-selected={active}
-                  className={`scope-tab ${active ? "active" : ""}`}
-                  style={color ? ({ "--team": color } as React.CSSProperties) : undefined}
-                  onClick={() => setScope(s)}
-                >
-                  {s.kind === "team" && <span className="scope-dot" />}
-                  {label}
-                </button>
-              );
-            })}
-            <span className="scope-count">{scoped.length}</span>
-            <button className="ghost scope-new" onClick={createNote} title="New note" aria-label="New note">
-              <IconPlus />
-            </button>
-          </div>
-
-          <div className="arch-tree">
-            {folders.map(([folder, notes]) => (
-              <div key={folder || "(root)"} className="tree-folder">
-                <button className="tree-folder-name ghost" onClick={() => setCollapsed((s) => toggle(s, folder))}>
-                  <IconChevron open={!collapsed.has(folder)} />
-                  {folder === "" ? "/" : folder}
-                </button>
-                {!collapsed.has(folder) &&
-                  notes.map((n) => (
-                    <button
-                      key={n.id}
-                      className={`tree-note ghost ${open?.id === n.id ? "active" : ""}`}
-                      onClick={() => openNote(n.id)}
-                    >
-                      <span className="tree-note-title">{n.title}</span>
-                      {n.openTasks > 0 && <span className="tree-note-count">{n.openTasks}</span>}
-                    </button>
-                  ))}
-              </div>
-            ))}
-            {folders.length === 0 && <p className="empty">Nothing in this scope yet.</p>}
-          </div>
+        <div className="scope-tabs" role="tablist" aria-label="Scope">
+          {scopes.map((s) => {
+            const key = s.kind === "team" ? s.slug : s.kind;
+            const label = s.kind === "all" ? "All" : s.kind === "personal" ? "Personal" : s.name;
+            const active = JSON.stringify(s) === JSON.stringify(scope);
+            const color = s.kind === "team" ? me.teams.find((t) => t.slug === s.slug)?.color : undefined;
+            return (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={active}
+                className={`scope-tab ${active ? "active" : ""}`}
+                style={color ? ({ "--team": color } as React.CSSProperties) : undefined}
+                onClick={() => setScope(s)}
+              >
+                {s.kind === "team" && <span className="scope-dot" />}
+                {label}
+              </button>
+            );
+          })}
+          <button className="ghost scope-new" onClick={createNote} title="New note" aria-label="New note">
+            <IconPlus />
+          </button>
         </div>
+        <FileTree notes={scoped} activeId={open?.id ?? null} onOpen={openNote} />
+        {open && (
+          <button className="ft-map ghost" onClick={() => setOpen(null)}>
+            ← Back to the map
+          </button>
+        )}
       </aside>
 
       <section className="editor-pane">
@@ -219,13 +188,24 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
                 </span>
               </span>
             </header>
-            <Editor noteId={open.id} content={open.content} readOnly={!open.canEdit} completions={completions} onChange={save} />
+            <Editor
+              noteId={open.id}
+              content={open.content}
+              readOnly={!open.canEdit}
+              completions={completions}
+              onChange={save}
+              onFollowLink={(title) => {
+                const target = tree.find((n) => n.title.toLowerCase() === title.toLowerCase());
+                if (target) void openNote(target.id);
+              }}
+            />
           </>
         ) : (
-          <div className="editor-empty">
-            <p>
-              Select a note — <kbd>⌘K</kbd> to search, <kbd>c</kbd> to capture.
-            </p>
+          <div className="map-stage">
+            <GraphCanvas graph={graph} visibleIds={scopedIds} onOpen={openNote} />
+            <span className="map-hint">
+              {scoped.length} notes · click a node to open · <kbd>⌘K</kbd> search · <kbd>c</kbd> capture
+            </span>
           </div>
         )}
       </section>
@@ -308,11 +288,4 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
       )}
     </div>
   );
-}
-
-function toggle(s: Set<string>, key: string): Set<string> {
-  const next = new Set(s);
-  if (next.has(key)) next.delete(key);
-  else next.add(key);
-  return next;
 }

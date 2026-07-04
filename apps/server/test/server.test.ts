@@ -275,6 +275,25 @@ describe("graph + plan + profile", () => {
     expect((await api("GET", "/api/plan/engineering", "mara")).status).toBe(404);
   });
 
+  it("schedule places a task on a day (auto-promoting) and back to backlog", async () => {
+    const erin = await api("GET", "/api/vault/tree", "erin");
+    const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
+    const note = await api("GET", `/api/vault/note/${road.id}`, "erin");
+    const line = note.json.content.split("\n").findIndex((l: string) => l.includes("permission test suite"));
+    const s = await api("POST", "/api/tasks/schedule", "erin", { noteId: road.id, line, date: "2026-07-06" });
+    expect(s.status).toBe(200);
+    expect(s.json.plannedDate).toBe("2026-07-06");
+    expect(s.json.blockId).toMatch(/^t-/);
+    // the plan reflects the placement
+    const p = await api("GET", "/api/plan/engineering", "erin");
+    const placed = p.json.assignees.flatMap((a: { tasks: { plannedDate: string | null; text: string }[] }) => a.tasks)
+      .find((t: { text: string }) => t.text === "permission test suite");
+    expect(placed.plannedDate).toBe("2026-07-06");
+    // unschedule
+    const u = await api("POST", "/api/tasks/schedule", "erin", { noteId: road.id, blockId: s.json.blockId, date: null });
+    expect(u.json.plannedDate).toBeNull();
+  });
+
   it("profile PATCH updates avatar and rejects junk", async () => {
     const r = await api("PATCH", "/api/me", "mara", { avatar: "ember" });
     expect(r.json.avatar).toBe("ember");

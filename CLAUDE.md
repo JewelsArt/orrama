@@ -71,11 +71,20 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
 
 ## Design rules
 
-Flat surfaces, 1px borders, 4–6px radii, mono for numbers/paths/micro-labels.
-No gradients, no glow shadows, no emoji as icons (use `icons.tsx`), no drifting
-particles — the graph backdrop is static and seeded. Team color is data, not
-decoration: it may appear only where it identifies a team. Members are hex-column
-characters (`avatars.tsx`), picked in Settings, stored as `users.avatar`.
+The palette is Jules's own Obsidian graph palette: ground `#0f0f17`, text family
+`#8888aa`, accent amber `#f5a623`, group colors blue `#4a9eff` / crimson `#e5383b`
+/ purple `#a855f7` / teal `#2dd4bf`. Flat surfaces, 1px borders, 4–6px radii,
+mono for numbers/paths/micro-labels. No gradients, no glow shadows, no neon, no
+emoji as icons (use `icons.tsx`), no drifting particles — the map (`GraphCanvas`)
+is static and seeded, drawn on the main stage when no note is open. Team color is
+data, not decoration. Members are hex-column characters (`avatars.tsx`).
+
+The editor is live-preview (`livePreview.ts`): frontmatter collapses to a
+properties row (StateField — multi-line replaces can't live in view plugins),
+checkboxes/tags/links/metadata render as widgets and chips, the active line
+always shows raw source. Planning is a calendar: `planned_date` on task objects,
+`POST /api/tasks/schedule` (auto-promotes), drag from backlog to days, parallel
+read-only lanes for selected teammates.
 
 ## Dev loop
 

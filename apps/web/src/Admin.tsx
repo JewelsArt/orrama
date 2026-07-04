@@ -19,7 +19,8 @@ interface Overview {
 }
 
 const NEXT_ROLE = { viewer: "editor", editor: "admin", admin: "viewer" } as const;
-const COLORS = ["#22d3ee", "#f472b6", "#a78bfa", "#34d399", "#fbbf24", "#fb7185"];
+/* Team palette = the vault's graph group colors. */
+const COLORS = ["#4a9eff", "#e5383b", "#a855f7", "#2dd4bf", "#f5a623", "#8888aa"];
 
 export function Admin() {
   const [data, setData] = useState<Overview | null>(null);

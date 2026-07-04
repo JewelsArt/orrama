@@ -13,14 +13,14 @@ export interface Character {
 }
 
 export const CHARACTERS: Character[] = [
-  { id: "basalt", name: "Basalt", bg: "#3a4150", face: "#e6e9ee", accent: "#22d3ee" },
-  { id: "magma", name: "Magma", bg: "#4a2f2a", face: "#ffd9c2", accent: "#fb7185" },
-  { id: "moss", name: "Moss", bg: "#2e4034", face: "#d9f2dd", accent: "#34d399" },
-  { id: "tide", name: "Tide", bg: "#283a4d", face: "#d4e9f7", accent: "#60a5fa" },
-  { id: "ash", name: "Ash", bg: "#42424a", face: "#e3e3e8", accent: "#a1a1aa" },
-  { id: "quartz", name: "Quartz", bg: "#463c52", face: "#efe4f5", accent: "#c084fc" },
-  { id: "ember", name: "Ember", bg: "#4d3a24", face: "#ffe8c2", accent: "#fbbf24" },
-  { id: "fog", name: "Fog", bg: "#374244", face: "#dcebe9", accent: "#7dd3c8" },
+  { id: "basalt", name: "Basalt", bg: "#3a3a52", face: "#d6d6e4", accent: "#8888aa" },
+  { id: "magma", name: "Magma", bg: "#4a2b2b", face: "#f0d5c9", accent: "#e5383b" },
+  { id: "moss", name: "Moss", bg: "#2e4034", face: "#d9ecd9", accent: "#5eb88a" },
+  { id: "tide", name: "Tide", bg: "#28344d", face: "#d4e2f4", accent: "#4a9eff" },
+  { id: "ash", name: "Ash", bg: "#42424a", face: "#e3e3e8", accent: "#71717a" },
+  { id: "quartz", name: "Quartz", bg: "#3f3452", face: "#e9def4", accent: "#a855f7" },
+  { id: "ember", name: "Ember", bg: "#4d3a24", face: "#f4e4c8", accent: "#f5a623" },
+  { id: "fog", name: "Fog", bg: "#37423f", face: "#d9e8e4", accent: "#2dd4bf" },
 ];
 
 const FACES: Record<string, (c: Character) => React.ReactNode> = {

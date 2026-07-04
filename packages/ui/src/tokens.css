@@ -1,29 +1,32 @@
-/* Basalt design tokens (spec §11). Token-first: components only ever use vars. */
+/* Basalt design tokens (spec §11). Token-first: components only ever use vars.
+   Palette lifted from Jules's own vault graph style: near-black #0f0f17 ground,
+   lavender-gray text (#8888aa family), amber #f5a623 as the single accent.
+   Neon is banned; color that isn't information doesn't ship. */
 
 :root,
 [data-theme="command"] {
-  /* Command Center — dark default. A power tool, not a toy. */
-  --bg: #0d0f12;
-  --bg-raised: #14171c;
-  --bg-overlay: rgba(20, 23, 28, 0.85);
-  --panel: rgba(255, 255, 255, 0.03);
-  --panel-strong: rgba(255, 255, 255, 0.06);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text: #e6e9ee;
-  --text-dim: #9aa3b2;
-  --text-faint: #5c6470;
-  --accent: #22d3ee;
-  --accent-dim: rgba(34, 211, 238, 0.14);
-  --danger: #f87171;
-  --warn: #fbbf24;
-  --ok: #34d399;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  /* Command Center — dark default. */
+  --bg: #0f0f17;
+  --bg-raised: #14141e;
+  --bg-overlay: #171724;
+  --panel: rgba(136, 136, 170, 0.04);
+  --panel-strong: rgba(136, 136, 170, 0.09);
+  --border: rgba(136, 136, 170, 0.14);
+  --border-strong: rgba(136, 136, 170, 0.26);
+  --text: #d6d6e4;
+  --text-dim: #8888aa;
+  --text-faint: #555570;
+  --accent: #f5a623;
+  --accent-dim: rgba(245, 166, 35, 0.13);
+  --danger: #e5383b;
+  --warn: #f5a623;
+  --ok: #2dd4bf;
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --radius: 6px;
   --radius-sm: 4px;
-  --editor-line-height: 1.6;
+  --editor-line-height: 1.65;
   color-scheme: dark;
 }
 
@@ -31,20 +34,24 @@
   /* Paper — warm light theme for long writing sessions. */
   --bg: #faf9f6;
   --bg-raised: #ffffff;
-  --bg-overlay: rgba(255, 255, 255, 0.92);
-  --panel: rgba(0, 0, 0, 0.025);
-  --panel-strong: rgba(0, 0, 0, 0.05);
-  --border: rgba(0, 0, 0, 0.09);
-  --border-strong: rgba(0, 0, 0, 0.16);
-  --text: #26282c;
-  --text-dim: #5c6470;
-  --text-faint: #9aa3b2;
-  --accent: #0e7490;
-  --accent-dim: rgba(14, 116, 144, 0.1);
-  --danger: #dc2626;
-  --warn: #b45309;
-  --ok: #047857;
-  --shadow: 0 8px 32px rgba(30, 30, 40, 0.12);
+  --bg-overlay: #ffffff;
+  --panel: rgba(60, 56, 80, 0.03);
+  --panel-strong: rgba(60, 56, 80, 0.065);
+  --border: rgba(60, 56, 80, 0.13);
+  --border-strong: rgba(60, 56, 80, 0.24);
+  --text: #2b2836;
+  --text-dim: #6b6880;
+  --text-faint: #a3a0b5;
+  --accent: #b87708;
+  --accent-dim: rgba(184, 119, 8, 0.1);
+  --danger: #c22f32;
+  --warn: #b87708;
+  --ok: #0f9d8f;
+  --shadow: 0 4px 24px rgba(40, 36, 60, 0.12);
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 6px;
+  --radius-sm: 4px;
   --editor-line-height: 1.65;
   color-scheme: light;
 }

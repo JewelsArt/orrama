@@ -24,6 +24,9 @@ interface PlannedTask {
   /** Working-day the task is expected to finish, given the queue before it. */
   expectedFinish: string;
   atRisk: boolean;
+  /** Calendar placement, when the assignee has dragged it onto a day. */
+  blockId: string | null;
+  plannedDate: string | null;
 }
 
 const HOURS_PER_DAY = 6; // focused hours, not office hours
@@ -108,6 +111,9 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
       }
     }
 
+    const objects = db.select().from(tables.taskObjects).all();
+    const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
+
     // Schedule per assignee: earliest deadline first, then priority.
     const sorted = [...open].sort(
       (a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || (a.priority ?? 4) - (b.priority ?? 4),
@@ -121,6 +127,7 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
       const finish = addWorkingHours(start, est);
       cursors.set(key, finish.getTime());
       const finishDay = finish.toISOString().slice(0, 10);
+      const obj = t.blockId ? objByKey.get(`${t.noteId}:${t.blockId}`) : undefined;
       return {
         noteId: t.noteId,
         noteTitle: t.noteTitle,
@@ -133,6 +140,8 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
         estimateHours: est,
         expectedFinish: finishDay,
         atRisk: t.due !== undefined && t.due !== null && finishDay > t.due,
+        blockId: t.blockId ?? null,
+        plannedDate: obj?.plannedDate ?? null,
       };
     });
 

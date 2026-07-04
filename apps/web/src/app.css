@@ -1403,3 +1403,532 @@ kbd {
     display: none;
   }
 }
+
+/* ---- file tree (nested + filter) ---- */
+.filetree {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+}
+.ft-filter {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  color: var(--text-faint);
+  background: var(--panel);
+}
+.ft-filter input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  min-width: 0;
+}
+.ft-scroll {
+  flex: 1;
+  overflow: auto;
+  margin-top: 8px;
+}
+.ft-folder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.ft-folder:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.ft-folder-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 3.5px 6px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.ft-note:hover {
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.ft-note.active {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+.ft-note-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ft-note-path {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  flex: none;
+}
+.ft-match {
+  padding-left: 8px !important;
+}
+.ft-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex: none;
+}
+.ft-map {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* ---- map stage ---- */
+.arch-files {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+}
+.map-stage {
+  position: relative;
+  height: 100%;
+  background: var(--bg);
+}
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+}
+.map-hint {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--text-faint);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---- live preview ---- */
+.cm-props {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.cm-props:hover {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+}
+.cm-task-box {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  vertical-align: -2px;
+  margin-right: 7px;
+  cursor: pointer;
+  position: relative;
+}
+.cm-task-box:hover {
+  border-color: var(--accent);
+}
+.cm-task-box.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.cm-task-box.checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.cm-task-done {
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+.cm-wikilink {
+  color: var(--accent);
+  cursor: pointer;
+  border-bottom: 1px solid var(--accent-dim);
+}
+.cm-wikilink:hover {
+  border-bottom-color: var(--accent);
+}
+.cm-hashtag {
+  color: var(--text-dim);
+  background: var(--panel-strong);
+  border-radius: 99px;
+  padding: 1px 7px;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+.cm-mention {
+  color: var(--ok);
+  background: rgba(45, 212, 191, 0.08);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+.cm-due {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+.cm-due.overdue {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.cm-prio {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.cm-prio.p1 {
+  color: var(--danger);
+  background: rgba(229, 56, 59, 0.1);
+}
+.cm-prio.p2 {
+  color: var(--warn);
+  background: var(--accent-dim);
+}
+.cm-prio.p3 {
+  color: var(--text-dim);
+  background: var(--panel-strong);
+}
+
+/* ---- planning calendar ---- */
+.plan-head {
+  gap: 12px;
+}
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.week-nav .ghost {
+  font-size: 15px;
+  padding: 3px 9px;
+}
+.week-today {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-width: 130px;
+  text-align: center;
+}
+.people-picker {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.person-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 12px;
+}
+.person-chip svg {
+  opacity: 0.5;
+}
+.person-chip.active {
+  border-color: var(--border-strong);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.person-chip.active svg {
+  opacity: 1;
+}
+
+.plan-body {
+  display: flex;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 14px;
+}
+.backlog {
+  width: 230px;
+  flex: none;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 12px;
+}
+.backlog h3 {
+  margin: 0 0 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.backlog-hint {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  margin: 4px 0 10px;
+}
+.backlog .cal-task {
+  margin-bottom: 6px;
+}
+
+.cal-task {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  font-size: 12.5px;
+  cursor: grab;
+  position: relative;
+}
+.cal-task:active {
+  cursor: grabbing;
+}
+.cal-task.risk {
+  border-left-color: var(--danger);
+}
+.cal-task.readonly {
+  cursor: default;
+  opacity: 0.75;
+}
+.cal-task-est {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--accent);
+  flex: none;
+}
+.cal-task-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-task-due {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  flex: none;
+}
+.cal-task-due.overdue {
+  color: var(--danger);
+}
+.cal-unplan {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 12px;
+  display: none;
+}
+.cal-task:hover .cal-unplan {
+  display: block;
+}
+.cal-unplan:hover {
+  color: var(--danger);
+}
+
+.cal-week {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  min-width: 0;
+  overflow: auto;
+}
+.cal-day {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+}
+.cal-day.weekend {
+  background: transparent;
+}
+.cal-day.today {
+  border-color: var(--accent);
+}
+.cal-day.droppable {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.cal-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+}
+.cal-day-name {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cal-day-num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.cal-day.today .cal-day-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-lanes {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  flex: 1;
+  min-height: 0;
+}
+.cal-lane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+}
+.cal-lane-owner {
+  align-self: center;
+  opacity: 0.7;
+}
+.cal-lane .cal-task {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.cal-lane-sum {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: right;
+  padding: 2px 4px 0;
+}
+.cal-lane-sum.over {
+  color: var(--warn);
+}
+
+.cal-month {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: minmax(72px, 1fr);
+  gap: 5px;
+  min-width: 0;
+  overflow: auto;
+}
+.cal-month-dow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 2px 6px;
+}
+.cal-month-day {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 6px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--text-dim);
+}
+.cal-month-day:hover {
+  border-color: var(--border-strong);
+}
+.cal-month-day.today {
+  border-color: var(--accent);
+}
+.cal-month-day.dim {
+  opacity: 0.4;
+}
+.cal-month-num {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.cal-month-load {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 100%;
+}
+.cal-month-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  margin-bottom: 3px;
+}

@@ -126,8 +126,8 @@ async function main() {
   for (const u of users) db.insert(tables.users).values(u).run();
   const [jules, erin, mara] = users;
 
-  const eng = { id: uid("t"), slug: "engineering", name: "Engineering", color: "#22d3ee", icon: "⚙" };
-  const mkt = { id: uid("t"), slug: "marketing", name: "Marketing", color: "#f472b6", icon: "✦" };
+  const eng = { id: uid("t"), slug: "engineering", name: "Engineering", color: "#4a9eff", icon: "e" };
+  const mkt = { id: uid("t"), slug: "marketing", name: "Marketing", color: "#e5383b", icon: "m" };
   db.insert(tables.teams).values([eng, mkt]).run();
   db.insert(tables.memberships).values([
     { id: uid("m"), userId: erin!.id, teamId: eng.id },

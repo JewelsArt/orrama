@@ -7,6 +7,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { useEffect, useRef } from "react";
+import { livePreview } from "./livePreview.js";
 
 /** Markdown highlight tuned to the theme tokens; live-preview styling, source stays visible. */
 const mdHighlight = HighlightStyle.define([
@@ -30,15 +31,19 @@ export interface EditorProps {
   /** Titles for [[ autocomplete, usernames for @, tags for #. */
   completions: { titles: string[]; users: string[]; tags: string[] };
   onChange: (content: string) => void;
+  /** Called when the user cmd+clicks a [[wiki link]] in the preview. */
+  onFollowLink?: (title: string) => void;
 }
 
-export function Editor({ noteId, content, readOnly, completions, onChange }: EditorProps) {
+export function Editor({ noteId, content, readOnly, completions, onChange, onFollowLink }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const completionsRef = useRef(completions);
   completionsRef.current = completions;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onFollowLinkRef = useRef(onFollowLink);
+  onFollowLinkRef.current = onFollowLink;
 
   useEffect(() => {
     if (!host.current) return;
@@ -72,15 +77,22 @@ export function Editor({ noteId, content, readOnly, completions, onChange }: Edi
       return null;
     };
 
+    // Start the caret just below the frontmatter so the properties row renders
+    // collapsed on open instead of greeting the reader with raw YAML.
+    const fmMatch = /^---\n[\s\S]*?\n---\n?/.exec(content);
+    const initialPos = Math.min(fmMatch ? fmMatch[0].length : 0, content.length);
+
     const view = new EditorView({
       parent: host.current,
       state: EditorState.create({
         doc: content,
+        selection: { anchor: initialPos },
         extensions: [
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(mdHighlight),
+          livePreview({ readOnly }),
           autocompletion({ override: [vaultComplete], icons: false }),
           placeholder("Write…"),
           EditorView.lineWrapping,
@@ -107,7 +119,12 @@ export function Editor({ noteId, content, readOnly, completions, onChange }: Edi
       }),
     });
     viewRef.current = view;
-    return () => view.destroy();
+    const onLink = (e: Event) => onFollowLinkRef.current?.((e as CustomEvent<string>).detail);
+    view.dom.addEventListener("basalt-open-link", onLink);
+    return () => {
+      view.dom.removeEventListener("basalt-open-link", onLink);
+      view.destroy();
+    };
     // Recreate the editor per note (content prop is initial-only after that).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId, readOnly]);

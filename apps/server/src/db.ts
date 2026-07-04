@@ -72,6 +72,11 @@ export function createDb(file = dbPath()) {
   } catch {
     /* column exists */
   }
+  try {
+    sqlite.exec(`ALTER TABLE task_objects ADD COLUMN planned_date TEXT`);
+  } catch {
+    /* column exists */
+  }
   return drizzle(sqlite, { schema: tables });
 }
 

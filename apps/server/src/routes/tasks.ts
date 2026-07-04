@@ -50,19 +50,72 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
         ? db.select().from(tables.users).where(eq(tables.users.username, parsed.assignee)).get()
         : undefined;
       const now = Date.now();
-      obj = {
+      const fresh = {
         id: `task-${crypto.randomUUID().slice(0, 8)}`,
         noteId: note.id,
         blockId: res.blockId,
-        status: parsed?.checked ? "done" : "todo",
+        status: (parsed?.checked ? "done" : "todo") as "done" | "todo",
         assigneeId: assignee?.id ?? null,
         due: parsed?.due ?? null,
+        plannedDate: null,
         description: "",
         createdAt: now,
         updatedAt: now,
       };
-      db.insert(tables.taskObjects).values(obj).run();
+      db.insert(tables.taskObjects).values(fresh).run();
+      obj = fresh;
     }
+    return obj;
+  });
+
+  /**
+   * Put a task on a calendar day (or take it off with date:null). Auto-promotes
+   * the checkbox so the schedule survives line moves — the file keeps the task,
+   * the object keeps the plan.
+   */
+  app.post("/api/tasks/schedule", auth, async (req) => {
+    const body = (req.body ?? {}) as { noteId?: string; line?: number; blockId?: string; date?: string | null };
+    if (!body.noteId || (body.line === undefined && !body.blockId)) throw new HttpError(400, "noteId and line or blockId required");
+    if (body.date && !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
+    const user = store.aclUser(req.userId);
+    const note = store.requireReadable(user, body.noteId);
+
+    let blockId = body.blockId;
+    if (!blockId) {
+      const res = promoteTaskLine(note.content, body.line!);
+      if (!res) throw new HttpError(409, "line is not a task");
+      if (res.content !== note.content) store.write(user, note.path, res.content);
+      blockId = res.blockId;
+    }
+    let obj = store.taskObjectByBlock(note.id, blockId);
+    const now = Date.now();
+    if (!obj) {
+      const parsed = store.index.get(note.id)!.tasks.find((t) => t.blockId === blockId);
+      const assignee = parsed?.assignee
+        ? db.select().from(tables.users).where(eq(tables.users.username, parsed.assignee)).get()
+        : undefined;
+      const fresh = {
+        id: `task-${crypto.randomUUID().slice(0, 8)}`,
+        noteId: note.id,
+        blockId,
+        status: (parsed?.checked ? "done" : "todo") as "done" | "todo",
+        assigneeId: assignee?.id ?? null,
+        due: parsed?.due ?? null,
+        plannedDate: body.date ?? null,
+        description: "",
+        createdAt: now,
+        updatedAt: now,
+      };
+      db.insert(tables.taskObjects).values(fresh).run();
+      obj = fresh;
+    } else {
+      db.update(tables.taskObjects)
+        .set({ plannedDate: body.date ?? null, updatedAt: now })
+        .where(eq(tables.taskObjects.id, obj.id))
+        .run();
+      obj = { ...obj, plannedDate: body.date ?? null };
+    }
+    store.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id });
     return obj;
   });
 

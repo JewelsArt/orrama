@@ -88,6 +88,8 @@ export const taskObjects = sqliteTable(
       .default("todo"),
     assigneeId: text("assignee_id"),
     due: text("due"),
+    /** Day the assignee planned it onto their calendar (drag-drop in Planning). */
+    plannedDate: text("planned_date"),
     description: text("description").notNull().default(""),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
