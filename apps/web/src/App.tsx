@@ -88,7 +88,7 @@ export function App() {
   const firstTeam = me.teams[0];
 
   return (
-    <div className="shell">
+    <div className={`shell ${view.kind === "dashboard" ? "rail-indigo" : ""}`}>
       <nav className="rail" aria-label="Main">
         <div className="rail-brand">
           <IconMark size={20} />

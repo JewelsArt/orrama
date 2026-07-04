@@ -2969,3 +2969,54 @@ kbd {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ---- coloured left rail (Dashboard / light view) ---------------------------
+   The dark app keeps its near-black rail; on the light Dashboard the rail turns
+   a rich indigo so it pops against the pale cards and matches the accent. */
+.rail {
+  transition: background 0.35s ease, border-color 0.35s ease;
+}
+.shell.rail-indigo .rail {
+  background: linear-gradient(185deg, #3a319b 0%, #2a2472 100%);
+  border-right-color: rgba(255, 255, 255, 0.1);
+}
+.shell.rail-indigo .rail-brand {
+  color: #ffffff;
+}
+.shell.rail-indigo .rail-brand svg {
+  color: var(--accent); /* keep the amber Basalt mark — pops on indigo */
+}
+.shell.rail-indigo .rail-item {
+  color: #c3c0ee;
+}
+.shell.rail-indigo .rail-item:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.09);
+}
+.shell.rail-indigo .rail-item.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  border-left-color: #ffffff;
+}
+.shell.rail-indigo .rail-tools {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+.shell.rail-indigo .rail-kbd {
+  color: #c3c0ee;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.shell.rail-indigo .account {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.shell.rail-indigo .account:hover {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.shell.rail-indigo .account-name {
+  color: #ffffff;
+}
+.shell.rail-indigo .account-team {
+  color: #b9b5ea;
+}
