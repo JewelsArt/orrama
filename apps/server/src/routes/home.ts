@@ -49,22 +49,31 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         : [];
     const weekHours = Math.round((weekBlocks.reduce((s, b) => s + b.durationMin, 0) / 60) * 10) / 10;
 
-    // Today's agenda: my events + my task blocks, sorted by start.
+    // Agenda for the next 7 days: my events + my task blocks, dated and sorted.
     const todayKey = iso(today);
+    const weekEndKey = iso(new Date(today.getTime() + 6 * 86_400_000));
     const objById = new Map(myObjects.map((o) => [o.id, o]));
-    const todayBlocks = myObjIds.length
-      ? db.select().from(tables.taskBlocks).where(and(inArray(tables.taskBlocks.taskObjectId, myObjIds), eq(tables.taskBlocks.date, todayKey))).all()
+    const rangeBlocks = myObjIds.length
+      ? db
+          .select()
+          .from(tables.taskBlocks)
+          .where(and(inArray(tables.taskBlocks.taskObjectId, myObjIds), gte(tables.taskBlocks.date, todayKey), lte(tables.taskBlocks.date, weekEndKey)))
+          .all()
       : [];
-    const events = db.select().from(tables.events).where(and(eq(tables.events.ownerId, user.id), eq(tables.events.date, todayKey))).all();
+    const rangeEvents = db
+      .select()
+      .from(tables.events)
+      .where(and(eq(tables.events.ownerId, user.id), gte(tables.events.date, todayKey), lte(tables.events.date, weekEndKey)))
+      .all();
     const agenda = [
-      ...events.map((e) => ({ kind: "event" as const, title: e.title, startMin: e.startMin, durationMin: e.durationMin, noteId: null as string | null })),
-      ...todayBlocks.map((b) => {
+      ...rangeEvents.map((e) => ({ kind: "event" as const, date: e.date, title: e.title, startMin: e.startMin, durationMin: e.durationMin, noteId: null as string | null })),
+      ...rangeBlocks.map((b) => {
         const obj = objById.get(b.taskObjectId);
         const note = obj ? store.index.get(obj.noteId) : undefined;
         const line = note?.tasks.find((t) => t.blockId === obj?.blockId);
-        return { kind: "task" as const, title: line?.text ?? note?.title ?? "Task", startMin: b.startMin, durationMin: b.durationMin, noteId: note?.id ?? null };
+        return { kind: "task" as const, date: b.date, title: line?.text ?? note?.title ?? "Task", startMin: b.startMin, durationMin: b.durationMin, noteId: note?.id ?? null };
       }),
-    ].sort((a, b) => a.startMin - b.startMin);
+    ].sort((a, b) => a.date.localeCompare(b.date) || a.startMin - b.startMin);
 
     // Focus: the open tasks most worth doing next.
     const todayStr = iso(today);

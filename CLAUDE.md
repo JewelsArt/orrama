@@ -86,13 +86,17 @@ truth for vault grouping+colour, shared by the map, the file-list dots, and the
 category filter, so a note is the same colour everywhere. Team color is data,
 not decoration. Members are hex-column characters (`avatars.tsx`).
 
-The **Dashboard** (`Dashboard.tsx`, the default tab) is a deliberate exception
-to the dark theme: an editorial "almanac" — warm oatmeal paper, Fraunces serif
-display/numerals, Archivo text, Spline Sans Mono figures, one pine-green accent
-with terracotta/ochre. It is fully scoped under `.home` (local CSS vars, fonts
-from `index.html`) so the dark command-center is untouched. Fed by `/api/home`
-(personal aggregates, ACL-filtered) + the category donut computed client-side
+The **Dashboard** (`Dashboard.tsx`, the default tab) is the app's light-mode
+surface — a clean SaaS card grid (HireFlow-style: white rounded cards, soft
+shadows, indigo accent, pastel badge pills, avatars) on Plus Jakarta Sans. Six
+cards: hero stat, this-week/last-week activity line chart, In Focus tasks,
+Schedule (mini calendar + agenda), Today's Tasks checklist, Analytics (stat
+tiles + category donut). Fully scoped under `.home` (local `--d-*` CSS vars,
+font from `index.html`) so the dark command-center is untouched. Fed by
+`/api/home` (personal aggregates, ACL-filtered) + the donut computed client-side
 from the tree via `categories.ts`. Charts are hand-drawn SVG, no chart lib.
+(Long-term the app stays dark; this is the light showcase — palette is a handful
+of `--d-*` vars.)
 
 The editor is live-preview (`livePreview.ts`): frontmatter collapses to a
 properties row (StateField — multi-line replaces can't live in view plugins),
