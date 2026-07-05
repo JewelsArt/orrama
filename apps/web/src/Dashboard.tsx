@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Me, type TreeNote } from "./api.js";
-import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
+import { CATEGORIES, categoryOf } from "./categories.js";
 import { onWs } from "./ws.js";
 
 /**
@@ -45,6 +45,9 @@ const fmtTime = (m: number) => {
   return `${h12}:${String(mm).padStart(2, "0")} ${ap}`;
 };
 const BADGE = ["blue", "purple", "green", "orange", "pink"] as const;
+/** Playful rotating card colours (Panze energy) — variety, not semantics.
+ *  Teal-led, no violet/indigo. */
+const CARD_COLORS = ["#12b3a6", "#ff6b9d", "#3b82f6", "#ffa53a", "#22c993"];
 
 export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
   const [home, setHome] = useState<HomeData | null>(null);
@@ -87,10 +90,6 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
     for (const n of tree) counts.set(categoryOf(n), (counts.get(categoryOf(n)) ?? 0) + 1);
     return CATEGORIES.map((c) => ({ id: c.id, label: c.label, color: c.color, count: counts.get(c.id) ?? 0 })).filter((c) => c.count > 0);
   }, [tree]);
-  const colorForNote = (id: string) => {
-    const n = tree.find((x) => x.id === id);
-    return n ? categoryColor(categoryOf(n)) : "var(--d-ink-3)";
-  };
 
   // Activity: this week vs last week from the 14-day trend.
   const weeks = useMemo(() => {
@@ -191,20 +190,23 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
             <h2 className="dh-card-title">In Focus</h2>
             <button className="dh-link" onClick={() => onOpenNote(home?.focus[0]?.noteId ?? "")}>View all</button>
           </div>
-          <ul className="dh-list">
+          <ul className="dh-fcards">
             {home?.focus.slice(0, 5).map((f, i) => (
-              <li key={`${f.noteId}:${f.line}`} className="dh-row" onClick={() => onOpenNote(f.noteId)}>
-                <span className="dh-ava" style={{ background: colorForNote(f.noteId) }}>{f.text[0]?.toUpperCase()}</span>
-                <div className="dh-row-body">
-                  <span className="dh-row-name">{f.text}</span>
-                  <span className="dh-row-role">{f.noteTitle}{f.project ? ` · ${f.project}` : ""}</span>
+              <li
+                key={`${f.noteId}:${f.line}`}
+                className="dh-fcard"
+                style={{ ["--c" as string]: CARD_COLORS[i % CARD_COLORS.length] }}
+                onClick={() => onOpenNote(f.noteId)}
+              >
+                <span className="dh-fcard-ic">{f.text[0]?.toUpperCase()}</span>
+                <div className="dh-fcard-body">
+                  <span className="dh-fcard-title">{f.text}</span>
+                  <span className="dh-fcard-sub">{f.noteTitle}{f.project ? ` · ${f.project}` : ""}</span>
                 </div>
                 {(f.priority || f.due) && (
-                  <span className={`dh-badge ${f.overdue ? "pink" : BADGE[i % BADGE.length]}`}>
-                    {f.due ? f.due.slice(5) : `P${f.priority}`}
-                  </span>
+                  <span className="dh-fcard-badge">{f.due ? f.due.slice(5) : `P${f.priority}`}</span>
                 )}
-                <span className="dh-star">{ic.star}</span>
+                <span className="dh-fcard-star">{ic.star}</span>
               </li>
             ))}
             {home && home.focus.length === 0 && <li className="dh-empty">Nothing pressing right now.</li>}
@@ -241,8 +243,8 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
             <h2 className="dh-card-title">Today's Tasks</h2>
           </div>
           <ul className="dh-tasks">
-            {home?.focus.slice(0, 5).map((f) => (
-              <li key={`${f.noteId}:${f.line}`} className="dh-task">
+            {home?.focus.slice(0, 5).map((f, i) => (
+              <li key={`${f.noteId}:${f.line}`} className="dh-task" style={{ ["--c" as string]: CARD_COLORS[i % CARD_COLORS.length] }}>
                 <button className="dh-radio" aria-label={`Complete ${f.text}`} onClick={(e) => { e.stopPropagation(); void check(f.noteId, f.line); }} />
                 <span className="dh-task-text" onClick={() => onOpenNote(f.noteId)}>{f.text}</span>
                 {f.due && <span className={`dh-task-time ${f.overdue ? "over" : ""}`}>{f.due.slice(5)}</span>}
