@@ -2884,10 +2884,11 @@ kbd {
   position: fixed;
   z-index: 56;
   width: 300px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
+  background: var(--bg-overlay);
+  border: 1px solid var(--glass-brd);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(26px) saturate(150%);
   padding: 14px 16px;
   display: flex;
   flex-direction: column;

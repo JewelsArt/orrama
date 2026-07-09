@@ -68,8 +68,8 @@ type Popup =
 /* ---------- time helpers ---------- */
 
 const DAY_MS = 86_400_000;
-const DAY_START = 7 * 60; // 07:00
-const DAY_END = 21 * 60; // 21:00
+const DAY_START = 0; // 00:00 — show the whole day; the grid scrolls and opens near "now"
+const DAY_END = 24 * 60; // 24:00
 const PX_PER_MIN = 52 / 60; // 52px per hour
 const SNAP = 30;
 
@@ -301,6 +301,14 @@ function WeekGrid({
   onPopup: (p: Popup) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Full 24h grid: open scrolled to ~1h before now so you land in the working day, not midnight.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const n = new Date().getHours() * 60 + new Date().getMinutes();
+    el.scrollTop = Math.max(0, (n - 60) * PX_PER_MIN);
+  }, []);
   const [drag, setDrag] = useState<{
     kind: "move" | "resize";
     itemKind: "block" | "event";
@@ -424,7 +432,7 @@ function WeekGrid({
         })}
       </div>
 
-      <div className="cal-grid-scroll">
+      <div className="cal-grid-scroll" ref={scrollRef}>
         <div className="cal-gutter" style={{ height: gridHeight }}>
           {hours.map((m) => (
             <span key={m} className="cal-hour-label" style={{ top: (m - DAY_START) * PX_PER_MIN }}>
