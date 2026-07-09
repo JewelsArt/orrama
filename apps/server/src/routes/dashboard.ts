@@ -20,9 +20,10 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
 
     const grants = store.grants();
     const allProjects = db.select().from(tables.projects).all();
-    const teamProjects = allProjects.filter((p) => p.teamId === team.id || p.teamId === null);
+    const teamProjects = allProjects.filter((p) => !p.hidden && (p.teamId === team.id || p.teamId === null));
     const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
     const domainByName = new Map(teamProjects.map((p) => [p.name, p.domain ?? null]));
+    const idByName = new Map(teamProjects.map((p) => [p.name, p.id]));
 
     // Progress + open tasks, from the requester's readable universe only.
     const progress = store.index.progress(user, grants, projectDefs);
@@ -30,10 +31,13 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
 
+    // Active work floats up, done sinks to the bottom, so the board reads as
+    // "what's left": in-progress → to-do → blocked → done.
     const statusRank = (t: { checked: boolean; object: { status?: string } | null }) =>
-      t.checked ? 0 : t.object?.status === "in-progress" ? 1 : 2;
+      t.checked ? 3 : t.object?.status === "in-progress" ? 0 : t.object?.status === "blocked" ? 2 : 1;
     const byProject = progress.map((p) => ({
       ...p,
+      projectId: idByName.get(p.project) ?? null,
       domain: domainByName.get(p.project) ?? null,
       // ALL steps (done + open) so the board reads like a plan, not just a to-do list.
       tasks: tasks
@@ -92,7 +96,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const seen = new Set(byProject.map((p) => p.project));
     const emptyProjects = projectDefs
       .filter((d) => !seen.has(d.name))
-      .map((d) => ({ project: d.name, total: 0, done: 0, assignees: [] as string[], lastActivityMs: undefined, domain: domainByName.get(d.name) ?? null, tasks: [] as (typeof byProject)[number]["tasks"] }));
+      .map((d) => ({ project: d.name, projectId: idByName.get(d.name) ?? null, total: 0, done: 0, assignees: [] as string[], lastActivityMs: undefined, domain: domainByName.get(d.name) ?? null, tasks: [] as (typeof byProject)[number]["tasks"] }));
     const projects = [...byProject, ...emptyProjects].sort((a, b) => a.project.localeCompare(b.project));
 
     return { team, projects, members, orphaned };

@@ -67,7 +67,7 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
 
     const allProjects = db.select().from(tables.projects).all();
     const projectDefs = allProjects
-      .filter((p) => p.teamId === team.id || p.teamId === null)
+      .filter((p) => !p.hidden && (p.teamId === team.id || p.teamId === null))
       .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
     const open = store.index
       .tasks(user, store.grants(), projectDefs)

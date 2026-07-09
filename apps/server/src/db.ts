@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS workspace (
   id TEXT PRIMARY KEY, name TEXT NOT NULL,
-  ai_provider TEXT, ai_key_encrypted TEXT, ai_model TEXT
+  ai_provider TEXT, ai_key_encrypted TEXT, ai_model TEXT, ai_instructions TEXT
 );
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS invites (
   expires_at INTEGER NOT NULL, used_by TEXT
 );
 CREATE TABLE IF NOT EXISTS projects (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT, domain TEXT
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT, domain TEXT, hidden INTEGER
 );
 CREATE TABLE IF NOT EXISTS task_blocks (
   id TEXT PRIMARY KEY, task_object_id TEXT NOT NULL, date TEXT NOT NULL,
@@ -108,6 +108,16 @@ export function createDb(file = dbPath()) {
   }
   try {
     sqlite.exec(`ALTER TABLE projects ADD COLUMN domain TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec(`ALTER TABLE projects ADD COLUMN hidden INTEGER`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec(`ALTER TABLE workspace ADD COLUMN ai_instructions TEXT`);
   } catch {
     /* column exists */
   }

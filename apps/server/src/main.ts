@@ -13,6 +13,7 @@ import { HttpError, VaultStore } from "./vaultStore.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
+import { projectRoutes } from "./routes/projects.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { adminRoutes } from "./routes/admin.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -110,6 +111,7 @@ Vault layout:
   await authRoutes(app, db, store);
   await vaultRoutes(app, db, store);
   await taskRoutes(app, db, store);
+  await projectRoutes(app, store);
   await dashboardRoutes(app, db, store);
   await adminRoutes(app, db, store);
   await aiRoutes(app, db, store);

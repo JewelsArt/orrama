@@ -81,6 +81,7 @@ export class VaultStore {
       const mtimeMs = fs.statSync(abs).mtimeMs;
       const note = this.index.upsert({ path: rel, content, mtimeMs });
       this.syncNoteRow(note);
+      this.syncProjectRow(note);
     }
     
     chokidar.watch(this.root, {
@@ -135,6 +136,7 @@ export class VaultStore {
         }
         
         this.syncNoteRow(note);
+        this.syncProjectRow(note);
         this.reconcileTaskObjects(note);
         this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: null } satisfies NoteChangedEvent);
       } catch (err) {
@@ -166,6 +168,27 @@ export class VaultStore {
         set: { path: note.path, title: note.title, contentHash: hash(note.content), mtimeMs: Math.round(note.mtimeMs ?? Date.now()), deleted: false },
       })
       .run();
+  }
+
+  /**
+   * Auto-register a project for each **front-matter** `project/<slug>` tag on the
+   * note — so tagging a note is all it takes to put it on the board (the same way
+   * every other surface is derived from the Markdown). Insert-if-absent: an
+   * existing row's name/domain/team/hidden overrides are preserved, and a project
+   * the owner removed (hidden=1) is never resurrected. Body mentions of
+   * "project/…" (line ≠ 0) are ignored.
+   */
+  private syncProjectRow(note: IndexedNote): void {
+    const keys = note.tags.filter((t) => t.line === 0 && /^project\/[a-z0-9][\w-]*$/i.test(t.tag)).map((t) => t.tag);
+    for (const key of keys) {
+      const existing = this.db.select().from(tables.projects).where(eq(tables.projects.key, key)).get();
+      if (existing) continue;
+      const domain = typeof note.frontmatter?.["domain"] === "string" ? (note.frontmatter["domain"] as string) : null;
+      this.db
+        .insert(tables.projects)
+        .values({ id: `p-${crypto.randomUUID().slice(0, 8)}`, kind: "tag", key, name: note.title, teamId: null, domain, hidden: null })
+        .run();
+    }
   }
 
   doc(noteId: string): Y.Doc {
@@ -220,11 +243,28 @@ export class VaultStore {
   }
 
   projects(): ProjectDef[] {
-    return this.db.select().from(tables.projects).all().map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
+    return this.db
+      .select()
+      .from(tables.projects)
+      .all()
+      .filter((p) => !p.hidden)
+      .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
   }
 
   readable(user: AclUser): IndexedNote[] {
     return filterReadable(user, this.index.all(), this.grants());
+  }
+
+  /** The vault's own CLAUDE.md (root, excluded from the index) — the "who I am /
+   *  how to help me" doc, injected into the agent's system prompt as grounding. */
+  vaultGuide(): string | null {
+    try {
+      const abs = path.join(this.root, "CLAUDE.md");
+      if (!fs.existsSync(abs)) return null;
+      return fs.readFileSync(abs, "utf8").slice(0, 8000);
+    } catch {
+      return null;
+    }
   }
 
   requireReadable(user: AclUser, noteId: string): IndexedNote {
@@ -288,6 +328,7 @@ export class VaultStore {
       this.logUpdate(note.id, encodeStateB64(doc), user.id);
     }
     this.syncNoteRow(note);
+    this.syncProjectRow(note);
     this.reconcileTaskObjects(note);
     this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id } satisfies NoteChangedEvent);
     return note;

@@ -45,6 +45,15 @@ export const promoteTaskSchema = z.object({
   line: z.number().int().nonnegative(),
 });
 
+/** Set a task's board status by line/block. `done`/`todo` flip the checkbox in
+ *  the file; `in-progress`/`blocked` are DB-only and auto-promote the line. */
+export const setTaskStatusSchema = z.object({
+  noteId: z.string(),
+  line: z.number().int().nonnegative().optional(),
+  blockId: z.string().optional(),
+  status: z.enum(["todo", "in-progress", "done", "blocked"]),
+});
+
 export const taskDatesSchema = z
   .object({
     noteId: z.string(),
@@ -99,6 +108,11 @@ export const aiConfigSchema = z.object({
   model: z.string().min(1),
 });
 
+/** The owner's custom agent instructions, appended to the built-in app guide. */
+export const aiInstructionsSchema = z.object({
+  instructions: z.string().max(8000),
+});
+
 export const askVaultSchema = z.object({
   messages: z.array(z.object({
     role: z.enum(["user", "assistant", "system", "data"]),
@@ -110,4 +124,5 @@ export const askVaultSchema = z.object({
 
 export type NoteWrite = z.infer<typeof noteWriteSchema>;
 export type CheckTask = z.infer<typeof checkTaskSchema>;
+export type SetTaskStatus = z.infer<typeof setTaskStatusSchema>;
 export type Grant = z.infer<typeof grantSchema>;

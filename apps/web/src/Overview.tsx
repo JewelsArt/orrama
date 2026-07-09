@@ -13,6 +13,17 @@ const DOMAINS: { id: Domain; label: string; color: string }[] = [
 ];
 const STEP_CAP = 12;
 
+type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
+/** Order matters: this is how the dropdown lists them. `cls` maps to the .st.* colours. */
+const STATUS_OPTS: { id: TaskStatus; label: string; cls: string }[] = [
+  { id: "in-progress", label: "Working on it", cls: "work" },
+  { id: "todo", label: "To do", cls: "todo" },
+  { id: "blocked", label: "Blocked", cls: "blocked" },
+  { id: "done", label: "Done", cls: "done" },
+];
+const statusOf = (t: DashboardTask): TaskStatus =>
+  t.checked ? "done" : t.object?.status === "in-progress" ? "in-progress" : t.object?.status === "blocked" ? "blocked" : "todo";
+
 /** Overview: the project board, split by life-area (Personal / Professional /
  *  Academic). Every step, %, owner is a view over checkboxes in the notes. */
 export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
@@ -23,6 +34,8 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
   // Projects are open by default (like the mock); this tracks the ones collapsed.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState<Set<string>>(new Set());
+  // Fully-done projects fold away into a "Completed" sub-page.
+  const [showCompleted, setShowCompleted] = useState(false);
   // Projects flipped to the Gantt view; persisted so the board reopens the way you left it.
   const [gantt, setGantt] = useState<Set<string>>(() => {
     try {
@@ -74,8 +87,15 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     };
   }, [load]);
 
-  const check = async (noteId: string, line: number, blockId: string | undefined, checked: boolean) => {
-    await api("POST", "/api/tasks/check", { noteId, line, blockId, checked });
+  const setStatus = async (t: DashboardTask, status: TaskStatus) => {
+    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, status });
+    if (teamSlug) void load(teamSlug);
+  };
+
+  // Owners can unregister a project (removes the board mapping; the note stays).
+  const removeProject = async (id: string, name: string) => {
+    if (!window.confirm(`Remove “${name}” from the board?\n\nThe note and its tag stay — it just stops being tracked as a project.`)) return;
+    await api("DELETE", `/api/admin/projects/${id}`);
     if (teamSlug) void load(teamSlug);
   };
 
@@ -106,7 +126,11 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     return m;
   }, [data]);
 
-  const openTasks = projects.reduce((s, p) => s + (p.total - p.done), 0);
+  // A project is "complete" once every step is done (0-task projects never count).
+  const activeProjects = useMemo(() => projects.filter((p) => !(p.total > 0 && p.done === p.total)), [projects]);
+  const completedProjects = useMemo(() => projects.filter((p) => p.total > 0 && p.done === p.total), [projects]);
+  const shown = showCompleted ? completedProjects : activeProjects;
+  const openTasks = activeProjects.reduce((s, p) => s + (p.total - p.done), 0);
 
   return (
     <div className="overview">
@@ -137,8 +161,19 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
             ))}
           </div>
           <span className="ov-bar-meta">
-            {openTasks} open · {projects.length} {projects.length === 1 ? "project" : "projects"}
+            {showCompleted
+              ? `${completedProjects.length} completed`
+              : `${openTasks} open · ${activeProjects.length} ${activeProjects.length === 1 ? "project" : "projects"}`}
           </span>
+          {(completedProjects.length > 0 || showCompleted) && (
+            <button
+              className={`ov-completed-tab ${showCompleted ? "on" : ""}`}
+              onClick={() => setShowCompleted((v) => !v)}
+              aria-pressed={showCompleted}
+            >
+              {showCompleted ? "‹ Active projects" : `Completed projects · ${completedProjects.length}`}
+            </button>
+          )}
         </div>
 
         {digest && digest.configured && (
@@ -158,7 +193,7 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
           </div>
         )}
 
-        {projects.map((p, pi) => {
+        {shown.map((p, pi) => {
           const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
           const open = !collapsed.has(p.project);
           const color = DOMAIN_COLOR[p.domain ?? "personal"] ?? PROJECT_COLORS[pi % PROJECT_COLORS.length] ?? "#6fabec";
@@ -214,7 +249,14 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
               {open && gantt.has(p.project) && (
                 <div className="ov-steps ov-steps-gantt">
                   {p.tasks.length === 0 ? (
-                    <p className="ov-step-empty">No steps yet — add checkboxes to the note.</p>
+                    <p className="ov-step-empty">
+                    No steps yet — add checkboxes to the note.
+                    {me.isOwner && p.projectId && (
+                      <button className="ov-remove" onClick={() => removeProject(p.projectId!, p.project)}>
+                        Remove from board
+                      </button>
+                    )}
+                  </p>
                   ) : (
                     <Gantt tasks={p.tasks} color={color} onSetDates={setDates} onOpen={onOpenNote} />
                   )}
@@ -224,7 +266,14 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
               {open && !gantt.has(p.project) && (
                 <div className="ov-steps">
                   {p.tasks.length === 0 ? (
-                    <p className="ov-step-empty">No steps yet — add checkboxes to the note.</p>
+                    <p className="ov-step-empty">
+                    No steps yet — add checkboxes to the note.
+                    {me.isOwner && p.projectId && (
+                      <button className="ov-remove" onClick={() => removeProject(p.projectId!, p.project)}>
+                        Remove from board
+                      </button>
+                    )}
+                  </p>
                   ) : (
                     <>
                       <div className="ov-steps-head">
@@ -235,7 +284,7 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
                         <span>Docs</span>
                       </div>
                       {steps.map((t) => (
-                        <Step key={`${t.noteId}:${t.line}`} t={t} color={color} defaultOwner={me.displayName} onCheck={check} onOpen={onOpenNote} />
+                        <Step key={`${t.noteId}:${t.line}`} t={t} color={color} defaultOwner={me.displayName} onStatus={setStatus} onOpen={onOpenNote} />
                       ))}
                       {!all && p.tasks.length > STEP_CAP && (
                         <button className="ov-more" onClick={() => setShowAll((s) => toggleSet(s, p.project))}>
@@ -250,7 +299,11 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
           );
         })}
 
-        {data && projects.length === 0 && <p className="empty">No {scope === "all" ? "" : scope} projects here yet.</p>}
+        {data && shown.length === 0 && (
+          <p className="empty">
+            {showCompleted ? "No completed projects yet — finish every step in a project and it lands here." : `No ${scope === "all" ? "" : scope} projects here yet.`}
+          </p>
+        )}
       </div>
 
       <aside className="who" aria-label="Who's working on what">
@@ -291,27 +344,60 @@ function Step({
   t,
   color,
   defaultOwner,
-  onCheck,
+  onStatus,
   onOpen,
 }: {
   t: DashboardTask;
   color: string;
   defaultOwner: string;
-  onCheck: (noteId: string, line: number, blockId: string | undefined, checked: boolean) => void;
+  onStatus: (t: DashboardTask, status: TaskStatus) => void;
   onOpen: (id: string) => void;
 }) {
-  const status = t.checked ? "done" : t.object?.status === "in-progress" ? "work" : "todo";
-  const label = status === "done" ? "Done" : status === "work" ? "Working on it" : "To do";
+  const [menu, setMenu] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const status = statusOf(t);
+  const cur = STATUS_OPTS.find((s) => s.id === status)!;
   const owner = t.assignee ?? defaultOwner;
+
+  // Close the dropdown on any click outside it.
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menu]);
+
   return (
-    <div className="ov-step">
-      <button
-        className={`st ${status}`}
-        onClick={() => onCheck(t.noteId, t.line, t.blockId, !t.checked)}
-        title={t.checked ? "Mark not done" : "Mark done"}
-      >
-        {label}
-      </button>
+    <div className={`ov-step ${status === "done" ? "is-done" : ""}`}>
+      <div className="st-wrap" ref={ref}>
+        <button className={`st ${cur.cls}`} onClick={() => setMenu((m) => !m)} aria-haspopup="listbox" aria-expanded={menu}>
+          {cur.label}
+          <span className="st-caret" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {menu && (
+          <div className="st-menu" role="listbox">
+            {STATUS_OPTS.map((s) => (
+              <button
+                key={s.id}
+                role="option"
+                aria-selected={s.id === status}
+                className={`st-opt ${s.id === status ? "sel" : ""}`}
+                onClick={() => {
+                  setMenu(false);
+                  if (s.id !== status) onStatus(t, s.id);
+                }}
+              >
+                <span className={`st-dot ${s.cls}`} />
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <span className="ov-step-name" title={t.text}>
         {t.text}
       </span>
@@ -322,7 +408,7 @@ function Step({
         {owner}
       </span>
       <span className="ov-tl">
-        {t.due ? <span className={`ov-tl-pill ${status}`}>{t.due.slice(5)}</span> : <span className="ov-tl-none">—</span>}
+        {t.due ? <span className={`ov-tl-pill ${cur.cls}`}>{t.due.slice(5)}</span> : <span className="ov-tl-none">—</span>}
       </span>
       <button className="ov-docs" onClick={() => onOpen(t.noteId)} title={t.notePath}>
         {t.noteTitle}

@@ -173,6 +173,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {},
         },
       },
+      {
+        name: "create_project",
+        description: "Create a new project. Writes a project note under 04-Projects/ so it appears on the board with tasks, planning, and dashboard progress. Add work as `- [ ]` checkbox tasks in the note afterwards.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Project name" },
+            domain: { type: "string", enum: ["personal", "professional", "academic"], description: "Life-area for the Overview board" },
+          },
+          required: ["name"],
+        },
+      },
+      {
+        name: "set_task_status",
+        description: "Set a task's status. todo/done tick the checkbox in the note; in-progress/blocked are richer board states. Identify the task by noteId + line (0-indexed) or blockId.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            noteId: { type: "string" },
+            line: { type: "number", description: "Line number of the task (0-indexed) if no blockId" },
+            blockId: { type: "string", description: "Block ID of the task if promoted" },
+            status: { type: "string", enum: ["todo", "in-progress", "blocked", "done"] },
+          },
+          required: ["noteId", "status"],
+        },
+      },
+      {
+        name: "create_event",
+        description: "Add a meeting/event to the calendar for a specific day.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            date: { type: "string", description: "YYYY-MM-DD" },
+            startMin: { type: "number", description: "Minutes from midnight (e.g. 540 = 09:00)" },
+            durationMin: { type: "number", description: "Duration in minutes (default 60)" },
+          },
+          required: ["title", "date", "startMin"],
+        },
+      },
     ],
   };
 });
@@ -298,6 +338,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "get_contacts": {
         const contacts = await fetchBasalt(`/api/members`);
         return { content: [{ type: "text", text: JSON.stringify(contacts, null, 2) }] };
+      }
+
+      case "create_project": {
+        const name = String(request.params.arguments?.name ?? "");
+        const domain = request.params.arguments?.domain;
+        const created = await fetchBasalt(`/api/projects`, "POST", { name, ...(domain ? { domain } : {}) });
+        return { content: [{ type: "text", text: JSON.stringify(created, null, 2) }] };
+      }
+
+      case "set_task_status": {
+        const a = request.params.arguments ?? {};
+        const res = await fetchBasalt(`/api/tasks/status`, "POST", { noteId: a.noteId, line: a.line, blockId: a.blockId, status: a.status });
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+      }
+
+      case "create_event": {
+        const a = request.params.arguments ?? {};
+        const res = await fetchBasalt(`/api/events`, "POST", { title: a.title, date: a.date, startMin: a.startMin, durationMin: a.durationMin });
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
       }
 
       default:

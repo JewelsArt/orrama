@@ -109,6 +109,13 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
     await openNote(open.id);
   };
 
+  const isProject = open?.tags?.some((t) => /^project\//i.test(t.tag)) ?? false;
+  const makeProject = async () => {
+    if (!open) return;
+    await api("POST", "/api/projects/promote", { noteId: open.id });
+    await openNote(open.id);
+  };
+
   const scoped = useMemo(
     () => (category === "all" ? tree : tree.filter((n) => categoryOf(n) === category)),
     [tree, category],
@@ -194,6 +201,12 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
                 <span className="editor-path">{open.path}</span>
               </div>
               <span className="editor-presence">
+                {open.canEdit && !isProject && (
+                  <button className="make-project" onClick={makeProject} title="Add project tags so this note shows on the board">
+                    + Make this a project
+                  </button>
+                )}
+                {isProject && <span className="is-project-badge" title="This note is a project">● project</span>}
                 {editingBy && <span className="presence-badge">{editingBy.username} is editing</span>}
                 <span className={`save-state ${status}`}>
                   {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "save failed") : "read-only"}

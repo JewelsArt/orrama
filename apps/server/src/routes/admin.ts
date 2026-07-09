@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { aiConfigSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@basalt/schema";
+import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -48,7 +48,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
       grants: db.select().from(tables.folderGrants).all(),
       projects: db.select().from(tables.projects).all(),
       invites: db.select().from(tables.invites).all().filter((i) => !i.usedBy && i.expiresAt > Date.now()),
-      ai: { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted },
+      ai: { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted, instructions: ws?.aiInstructions ?? "" },
     };
   });
 
@@ -100,6 +100,17 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     return project;
   });
 
+  /** Remove a project from the board. We set hidden=1 rather than delete: projects
+   *  auto-register from `project/<slug>` note tags, so a hard delete would just be
+   *  resurrected on the next re-index. The note (and its tag) is untouched. */
+  app.delete<{ Params: { id: string } }>("/api/admin/projects/:id", auth, async (req) => {
+    await requireOwner(req.userId);
+    const project = db.select().from(tables.projects).where(eq(tables.projects.id, req.params.id)).get();
+    if (!project) throw new HttpError(404, "project not found");
+    db.update(tables.projects).set({ hidden: 1 }).where(eq(tables.projects.id, req.params.id)).run();
+    return { ok: true };
+  });
+
   app.post("/api/admin/invites", auth, async (req) => {
     await requireOwner(req.userId);
     const body = inviteCreateSchema.parse(req.body);
@@ -125,5 +136,15 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
       .where(eq(tables.workspace.id, ws.id))
       .run();
     return { ok: true, provider: body.provider, model: body.model };
+  });
+
+  /** The agent's custom instructions — appended to the built-in app guide (§9). */
+  app.post("/api/admin/ai/instructions", auth, async (req) => {
+    await requireOwner(req.userId);
+    const body = aiInstructionsSchema.parse(req.body);
+    const ws = db.select().from(tables.workspace).all()[0];
+    if (!ws) throw new HttpError(500, "workspace not initialized");
+    db.update(tables.workspace).set({ aiInstructions: body.instructions }).where(eq(tables.workspace.id, ws.id)).run();
+    return { ok: true };
   });
 }

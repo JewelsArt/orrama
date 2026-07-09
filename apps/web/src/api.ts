@@ -89,6 +89,7 @@ export interface DashboardData {
   team: Team;
   projects: {
     project: string;
+    projectId: string | null;
     total: number;
     done: number;
     assignees: string[];

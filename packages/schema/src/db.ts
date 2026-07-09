@@ -27,6 +27,7 @@ export const workspace = sqliteTable("workspace", {
   aiProvider: text("ai_provider"), // "anthropic" | "openai-compatible"
   aiKeyEncrypted: text("ai_key_encrypted"),
   aiModel: text("ai_model"),
+  aiInstructions: text("ai_instructions"), // owner's custom "how to act" prompt, appended to the built-in app guide
 });
 
 export const teams = sqliteTable("teams", {
@@ -187,4 +188,5 @@ export const projects = sqliteTable("projects", {
   name: text("name").notNull(),
   teamId: text("team_id"), // owning team for dashboard grouping (null = all teams)
   domain: text("domain"), // life-area for the Overview separation: personal | professional | academic
+  hidden: integer("hidden"), // 1 = removed from the board; survives re-index (auto-sync respects it)
 });

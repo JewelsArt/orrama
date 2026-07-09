@@ -214,6 +214,82 @@ describe("tasks: file is the source of truth", () => {
     expect(cleared.json.content.split("\n")[line]).not.toContain("start:");
     expect(cleared.json.content.split("\n")[line]).toContain("due:2026-07-10");
   });
+
+  it("status dropdown: done checks the box; in-progress is DB-only and auto-promotes", async () => {
+    const jules = await api("GET", "/api/vault/tree", "jules");
+    const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
+    const notePath = path.join(process.env.BASALT_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md");
+    const before = await api("GET", `/api/vault/note/${shared.id}`, "jules");
+    const line = before.json.content.split("\n").findIndex((l: string) => l.includes("schedule next sync"));
+
+    // in-progress: a checkbox can't hold it → promote the line, keep the box open,
+    // and carry the status on the task object (DB), not the Markdown.
+    const wip = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, status: "in-progress" });
+    expect(wip.status).toBe(200);
+    expect(wip.json.blockId).toMatch(/^t-/);
+    const wipLine = fs.readFileSync(notePath, "utf8").split("\n").find((l) => l.includes("schedule next sync"))!;
+    expect(wipLine).toContain("- [ ] schedule next sync"); // still open in the file
+    expect(wipLine).toMatch(/\^t-/); // but promoted
+    const tasks = await api("GET", "/api/tasks", "jules");
+    expect(tasks.json.find((t: { blockId?: string }) => t.blockId === wip.json.blockId)?.object?.status).toBe("in-progress");
+
+    // done: crosses into the checkbox, editing the real file on disk.
+    const done = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: wip.json.blockId, status: "done" });
+    expect(done.status).toBe(200);
+    expect(fs.readFileSync(notePath, "utf8")).toMatch(/- \[x\] schedule next sync/);
+
+    // back to todo → unchecks, leaving the note clean for later tests.
+    await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: wip.json.blockId, status: "todo" });
+    expect(fs.readFileSync(notePath, "utf8")).toMatch(/- \[ \] schedule next sync/);
+  });
+});
+
+describe("projects derive from notes", () => {
+  it("a project/<slug> note auto-registers on the board; hiding it survives re-index", async () => {
+    // Scaffold a project note (this is what the AI/MCP create_project tool does).
+    const created = await api("POST", "/api/projects", "jules", { name: "Auto Test", domain: "professional" });
+    expect(created.status).toBe(200);
+    expect(created.json.key).toBe("project/auto-test");
+
+    // It's on the board purely because the note carries the tag — no manual registration.
+    let dash = await api("GET", "/api/dashboard/engineering", "jules");
+    expect(dash.json.projects.some((p: { project: string }) => p.project === "Auto Test")).toBe(true);
+
+    // Owner removes it → hidden (not deleted).
+    const admin = await api("GET", "/api/admin/overview", "jules");
+    const proj = admin.json.projects.find((p: { key: string }) => p.key === "project/auto-test");
+    expect(proj).toBeTruthy();
+    expect((await api("DELETE", `/api/admin/projects/${proj.id}`, "jules")).status).toBe(200);
+    dash = await api("GET", "/api/dashboard/engineering", "jules");
+    expect(dash.json.projects.some((p: { project: string }) => p.project === "Auto Test")).toBe(false);
+
+    // Re-indexing the still-tagged note must NOT resurrect it (the whole point of hidden).
+    const note = await api("GET", `/api/vault/note/${created.json.noteId}`, "jules");
+    await api("PUT", "/api/vault/note", "jules", { path: created.json.path, content: note.json.content + "\n- [ ] another step\n", baseHash: note.json.hash });
+    dash = await api("GET", "/api/dashboard/engineering", "jules");
+    expect(dash.json.projects.some((p: { project: string }) => p.project === "Auto Test")).toBe(false);
+  });
+
+  it("promote adds project tags to an existing note", async () => {
+    const jules = await api("GET", "/api/vault/tree", "jules");
+    const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
+    const r = await api("POST", "/api/projects/promote", "jules", { noteId: shared.id, domain: "professional" });
+    expect(r.status).toBe(200);
+    const after = await api("GET", `/api/vault/note/${shared.id}`, "jules");
+    expect(after.json.content).toMatch(/project\//);
+    expect(after.json.tags.some((t: { tag: string }) => /^project\//.test(t.tag))).toBe(true);
+  });
+});
+
+describe("AI agent config", () => {
+  it("owner sets custom agent instructions; they persist and are owner-only", async () => {
+    const set = await api("POST", "/api/admin/ai/instructions", "jules", { instructions: "Be direct. Push me on deadlines." });
+    expect(set.status).toBe(200);
+    const overview = await api("GET", "/api/admin/overview", "jules");
+    expect(overview.json.ai.instructions).toBe("Be direct. Push me on deadlines.");
+    // a non-owner cannot change the agent's instructions
+    expect((await api("POST", "/api/admin/ai/instructions", "erin", { instructions: "hijack" })).status).toBe(403);
+  });
 });
 
 describe("dashboard", () => {
