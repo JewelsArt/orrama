@@ -11,11 +11,27 @@ body {
 }
 
 body {
-  background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  /* Soft radial-blob glow over a diagonal ground — the glass sits on top. */
+  background:
+    radial-gradient(60% 55% at 16% 10%, color-mix(in srgb, var(--blob-a) 40%, transparent) 0%, transparent 62%),
+    radial-gradient(55% 50% at 90% 6%, color-mix(in srgb, var(--blob-b) 24%, transparent) 0%, transparent 58%),
+    radial-gradient(70% 65% at 80% 98%, color-mix(in srgb, var(--blob-c) 48%, transparent) 0%, transparent 62%),
+    linear-gradient(150deg, var(--bg-1) 0%, var(--bg-0) 48%, var(--bg-2) 100%);
+  background-attachment: fixed;
+}
+
+[data-theme="light"] body,
+[data-theme="paper"] body {
+  background:
+    radial-gradient(55% 55% at 15% 10%, color-mix(in srgb, var(--blob-a) 80%, transparent) 0%, transparent 60%),
+    radial-gradient(55% 55% at 90% 6%, color-mix(in srgb, var(--blob-b) 22%, transparent) 0%, transparent 55%),
+    radial-gradient(60% 60% at 80% 95%, color-mix(in srgb, var(--blob-c) 70%, transparent) 0%, transparent 60%),
+    linear-gradient(150deg, var(--bg-0) 0%, var(--bg-1) 100%);
+  background-attachment: fixed;
 }
 
 #root {
@@ -58,4 +74,34 @@ a {
 }
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Animated theme toggle — a clip-path ripple from the click point.
+   The rail's toggle button sets --rx/--ry and adds .rippling before swapping. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+html.rippling::view-transition-new(root) {
+  animation: theme-reveal 0.55s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0px at var(--rx, 50%) var(--ry, 50%));
+  }
+  to {
+    clip-path: circle(160% at var(--rx, 50%) var(--ry, 50%));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html.rippling::view-transition-new(root) {
+    animation: none;
+  }
 }

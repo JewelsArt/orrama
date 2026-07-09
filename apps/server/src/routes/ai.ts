@@ -1,4 +1,6 @@
 import type { FastifyInstance } from "fastify";
+import { streamText, tool } from "ai";
+import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import { suggestRelated, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
@@ -108,18 +110,64 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
   };
 
   /** Ask your vault (§9.1): answers cite [[notes]]. */
-  app.post("/api/ai/ask", auth, async (req) => {
+  app.post("/api/ai/ask", auth, async (req, reply) => {
     const body = askVaultSchema.parse(req.body);
     const c = config();
     if (!c) throw new HttpError(400, "AI is not configured — a workspace owner can add a provider key in Settings.");
-    const notes = retrieve(req.userId, body.question, body.contextNoteId);
-    const context = notes.map((n) => `<note title="${n.title}" path="${n.path}">\n${n.content}\n</note>`).join("\n\n");
-    const answer = await callProvider(
-      c,
-      "You answer questions about a team's knowledge vault. Use ONLY the provided notes. Cite sources inline as [[Note Title]] wiki-links. If the notes don't contain the answer, say so.",
-      `Notes:\n\n${context}\n\nQuestion: ${body.question}`,
-    );
-    return { answer, sources: notes.map((n) => ({ id: n.id, title: n.title, path: n.path })) };
+
+    let model;
+    if (c.provider === "anthropic") {
+      const { createAnthropic } = await import("@ai-sdk/anthropic");
+      model = createAnthropic({ apiKey: c.apiKey })(c.model);
+    } else {
+      const { createOpenAI } = await import("@ai-sdk/openai");
+      model = createOpenAI({ apiKey: c.apiKey, baseURL: process.env.BASALT_OPENAI_BASE_URL })(c.model);
+    }
+
+    const user = store.aclUser(req.userId);
+
+    const result = streamText({
+      model,
+      system: "You are an AI assistant built directly into the Basalt application. You have access to the user's files and database as your memory. Use your tools to read notes, create projects, edit notes, setup calendar events, and more. When asked a question, search the vault first. Cite sources using [[Note Title]] wiki-links.",
+      messages: body.messages as any,
+      // @ts-ignore: Tool execution types mismatch with installed zod/ai versions
+      tools: {
+        search_vault: tool({
+          description: "Search the knowledge vault for notes matching a query.",
+          parameters: z.object({ query: z.string() }),
+          // @ts-ignore
+          execute: async ({ query }: { query: string }) => {
+            const notes = retrieve(req.userId, query, body.contextNoteId);
+            return notes.map(n => ({ title: n.title, path: n.path, content: n.content.slice(0, 2000) }));
+          }
+        }),
+        write_note: tool({
+          description: "Create or update a markdown note in the vault.",
+          parameters: z.object({ path: z.string(), content: z.string() }),
+          // @ts-ignore
+          execute: async ({ path, content }: { path: string, content: string }) => {
+            store.write(user, path, content);
+            return { success: true, path };
+          }
+        }),
+        create_project: tool({
+          description: "Create a new project in the workspace.",
+          parameters: z.object({ name: z.string(), kind: z.enum(["folder", "tag"]) }),
+          // @ts-ignore
+          execute: async ({ name, kind }: { name: string, kind: "folder" | "tag" }) => {
+            const id = Math.random().toString(36).slice(2, 10);
+            const key = name.substring(0, 3).toUpperCase();
+            db.insert(tables.projects).values({ id, name, kind, key }).run();
+            return { success: true, id, key };
+          }
+        })
+      }
+    });
+
+    reply.raw.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    result.pipeUIMessageStreamToResponse(reply.raw);
+    reply.hijack();
+    return;
   });
 
   /** Team digest (§9.2): dashboard banner, generated on demand, cached daily per team. */

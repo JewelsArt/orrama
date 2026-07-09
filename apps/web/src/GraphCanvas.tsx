@@ -115,14 +115,14 @@ export function GraphCanvas({
         "link",
         forceLink<SimNode, SimLink>(links)
           .id((n) => n.id)
-          .distance(54)
-          .strength(0.22),
+          .distance(38)
+          .strength(0.3),
       )
-      .force("charge", forceManyBody<SimNode>().strength(-190).distanceMax(520))
-      .force("collide", forceCollide<SimNode>((n) => n.r + 9).strength(0.95))
-      .force("center", forceCenter(0, 0).strength(0.05))
-      .force("x", forceX(0).strength(0.05))
-      .force("y", forceY(0).strength(0.05))
+      .force("charge", forceManyBody<SimNode>().strength(-115).distanceMax(420))
+      .force("collide", forceCollide<SimNode>((n) => n.r + 4).strength(0.95))
+      .force("center", forceCenter(0, 0).strength(0.08))
+      .force("x", forceX(0).strength(0.09))
+      .force("y", forceY(0).strength(0.09))
       .velocityDecay(0.4)
       .alphaDecay(0.025);
 
@@ -191,18 +191,13 @@ export function GraphCanvas({
         const isNeighbor = neighbors.has(n.id);
         const isLit = lit(n.id);
         const dimmed = hover ? !isHover && !isNeighbor : !isLit;
-        const rr = Math.max(n.r * k, 2);
+        // Scale the node up by 30% when hovered
+        const rr = Math.max(n.r * k * (isHover ? 1.3 : 1), 2);
         ctx.globalAlpha = isHover ? 1 : dimmed ? (isLit ? 0.3 : 0.12) : 0.95;
         ctx.fillStyle = n.color;
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, rr, 0, Math.PI * 2);
         ctx.fill();
-        if (isHover) {
-          ctx.globalAlpha = 1;
-          ctx.strokeStyle = "#ffffff";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
       }
 
       // labels — Obsidian style: nothing at a glance, the hovered node and its
@@ -217,10 +212,13 @@ export function GraphCanvas({
         const show = isHover || isNeighbor || (!hover && showAll && (highlight === null || highlight.has(n.id)));
         if (!show) continue;
         const p = project(n);
+        // Emphasize the text slightly via opacity rather than color change
         ctx.globalAlpha = isHover ? 1 : 0.75;
-        ctx.fillStyle = isHover ? "#ffffff" : labelColor;
+        ctx.fillStyle = labelColor;
         const label = n.title.length > 26 ? n.title.slice(0, 25) + "…" : n.title;
-        ctx.fillText(label, p.sx, p.sy + Math.max(n.r * k, 2) + 3);
+        // Adjust the Y offset using the same hover scale factor
+        const rr = Math.max(n.r * k * (isHover ? 1.3 : 1), 2);
+        ctx.fillText(label, p.sx, p.sy + rr + 3);
       }
       ctx.globalAlpha = 1;
     };
@@ -317,7 +315,12 @@ export function GraphCanvas({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const { cx, cy } = cssPos(e);
-      const k2 = Math.max(0.2, Math.min(4, savedView.k * (e.deltaY < 0 ? 1.12 : 0.893)));
+      
+      // Smooth proportional zoom based on scroll magnitude. 
+      // Math.exp gives a perfectly linear zoom feel regardless of current scale.
+      const scaleMultiplier = Math.exp(-e.deltaY * 0.0015);
+      const k2 = Math.max(0.2, Math.min(4, savedView.k * scaleMultiplier));
+      
       const gx = (cx - savedView.x) / savedView.k;
       const gy = (cy - savedView.y) / savedView.k;
       savedView.k = k2;

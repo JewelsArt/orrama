@@ -1,57 +1,153 @@
 /* Basalt design tokens (spec §11). Token-first: components only ever use vars.
-   Palette lifted from Jules's own vault graph style: near-black #0f0f17 ground,
-   lavender-gray text (#8888aa family), amber #f5a623 as the single accent.
-   Neon is banned; color that isn't information doesn't ship. */
+   Glass design language: frosted translucent surfaces over a soft radial-blob
+   backdrop. Two themes, swapped by the animated rail toggle:
+     [data-theme="command"] — graphite monochrome, silver accent, purple mark
+     [data-theme="light"]   — frosted white, sapphire accent, purple mark
+   The mock lives in ~/basalt-dash-mock (architecture-glass.html is canonical). */
 
 :root,
 [data-theme="command"] {
-  /* Command Center — dark default. */
-  --bg: #0f0f17;
-  --bg-raised: #14141e;
-  --bg-overlay: #171724;
-  --panel: rgba(136, 136, 170, 0.04);
-  --panel-strong: rgba(136, 136, 170, 0.09);
-  --border: rgba(136, 136, 170, 0.14);
-  --border-strong: rgba(136, 136, 170, 0.26);
-  --text: #d6d6e4;
-  --text-dim: #8888aa;
-  --text-faint: #555570;
-  --accent: #f5a623;
-  --accent-dim: rgba(245, 166, 35, 0.13);
-  --danger: #e5383b;
-  --warn: #f5a623;
-  --ok: #2dd4bf;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
-  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Command Center — graphite glass (dark default). */
+
+  /* backdrop gradient stops + glow blobs (consumed by base.css body) */
+  --bg-0: #0a0a0b;
+  --bg-1: #161618;
+  --bg-2: #323234;
+  --blob-a: #706f70;
+  --blob-b: #9a9ba0;
+  --blob-c: #47474b;
+
+  /* solid app ground (fallback under the gradient) */
+  --bg: #0a0a0b;
+
+  /* frosted glass surfaces */
+  --glass: rgba(255, 255, 255, 0.06);
+  --glass-2: rgba(255, 255, 255, 0.04);
+  --glass-strong: rgba(255, 255, 255, 0.1);
+  --glass-brd: rgba(255, 255, 255, 0.13);
+  --glass-hi: rgba(255, 255, 255, 0.2);
+  --card-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.55);
+  --blur: blur(22px) saturate(150%);
+  --dot: rgba(255, 255, 255, 0.05);
+
+  /* raised / overlay surfaces mapped onto the glass family */
+  --bg-raised: rgba(255, 255, 255, 0.055);
+  --bg-overlay: rgba(20, 20, 24, 0.82);
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-strong: rgba(255, 255, 255, 0.09);
+  --border: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* text (cool light-gray family) */
+  --text: #edeef1;
+  --text-dim: rgba(235, 237, 241, 0.62);
+  --text-faint: rgba(235, 237, 241, 0.4);
+
+  /* accents — silver interactive spark, purple wordmark */
+  --accent: #cdd2db;
+  --accent-deep: #aab0bb;
+  --accent-soft: rgba(205, 210, 219, 0.14);
+  --accent-dim: rgba(205, 210, 219, 0.14);
+  --logo: #6f5ae8;
+  --focus: #8f7bf0;
+
+  /* category / badge hues — muted so they sit quietly on graphite */
+  --blue: #6fabec;
+  --green: #57c99b;
+  --orange: #e2a662;
+  --purple: #b587e8;
+  --pink: #e284a6;
+  --cat-a: #cdd2db;
+  --cat-b: #7c7a80;
+
+  --t-finance: #57c99b;
+  --t-marketing: #e284a6;
+  --t-leadership: #e2a662;
+  --t-operations: #6fabec;
+  --t-engineering: #b587e8;
+  --t-university: #52a8c0;
+  --t-design: #d46ba8;
+
+  --danger: #e5838f;
+  --warn: #e2a662;
+  --ok: #57c99b;
+  --shadow: var(--card-shadow);
+
+  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --radius: 6px;
-  --radius-sm: 4px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 22px;
   --editor-line-height: 1.65;
   color-scheme: dark;
 }
 
+[data-theme="light"],
 [data-theme="paper"] {
-  /* Paper — warm light theme for long writing sessions. */
-  --bg: #faf9f6;
-  --bg-raised: #ffffff;
-  --bg-overlay: #ffffff;
-  --panel: rgba(60, 56, 80, 0.03);
-  --panel-strong: rgba(60, 56, 80, 0.065);
-  --border: rgba(60, 56, 80, 0.13);
-  --border-strong: rgba(60, 56, 80, 0.24);
-  --text: #2b2836;
-  --text-dim: #6b6880;
-  --text-faint: #a3a0b5;
-  --accent: #b87708;
-  --accent-dim: rgba(184, 119, 8, 0.1);
-  --danger: #c22f32;
-  --warn: #b87708;
-  --ok: #0f9d8f;
-  --shadow: 0 4px 24px rgba(40, 36, 60, 0.12);
-  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Light — frosted white glass, sapphire accent. */
+
+  --bg-0: #eef1f8;
+  --bg-1: #e7ecf6;
+  --bg-2: #e7ecf6;
+  --blob-a: #cdd0dc;
+  --blob-b: #2f7eda;
+  --blob-c: #c6d1d7;
+
+  --bg: #eef1f8;
+
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-2: rgba(255, 255, 255, 0.4);
+  --glass-strong: rgba(255, 255, 255, 0.66);
+  --glass-brd: rgba(255, 255, 255, 0.85);
+  --glass-hi: rgba(255, 255, 255, 0.95);
+  --card-shadow: 0 10px 34px -14px rgba(40, 53, 94, 0.2);
+  --blur: blur(22px) saturate(150%);
+  --dot: rgba(40, 53, 94, 0.1);
+
+  --bg-raised: rgba(255, 255, 255, 0.55);
+  --bg-overlay: rgba(255, 255, 255, 0.9);
+  --panel: rgba(255, 255, 255, 0.45);
+  --panel-strong: rgba(255, 255, 255, 0.72);
+  --border: rgba(40, 53, 94, 0.1);
+  --border-strong: rgba(40, 53, 94, 0.2);
+
+  --text: #1c2230;
+  --text-dim: #55617a;
+  --text-faint: #8b94a8;
+
+  --accent: #2f7eda;
+  --accent-deep: #245fb0;
+  --accent-soft: rgba(47, 126, 218, 0.12);
+  --accent-dim: rgba(47, 126, 218, 0.12);
+  --logo: #6f5ae8;
+  --focus: #6f5ae8;
+
+  --blue: #2f9bff;
+  --green: #12a150;
+  --orange: #e07b1a;
+  --purple: #7c3aed;
+  --pink: #db2777;
+  --cat-a: #2f7eda;
+  --cat-b: #b8a9d4;
+
+  --t-finance: #12a150;
+  --t-marketing: #db2777;
+  --t-leadership: #e0821a;
+  --t-operations: #2f7eda;
+  --t-engineering: #7c3aed;
+  --t-university: #0e7490;
+  --t-design: #c026a0;
+
+  --danger: #db2777;
+  --warn: #e07b1a;
+  --ok: #12a150;
+  --shadow: var(--card-shadow);
+
+  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --radius: 6px;
-  --radius-sm: 4px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 22px;
   --editor-line-height: 1.65;
   color-scheme: light;
 }

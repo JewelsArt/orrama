@@ -1,45 +1,25 @@
 import { useEffect, useRef, useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import { api } from "./api.js";
 import { IconAsk, IconX } from "./icons.js";
-
-interface Turn {
-  role: "user" | "assistant";
-  text: string;
-  sources?: { id: string; title: string }[];
-}
 
 /** Ask your vault (spec §9.1): answers grounded in readable notes, with citations. */
 export function AskPanel({ onClose, onOpenNote }: { onClose: () => void; onOpenNote: (id: string) => void }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
-  const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api<{ configured: boolean }>("GET", "/api/ai/status").then((s) => setConfigured(s.configured));
   }, []);
 
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    api: "/api/ai/ask",
+    headers: { Authorization: `Bearer ${localStorage.getItem("basalt-token")}` },
+  });
+
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
-  }, [turns]);
-
-  const ask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const question = q.trim();
-    if (!question || busy) return;
-    setQ("");
-    setTurns((t) => [...t, { role: "user", text: question }]);
-    setBusy(true);
-    try {
-      const res = await api<{ answer: string; sources: { id: string; title: string }[] }>("POST", "/api/ai/ask", { question });
-      setTurns((t) => [...t, { role: "assistant", text: res.answer, sources: res.sources }]);
-    } catch (err) {
-      setTurns((t) => [...t, { role: "assistant", text: `⚠ ${err instanceof Error ? err.message : "failed"}` }]);
-    } finally {
-      setBusy(false);
-    }
-  };
+  }, [messages]);
 
   return (
     <aside className="ask-panel" aria-label="Ask your vault">
@@ -58,31 +38,29 @@ export function AskPanel({ onClose, onOpenNote }: { onClose: () => void; onOpenN
         </p>
       )}
       <div className="ask-scroll" ref={scroller}>
-        {turns.length === 0 && configured && (
-          <p className="ask-hint">Answers cite [[notes]] and only ever search notes you can read.</p>
+        {messages.length === 0 && configured && (
+          <p className="ask-hint">Answers cite [[notes]] and only ever search notes you can read. The AI can also create and edit projects and notes.</p>
         )}
-        {turns.map((t, i) => (
-          <div key={i} className={`ask-turn ${t.role}`}>
-            <p>{t.text}</p>
-            {t.sources && t.sources.length > 0 && (
-              <div className="ask-sources">
-                {t.sources.map((s) => (
-                  <button key={s.id} className="ghost" onClick={() => onOpenNote(s.id)}>
-                    [[{s.title}]]
-                  </button>
-                ))}
+        {messages.map((m) => (
+          <div key={m.id} className={`ask-turn ${m.role}`}>
+            {m.content && <p>{m.content}</p>}
+            {m.toolInvocations?.map(t => (
+              <div key={t.toolCallId} className="ask-tool" style={{ fontSize: "0.85em", color: "var(--text-dim)", marginTop: 4 }}>
+                {t.state === 'result' ? `✓ Executed ${t.toolName}` : `⚙ Executing ${t.toolName}…`}
               </div>
-            )}
+            ))}
           </div>
         ))}
-        {busy && <div className="ask-turn assistant"><p className="ask-thinking">thinking…</p></div>}
+        {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
+          <div className="ask-turn assistant"><p className="ask-thinking">thinking…</p></div>
+        )}
       </div>
-      <form className="ask-input" onSubmit={ask}>
+      <form className="ask-input" onSubmit={handleSubmit}>
         <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={configured ? "Ask about your team's notes…" : "AI not configured"}
-          disabled={!configured}
+          value={input}
+          onChange={handleInputChange}
+          placeholder={configured ? "Ask or instruct your agent…" : "AI not configured"}
+          disabled={!configured || isLoading}
           aria-label="Question"
         />
       </form>

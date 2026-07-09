@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
+import chokidar from "chokidar";
 import { and, desc, eq } from "drizzle-orm";
 import * as Y from "yjs";
 import {
@@ -53,6 +54,8 @@ export class VaultStore {
   readonly events = new EventEmitter();
   private docs = new Map<string, Y.Doc>(); // noteId → Y.Doc
   private root = vaultDir();
+  private inFlightWrites = new Set<string>();
+  private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(private db: Db) {}
 
@@ -62,6 +65,7 @@ export class VaultStore {
     const walk = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
         if (e.name.startsWith(".")) return [];
+        if (dir === this.root && e.name === "CLAUDE.md") return [];
         const full = path.join(dir, e.name);
         if (e.isDirectory()) return walk(full);
         return e.name.toLowerCase().endsWith(".md") ? [full] : [];
@@ -77,6 +81,72 @@ export class VaultStore {
       const mtimeMs = fs.statSync(abs).mtimeMs;
       const note = this.index.upsert({ path: rel, content, mtimeMs });
       this.syncNoteRow(note);
+    }
+    
+    chokidar.watch(this.root, {
+      ignored: (filePath: string, stats?: fs.Stats) => {
+        const basename = path.basename(filePath);
+        if (basename.startsWith(".")) return true;
+        if (filePath === path.join(this.root, "CLAUDE.md")) return true;
+        return false;
+      },
+      ignoreInitial: true,
+    }).on("all", (event, absPath) => {
+      if (!absPath.toLowerCase().endsWith(".md")) return;
+      const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
+      
+      if (this.inFlightWrites.has(relPath)) return;
+      
+      const existingTimeout = this.watchTimeouts.get(relPath);
+      if (existingTimeout) clearTimeout(existingTimeout);
+      
+      this.watchTimeouts.set(relPath, setTimeout(() => {
+        this.watchTimeouts.delete(relPath);
+        this.handleExternalChange(event, relPath, absPath);
+      }, 300));
+    });
+  }
+
+  private handleExternalChange(event: string, relPath: string, absPath: string) {
+    if (event === "add" || event === "change") {
+      try {
+        if (!fs.existsSync(absPath)) return;
+        let content = fs.readFileSync(absPath, "utf8");
+        const parsed = parseNote(content, titleFromPath(relPath));
+        if (!parsed.id) {
+          content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+          this.inFlightWrites.add(relPath);
+          fs.writeFileSync(absPath, content);
+          setTimeout(() => this.inFlightWrites.delete(relPath), 1000);
+        }
+        
+        const existing = this.index.getByPath(relPath);
+        const mtimeMs = fs.statSync(absPath).mtimeMs;
+        const note = this.index.upsert({ path: relPath, content, mtimeMs });
+        
+        if (existing) {
+          const doc = this.doc(existing.id);
+          const update = updateDocContent(doc, content);
+          if (update) this.logUpdate(existing.id, update, null);
+        } else {
+          const doc = createNoteDoc(content);
+          this.docs.set(note.id, doc);
+          this.logUpdate(note.id, encodeStateB64(doc), null);
+        }
+        
+        this.syncNoteRow(note);
+        this.reconcileTaskObjects(note);
+        this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: null } satisfies NoteChangedEvent);
+      } catch (err) {
+        console.error("Error handling external change", err);
+      }
+    } else if (event === "unlink") {
+      const existing = this.index.getByPath(relPath);
+      if (existing) {
+        this.index.remove(relPath);
+        this.db.update(tables.notes).set({ deleted: true, mtimeMs: Date.now() }).where(eq(tables.notes.id, existing.id)).run();
+        this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
+      }
     }
   }
 
@@ -208,7 +278,9 @@ export class VaultStore {
     const abs = path.join(this.root, relPath);
     if (!abs.startsWith(this.root)) throw new HttpError(400, "invalid path");
     fs.mkdirSync(path.dirname(abs), { recursive: true });
+    this.inFlightWrites.add(relPath);
     fs.writeFileSync(abs, finalContent);
+    setTimeout(() => this.inFlightWrites.delete(relPath), 1000);
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
     if (!existing) {
       const doc = createNoteDoc(finalContent);
@@ -236,7 +308,10 @@ export class VaultStore {
     const absTo = path.join(this.root, toPath);
     if (!absTo.startsWith(this.root)) throw new HttpError(400, "invalid path");
     fs.mkdirSync(path.dirname(absTo), { recursive: true });
+    this.inFlightWrites.add(fromPath);
+    this.inFlightWrites.add(toPath);
     fs.renameSync(absFrom, absTo);
+    setTimeout(() => { this.inFlightWrites.delete(fromPath); this.inFlightWrites.delete(toPath); }, 1000);
     this.index.remove(fromPath);
     const moved = this.index.upsert({ path: toPath, content: note.content, mtimeMs: Date.now() });
     this.syncNoteRow(moved);

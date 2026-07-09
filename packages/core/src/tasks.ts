@@ -34,6 +34,40 @@ export function setTaskChecked(content: string, ref: TaskLineRef, checked: boole
   return lines.join("\n");
 }
 
+export interface TaskDates {
+  /** undefined = leave as-is, null = remove the token. */
+  start?: string | null;
+  due?: string | null;
+}
+
+/**
+ * Rewrite the `start:`/`due:` tokens on a task line (Gantt drag/resize edits).
+ * Tokens sit before the trailing block id so `^t-…` stays a line suffix.
+ * Returns null if the referenced line is gone.
+ */
+export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates): string | null {
+  const lines = content.split("\n");
+  const idx = findTaskLine(lines, ref);
+  if (idx === -1) return null;
+  const m = /^(\s*- \[(?: |x|X)\] )(.*)$/.exec(lines[idx]!)!;
+  let body = m[2]!;
+  let blockSuffix = "";
+  const bm = /\s\^[\w-]+\s*$/.exec(body);
+  if (bm) {
+    blockSuffix = body.slice(bm.index);
+    body = body.slice(0, bm.index);
+  }
+  const rewrite = (text: string, token: "start" | "due", value: string | null | undefined): string => {
+    if (value === undefined) return text;
+    // Drop the token with its preceding space so neighbours don't end up double-spaced.
+    const stripped = text.replace(new RegExp(`(^|\\s)${token}:\\d{4}-\\d{2}-\\d{2}(?=\\s|$)`, "g"), "").trim();
+    return value === null ? stripped : `${stripped} ${token}:${value}`;
+  };
+  body = rewrite(rewrite(body, "start", dates.start), "due", dates.due);
+  lines[idx] = `${m[1]}${body.replace(/\s+$/, "")}${blockSuffix}`;
+  return lines.join("\n");
+}
+
 export function generateBlockId(): string {
   return `t-${Math.random().toString(36).slice(2, 8)}`;
 }

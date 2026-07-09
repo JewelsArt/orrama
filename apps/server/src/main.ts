@@ -8,7 +8,7 @@ import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
-import { env } from "./env.js";
+import { env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
@@ -23,6 +23,7 @@ import { contactRoutes } from "./routes/contacts.js";
 import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
+import { terminalRoutes } from "./routes/terminal.js";
 import { initWebhooks } from "./webhooks.js";
 import { eq } from "drizzle-orm";
 
@@ -45,6 +46,34 @@ export async function buildServer() {
   }
   const store = new VaultStore(db);
   store.load();
+
+  const vaultRoot = vaultDir();
+  const mcpPath = path.join(vaultRoot, ".mcp.json");
+  if (!fs.existsSync(mcpPath)) {
+    fs.writeFileSync(mcpPath, JSON.stringify({
+      mcpServers: {
+        basalt: {
+          command: "node",
+          args: [path.resolve(import.meta.dirname, "../../mcp/dist/index.js")],
+          env: {
+            BASALT_TOKEN: "bslt_your_api_token_here",
+            BASALT_URL: "http://localhost:4623"
+          }
+        }
+      }
+    }, null, 2));
+  }
+
+  const claudeMdPath = path.join(vaultRoot, "CLAUDE.md");
+  if (!fs.existsSync(claudeMdPath)) {
+    fs.writeFileSync(claudeMdPath, `Edit notes through the Basalt MCP tools, not by writing files directly; direct file edits are absorbed by a watcher but lose granular history.
+    
+Vault layout:
+- Notes are plain markdown files.
+- Folders grant access.
+- \`#only/<team>\` tags restrict access.
+`);
+  }
 
   const app = Fastify({ logger: { level: "info" } });
   await app.register(cors, { origin: env.corsOrigin });
@@ -91,6 +120,7 @@ export async function buildServer() {
   await homeRoutes(app, db, store);
   await icsRoutes(app, db, store);
   await integrationRoutes(app, db, store);
+  await terminalRoutes(app, db, store);
   initWebhooks(db, store);
 
   app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));

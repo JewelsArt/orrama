@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS invites (
   expires_at INTEGER NOT NULL, used_by TEXT
 );
 CREATE TABLE IF NOT EXISTS projects (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT, domain TEXT
 );
 CREATE TABLE IF NOT EXISTS task_blocks (
   id TEXT PRIMARY KEY, task_object_id TEXT NOT NULL, date TEXT NOT NULL,
@@ -103,6 +103,11 @@ export function createDb(file = dbPath()) {
   }
   try {
     sqlite.exec(`ALTER TABLE users ADD COLUMN ics_token TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec(`ALTER TABLE projects ADD COLUMN domain TEXT`);
   } catch {
     /* column exists */
   }

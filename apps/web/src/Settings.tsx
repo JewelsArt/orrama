@@ -83,10 +83,10 @@ export function Settings({
           <h3>Theme</h3>
           <div className="settings-row">
             <button className={`theme-pick ${theme === "command" ? "active" : ""}`} onClick={() => onTheme("command")}>
-              <IconMoon /> Command Center
+              <IconMoon /> Graphite (dark)
             </button>
-            <button className={`theme-pick ${theme === "paper" ? "active" : ""}`} onClick={() => onTheme("paper")}>
-              <IconSun /> Paper
+            <button className={`theme-pick ${theme === "light" || theme === "paper" ? "active" : ""}`} onClick={() => onTheme("light")}>
+              <IconSun /> Frost (light)
             </button>
           </div>
         </section>

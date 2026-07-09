@@ -1,7 +1,303 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type TreeNote } from "./api.js";
 import { CATEGORIES, categoryOf } from "./categories.js";
 import { onWs } from "./ws.js";
+
+const DASH_CARDS = ["hero", "activity", "focus", "schedule", "tasks", "analytics"];
+
+/**
+ * Draggable bento. Pick up a card and it gets physical inertia — tilts into the
+ * direction of motion (proportional to pointer velocity), lifts + scales — while
+ * the other cards slide out of the way (FLIP) and it settles into the new slot on
+ * release. Order persists to localStorage. (designspells.com "cards have inertia")
+ */
+function useBentoReorder(ids: string[]) {
+  const [order, setOrder] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("dh-order") || "null");
+      if (Array.isArray(saved) && saved.length === ids.length && ids.every((i) => saved.includes(i))) return saved;
+    } catch {
+      /* ignore */
+    }
+    return ids;
+  });
+  useEffect(() => {
+    localStorage.setItem("dh-order", JSON.stringify(order));
+  }, [order]);
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  const draggingId = useRef<string | null>(null);
+  const rects = useRef<Map<string, DOMRect>>(new Map());
+  const visualRectsRef = useRef<Map<string, DOMRect>>(new Map());
+
+  // FLIP: after every reorder, slide the non-dragged cards from where they were.
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    // 1. Immediately clear transforms to prepare for static layout measurement
+    grid.querySelectorAll<HTMLElement>("[data-card]").forEach((el) => {
+      if (el.dataset.card !== draggingId.current) {
+        el.style.transition = "none";
+        el.style.transform = "none";
+      }
+    });
+
+    // 2. Measure static layout rects and apply FLIP
+    grid.querySelectorAll<HTMLElement>("[data-card]").forEach((el) => {
+      const id = el.dataset.card!;
+      const target = el.getBoundingClientRect();
+      
+      // Use the visual rect recorded exactly before the DOM swap, or fallback to the previous static rect
+      let visual = visualRectsRef.current.get(id);
+      if (!visual) visual = rects.current.get(id);
+      
+      if (visual && id !== draggingId.current) {
+        const dx = visual.left - target.left;
+        const dy = visual.top - target.top;
+        
+        if (dx || dy) {
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          void el.offsetWidth; // force reflow
+          requestAnimationFrame(() => {
+            el.style.transition = "transform 0.6s cubic-bezier(0.22, 1, 0.36, 1)";
+            el.style.transform = "";
+          });
+        }
+      }
+      // Store the STATIC target rect for collision detection
+      rects.current.set(id, target);
+    });
+    visualRectsRef.current.clear();
+  });
+
+  const onDragStart = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
+    const el = e.currentTarget;
+    const id = el.dataset.card;
+    if (!id) return;
+    draggingId.current = id;
+
+    const rect = el.getBoundingClientRect();
+    const grabX = e.clientX - rect.left;
+    const grabY = e.clientY - rect.top;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let pointerX = e.clientX;
+    let pointerY = e.clientY;
+    let moved = false;
+    let released = false;
+
+    // spring state: the card trails the pointer with momentum (that's the inertia)
+    let curX = 0;
+    let curY = 0;
+    let velX = 0;
+    let velY = 0;
+    let rot = 0;
+    let rotVel = 0;
+    let raf = 0;
+
+    el.style.zIndex = "40";
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+    el.style.willChange = "transform";
+    el.style.boxShadow = "0 34px 64px -22px rgba(20, 30, 60, 0.4)";
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {
+      /* older browsers */
+    }
+
+    let cachedHomeLeft = rect.left;
+    let cachedHomeTop = rect.top;
+    let cachedOffsetLeft = el.offsetLeft;
+    let cachedOffsetTop = el.offsetTop;
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "dh-card-placeholder";
+    placeholder.style.position = "absolute";
+    placeholder.style.background = "rgba(0, 0, 0, 0.03)";
+    placeholder.style.borderRadius = "var(--radius-lg)";
+    placeholder.style.border = "1px solid rgba(0,0,0,0.05)";
+    placeholder.style.pointerEvents = "none";
+    placeholder.style.zIndex = "0";
+    placeholder.style.width = el.offsetWidth + "px";
+    placeholder.style.height = el.offsetHeight + "px";
+    placeholder.style.left = "0px";
+    placeholder.style.top = "0px";
+    let phX = cachedOffsetLeft;
+    let phY = cachedOffsetTop;
+    placeholder.style.transform = `translate(${phX}px, ${phY}px)`;
+    placeholder.style.transition = "transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)";
+    gridRef.current?.appendChild(placeholder);
+
+    const getFastHome = () => {
+      if (el.offsetLeft !== cachedOffsetLeft || el.offsetTop !== cachedOffsetTop) {
+        const keep = el.style.transform;
+        el.style.transform = "none";
+        const r = el.getBoundingClientRect();
+        el.style.transform = keep;
+        cachedHomeLeft = r.left;
+        cachedHomeTop = r.top;
+        cachedOffsetLeft = el.offsetLeft;
+        cachedOffsetTop = el.offsetTop;
+
+        phX = cachedOffsetLeft;
+        phY = cachedOffsetTop;
+        placeholder.style.transform = `translate(${phX}px, ${phY}px)`;
+      }
+      return { left: cachedHomeLeft, top: cachedHomeTop };
+    };
+
+    const STIFF = 0.16; // spring toward target
+    const DAMP = 0.77; // position: gentle overshoot (rotation below wobbles more)
+    let lastStep = performance.now();
+    let accumulatedTime = 0;
+    const TIME_STEP = 16.666;
+    let done = false;
+    const cleanup = () => {
+      el.style.transform = "";
+      el.style.transition = "";
+      el.style.boxShadow = "";
+      el.style.cursor = "";
+      el.style.userSelect = "";
+      el.style.willChange = "";
+      el.style.zIndex = "";
+      placeholder.remove();
+      draggingId.current = null;
+      done = true;
+    };
+
+    let lastHome: DOMRect | null = null;
+
+    // Physics integration using a fixed timestep to completely divorce 
+    // the spring tension and wobble speed from the monitor refresh rate.
+    const tick = () => {
+      if (done) return;
+      const now = performance.now();
+      let dt = now - lastStep;
+      if (dt > 64) dt = 64; // cap at 4 frames to avoid spiral of death on background tabs
+      lastStep = now;
+      accumulatedTime += dt;
+
+      let tx = 0;
+      let ty = 0;
+      if (!released) {
+        const home = getFastHome();
+        if (lastHome) {
+          curX -= home.left - lastHome.left;
+          curY -= home.top - lastHome.top;
+        }
+        lastHome = home;
+        tx = pointerX - grabX - home.left;
+        ty = pointerY - grabY - home.top;
+      }
+
+      while (accumulatedTime >= TIME_STEP) {
+        let currentVelX = 0;
+        
+        if (released) {
+          // When released, physically spring the card back to its home slot
+          velX = (velX + (tx - curX) * STIFF) * DAMP;
+          velY = (velY + (ty - curY) * STIFF) * DAMP;
+          curX += velX;
+          curY += velY;
+          currentVelX = velX;
+        } else {
+          // When held, stick tightly to the mouse cursor without positional wobbling
+          currentVelX = tx - curX;
+          curX = tx;
+          curY = ty;
+          velX = currentVelX; // keep velX updated for a seamless handoff on release
+          velY = ty - curY;
+        }
+
+        // Tilt based on horizontal velocity (inertia effect)
+        // We use an exponential lerp instead of a spring so it smoothly flows 
+        // backwards without overshooting or wiggling.
+        const rotTarget = released ? 0 : Math.max(-12, Math.min(12, currentVelX * 0.35));
+        rot += (rotTarget - rot) * 0.15;
+        
+        accumulatedTime -= TIME_STEP;
+      }
+      const scale = released ? 1 + Math.min(0.035, (Math.abs(curX) + Math.abs(curY)) / 1200) : 1.035;
+      el.style.transform = `translate(${curX.toFixed(2)}px, ${curY.toFixed(2)}px) rotate(${rot.toFixed(2)}deg) scale(${scale.toFixed(3)})`;
+      const settled = Math.abs(curX) < 0.3 && Math.abs(curY) < 0.3 && Math.abs(velX) < 0.12 && Math.abs(velY) < 0.12 && Math.abs(rot) < 0.12 && Math.abs(rotVel) < 0.12;
+      if (released && settled) cleanup();
+    };
+    const loop = () => {
+      if (done) return;
+      tick();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    let lastOverId: string | undefined;
+
+    const move = (ev: PointerEvent) => {
+      pointerX = ev.clientX;
+      pointerY = ev.clientY;
+      if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 4) moved = true;
+      tick(); // animate immediately on motion, independent of rAF throttling
+      
+      // Check which static grid slot is under the pointer. This avoids layout 
+      // thrashing from elementFromPoint and ignores FLIP animations.
+      let overId: string | undefined;
+      for (const [cardId, r] of rects.current.entries()) {
+        if (cardId === id) continue;
+        if (pointerX >= r.left && pointerX <= r.right && pointerY >= r.top && pointerY <= r.bottom) {
+          overId = cardId;
+          break;
+        }
+      }
+
+      if (overId !== lastOverId) {
+        lastOverId = overId;
+        if (overId && overId !== id) {
+          const grid = gridRef.current;
+          if (grid) {
+            visualRectsRef.current.clear();
+            grid.querySelectorAll<HTMLElement>("[data-card]").forEach(c => {
+              visualRectsRef.current.set(c.dataset.card!, c.getBoundingClientRect());
+            });
+          }
+          setOrder((o) => {
+            const from = o.indexOf(id);
+            const to = o.indexOf(overId);
+            if (from < 0 || to < 0) return o;
+            // check if we are already in this order to prevent useless updates
+            if (from === to) return o;
+            const next = [...o];
+            next.splice(from, 1);
+            next.splice(to, 0, id);
+            return next;
+          });
+        }
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      released = true; // spring now carries it home with a wobble
+      // safety net: if rAF is throttled (e.g. tab backgrounded), never leave it stuck
+      window.setTimeout(() => {
+        if (!done) cleanup();
+      }, 1500);
+      if (moved) {
+        const swallow = (c: Event) => {
+          c.stopPropagation();
+          c.preventDefault();
+        };
+        el.addEventListener("click", swallow, { capture: true, once: true });
+        window.setTimeout(() => el.removeEventListener("click", swallow, { capture: true } as EventListenerOptions), 0);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, []);
+
+  return { order, gridRef, onDragStart };
+}
 
 /**
  * The Dashboard — a clean, light SaaS command surface (the light-mode showcase;
@@ -52,6 +348,9 @@ const CARD_COLORS = ["#12b3a6", "#ff6b9d", "#3b82f6", "#ffa53a", "#22c993"];
 export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
   const [home, setHome] = useState<HomeData | null>(null);
   const [tree, setTree] = useState<TreeNote[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const { order, gridRef, onDragStart } = useBentoReorder(DASH_CARDS);
+  const ord = (id: string) => ({ order: order.indexOf(id) });
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -125,9 +424,9 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         <div className="dh-top-meta">Updated {now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
       </header>
 
-      <div className="dh-grid">
+      <div className="dh-grid" ref={gridRef} style={{ position: "relative" }}>
         {/* hero */}
-        <section className="dh-card dh-hero">
+        <section className="dh-card dh-hero" data-card="hero" style={ord("hero")} onPointerDown={onDragStart}>
           <div className="dh-hero-head">
             <div>
               <h2 className="dh-card-title">Vault Overview</h2>
@@ -170,7 +469,7 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </section>
 
         {/* activity chart */}
-        <section className="dh-card">
+        <section className="dh-card dh-card-activity" data-card="activity" style={ord("activity")} onPointerDown={onDragStart}>
           <div className="dh-card-head">
             <div>
               <h2 className="dh-card-title">Activity</h2>
@@ -185,7 +484,7 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </section>
 
         {/* in focus */}
-        <section className="dh-card">
+        <section className="dh-card" data-card="focus" style={ord("focus")} onPointerDown={onDragStart}>
           <div className="dh-card-head">
             <h2 className="dh-card-title">In Focus</h2>
             <button className="dh-link" onClick={() => onOpenNote(home?.focus[0]?.noteId ?? "")}>View all</button>
@@ -214,7 +513,7 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </section>
 
         {/* schedule */}
-        <section className="dh-card">
+        <section className="dh-card dh-card-schedule" data-card="schedule" style={ord("schedule")} onPointerDown={onDragStart}>
           <div className="dh-card-head">
             <h2 className="dh-card-title">Schedule</h2>
             <span className="dh-icon-btn">{ic.cal}</span>
@@ -238,7 +537,7 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </section>
 
         {/* today's tasks */}
-        <section className="dh-card">
+        <section className="dh-card" data-card="tasks" style={ord("tasks")} onPointerDown={onDragStart}>
           <div className="dh-card-head">
             <h2 className="dh-card-title">Today's Tasks</h2>
           </div>
@@ -261,7 +560,7 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </section>
 
         {/* analytics */}
-        <section className="dh-card">
+        <section className="dh-card" data-card="analytics" style={ord("analytics")} onPointerDown={onDragStart}>
           <div className="dh-card-head">
             <h2 className="dh-card-title">Analytics</h2>
             <span className="dh-pill-static">This month</span>
@@ -299,15 +598,50 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
             </div>
           </div>
         </section>
+
+        {/* add a component (placeholder — real components come later) */}
+        <button className="dh-card dh-add" style={{ order: 99 }} onClick={() => setAddOpen(true)} aria-label="Add a component">
+          <span className="dh-add-plus">{ic.plus}</span>
+          <span className="dh-add-title">Add component</span>
+          <span className="dh-add-sub">Build out your dashboard</span>
+        </button>
       </div>
+
+      {addOpen && (
+        <div className="overlay" onClick={() => setAddOpen(false)}>
+          <div className="dh-add-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Add a component</h3>
+            <p className="dh-add-modal-sub">Drop widgets onto your dashboard. More arrive soon — here's what's coming:</p>
+            <div className="dh-add-grid">
+              {[
+                { c: "#3b82f6", label: "Recent notes" },
+                { c: "#22c993", label: "Habit tracker" },
+                { c: "#ffa53a", label: "Pinned tasks" },
+                { c: "#ff6b9d", label: "Reading list" },
+                { c: "#12b3a6", label: "Streak" },
+                { c: "#7c3aed", label: "Quick note" },
+              ].map((w) => (
+                <div key={w.label} className="dh-add-opt" style={{ ["--c" as string]: w.c }}>
+                  <span className="dh-add-opt-ic" />
+                  <span>{w.label}</span>
+                  <span className="dh-add-opt-soon">soon</span>
+                </div>
+              ))}
+            </div>
+            <div className="dh-add-modal-foot">
+              <button className="dh-link" onClick={() => setAddOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function LineChart({ last, now }: { last: number[]; now: number[] }) {
   const w = 520;
-  const h = 170;
-  const pad = { t: 16, r: 12, b: 26, l: 12 };
+  const h = 300;
+  const pad = { t: 20, r: 12, b: 30, l: 12 };
   const max = Math.max(1, ...last, ...now);
   const iw = w - pad.l - pad.r;
   const ih = h - pad.t - pad.b;
@@ -448,5 +782,8 @@ const ic = {
   ),
   video: (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="4.5" width="8" height="7" rx="1.5" /><path d="M10 7l4-2v6l-4-2z" /></svg>
+  ),
+  plus: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
   ),
 };

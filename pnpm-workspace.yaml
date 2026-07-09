@@ -6,3 +6,4 @@ allowBuilds:
   better-sqlite3: true
   argon2: true
   workerd: true
+  node-pty: true

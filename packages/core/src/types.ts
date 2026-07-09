@@ -49,6 +49,7 @@ export interface ParsedTask {
   /** Raw line content. */
   raw: string;
   assignee?: string;
+  start?: string; // ISO date — bar start on the Gantt view
   due?: string; // ISO date
   priority?: TaskPriority;
   /** Stable block id if promoted, without '^', e.g. "t-a1b2c3". */

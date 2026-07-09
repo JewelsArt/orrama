@@ -107,6 +107,8 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       id: n.id,
       title: n.title,
       folder: n.folder,
+      sector: n.frontmatter["sector"] || null,
+      tags: n.tags.map(t => t.tag),
       links: n.links.length,
       tasks: n.tasks.filter((t) => !t.checked).length,
     }));

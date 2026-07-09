@@ -22,6 +22,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const allProjects = db.select().from(tables.projects).all();
     const teamProjects = allProjects.filter((p) => p.teamId === team.id || p.teamId === null);
     const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
+    const domainByName = new Map(teamProjects.map((p) => [p.name, p.domain ?? null]));
 
     // Progress + open tasks, from the requester's readable universe only.
     const progress = store.index.progress(user, grants, projectDefs);
@@ -29,15 +30,19 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
 
+    const statusRank = (t: { checked: boolean; object: { status?: string } | null }) =>
+      t.checked ? 0 : t.object?.status === "in-progress" ? 1 : 2;
     const byProject = progress.map((p) => ({
       ...p,
+      domain: domainByName.get(p.project) ?? null,
+      // ALL steps (done + open) so the board reads like a plan, not just a to-do list.
       tasks: tasks
-        .filter((t) => t.project === p.project && !t.checked)
+        .filter((t) => t.project === p.project)
         .map((t) => ({
           ...t,
           object: t.blockId ? (objByKey.get(`${t.noteId}:${t.blockId}`) ?? null) : null,
         }))
-        .sort((a, b) => (a.priority ?? 4) - (b.priority ?? 4) || (a.due ?? "9999").localeCompare(b.due ?? "9999")),
+        .sort((a, b) => statusRank(a) - statusRank(b) || (a.priority ?? 4) - (b.priority ?? 4) || (a.due ?? "9999").localeCompare(b.due ?? "9999")),
     }));
 
     // Who's working on what: team members, their open/in-progress tasks, last edit.
@@ -83,7 +88,14 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
       })
       .map((o) => ({ id: o.id, noteId: o.noteId, blockId: o.blockId, updatedAt: o.updatedAt }));
 
-    return { team, projects: byProject, members, orphaned };
+    // Registered projects with no checkbox tasks yet still belong on the board.
+    const seen = new Set(byProject.map((p) => p.project));
+    const emptyProjects = projectDefs
+      .filter((d) => !seen.has(d.name))
+      .map((d) => ({ project: d.name, total: 0, done: 0, assignees: [] as string[], lastActivityMs: undefined, domain: domainByName.get(d.name) ?? null, tasks: [] as (typeof byProject)[number]["tasks"] }));
+    const projects = [...byProject, ...emptyProjects].sort((a, b) => a.project.localeCompare(b.project));
+
+    return { team, projects, members, orphaned };
   });
 
   /** Teams the requester can open dashboards for (left rail). */

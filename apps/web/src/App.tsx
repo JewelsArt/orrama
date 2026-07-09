@@ -6,13 +6,14 @@ import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
 import { Contacts } from "./Contacts.js";
 import { Dashboard } from "./Dashboard.js";
-import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMark, IconOverview, IconPlanning, IconSearch } from "./icons.js";
+import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMark, IconMoon, IconOverview, IconPlanning, IconSearch, IconSun, IconTerminal } from "./icons.js";
 import { Login } from "./Login.js";
 import { Overview } from "./Overview.js";
 import { Planning } from "./Planning.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
+import { Terminal } from "./Terminal.js";
 import { connectWs, disconnectWs } from "./ws.js";
 
 export type View =
@@ -21,6 +22,7 @@ export type View =
   | { kind: "planning" }
   | { kind: "overview" }
   | { kind: "contacts" }
+  | { kind: "terminal" }
   | { kind: "admin" };
 
 const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
@@ -29,6 +31,7 @@ const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; own
   { kind: "planning", label: "Planning", icon: IconPlanning },
   { kind: "overview", label: "Overview", icon: IconOverview },
   { kind: "contacts", label: "Contacts", icon: IconContacts },
+  { kind: "terminal", label: "Terminal", icon: IconTerminal, ownerOnly: true },
   { kind: "admin", label: "Admin", icon: IconAdmin, ownerOnly: true },
 ];
 
@@ -59,6 +62,31 @@ export function App() {
 
   const openNote = useCallback((noteId: string) => setView({ kind: "architecture", noteId }), []);
 
+  const isLight = theme === "light" || theme === "paper";
+  const toggleTheme = useCallback(
+    (e: React.MouseEvent) => {
+      const next = isLight ? "command" : "light";
+      const root = document.documentElement;
+      root.style.setProperty("--rx", `${e.clientX}px`);
+      root.style.setProperty("--ry", `${e.clientY}px`);
+      // Apply synchronously so the View Transition captures the new theme.
+      const swap = () => {
+        root.dataset.theme = next;
+        setTheme(next);
+      };
+      const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
+      if (!start) {
+        swap();
+        return;
+      }
+      root.classList.add("rippling");
+      start
+        .call(document, swap)
+        .finished.finally(() => root.classList.remove("rippling"));
+    },
+    [isLight],
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -77,6 +105,7 @@ export function App() {
       else if (e.key === "3") setView({ kind: "planning" });
       else if (e.key === "4") setView({ kind: "overview" });
       else if (e.key === "5") setView({ kind: "contacts" });
+      else if (e.key === "6" && me?.isOwner) setView({ kind: "terminal" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -88,7 +117,7 @@ export function App() {
   const firstTeam = me.teams[0];
 
   return (
-    <div className={`shell ${view.kind === "dashboard" ? "rail-indigo" : ""}`}>
+    <div className="shell">
       <nav className="rail" aria-label="Main">
         <div className="rail-brand">
           <IconMark size={20} />
@@ -121,6 +150,10 @@ export function App() {
             <IconAsk />
             <span>Ask vault</span>
           </button>
+          <button className="rail-item theme-toggle" onClick={toggleTheme} aria-label={isLight ? "Switch to dark" : "Switch to light"}>
+            {isLight ? <IconMoon /> : <IconSun />}
+            <span>{isLight ? "Dark" : "Light"}</span>
+          </button>
         </div>
 
         <div className="rail-spacer" />
@@ -150,6 +183,8 @@ export function App() {
           <Overview me={me} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
           <Contacts me={me} onOpenNote={openNote} />
+        ) : view.kind === "terminal" ? (
+          <Terminal me={me} />
         ) : (
           <Admin />
         )}

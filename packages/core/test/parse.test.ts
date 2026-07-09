@@ -81,6 +81,11 @@ Inline \`#code-tag\` must not count. #share/marketing
     expect(t4).toMatchObject({ blockId: "t-x1y2z3", text: "promoted one" });
   });
 
+  it("parses start: alongside due: and strips both from the text", () => {
+    const n = parseNote("- [ ] ship gantt start:2026-07-06 due:2026-07-10 @jules\n");
+    expect(n.tasks[0]).toMatchObject({ start: "2026-07-06", due: "2026-07-10", assignee: "jules", text: "ship gantt" });
+  });
+
   it("collects headings", () => {
     expect(note.headings).toEqual([{ level: 1, text: "Plan", line: 6 }]);
   });

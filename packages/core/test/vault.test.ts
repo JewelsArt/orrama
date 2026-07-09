@@ -4,6 +4,7 @@ import {
   appendLine,
   promoteTaskLine,
   setTaskChecked,
+  setTaskDates,
   suggestRelated,
   type AclUser,
   type FolderGrant,
@@ -161,6 +162,27 @@ describe("task line editing", () => {
     const again = promoteTaskLine(content, 2)!;
     expect(again).toMatchObject({ blockId: "t-abc123", content });
     expect(promoteTaskLine(content, 0)).toBeNull();
+  });
+
+  it("sets, moves, and clears start:/due: tokens (Gantt edits)", () => {
+    const set = setTaskDates(content, { line: 1 }, { start: "2026-07-06", due: "2026-07-09" })!;
+    expect(set).toContain("- [ ] alpha @erin start:2026-07-06 due:2026-07-09");
+    // moving rewrites in place, no duplicate tokens
+    const moved = setTaskDates(set, { line: 1 }, { start: "2026-07-08", due: "2026-07-11" })!;
+    expect(moved).toContain("- [ ] alpha @erin start:2026-07-08 due:2026-07-11");
+    expect(moved.match(/start:/g)).toHaveLength(1);
+    // partial update leaves the other token alone; null removes
+    const dueOnly = setTaskDates(moved, { line: 1 }, { start: null })!;
+    expect(dueOnly).toContain("- [ ] alpha @erin due:2026-07-11");
+    expect(dueOnly).not.toContain("start:");
+    const cleared = setTaskDates(dueOnly, { line: 1 }, { due: null })!;
+    expect(cleared).toContain("- [ ] alpha @erin\n");
+  });
+
+  it("keeps the block id a line suffix when dating a promoted task", () => {
+    const dated = setTaskDates(content, { blockId: "t-abc123" }, { start: "2026-07-06", due: "2026-07-07" })!;
+    expect(dated).toContain("- [x] beta start:2026-07-06 due:2026-07-07 ^t-abc123");
+    expect(setTaskDates("nothing here", { blockId: "t-abc123" }, { due: "2026-07-07" })).toBeNull();
   });
 
   it("appendLine handles trailing newlines (quick capture)", () => {

@@ -186,4 +186,5 @@ export const projects = sqliteTable("projects", {
   key: text("key").notNull(),
   name: text("name").notNull(),
   teamId: text("team_id"), // owning team for dashboard grouping (null = all teams)
+  domain: text("domain"), // life-area for the Overview separation: personal | professional | academic
 });

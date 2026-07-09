@@ -45,6 +45,18 @@ export const promoteTaskSchema = z.object({
   line: z.number().int().nonnegative(),
 });
 
+export const taskDatesSchema = z
+  .object({
+    noteId: z.string(),
+    line: z.number().int().nonnegative().optional(),
+    blockId: z.string().optional(),
+    /** undefined = leave as-is, null = remove the token from the line. */
+    start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  })
+  .refine((b) => b.start !== undefined || b.due !== undefined, { message: "start or due required" })
+  .refine((b) => !b.start || !b.due || b.start <= b.due, { message: "start must not be after due" });
+
 export const updateTaskObjectSchema = z.object({
   status: taskStatusSchema.optional(),
   assigneeId: z.string().nullable().optional(),
@@ -88,7 +100,10 @@ export const aiConfigSchema = z.object({
 });
 
 export const askVaultSchema = z.object({
-  question: z.string().min(1).max(4000),
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant", "system", "data"]),
+    content: z.string(),
+  })).min(1),
   /** Current note id, if the panel is open on one — feeds link-graph retrieval. */
   contextNoteId: z.string().optional(),
 });

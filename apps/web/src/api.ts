@@ -60,6 +60,7 @@ export interface TaskLine {
   text: string;
   raw: string;
   assignee?: string;
+  start?: string;
   due?: string;
   priority?: number;
   blockId?: string;
@@ -92,6 +93,7 @@ export interface DashboardData {
     done: number;
     assignees: string[];
     lastActivityMs?: number;
+    domain: "personal" | "professional" | "academic" | null;
     tasks: DashboardTask[];
   }[];
   members: {

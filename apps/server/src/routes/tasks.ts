@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { checkTaskSchema, promoteTaskSchema, updateTaskObjectSchema } from "@basalt/schema";
-import { promoteTaskLine, setTaskChecked } from "@basalt/core";
+import { checkTaskSchema, promoteTaskSchema, taskDatesSchema, updateTaskObjectSchema } from "@basalt/schema";
+import { promoteTaskLine, setTaskChecked, setTaskDates } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -40,6 +40,26 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
       });
     }
     return { id: saved.id, checked: body.checked };
+  });
+
+  /**
+   * Set/clear a task's start:/due: tokens (Gantt drag, resize, and scheduling
+   * from the unscheduled strip). Like /check, this EDITS THE FILE — the dates
+   * live on the Markdown line and survive a re-index (spec §7).
+   */
+  app.post("/api/tasks/dates", auth, async (req) => {
+    const body = taskDatesSchema.parse(req.body);
+    const user = store.aclUser(req.userId);
+    const note = store.requireReadable(user, body.noteId);
+    const updated = setTaskDates(note.content, { line: body.line, blockId: body.blockId }, { start: body.start, due: body.due });
+    if (updated === null) throw new HttpError(409, "task line no longer exists");
+    const saved = store.write(user, note.path, updated);
+    // Keep a promoted object's due in sync so both views of the task agree.
+    if (body.due !== undefined && body.blockId) {
+      const obj = store.taskObjectByBlock(note.id, body.blockId);
+      if (obj) db.update(tables.taskObjects).set({ due: body.due, updatedAt: Date.now() }).where(eq(tables.taskObjects.id, obj.id)).run();
+    }
+    return { id: saved.id, start: body.start, due: body.due };
   });
 
   /** Promote a checkbox to a task object (spec §7.2). */

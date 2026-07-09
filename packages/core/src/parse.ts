@@ -21,6 +21,7 @@ const TASK_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
 const HEADING_RE = /^(#{1,6}) (.+)$/;
 const ASSIGNEE_RE = /(^|\s)@([\w.-]+)/;
 const DUE_RE = /(^|\s)due:(\d{4}-\d{2}-\d{2})/;
+const START_RE = /(^|\s)start:(\d{4}-\d{2}-\d{2})/;
 const PRIORITY_RE = /(^|\s)!p([123])\b/;
 const BLOCK_ID_RE = /\s\^([\w-]+)\s*$/;
 const FENCE_RE = /^(```|~~~)/;
@@ -51,6 +52,10 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const dm = DUE_RE.exec(text);
   if (dm) due = dm[2];
 
+  let start: string | undefined;
+  const sm = START_RE.exec(text);
+  if (sm) start = sm[2];
+
   let priority: TaskPriority | undefined;
   const pm = PRIORITY_RE.exec(text);
   if (pm) priority = Number(pm[2]) as TaskPriority;
@@ -58,11 +63,12 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const clean = text
     .replace(new RegExp(ASSIGNEE_RE, "g"), "$1")
     .replace(new RegExp(DUE_RE, "g"), "$1")
+    .replace(new RegExp(START_RE, "g"), "$1")
     .replace(new RegExp(PRIORITY_RE, "g"), "$1")
     .replace(/\s+/g, " ")
     .trim();
 
-  return { line, checked, text: clean, raw, assignee, due, priority, blockId, indent };
+  return { line, checked, text: clean, raw, assignee, start, due, priority, blockId, indent };
 }
 
 function frontmatterStrings(value: unknown): string[] {
