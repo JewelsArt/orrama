@@ -48,7 +48,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
       grants: db.select().from(tables.folderGrants).all(),
       projects: db.select().from(tables.projects).all(),
       invites: db.select().from(tables.invites).all().filter((i) => !i.usedBy && i.expiresAt > Date.now()),
-      ai: { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted, instructions: ws?.aiInstructions ?? "" },
+      ai: { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted, instructions: ws?.aiInstructions ?? "", baseUrl: ws?.aiBaseUrl ?? "" },
     };
   });
 
@@ -131,8 +131,16 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const body = aiConfigSchema.parse(req.body);
     const ws = db.select().from(tables.workspace).all()[0];
     if (!ws) throw new HttpError(500, "workspace not initialized");
+    // Blank key = keep the existing one; but the first save must include a key.
+    const newKey = body.apiKey && body.apiKey.length >= 10 ? body.apiKey : undefined;
+    if (!newKey && !ws.aiKeyEncrypted) throw new HttpError(400, "an API key is required");
     db.update(tables.workspace)
-      .set({ aiProvider: body.provider, aiKeyEncrypted: encryptSecret(body.apiKey), aiModel: body.model })
+      .set({
+        aiProvider: body.provider,
+        aiModel: body.model,
+        aiBaseUrl: body.baseUrl || null,
+        ...(newKey ? { aiKeyEncrypted: encryptSecret(newKey) } : {}),
+      })
       .where(eq(tables.workspace.id, ws.id))
       .run();
     return { ok: true, provider: body.provider, model: body.model };

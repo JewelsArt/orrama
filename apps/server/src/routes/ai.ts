@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { streamText, tool } from "ai";
+import { convertToModelMessages, generateText, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import crypto from "node:crypto";
@@ -29,11 +29,29 @@ How Basalt works:
 - DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
 - Always search_vault before answering a question, and cite notes as [[Note Title]]. Make small, concrete edits; confirm anything destructive.`;
 
-/** Effective system prompt = built-in guide + the vault's CLAUDE.md + the owner's custom instructions. */
+/** Resolve a provider config to a Vercel AI SDK model. One place, so /ask and the digest agree. */
+async function resolveModel(c: { provider: string; apiKey: string; model: string; baseUrl?: string | null }) {
+  if (c.provider === "anthropic") {
+    const { createAnthropic } = await import("@ai-sdk/anthropic");
+    return createAnthropic({ apiKey: c.apiKey })(c.model);
+  }
+  if (c.provider === "google") {
+    const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+    return createGoogleGenerativeAI({ apiKey: c.apiKey })(c.model);
+  }
+  // openai-compatible: custom baseUrl (e.g. Gemini's OpenAI-compat endpoint), else env, else OpenAI.
+  const { createOpenAI } = await import("@ai-sdk/openai");
+  return createOpenAI({ apiKey: c.apiKey, baseURL: c.baseUrl || process.env.BASALT_OPENAI_BASE_URL })(c.model);
+}
+
+/** Effective system prompt = today's date + built-in guide + the vault's CLAUDE.md + the owner's instructions. */
 function buildSystemPrompt(store: VaultStore, instructions: string | null): string {
+  const now = new Date();
+  const today = `Today is ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${now.toISOString().slice(0, 10)}), local time ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}. Resolve relative dates like "today", "tomorrow", "next Friday", "this week" against this, and always write dates as YYYY-MM-DD.`;
   const guide = store.vaultGuide();
   return [
     BUILTIN_GUIDE,
+    today,
     guide ? `# About the user & vault (from the vault's CLAUDE.md)\n${guide}` : "",
     instructions?.trim() ? `# Workspace instructions (set by the owner)\n${instructions.trim()}` : "",
   ]
@@ -47,7 +65,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
   const config = () => {
     const ws = db.select().from(tables.workspace).all()[0];
     if (!ws?.aiProvider || !ws.aiKeyEncrypted || !ws.aiModel) return null;
-    return { provider: ws.aiProvider, apiKey: decryptSecret(ws.aiKeyEncrypted), model: ws.aiModel };
+    return { provider: ws.aiProvider, apiKey: decryptSecret(ws.aiKeyEncrypted), model: ws.aiModel, baseUrl: ws.aiBaseUrl ?? null };
   };
 
   app.get("/api/ai/status", auth, async () => {
@@ -108,32 +126,9 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
   };
 
   const callProvider = async (c: NonNullable<ReturnType<typeof config>>, system: string, prompt: string): Promise<string> => {
-    if (c.provider === "anthropic") {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": c.apiKey, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: c.model, max_tokens: 1500, system, messages: [{ role: "user", content: prompt }] }),
-      });
-      if (!res.ok) throw new HttpError(502, `provider error: ${res.status} ${await res.text()}`);
-      const data = (await res.json()) as { content: { type: string; text?: string }[] };
-      return data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
-    }
-    // openai-compatible generic endpoint
-    const res = await fetch(process.env.BASALT_OPENAI_BASE_URL ?? "https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${c.apiKey}` },
-      body: JSON.stringify({
-        model: c.model,
-        max_tokens: 1500,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
-    if (!res.ok) throw new HttpError(502, `provider error: ${res.status} ${await res.text()}`);
-    const data = (await res.json()) as { choices: { message: { content: string } }[] };
-    return data.choices[0]?.message.content ?? "";
+    const model = await resolveModel(c);
+    const { text } = await generateText({ model, system, prompt });
+    return text;
   };
 
   /** Ask your vault (§9.1): answers cite [[notes]]. */
@@ -142,28 +137,19 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     const c = config();
     if (!c) throw new HttpError(400, "AI is not configured — a workspace owner can add a provider key in Settings.");
 
-    let model;
-    if (c.provider === "anthropic") {
-      const { createAnthropic } = await import("@ai-sdk/anthropic");
-      model = createAnthropic({ apiKey: c.apiKey })(c.model);
-    } else {
-      const { createOpenAI } = await import("@ai-sdk/openai");
-      model = createOpenAI({ apiKey: c.apiKey, baseURL: process.env.BASALT_OPENAI_BASE_URL })(c.model);
-    }
-
+    const model = await resolveModel(c);
     const user = store.aclUser(req.userId);
     const ws = db.select().from(tables.workspace).all()[0];
 
     const result = streamText({
       model,
       system: buildSystemPrompt(store, ws?.aiInstructions ?? null),
-      messages: body.messages as any,
-      // @ts-ignore: Tool execution types mismatch with installed zod/ai versions
+      messages: await convertToModelMessages(body.messages as unknown as UIMessage[]),
+      stopWhen: stepCountIs(6), // allow: call tool → observe result → answer
       tools: {
         search_vault: tool({
           description: "Search the knowledge vault for notes matching a query.",
-          parameters: z.object({ query: z.string() }),
-          // @ts-ignore
+          inputSchema: z.object({ query: z.string() }),
           execute: async ({ query }: { query: string }) => {
             const notes = retrieve(req.userId, query, body.contextNoteId);
             return notes.map(n => ({ title: n.title, path: n.path, content: n.content.slice(0, 2000) }));
@@ -171,8 +157,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         write_note: tool({
           description: "Create or update a markdown note in the vault.",
-          parameters: z.object({ path: z.string(), content: z.string() }),
-          // @ts-ignore
+          inputSchema: z.object({ path: z.string(), content: z.string() }),
           execute: async ({ path, content }: { path: string, content: string }) => {
             store.write(user, path, content);
             return { success: true, path };
@@ -180,8 +165,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         create_project: tool({
           description: "Create a new project. Writes a project note under 04-Projects/ (tagged so it appears on the board with tasks, planning and dashboard progress). Add tasks as `- [ ]` checkboxes.",
-          parameters: z.object({ name: z.string(), domain: z.enum(["personal", "professional", "academic"]).optional() }),
-          // @ts-ignore
+          inputSchema: z.object({ name: z.string(), domain: z.enum(["personal", "professional", "academic"]).optional() }),
           execute: async ({ name, domain }: { name: string, domain?: "personal" | "professional" | "academic" }) => {
             const slug = slugify(name);
             const relPath = `${PROJECTS_DIR}/${slug}.md`;
@@ -192,8 +176,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         create_task: tool({
           description: "Add a task (a `- [ ]` checkbox) to a note. Optionally assign (@username), set priority 1-3, and due/start dates (YYYY-MM-DD).",
-          parameters: z.object({ noteId: z.string(), text: z.string(), assignee: z.string().optional(), priority: z.number().min(1).max(3).optional(), due: z.string().optional(), start: z.string().optional() }),
-          // @ts-ignore
+          inputSchema: z.object({ noteId: z.string(), text: z.string(), assignee: z.string().optional(), priority: z.number().min(1).max(3).optional(), due: z.string().optional(), start: z.string().optional() }),
           execute: async ({ noteId, text, assignee, priority, due, start }: { noteId: string; text: string; assignee?: string; priority?: number; due?: string; start?: string }) => {
             if ((due && !DAY_RE.test(due)) || (start && !DAY_RE.test(start))) return { success: false, error: "dates must be YYYY-MM-DD" };
             const note = store.requireReadable(user, noteId);
@@ -208,16 +191,14 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         set_task_status: tool({
           description: "Set a task's status: todo, in-progress, blocked, or done. Identify the task by noteId + line (0-indexed) or blockId.",
-          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), status: z.enum(["todo", "in-progress", "blocked", "done"]) }),
-          // @ts-ignore
+          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), status: z.enum(["todo", "in-progress", "blocked", "done"]) }),
           execute: async ({ noteId, line, blockId, status }: { noteId: string; line?: number; blockId?: string; status: "todo" | "in-progress" | "blocked" | "done" }) => {
             return applyTaskStatus(db, store, user, { noteId, line, blockId, status });
           }
         }),
         set_task_dates: tool({
           description: "Set or clear a task's due:/start: dates (YYYY-MM-DD; pass null to clear). Identify by noteId + line or blockId.",
-          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
-          // @ts-ignore
+          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
           execute: async ({ noteId, line, blockId, due, start }: { noteId: string; line?: number; blockId?: string; due?: string | null; start?: string | null }) => {
             const note = store.requireReadable(user, noteId);
             const updated = setTaskDates(note.content, { line, blockId }, { start, due });
@@ -228,8 +209,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         schedule_block: tool({
           description: "Book focused time for a task on the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (defaults: 09:00, 120 min).",
-          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
-          // @ts-ignore
+          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
           execute: async ({ noteId, line, blockId, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; date: string; startMin?: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
             const note = store.requireReadable(user, noteId);
@@ -256,8 +236,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
         }),
         create_event: tool({
           description: "Add a meeting/event to the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (default 60 min).",
-          parameters: z.object({ title: z.string(), date: z.string(), startMin: z.number(), durationMin: z.number().optional() }),
-          // @ts-ignore
+          inputSchema: z.object({ title: z.string(), date: z.string(), startMin: z.number(), durationMin: z.number().optional() }),
           execute: async ({ title, date, startMin, durationMin }: { title: string; date: string; startMin: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
             const event = { id: `ev-${crypto.randomUUID().slice(0, 8)}`, ownerId: user.id, title, date, startMin, durationMin: durationMin ?? 60, createdAt: Date.now() };

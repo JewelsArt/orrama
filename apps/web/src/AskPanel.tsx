@@ -1,25 +1,42 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { api } from "./api.js";
 import { IconAsk, IconX } from "./icons.js";
 
 /** Ask your vault (spec §9.1): answers grounded in readable notes, with citations. */
-export function AskPanel({ onClose, onOpenNote }: { onClose: () => void; onOpenNote: (id: string) => void }) {
+export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: string) => void }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [input, setInput] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api<{ configured: boolean }>("GET", "/api/ai/status").then((s) => setConfigured(s.configured));
   }, []);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "/api/ai/ask",
-    headers: { Authorization: `Bearer ${localStorage.getItem("basalt-token")}` },
-  });
+  // AI SDK v5+: we own the input state; the transport carries the endpoint + auth.
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/ai/ask",
+        headers: { Authorization: `Bearer ${localStorage.getItem("basalt-token") ?? ""}` },
+      }),
+    [],
+  );
+  const { messages, sendMessage, status } = useChat({ transport });
+  const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [messages]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = input.trim();
+    if (!text || busy) return;
+    void sendMessage({ text });
+    setInput("");
+  };
 
   return (
     <aside className="ask-panel" aria-label="Ask your vault">
@@ -39,28 +56,40 @@ export function AskPanel({ onClose, onOpenNote }: { onClose: () => void; onOpenN
       )}
       <div className="ask-scroll" ref={scroller}>
         {messages.length === 0 && configured && (
-          <p className="ask-hint">Answers cite [[notes]] and only ever search notes you can read. The AI can also create and edit projects and notes.</p>
+          <p className="ask-hint">
+            Answers cite [[notes]] and only ever search notes you can read. The agent can also create projects, tasks,
+            deadlines and calendar events.
+          </p>
         )}
         {messages.map((m) => (
           <div key={m.id} className={`ask-turn ${m.role}`}>
-            {m.content && <p>{m.content}</p>}
-            {m.toolInvocations?.map(t => (
-              <div key={t.toolCallId} className="ask-tool" style={{ fontSize: "0.85em", color: "var(--text-dim)", marginTop: 4 }}>
-                {t.state === 'result' ? `✓ Executed ${t.toolName}` : `⚙ Executing ${t.toolName}…`}
-              </div>
-            ))}
+            {m.parts.map((part, i) => {
+              if (part.type === "text") return part.text ? <p key={i}>{part.text}</p> : null;
+              if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+                const name = part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
+                const done = "state" in part && part.state === "output-available";
+                return (
+                  <div key={i} className="ask-tool" style={{ fontSize: "0.85em", color: "var(--text-dim)", marginTop: 4 }}>
+                    {done ? `✓ ${name}` : `⚙ ${name}…`}
+                  </div>
+                );
+              }
+              return null;
+            })}
           </div>
         ))}
-        {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
-          <div className="ask-turn assistant"><p className="ask-thinking">thinking…</p></div>
+        {status === "submitted" && (
+          <div className="ask-turn assistant">
+            <p className="ask-thinking">thinking…</p>
+          </div>
         )}
       </div>
-      <form className="ask-input" onSubmit={handleSubmit}>
+      <form className="ask-input" onSubmit={submit}>
         <input
           value={input}
-          onChange={handleInputChange}
+          onChange={(e) => setInput(e.target.value)}
           placeholder={configured ? "Ask or instruct your agent…" : "AI not configured"}
-          disabled={!configured || isLoading}
+          disabled={!configured || busy}
           aria-label="Question"
         />
       </form>

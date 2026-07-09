@@ -103,9 +103,12 @@ export const inviteCreateSchema = z.object({
 });
 
 export const aiConfigSchema = z.object({
-  provider: z.enum(["anthropic", "openai-compatible"]),
-  apiKey: z.string().min(10),
+  provider: z.enum(["anthropic", "openai-compatible", "google"]),
+  /** Blank = keep the existing key (so provider/model can be changed without re-pasting it). */
+  apiKey: z.string().min(10).optional().or(z.literal("")),
   model: z.string().min(1),
+  /** Custom endpoint for the openai-compatible provider (e.g. a Gemini OpenAI-compat URL). */
+  baseUrl: z.string().url().optional().or(z.literal("")),
 });
 
 /** The owner's custom agent instructions, appended to the built-in app guide. */
@@ -114,10 +117,9 @@ export const aiInstructionsSchema = z.object({
 });
 
 export const askVaultSchema = z.object({
-  messages: z.array(z.object({
-    role: z.enum(["user", "assistant", "system", "data"]),
-    content: z.string(),
-  })).min(1),
+  // AI SDK v5+ UIMessage shape: role + parts[]. Kept permissive (passthrough) so
+  // convertToModelMessages on the server reads the full message; validated for role only.
+  messages: z.array(z.object({ role: z.enum(["user", "assistant", "system"]) }).passthrough()).min(1),
   /** Current note id, if the panel is open on one — feeds link-graph retrieval. */
   contextNoteId: z.string().optional(),
 });

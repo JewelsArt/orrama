@@ -15,7 +15,7 @@ interface Overview {
   grants: { id: string; teamId: string; folder: string; role: "viewer" | "editor" | "admin" }[];
   projects: { id: string; kind: string; key: string; name: string; teamId: string | null }[];
   invites: { token: string; teamIds: string; expiresAt: number }[];
-  ai: { provider: string | null; model: string | null; configured: boolean; instructions: string };
+  ai: { provider: string | null; model: string | null; configured: boolean; instructions: string; baseUrl: string };
 }
 
 const NEXT_ROLE = { viewer: "editor", editor: "admin", admin: "viewer" } as const;
@@ -178,7 +178,10 @@ export function Admin() {
               ? `Configured: ${data.ai.provider} · ${data.ai.model}. Key is encrypted at rest; requests go straight from this server to the provider.`
               : "Bring your own key — nothing is sent anywhere until you add one."}
           </p>
+          {/* keyed on the saved config so it remounts to show the saved values after a save
+              (instead of blanking out) — the key field stays empty on purpose. */}
           <form
+            key={`${data.ai.provider ?? ""}|${data.ai.model ?? ""}`}
             className="ai-form"
             onSubmit={(e) => {
               e.preventDefault();
@@ -189,18 +192,20 @@ export function Admin() {
                     provider: String(f.get("provider")),
                     apiKey: String(f.get("apiKey")),
                     model: String(f.get("model")),
+                    baseUrl: String(f.get("baseUrl") || ""),
                   }),
-                "AI configured",
+                "AI saved",
               );
-              e.currentTarget.reset();
             }}
           >
-            <select name="provider" defaultValue="anthropic" aria-label="Provider">
+            <select name="provider" defaultValue={data.ai.provider ?? "anthropic"} aria-label="Provider">
               <option value="anthropic">Anthropic</option>
+              <option value="google">Google (Gemini)</option>
               <option value="openai-compatible">OpenAI-compatible</option>
             </select>
-            <input name="model" placeholder="model, e.g. claude-sonnet-5" defaultValue="claude-sonnet-5" aria-label="Model" />
-            <input name="apiKey" type="password" placeholder="API key" aria-label="API key" required />
+            <input name="model" placeholder="model, e.g. claude-sonnet-5 or gemini-2.5-flash" defaultValue={data.ai.model ?? "claude-sonnet-5"} aria-label="Model" />
+            <input name="apiKey" type="password" placeholder={data.ai.configured ? "API key (leave blank to keep current)" : "API key"} aria-label="API key" />
+            <input name="baseUrl" defaultValue={data.ai.baseUrl} placeholder="Base URL (openai-compatible only, e.g. https://generativelanguage.googleapis.com/v1beta/openai)" aria-label="Base URL" />
             <button className="primary">Save</button>
           </form>
 

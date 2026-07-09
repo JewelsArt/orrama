@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE TABLE IF NOT EXISTS workspace (
   id TEXT PRIMARY KEY, name TEXT NOT NULL,
-  ai_provider TEXT, ai_key_encrypted TEXT, ai_model TEXT, ai_instructions TEXT
+  ai_provider TEXT, ai_key_encrypted TEXT, ai_model TEXT, ai_instructions TEXT, ai_base_url TEXT
 );
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
@@ -118,6 +118,11 @@ export function createDb(file = dbPath()) {
   }
   try {
     sqlite.exec(`ALTER TABLE workspace ADD COLUMN ai_instructions TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    sqlite.exec(`ALTER TABLE workspace ADD COLUMN ai_base_url TEXT`);
   } catch {
     /* column exists */
   }

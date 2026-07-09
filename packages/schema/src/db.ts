@@ -24,9 +24,10 @@ export const workspace = sqliteTable("workspace", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   // AI config (spec §9): BYO key, stored encrypted at rest on the admin's server.
-  aiProvider: text("ai_provider"), // "anthropic" | "openai-compatible"
+  aiProvider: text("ai_provider"), // "anthropic" | "openai-compatible" | "google"
   aiKeyEncrypted: text("ai_key_encrypted"),
   aiModel: text("ai_model"),
+  aiBaseUrl: text("ai_base_url"), // custom endpoint for the openai-compatible provider (e.g. Gemini's OpenAI-compat URL)
   aiInstructions: text("ai_instructions"), // owner's custom "how to act" prompt, appended to the built-in app guide
 });
 
