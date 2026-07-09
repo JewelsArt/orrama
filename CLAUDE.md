@@ -27,10 +27,10 @@ lives DB-only).
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
-| `apps/server/src/routes/` | auth, vault, tasks, dashboard, admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
+| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks), terminal (node-pty PTY over WS, owner-only) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Architecture` (scoped files + `GraphBackdrop` canvas + `Editor`), `Planning` (est. via `/api/plan`), `Overview` (team board), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
+| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: backlog→grid time-blocks, events, ICS overlay, est. via `/api/plan`), `Overview` (project board by life-area, `Gantt.tsx`), `Contacts`, `Terminal.tsx` (xterm, owner-only), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -73,11 +73,20 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
 
 ## Design rules
 
-The palette is Jules's own Obsidian graph palette: ground `#0f0f17`, text family
-`#8888aa`, accent amber `#f5a623`, group colors blue `#4a9eff` / crimson `#e5383b`
-/ purple `#a855f7` / teal `#2dd4bf`. Flat surfaces, 1px borders, 4–6px radii,
-mono for numbers/paths/micro-labels. No gradients, no glow shadows, no neon, no
-emoji as icons (use `icons.tsx`). The map (`GraphCanvas`) is a live d3-force
+**Glass design language** (the mock lives in `~/basalt-dash-mock`;
+`architecture-glass.html` is canonical). Frosted translucent surfaces
+(`backdrop-filter: blur(22–26px) saturate(150%)`, `--glass*` fills, 1px
+`--glass-brd` borders, inset top-highlight) float over a fixed radial-blob
+backdrop (`base.css` body). Two themes, swapped by the rail's animated toggle
+(View Transitions API clip-path ripple from the click point, `base.css`):
+`[data-theme="command"]` = graphite monochrome (silver accent), `[data-theme="light"]`
+= frosted white (sapphire accent). The purple `--logo` mark is the only constant
+spark. Radii: `--radius` 12 / `--radius-sm` 8 / `--radius-lg` 22 (cards, rail,
+modals). Type is Plus Jakarta Sans (`--font-ui`) + JetBrains Mono for
+numbers/paths/micro-labels; mono/paths still carry meaning. No emoji as icons
+(use `icons.tsx`). **Token-first**: everything reads `var(--…)` from
+`packages/ui/src/tokens.css`, so a theme is just a token set — retint there, not
+in components. The map (`GraphCanvas`) is a live d3-force
 graph on canvas, Obsidian-style: repulsion + `forceCollide` (nodes never overlap),
 link springs, drag a node to move it (pointer sets `fx/fy`, release settles),
 wheel-zoom, background-pan, hover lights the neighbourhood, labels appear on
@@ -86,17 +95,16 @@ truth for vault grouping+colour, shared by the map, the file-list dots, and the
 category filter, so a note is the same colour everywhere. Team color is data,
 not decoration. Members are hex-column characters (`avatars.tsx`).
 
-The **Dashboard** (`Dashboard.tsx`, the default tab) is the app's light-mode
-surface — a clean SaaS card grid (HireFlow-style: white rounded cards, soft
-shadows, indigo accent, pastel badge pills, avatars) on Plus Jakarta Sans. Six
-cards: hero stat, this-week/last-week activity line chart, In Focus tasks,
-Schedule (mini calendar + agenda), Today's Tasks checklist, Analytics (stat
-tiles + category donut). Fully scoped under `.home` (local `--d-*` CSS vars,
-font from `index.html`) so the dark command-center is untouched. Fed by
+The **Dashboard** (`Dashboard.tsx`, the default tab) is a frosted card grid
+(HireFlow-style layout: rounded glass cards, In Focus tints, badge pills,
+avatars). Six cards: hero stat, this-week/last-week activity line chart, In Focus
+tasks, Schedule (mini calendar + agenda), Today's Tasks checklist, Analytics
+(stat tiles + category donut). Scoped under `.home` via `--d-*` vars, but those
+now alias the global glass tokens (`--glass`, `--ink`→`--text`, badge hues,
+translucent `color-mix` tints), so the Dashboard flips with the theme toggle like
+every other surface — no bespoke light-only palette, no special rail. Fed by
 `/api/home` (personal aggregates, ACL-filtered) + the donut computed client-side
 from the tree via `categories.ts`. Charts are hand-drawn SVG, no chart lib.
-(Long-term the app stays dark; this is the light showcase — palette is a handful
-of `--d-*` vars.)
 
 The editor is live-preview (`livePreview.ts`): frontmatter collapses to a
 properties row (StateField — multi-line replaces can't live in view plugins),
