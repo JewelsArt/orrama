@@ -6,4 +6,5 @@ apps/server/data/
 *.db
 *.db-*
 target/
+apps/desktop/src-tauri/gen/
 .DS_Store

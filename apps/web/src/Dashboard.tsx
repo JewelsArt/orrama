@@ -169,7 +169,7 @@ function useBentoReorder(ids: string[]) {
       done = true;
     };
 
-    let lastHome: DOMRect | null = null;
+    let lastHome: { left: number; top: number } | null = null;
 
     // Physics integration using a fixed timestep to completely divorce 
     // the spring tension and wobble speed from the monitor refresh rate.
