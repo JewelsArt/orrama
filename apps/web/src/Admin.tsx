@@ -15,7 +15,7 @@ interface Overview {
   grants: { id: string; teamId: string; folder: string; role: "viewer" | "editor" | "admin" }[];
   projects: { id: string; kind: string; key: string; name: string; teamId: string | null }[];
   invites: { token: string; teamIds: string; expiresAt: number }[];
-  ai: { provider: string | null; model: string | null; configured: boolean };
+  ai: { provider: string | null; model: string | null; configured: boolean; instructions: string };
 }
 
 const NEXT_ROLE = { viewer: "editor", editor: "admin", admin: "viewer" } as const;
@@ -202,6 +202,29 @@ export function Admin() {
             <input name="model" placeholder="model, e.g. claude-sonnet-5" defaultValue="claude-sonnet-5" aria-label="Model" />
             <input name="apiKey" type="password" placeholder="API key" aria-label="API key" required />
             <button className="primary">Save</button>
+          </form>
+
+          <h3 className="admin-subhead">Agent instructions</h3>
+          <p className="admin-hint">
+            Teach the agent how to work for you — tone, priorities, habits (“always push me on deadlines”). It’s appended to a
+            built-in guide that already covers projects, tasks and the calendar, plus your vault’s CLAUDE.md.
+          </p>
+          <form
+            className="ai-instructions-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = new FormData(e.currentTarget);
+              void act(() => api("POST", "/api/admin/ai/instructions", { instructions: String(f.get("instructions")) }), "Instructions saved");
+            }}
+          >
+            <textarea
+              name="instructions"
+              rows={6}
+              defaultValue={data.ai.instructions}
+              placeholder="e.g. I'm a finance student — be direct and structured. When I share something I built, suggest a LinkedIn angle. Push me on deadlines."
+              aria-label="Agent instructions"
+            />
+            <button className="primary">Save instructions</button>
           </form>
         </section>
       </div>

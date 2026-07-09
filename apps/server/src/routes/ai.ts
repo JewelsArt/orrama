@@ -2,7 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { streamText, tool } from "ai";
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
-import { suggestRelated, type IndexedNote } from "@basalt/core";
+import crypto from "node:crypto";
+import { appendLine, promoteTaskLine, setTaskDates, suggestRelated, type IndexedNote } from "@basalt/core";
+import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
+import { applyTaskStatus } from "./tasks.js";
 import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -14,6 +17,30 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  * requester's readable set only. (Local embeddings can replace the lexical scorer
  * behind the same retrieval interface — M3 hardening.)
  */
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Always-on guide: teaches the agent Basalt's mechanics so its tools land correctly. */
+const BUILTIN_GUIDE = `You are the agent built into Basalt — a team knowledge tool where plain Markdown notes are the source of truth. You act by calling tools; every change writes to the notes.
+
+How Basalt works:
+- A note becomes a PROJECT on the board by carrying a front-matter tag \`project/<slug>\`. Use create_project to make one (it scaffolds the note under 04-Projects/ and puts it on the board, dashboard and planning calendar).
+- TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
+- STATUS: set_task_status with todo | in-progress | blocked | done. done/todo tick the checkbox in the file; in-progress/blocked are richer states.
+- DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
+- Always search_vault before answering a question, and cite notes as [[Note Title]]. Make small, concrete edits; confirm anything destructive.`;
+
+/** Effective system prompt = built-in guide + the vault's CLAUDE.md + the owner's custom instructions. */
+function buildSystemPrompt(store: VaultStore, instructions: string | null): string {
+  const guide = store.vaultGuide();
+  return [
+    BUILTIN_GUIDE,
+    guide ? `# About the user & vault (from the vault's CLAUDE.md)\n${guide}` : "",
+    instructions?.trim() ? `# Workspace instructions (set by the owner)\n${instructions.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
 
@@ -125,10 +152,11 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     }
 
     const user = store.aclUser(req.userId);
+    const ws = db.select().from(tables.workspace).all()[0];
 
     const result = streamText({
       model,
-      system: "You are an AI assistant built directly into the Basalt application. You have access to the user's files and database as your memory. Use your tools to read notes, create projects, edit notes, setup calendar events, and more. When asked a question, search the vault first. Cite sources using [[Note Title]] wiki-links.",
+      system: buildSystemPrompt(store, ws?.aiInstructions ?? null),
       messages: body.messages as any,
       // @ts-ignore: Tool execution types mismatch with installed zod/ai versions
       tools: {
@@ -151,14 +179,90 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
           }
         }),
         create_project: tool({
-          description: "Create a new project in the workspace.",
-          parameters: z.object({ name: z.string(), kind: z.enum(["folder", "tag"]) }),
+          description: "Create a new project. Writes a project note under 04-Projects/ (tagged so it appears on the board with tasks, planning and dashboard progress). Add tasks as `- [ ]` checkboxes.",
+          parameters: z.object({ name: z.string(), domain: z.enum(["personal", "professional", "academic"]).optional() }),
           // @ts-ignore
-          execute: async ({ name, kind }: { name: string, kind: "folder" | "tag" }) => {
-            const id = Math.random().toString(36).slice(2, 10);
-            const key = name.substring(0, 3).toUpperCase();
-            db.insert(tables.projects).values({ id, name, kind, key }).run();
-            return { success: true, id, key };
+          execute: async ({ name, domain }: { name: string, domain?: "personal" | "professional" | "academic" }) => {
+            const slug = slugify(name);
+            const relPath = `${PROJECTS_DIR}/${slug}.md`;
+            if (store.index.getByPath(relPath)) return { success: false, error: "a project with that name already exists", path: relPath };
+            const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)));
+            return { success: true, noteId: note.id, path: note.path, key: `project/${slug}` };
+          }
+        }),
+        create_task: tool({
+          description: "Add a task (a `- [ ]` checkbox) to a note. Optionally assign (@username), set priority 1-3, and due/start dates (YYYY-MM-DD).",
+          parameters: z.object({ noteId: z.string(), text: z.string(), assignee: z.string().optional(), priority: z.number().min(1).max(3).optional(), due: z.string().optional(), start: z.string().optional() }),
+          // @ts-ignore
+          execute: async ({ noteId, text, assignee, priority, due, start }: { noteId: string; text: string; assignee?: string; priority?: number; due?: string; start?: string }) => {
+            if ((due && !DAY_RE.test(due)) || (start && !DAY_RE.test(start))) return { success: false, error: "dates must be YYYY-MM-DD" };
+            const note = store.requireReadable(user, noteId);
+            let line = `- [ ] ${text}`;
+            if (assignee) line += ` @${assignee.replace(/^@/, "")}`;
+            if (priority) line += ` !p${priority}`;
+            if (start) line += ` start:${start}`;
+            if (due) line += ` due:${due}`;
+            store.write(user, note.path, appendLine(note.content, line));
+            return { success: true, noteId: note.id, line };
+          }
+        }),
+        set_task_status: tool({
+          description: "Set a task's status: todo, in-progress, blocked, or done. Identify the task by noteId + line (0-indexed) or blockId.",
+          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), status: z.enum(["todo", "in-progress", "blocked", "done"]) }),
+          // @ts-ignore
+          execute: async ({ noteId, line, blockId, status }: { noteId: string; line?: number; blockId?: string; status: "todo" | "in-progress" | "blocked" | "done" }) => {
+            return applyTaskStatus(db, store, user, { noteId, line, blockId, status });
+          }
+        }),
+        set_task_dates: tool({
+          description: "Set or clear a task's due:/start: dates (YYYY-MM-DD; pass null to clear). Identify by noteId + line or blockId.",
+          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
+          // @ts-ignore
+          execute: async ({ noteId, line, blockId, due, start }: { noteId: string; line?: number; blockId?: string; due?: string | null; start?: string | null }) => {
+            const note = store.requireReadable(user, noteId);
+            const updated = setTaskDates(note.content, { line, blockId }, { start, due });
+            if (updated === null) return { success: false, error: "task line not found" };
+            store.write(user, note.path, updated);
+            return { success: true };
+          }
+        }),
+        schedule_block: tool({
+          description: "Book focused time for a task on the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (defaults: 09:00, 120 min).",
+          parameters: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
+          // @ts-ignore
+          execute: async ({ noteId, line, blockId, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; date: string; startMin?: number; durationMin?: number }) => {
+            if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
+            const note = store.requireReadable(user, noteId);
+            let tbId = blockId;
+            if (!tbId) {
+              if (line === undefined) return { success: false, error: "line or blockId required" };
+              const res = promoteTaskLine(note.content, line);
+              if (!res) return { success: false, error: "line is not a task" };
+              if (res.content !== note.content) store.write(user, note.path, res.content);
+              tbId = res.blockId;
+            }
+            let obj = store.taskObjectByBlock(note.id, tbId);
+            const now = Date.now();
+            if (!obj) {
+              const fresh = { id: `task-${crypto.randomUUID().slice(0, 8)}`, noteId: note.id, blockId: tbId, status: "todo" as const, assigneeId: null, due: null, plannedDate: null, description: "", createdAt: now, updatedAt: now };
+              db.insert(tables.taskObjects).values(fresh).run();
+              obj = fresh;
+            }
+            const block = { id: `blk-${crypto.randomUUID().slice(0, 8)}`, taskObjectId: obj.id, date, startMin: startMin ?? 540, durationMin: durationMin ?? 120, createdAt: now };
+            db.insert(tables.taskBlocks).values(block).run();
+            store.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id });
+            return { success: true, block };
+          }
+        }),
+        create_event: tool({
+          description: "Add a meeting/event to the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (default 60 min).",
+          parameters: z.object({ title: z.string(), date: z.string(), startMin: z.number(), durationMin: z.number().optional() }),
+          // @ts-ignore
+          execute: async ({ title, date, startMin, durationMin }: { title: string; date: string; startMin: number; durationMin?: number }) => {
+            if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
+            const event = { id: `ev-${crypto.randomUUID().slice(0, 8)}`, ownerId: user.id, title, date, startMin, durationMin: durationMin ?? 60, createdAt: Date.now() };
+            db.insert(tables.events).values(event).run();
+            return { success: true, event };
           }
         })
       }
