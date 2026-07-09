@@ -248,7 +248,15 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     });
 
     reply.raw.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    result.pipeUIMessageStreamToResponse(reply.raw);
+    // Surface the real error to the client (the SDK masks it by default) so a bad
+    // model / expired key / quota shows in the panel instead of silent nothing.
+    result.pipeUIMessageStreamToResponse(reply.raw, {
+      onError: (error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        req.log.error({ err: msg }, "ai/ask stream error");
+        return msg.length > 500 ? `${msg.slice(0, 500)}…` : msg;
+      },
+    });
     reply.hijack();
     return;
   });

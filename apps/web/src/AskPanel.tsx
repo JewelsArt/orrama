@@ -23,7 +23,7 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
       }),
     [],
   );
-  const { messages, sendMessage, status } = useChat({ transport });
+  const { messages, sendMessage, status, error } = useChat({ transport });
   const busy = status === "submitted" || status === "streaming";
 
   useEffect(() => {
@@ -81,6 +81,13 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
         {status === "submitted" && (
           <div className="ask-turn assistant">
             <p className="ask-thinking">thinking…</p>
+          </div>
+        )}
+        {error && (
+          <div className="ask-error" role="alert">
+            <strong>Something went wrong.</strong>
+            <span>{error.message || "The model request failed."}</span>
+            <span className="ask-error-hint">Check the model name and API key under Admin → AI, then try again.</span>
           </div>
         )}
       </div>
