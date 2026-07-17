@@ -132,9 +132,22 @@ Vault layout:
   // Serve the built web app when present (self-host: one container serves everything).
   const webDist = path.resolve(import.meta.dirname, "../../web/dist");
   if (fs.existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist, wildcard: false });
+    await app.register(fastifyStatic, {
+      root: webDist,
+      wildcard: false,
+      // Take over caching ourselves (the plugin default is a flat max-age=0):
+      // hashed assets are content-addressed → cache forever; index.html must always
+      // revalidate, or a rebuild (new asset hashes) leaves a cached shell pointing
+      // at deleted files (blank screen, esp. in the desktop webview).
+      cacheControl: false,
+      setHeaders: (res, pathName) => {
+        if (pathName.endsWith(`${path.sep}index.html`)) res.setHeader("cache-control", "no-cache");
+        else if (pathName.includes(`${path.sep}assets${path.sep}`)) res.setHeader("cache-control", "public, max-age=31536000, immutable");
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith("/api/")) return reply.code(404).send({ error: "not found" });
+      reply.header("cache-control", "no-cache");
       return reply.sendFile("index.html");
     });
   }
