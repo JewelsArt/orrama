@@ -213,6 +213,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["title", "date", "startMin"],
         },
       },
+      {
+        name: "list_email",
+        description: "List recent messages in the user's connected email inbox. Returns sender, subject, date, read state and a uid to read the full message. Requires a mail account connected in Basalt (Settings -> Mail).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "How many recent messages (default 20, max 100)" },
+          },
+        },
+      },
+      {
+        name: "read_email",
+        description: "Read the full text of one inbox message by its uid (from list_email). Marks it read. Returns body plus messageId/references for threading a reply.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            uid: { type: "number", description: "Message uid from list_email" },
+          },
+          required: ["uid"],
+        },
+      },
+      {
+        name: "send_email",
+        description: "Send an email from the user's connected mailbox. To reply in-thread, pass inReplyTo (and references) from read_email. Confirm the recipient and content with the user before sending — this leaves their machine.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            to: { type: "string", description: "Recipient address(es)" },
+            subject: { type: "string" },
+            body: { type: "string" },
+            inReplyTo: { type: "string", description: "Message-ID being replied to (optional)" },
+            references: { type: "string", description: "References header for threading (optional)" },
+          },
+          required: ["to", "subject", "body"],
+        },
+      },
     ],
   };
 });
@@ -356,6 +392,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "create_event": {
         const a = request.params.arguments ?? {};
         const res = await fetchBasalt(`/api/events`, "POST", { title: a.title, date: a.date, startMin: a.startMin, durationMin: a.durationMin });
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+      }
+
+      case "list_email": {
+        const limit = Number(request.params.arguments?.limit ?? 20);
+        const res = await fetchBasalt(`/api/mail/inbox?limit=${encodeURIComponent(limit)}`);
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+      }
+
+      case "read_email": {
+        const uid = Number(request.params.arguments?.uid);
+        const res = await fetchBasalt(`/api/mail/message/${encodeURIComponent(uid)}`);
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+      }
+
+      case "send_email": {
+        const a = request.params.arguments ?? {};
+        const res = await fetchBasalt(`/api/mail/send`, "POST", { to: a.to, subject: a.subject, body: a.body, inReplyTo: a.inReplyTo, references: a.references });
         return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
       }
 
