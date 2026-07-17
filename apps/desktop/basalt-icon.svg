@@ -1,0 +1,55 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- graphite tile -->
+    <linearGradient id="gTile" gradientUnits="userSpaceOnUse" x1="128" y1="96" x2="900" y2="944">
+      <stop offset="0" stop-color="#24252f"/>
+      <stop offset="0.55" stop-color="#141419"/>
+      <stop offset="1" stop-color="#0a0a0d"/>
+    </linearGradient>
+    <!-- purple hero column -->
+    <linearGradient id="gPurple" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9b83ff"/>
+      <stop offset="1" stop-color="#5a44d6"/>
+    </linearGradient>
+    <!-- silver facets -->
+    <linearGradient id="gSilverL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dee1ea"/>
+      <stop offset="1" stop-color="#a6abba"/>
+    </linearGradient>
+    <linearGradient id="gSilverR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9aa0b0"/>
+      <stop offset="1" stop-color="#666b7c"/>
+    </linearGradient>
+    <linearGradient id="gGraph" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#585d6b"/>
+      <stop offset="1" stop-color="#363945"/>
+    </linearGradient>
+    <!-- purple glow behind the mark -->
+    <radialGradient id="gGlow" gradientUnits="userSpaceOnUse" cx="512" cy="470" r="380">
+      <stop offset="0" stop-color="#6f5ae8" stop-opacity="0.42"/>
+      <stop offset="0.6" stop-color="#6f5ae8" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#6f5ae8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- rounded graphite tile -->
+  <rect x="64" y="64" width="896" height="896" rx="220" fill="url(#gTile)"/>
+  <!-- soft inner top highlight -->
+  <rect x="64.5" y="64.5" width="895" height="895" rx="219.5" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1.5"/>
+
+  <!-- glow -->
+  <ellipse cx="512" cy="470" rx="360" ry="360" fill="url(#gGlow)"/>
+
+  <!-- basalt columns (interlocking faceted prisms) -->
+  <g stroke="#0a0a0d" stroke-opacity="0.28" stroke-width="2" stroke-linejoin="round">
+    <polygon points="215,363.5 377,282.5 377,741.5 215,822.5" fill="url(#gSilverL)"/>
+    <polygon points="377,282.5 539,201.5 539,660.5 377,741.5" fill="url(#gPurple)"/>
+    <polygon points="539,201.5 701,282.5 701,741.5 539,660.5" fill="url(#gSilverR)"/>
+    <polygon points="701,282.5 809,336.5 809,768.5 701,741.5" fill="url(#gGraph)"/>
+  </g>
+
+  <!-- lit top ridge -->
+  <polyline points="215,363.5 377,282.5 539,201.5 701,282.5 809,336.5"
+            fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="4"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
