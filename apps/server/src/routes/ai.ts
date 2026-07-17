@@ -6,8 +6,10 @@ import crypto from "node:crypto";
 import { appendLine, promoteTaskLine, setTaskDates, suggestRelated, type IndexedNote } from "@basalt/core";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
 import { applyTaskStatus } from "./tasks.js";
+import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
+import { credsFor, getMessage, listInbox, sendMail } from "../mail.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 /**
@@ -27,6 +29,7 @@ How Basalt works:
 - TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
 - STATUS: set_task_status with todo | in-progress | blocked | done. done/todo tick the checkbox in the file; in-progress/blocked are richer states.
 - DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
+- EMAIL: if the user has connected a mailbox, list_email/read_email survey the inbox and send_email sends or replies (thread a reply with inReplyTo from read_email). Always confirm recipient and wording before send_email — mail leaves the machine.
 - Always search_vault before answering a question, and cite notes as [[Note Title]]. Make small, concrete edits; confirm anything destructive.`;
 
 /** Resolve a provider config to a Vercel AI SDK model. One place, so /ask and the digest agree. */
@@ -242,6 +245,50 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
             const event = { id: `ev-${crypto.randomUUID().slice(0, 8)}`, ownerId: user.id, title, date, startMin, durationMin: durationMin ?? 60, createdAt: Date.now() };
             db.insert(tables.events).values(event).run();
             return { success: true, event };
+          }
+        }),
+        list_email: tool({
+          description: "List the most recent messages in the user's email inbox (their connected personal mailbox). Returns sender, subject, date, read state and a uid to read the full message.",
+          inputSchema: z.object({ limit: z.number().min(1).max(50).optional() }),
+          execute: async ({ limit }: { limit?: number }) => {
+            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
+            if (!acct) return { success: false, error: "no mail account connected — the user can add one in Settings → Mail" };
+            try {
+              const items = await listInbox(credsFor(acct), Math.min(limit ?? 15, 50));
+              return { success: true, messages: items.map((m) => ({ uid: m.uid, from: m.fromName || m.from, subject: m.subject, date: m.date, unread: !m.seen })) };
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : String(err) };
+            }
+          }
+        }),
+        read_email: tool({
+          description: "Read the full text of one inbox message by its uid (from list_email). Marks it read.",
+          inputSchema: z.object({ uid: z.number() }),
+          execute: async ({ uid }: { uid: number }) => {
+            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
+            if (!acct) return { success: false, error: "no mail account connected" };
+            try {
+              const m = await getMessage(credsFor(acct), uid);
+              if (!m) return { success: false, error: "message not found" };
+              // messageId/references let a follow-up send_email thread the reply correctly.
+              return { success: true, from: m.from, fromName: m.fromName, subject: m.subject, date: m.date, body: m.text || "(no plain-text body)", messageId: m.messageId, references: m.references };
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : String(err) };
+            }
+          }
+        }),
+        send_email: tool({
+          description: "Send an email from the user's connected mailbox. To reply in-thread, pass inReplyTo (and references) from read_email. Confirm the recipient and content with the user before sending — this leaves their machine.",
+          inputSchema: z.object({ to: z.string(), subject: z.string(), body: z.string(), inReplyTo: z.string().optional(), references: z.string().optional() }),
+          execute: async ({ to, subject, body, inReplyTo, references }: { to: string; subject: string; body: string; inReplyTo?: string; references?: string }) => {
+            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
+            if (!acct) return { success: false, error: "no mail account connected" };
+            try {
+              const res = await sendMail(credsFor(acct), { to, subject, body, inReplyTo, references });
+              return { success: true, messageId: res.messageId };
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : String(err) };
+            }
           }
         })
       }

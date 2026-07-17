@@ -73,6 +73,13 @@ CREATE TABLE IF NOT EXISTS ics_feeds (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, label TEXT NOT NULL, url_encrypted TEXT NOT NULL,
   created_at INTEGER NOT NULL, last_synced_at INTEGER, last_error TEXT
 );
+CREATE TABLE IF NOT EXISTS mail_accounts (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL,
+  imap_host TEXT NOT NULL, imap_port INTEGER NOT NULL,
+  smtp_host TEXT NOT NULL, smtp_port INTEGER NOT NULL,
+  password_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL,
+  last_checked_at INTEGER, last_error TEXT
+);
 CREATE TABLE IF NOT EXISTS api_tokens (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,

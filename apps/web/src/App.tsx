@@ -6,8 +6,9 @@ import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
 import { Contacts } from "./Contacts.js";
 import { Dashboard } from "./Dashboard.js";
-import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMark, IconMoon, IconOverview, IconPlanning, IconSearch, IconSun, IconTerminal } from "./icons.js";
+import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMail, IconMark, IconMoon, IconOverview, IconPlanning, IconSearch, IconSun, IconTerminal } from "./icons.js";
 import { Login } from "./Login.js";
+import { Mail } from "./Mail.js";
 import { Overview } from "./Overview.js";
 import { Planning } from "./Planning.js";
 import { QuickCapture } from "./QuickCapture.js";
@@ -22,6 +23,7 @@ export type View =
   | { kind: "planning" }
   | { kind: "overview" }
   | { kind: "contacts" }
+  | { kind: "mail" }
   | { kind: "terminal" }
   | { kind: "admin" };
 
@@ -31,6 +33,7 @@ const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; own
   { kind: "planning", label: "Planning", icon: IconPlanning },
   { kind: "overview", label: "Overview", icon: IconOverview },
   { kind: "contacts", label: "Contacts", icon: IconContacts },
+  { kind: "mail", label: "Mail", icon: IconMail },
   { kind: "terminal", label: "Terminal", icon: IconTerminal, ownerOnly: true },
   { kind: "admin", label: "Admin", icon: IconAdmin, ownerOnly: true },
 ];
@@ -105,7 +108,7 @@ export function App() {
       else if (e.key === "3") setView({ kind: "planning" });
       else if (e.key === "4") setView({ kind: "overview" });
       else if (e.key === "5") setView({ kind: "contacts" });
-      else if (e.key === "6" && me?.isOwner) setView({ kind: "terminal" });
+      else if (e.key === "6") setView({ kind: "mail" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -183,6 +186,8 @@ export function App() {
           <Overview me={me} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
           <Contacts me={me} onOpenNote={openNote} />
+        ) : view.kind === "mail" ? (
+          <Mail me={me} />
         ) : view.kind === "terminal" ? (
           <Terminal me={me} />
         ) : (

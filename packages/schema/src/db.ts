@@ -181,6 +181,29 @@ export const webhooks = sqliteTable("webhooks", {
   lastFiredAt: integer("last_fired_at"),
 });
 
+/**
+ * Personal mail account (spec: in-app email, no OAuth). One row per user, keyed
+ * unique on user_id — these are the user's own IMAP/SMTP credentials (a Gmail
+ * app password), so the account is always self-scoped. The password is a
+ * credential: AES-GCM encrypted at rest exactly like the AI key and ICS feed URL.
+ * Messages are never stored — IMAP stays the source of truth, fetched on demand.
+ */
+export const mailAccounts = sqliteTable("mail_accounts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  /** The address, also the IMAP/SMTP login. */
+  email: text("email").notNull(),
+  imapHost: text("imap_host").notNull(),
+  imapPort: integer("imap_port").notNull(),
+  smtpHost: text("smtp_host").notNull(),
+  smtpPort: integer("smtp_port").notNull(),
+  /** Gmail app password (or provider password), AES-GCM encrypted. */
+  passwordEncrypted: text("password_encrypted").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastCheckedAt: integer("last_checked_at"),
+  lastError: text("last_error"),
+});
+
 /** Projects: a folder or tag designated as the unit progress is computed against (spec §3). */
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),

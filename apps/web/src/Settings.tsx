@@ -92,6 +92,7 @@ export function Settings({
         </section>
 
         <CalendarSection />
+        <MailSection />
         <TokensSection />
         <WebhooksSection />
 
@@ -239,6 +240,98 @@ function CalendarSection() {
             Create private feed URL
           </button>
         </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- integrations: personal mail account (IMAP/SMTP, app password) ---------- */
+
+interface MailAccount {
+  connected: boolean;
+  email: string | null;
+  lastError: string | null;
+}
+
+function MailSection() {
+  const [acct, setAcct] = useState<MailAccount | null>(null);
+  const [email, setEmail] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void api<MailAccount>("GET", "/api/mail/account").then(setAcct);
+  }, []);
+
+  const connect = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await api<MailAccount>("POST", "/api/mail/account", { email, appPassword });
+      setAcct(next);
+      setEmail("");
+      setAppPassword("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <h3>Mail</h3>
+      {acct?.connected ? (
+        <>
+          <div className="integr-row">
+            <span className="integr-main">
+              {acct.email}
+              <span className="integr-sub">{acct.lastError ? `error: ${acct.lastError}` : "connected · read & reply in the Mail tab"}</span>
+            </span>
+            {acct.lastError && <span className="integr-bad">!</span>}
+            <button
+              className="ghost danger"
+              title="Disconnect mail"
+              onClick={async () => {
+                await api("DELETE", "/api/mail/account");
+                setAcct({ connected: false, email: null, lastError: null });
+              }}
+            >
+              <IconX />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="integr-hint">
+            Connect Gmail with an <em>app password</em> (not your normal password): enable 2-Step Verification, then Google Account → Security →{" "}
+            <em>App passwords</em> → generate one for “Mail”. It stays encrypted on this machine — mail never leaves your server.
+          </p>
+          <form
+            className="settings-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (email.trim() && appPassword.trim() && !busy) void connect();
+            }}
+          >
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" aria-label="Email address" />
+            <div className="settings-row">
+              <input
+                type="password"
+                value={appPassword}
+                onChange={(e) => setAppPassword(e.target.value)}
+                placeholder="app password (16 chars)"
+                aria-label="App password"
+                autoComplete="off"
+              />
+              <button className="primary" disabled={busy || !email.trim() || !appPassword.trim()}>
+                {busy ? "Connecting…" : "Connect"}
+              </button>
+            </div>
+          </form>
+          {error && <p className="integr-error">{error}</p>}
+        </>
       )}
     </section>
   );

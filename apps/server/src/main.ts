@@ -23,6 +23,7 @@ import { calendarRoutes } from "./routes/calendar.js";
 import { contactRoutes } from "./routes/contacts.js";
 import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
+import { mailRoutes } from "./routes/mail.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { terminalRoutes } from "./routes/terminal.js";
 import { initWebhooks } from "./webhooks.js";
@@ -121,6 +122,7 @@ Vault layout:
   await contactRoutes(app, db, store);
   await homeRoutes(app, db, store);
   await icsRoutes(app, db, store);
+  await mailRoutes(app, db);
   await integrationRoutes(app, db, store);
   await terminalRoutes(app, db, store);
   initWebhooks(db, store);

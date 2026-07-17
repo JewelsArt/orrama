@@ -116,6 +116,28 @@ export const aiInstructionsSchema = z.object({
   instructions: z.string().max(8000),
 });
 
+/** Connect a personal mail account (Gmail app password over IMAP/SMTP; no OAuth). */
+export const mailConnectSchema = z.object({
+  email: z.string().email(),
+  /** Gmail app password (16 chars, often shown grouped in fours). Spaces are stripped server-side. */
+  appPassword: z.string().min(8),
+  /** Override IMAP/SMTP hosts for non-Gmail providers; defaults to Gmail. */
+  imapHost: z.string().min(1).optional(),
+  imapPort: z.number().int().positive().optional(),
+  smtpHost: z.string().min(1).optional(),
+  smtpPort: z.number().int().positive().optional(),
+});
+
+/** Send or reply to a message through the connected account. */
+export const mailSendSchema = z.object({
+  to: z.string().min(3),
+  subject: z.string().max(500).default(""),
+  body: z.string().default(""),
+  /** RFC Message-IDs for threading a reply (from the message being replied to). */
+  inReplyTo: z.string().optional(),
+  references: z.string().optional(),
+});
+
 export const askVaultSchema = z.object({
   // AI SDK v5+ UIMessage shape: role + parts[]. Kept permissive (passthrough) so
   // convertToModelMessages on the server reads the full message; validated for role only.

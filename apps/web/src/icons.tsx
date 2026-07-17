@@ -125,6 +125,27 @@ export const IconContacts = () => (
   </svg>
 );
 
+export const IconMail = () => (
+  <svg {...base}>
+    <rect x="1.5" y="3" width="13" height="10" rx="1.5" />
+    <path d="M2 4.5 L8 8.5 L14 4.5" />
+  </svg>
+);
+
+export const IconSend = () => (
+  <svg {...base}>
+    <path d="M14 2 L7 9" />
+    <path d="M14 2 L9.5 14 L7 9 L2 6.5 Z" />
+  </svg>
+);
+
+export const IconReply = () => (
+  <svg {...base}>
+    <path d="M6 3.5 L2 7 L6 10.5" />
+    <path d="M2 7 h6.5 c3 0 5 2 5 5" />
+  </svg>
+);
+
 export const IconChevron = ({ open = false }: { open?: boolean }) => (
   <svg {...base} style={{ transform: open ? "rotate(90deg)" : undefined, transition: "transform .12s" }}>
     <path d="M6 3.5 L10.5 8 L6 12.5" />
