@@ -137,6 +137,34 @@ linkedin: ""
 ---
 # Claire Bertrand
 `,
+  "Contacts/Companies/Scooperz.md": `---
+title: Scooperz
+tags: [company]
+sector: Marketing
+description: "Amsterdam social-media agency — the internship host; forecasting work for NL and FR markets."
+linkedin: "linkedin.com/company/scooperz"
+website: "scooperz.com"
+location: "Amsterdam"
+positions: ["Data Analyst intern", "Growth Marketeer"]
+---
+# Scooperz
+
+People here: [[Marijke Elzinga]] · [[Pieter Haans]] · [[Wilma Doorn]]
+`,
+  "Contacts/Companies/AMSIB.md": `---
+title: AMSIB
+tags: [company]
+sector: University
+description: "Amsterdam School of International Business (HvA) — the school side of the internship and thesis."
+linkedin: "linkedin.com/school/amsib"
+website: "amsib.nl"
+location: "Amsterdam"
+positions: ["Thesis supervision"]
+---
+# AMSIB
+
+Contact: [[Claire Bertrand]]
+`,
   "Shared/Meeting Notes 2026-07-01.md": `---
 title: Meeting Notes 2026-07-01
 tags: [meeting]

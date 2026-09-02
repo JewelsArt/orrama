@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Me } from "./api.js";
+import { Companies } from "./Companies.js";
 import { IconPlus, IconSearch } from "./icons.js";
 import { onWs } from "./ws.js";
 
@@ -101,23 +102,19 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     <div className="contacts">
       <div className="ct-top">
         <h1 className="ct-h1">Contacts</h1>
-        <span className="ct-count">{visible.length}</span>
         <label className="ct-search">
           <IconSearch />
           <input
-            placeholder="Search name, company, role…"
+            placeholder="Search people and companies…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             aria-label="Filter contacts"
           />
         </label>
-        <button className="ct-add" onClick={() => setAdding(true)}>
-          <IconPlus /> Contact
-        </button>
       </div>
 
       <div className="ct-tags">
-        <span className="ct-tags-lbl">Filter</span>
+        <span className="ct-tags-lbl">People</span>
         <button
           className={`ct-tagf ${activeTag === "all" ? "active" : ""}`}
           onClick={() => setActiveTag("all")}
@@ -141,6 +138,16 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
         })}
       </div>
 
+      <div className="ct-split">
+        <section className="ct-pane">
+          <header className="ct-pane-head">
+            <h2>People</h2>
+            <span className="ct-count">{visible.length}</span>
+            <button className="ct-add" onClick={() => setAdding(true)}>
+              <IconPlus /> Contact
+            </button>
+          </header>
+          <div className="ct-pane-body">
       <div className="ct-list">
         {visible.map((c, i) => {
           const tagClass = c.sector ? c.sector.toLowerCase() : "other";
@@ -205,6 +212,11 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
             {q || activeTag !== "all" ? `No contacts match your filters.` : "No contacts yet — add the first one."}
           </p>
         )}
+      </div>
+          </div>
+        </section>
+
+        <Companies me={me} onOpenNote={onOpenNote} query={q} />
       </div>
 
       {adding && (
