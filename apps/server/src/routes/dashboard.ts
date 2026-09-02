@@ -23,6 +23,18 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const teamProjects = allProjects.filter((p) => !p.hidden && (p.teamId === team.id || p.teamId === null));
     const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
     const domainByName = new Map(teamProjects.map((p) => [p.name, p.domain ?? null]));
+    // The workspace page is addressed by slug, so the board carries it.
+    const slugByName = new Map(teamProjects.map((p) => [p.name, p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key]));
+    // Lifecycle lives in the project note's front-matter (sleeping, cancelled,
+    // on-track…), so the board reads it from the note, not from a column.
+    const readable = store.readable(user);
+    const statusByName = new Map(
+      teamProjects.map((p) => {
+        const note = readable.find((n) => n.tags.some((t) => t.tag === p.key));
+        const raw = note?.frontmatter["status"];
+        return [p.name, typeof raw === "string" ? raw.trim().toLowerCase() : ""];
+      }),
+    );
     const idByName = new Map(teamProjects.map((p) => [p.name, p.id]));
 
     // Progress + open tasks, from the requester's readable universe only.
@@ -38,6 +50,8 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const byProject = progress.map((p) => ({
       ...p,
       projectId: idByName.get(p.project) ?? null,
+      slug: slugByName.get(p.project) ?? null,
+      status: statusByName.get(p.project) ?? "",
       domain: domainByName.get(p.project) ?? null,
       // ALL steps (done + open) so the board reads like a plan, not just a to-do list.
       tasks: tasks

@@ -1,0 +1,67 @@
+import { useEffect, useRef } from "react";
+
+export interface ConfirmRequest {
+  title: string;
+  body?: string;
+  /** Label for the destructive/primary action. */
+  confirmLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
+/**
+ * An in-app confirmation, because `window.confirm` is not reliable everywhere we
+ * run: the desktop shell's webview treats it as a no-op, so a native-dialog
+ * guard silently swallows the action instead of asking. Anything destructive
+ * asks through this component, which is plain DOM and behaves the same in the
+ * browser and in the app.
+ *
+ * Enter confirms, Escape cancels, and focus lands on the confirm button so the
+ * keyboard path is one key either way.
+ */
+export function Confirm({ request, onClose }: { request: ConfirmRequest | null; onClose: () => void }) {
+  const okRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!request) return;
+    okRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        request.onConfirm();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [request, onClose]);
+
+  if (!request) return null;
+
+  return (
+    <div className="ct-backdrop" onClick={onClose}>
+      <div className="confirm" role="alertdialog" aria-modal="true" aria-label={request.title} onClick={(e) => e.stopPropagation()}>
+        <h2>{request.title}</h2>
+        {request.body && <p>{request.body}</p>}
+        <div className="confirm-actions">
+          <button className="ct-btn" onClick={onClose}>
+            Keep it
+          </button>
+          <button
+            ref={okRef}
+            className={`ct-btn ${request.danger ? "danger" : "pri"}`}
+            onClick={() => {
+              request.onConfirm();
+              onClose();
+            }}
+          >
+            {request.confirmLabel ?? "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -54,6 +54,12 @@ export class VaultStore {
   readonly events = new EventEmitter();
   private docs = new Map<string, Y.Doc>(); // noteId → Y.Doc
   private root = vaultDir();
+  /** Where the vault lives on disk. Read-only on purpose: mutations still go
+   *  through write/move so the ACL and the index stay in the loop. Project
+   *  documents (non-.md, so outside resolvePath) are laid out against this. */
+  get vaultRoot(): string {
+    return this.root;
+  }
   private inFlightWrites = new Set<string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -276,8 +282,29 @@ export class VaultStore {
 
   // ---- Mutations (all server-enforced per §5.3) ---------------------------
 
+  /**
+   * Canonicalise a vault-relative path BEFORE anything derives a folder from it.
+   * The folder the ACL judges must be the folder the bytes actually land in: with
+   * a raw string, `Personal/<me>/../../Secret/x.md` reads as the caller's own
+   * personal vault (canEdit → true) and then writes into `Secret/`. Escapes are
+   * rejected here too — a bare `startsWith(root)` would accept a sibling
+   * directory that merely shares the prefix (`../vault-evil/x.md`).
+   *
+   * Callers must use the returned `rel`/`abs`, never the string they passed in.
+   */
+  private resolvePath(input: string): { rel: string; abs: string } {
+    const abs = path.resolve(this.root, input);
+    const rel = path.relative(this.root, abs).split(path.sep).join("/");
+    if (rel === "" || rel === ".." || rel.startsWith("../") || path.isAbsolute(rel)) {
+      throw new HttpError(400, "invalid path");
+    }
+    if (!rel.toLowerCase().endsWith(".md")) throw new HttpError(400, "only .md files live in the vault");
+    return { rel, abs };
+  }
+
   /** Create or update a note. Returns the updated note. */
-  write(user: AclUser, relPath: string, content: string, baseHash?: string): IndexedNote {
+  write(user: AclUser, inputPath: string, content: string, baseHash?: string): IndexedNote {
+    const { rel: relPath, abs } = this.resolvePath(inputPath);
     const grants = this.grants();
     const existing = this.index.getByPath(relPath);
     const after = parseNote(content, titleFromPath(relPath));
@@ -315,8 +342,6 @@ export class VaultStore {
       finalContent = docContent(doc);
     }
 
-    const abs = path.join(this.root, relPath);
-    if (!abs.startsWith(this.root)) throw new HttpError(400, "invalid path");
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     this.inFlightWrites.add(relPath);
     fs.writeFileSync(abs, finalContent);
@@ -335,7 +360,11 @@ export class VaultStore {
   }
 
   /** Rename/move: metadata operation, note id is stable so links never break (§10). */
-  move(user: AclUser, fromPath: string, toPath: string): IndexedNote {
+  move(user: AclUser, inputFrom: string, inputTo: string): IndexedNote {
+    // Both ends are canonicalised first, for the same reason as write(): the
+    // destination folder the ACL judges must be where the file actually lands.
+    const { rel: fromPath, abs: absFrom } = this.resolvePath(inputFrom);
+    const { rel: toPath, abs: absTo } = this.resolvePath(inputTo);
     const note = this.index.getByPath(fromPath);
     if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
     const toFolder = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : "";
@@ -345,9 +374,6 @@ export class VaultStore {
     ) {
       throw new HttpError(403, "need edit access to both source and destination folders");
     }
-    const absFrom = path.join(this.root, fromPath);
-    const absTo = path.join(this.root, toPath);
-    if (!absTo.startsWith(this.root)) throw new HttpError(400, "invalid path");
     fs.mkdirSync(path.dirname(absTo), { recursive: true });
     this.inFlightWrites.add(fromPath);
     this.inFlightWrites.add(toPath);

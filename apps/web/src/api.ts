@@ -90,6 +90,9 @@ export interface DashboardData {
   projects: {
     project: string;
     projectId: string | null;
+    slug: string | null;
+    /** Front-matter lifecycle: "", planning, on-track, at-risk, blocked, sleeping, cancelled, done. */
+    status: string;
     total: number;
     done: number;
     assignees: string[];
@@ -136,6 +139,14 @@ export async function api<T>(method: string, url: string, body?: unknown): Promi
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
   return res.json() as Promise<T>;
+}
+
+/** Same auth as api(), but for bytes: project documents are behind the bearer
+ *  token, so a plain <a href> would 401. */
+export async function apiBlob(url: string): Promise<Blob> {
+  const res = await fetch(url, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return res.blob();
 }
 
 export class ApiError extends Error {

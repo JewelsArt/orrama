@@ -40,7 +40,10 @@ export interface GanttProps {
   onOpen: (id: string) => void;
 }
 
+const ROW_CAP = 12;
+
 export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
+  const [showAll, setShowAll] = useState(false);
   // The ref is the source of truth during a drag (event closures can be a render
   // behind); state mirrors it purely to repaint the bar at the new offset.
   const dragRef = useRef<DragState | null>(null);
@@ -54,15 +57,17 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
         .sort((a, b) => (a.start ?? a.due!).localeCompare(b.start ?? b.due!) || (a.due ?? "").localeCompare(b.due ?? "")),
     [tasks],
   );
+  const rows = showAll ? dated : dated.slice(0, ROW_CAP);
   const unscheduled = tasks.filter((t) => !t.start && !t.due && !t.checked);
 
   const today = todayDay();
   const { min, days } = useMemo(() => {
-    const ds = dated.flatMap((t) => [t.start, t.due].filter(Boolean).map((d) => toDay(d!)));
+    const ds = rows.flatMap((t) => [t.start, t.due].filter(Boolean).map((d) => toDay(d!)));
     const lo = Math.min(...(ds.length ? ds : [today])) - 3;
     const hi = Math.max(...(ds.length ? ds : [today]), today) + 8;
     return { min: lo, days: hi - lo + 1 };
-  }, [dated, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, today]);
 
   const width = days * DAY_PX;
   // Weekend stripe + Monday rule, aligned to the range's first weekday.
@@ -112,6 +117,20 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
 
   return (
     <div className="gantt" style={{ ["--pc" as string]: color, ["--gantt-day" as string]: `${DAY_PX}px` }}>
+      <div className="gantt-split">
+      <div className="gantt-names">
+        <div className="gantt-names-head" />
+        {rows.map((t) => (
+          <button
+            key={`${t.noteId}:${t.line}-lbl`}
+            className={`gantt-name ${t.checked ? "done" : ""}`}
+            title={t.text}
+            onClick={() => onOpen(t.noteId)}
+          >
+            {t.text}
+          </button>
+        ))}
+      </div>
       <div className="gantt-scroll">
         <div className="gantt-canvas" style={{ width }}>
           <GanttHead min={min} days={days} today={today} />
@@ -131,7 +150,7 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
             }}
           >
             <span className="gantt-today" style={{ left: (today - min) * DAY_PX }} aria-hidden />
-            {dated.map((t) => {
+            {rows.map((t) => {
               const key = keyOf(t);
               const d = drag?.key === key ? drag : null;
               let s = t.start ? toDay(t.start) : toDay(t.due!);
@@ -167,7 +186,6 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
                     }}
                   >
                     <span className="gantt-grip l" onPointerDown={(ev) => { ev.stopPropagation(); startDrag(ev, t, "resize-l"); }} />
-                    <span className="gantt-bar-txt">{t.text}</span>
                     <span className="gantt-grip r" onPointerDown={(ev) => { ev.stopPropagation(); startDrag(ev, t, "resize-r"); }} />
                   </div>
                   <button
@@ -189,6 +207,13 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
           </div>
         </div>
       </div>
+      </div>
+
+      {dated.length > ROW_CAP && (
+        <button className="gantt-more" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `+ ${dated.length - ROW_CAP} more scheduled steps`}
+        </button>
+      )}
 
       {unscheduled.length > 0 && (
         <div className="gantt-strip">

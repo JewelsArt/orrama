@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me } from "./api.js";
 import { CharacterAvatar } from "./avatars.js";
+import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
 
 /* ---------- data shapes ---------- */
@@ -87,7 +88,16 @@ const clampStart = (min: number) => Math.max(DAY_START, Math.min(snapMin(min), D
 
 /* ---------- component ---------- */
 
-export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
+export function Planning({
+  me,
+  onOpenNote,
+  onOpenProject,
+}: {
+  me: Me;
+  onOpenNote: (id: string) => void;
+  onOpenProject?: (slug: string) => void;
+}) {
+  const [card, setCard] = useState<PlanTask | null>(null);
   const [teamSlug, setTeamSlug] = useState<string | null>(me.teams[0]?.slug ?? null);
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -135,6 +145,19 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     () => allTasks.filter((t) => t.assignee === me.username && t.remainingHours > 0),
     [allTasks, me.username],
   );
+  /**
+   * A 47-item backlog is a wall, not a plan. Default to what is actually
+   * actionable — overdue, due within a fortnight, or already in progress — and
+   * keep the rest one click away.
+   */
+  const [backlogAll, setBacklogAll] = useState(false);
+  const soon = useMemo(() => {
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + 14);
+    const cut = iso(horizon);
+    return backlog.filter((t) => (t.due && t.due <= cut) || t.atRisk);
+  }, [backlog]);
+  const shownBacklog = backlogAll ? backlog : (soon.length > 0 ? soon : backlog).slice(0, 8);
   const memberFor = (u: string) => members.find((m) => m.username === u);
   const teamUsernames = useMemo(() => {
     const set = new Set(allTasks.map((t) => t.assignee).filter((a): a is string => !!a));
@@ -155,22 +178,6 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
   return (
     <div className="planning">
       <header className="view-head plan-head">
-        <div className="scope-tabs" role="tablist" aria-label="Team">
-          {me.teams.map((t) => (
-            <button
-              key={t.slug}
-              role="tab"
-              aria-selected={teamSlug === t.slug}
-              className={`scope-tab ${teamSlug === t.slug ? "active" : ""}`}
-              style={{ "--team": t.color } as React.CSSProperties}
-              onClick={() => setTeamSlug(t.slug)}
-            >
-              <span className="scope-dot" />
-              {t.name}
-            </button>
-          ))}
-        </div>
-
         <div className="week-nav">
           <button className="ghost" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * DAY_MS))} aria-label="Previous week">
             ‹
@@ -194,23 +201,6 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
           </button>
         </div>
 
-        <div className="people-picker" aria-label="Show calendars for">
-          {teamUsernames.map((u) => {
-            const m = memberFor(u);
-            return (
-              <button
-                key={u}
-                className={`person-chip ${people.has(u) ? "active" : ""}`}
-                onClick={() => togglePerson(u)}
-                title={u === me.username ? `${u} (you)` : u}
-              >
-                {m ? <CharacterAvatar id={m.avatar} size={22} /> : <span className="avatar sm">{u[0]}</span>}
-                <span>{u === me.username ? "me" : u}</span>
-              </button>
-            );
-          })}
-        </div>
-
         {plan && (
           <span className="plan-source" title={`Estimates are a budget; calendar blocks spend it.`}>
             {plan.source === "ai" ? "AI estimates" : "heuristic estimates"}
@@ -221,13 +211,29 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
       <div className="plan-body">
         <aside className="backlog" aria-label="Unplanned tasks">
           <h3>
-            Backlog <span className="ft-count">{backlog.length}</span>
+            Backlog <span className="ft-count">{shownBacklog.length}</span>
+            {backlog.length > shownBacklog.length && (
+              <button className="backlog-toggle" onClick={() => setBacklogAll(true)}>
+                show all {backlog.length}
+              </button>
+            )}
+            {backlogAll && backlog.length > 8 && (
+              <button className="backlog-toggle" onClick={() => setBacklogAll(false)}>
+                show less
+              </button>
+            )}
           </h3>
-          <p className="backlog-hint">Drag onto the grid — books 2h, the rest stays here.</p>
-          {backlog.map((t) => (
+          <p className="backlog-hint">
+            {backlogAll ? "Everything unplanned." : "Due in the next two weeks or at risk."} Drag onto the grid — books 2h, the rest stays here.
+          </p>
+          {shownBacklog.map((t) => (
             <div
               key={`${t.noteId}:${t.line}`}
               className={`cal-task ${t.atRisk ? "risk" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setCard(t)}
+              onKeyDown={(e) => e.key === "Enter" && setCard(t)}
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData(
@@ -244,7 +250,7 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
               {t.due && <span className={`cal-task-due ${t.due < iso(new Date()) ? "overdue" : ""}`}>due {t.due.slice(5)}</span>}
             </div>
           ))}
-          {backlog.length === 0 && <p className="empty">Everything is on the calendar.</p>}
+          {shownBacklog.length === 0 && <p className="empty">Nothing due soon — the calendar is ahead of you.</p>}
         </aside>
 
         {mode === "week" ? (
@@ -273,6 +279,15 @@ export function Planning({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
       </div>
 
       {popup && <CalPopup popup={popup} onClose={() => setPopup(null)} onReload={load} onOpenNote={onOpenNote} />}
+      {card && (
+        <TaskCard
+          task={card}
+          onClose={() => setCard(null)}
+          onOpenNote={onOpenNote}
+          onOpenProject={onOpenProject}
+          onScheduled={load}
+        />
+      )}
     </div>
   );
 }

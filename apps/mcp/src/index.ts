@@ -186,6 +186,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+        name: "list_projects",
+        description: "List every project the workspace can see: slug, name, life-area domain, and task progress. Use it to find the slug for get_project.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "get_project",
+        description: "Open a project workspace by slug (e.g. 'thesis-forecasting'). Returns the project's own prompt (the standing instructions its owner wrote for you), goals, status/start/deadline, every task with status, the decision log, the inbox, the contacts and companies it links to, its uploaded documents, and the full project note. Read this before working on anything the user calls 'the <name> project'.",
+        inputSchema: {
+          type: "object",
+          properties: { slug: { type: "string", description: "Project slug from list_projects" } },
+          required: ["slug"],
+        },
+      },
+      {
+        name: "log_decision",
+        description: "Append a dated line to a project's ## Decisions log — what was decided and why. Use it when a choice gets made so the project note keeps its own history.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            slug: { type: "string" },
+            text: { type: "string", description: "The decision, one line, including the reason" },
+          },
+          required: ["slug", "text"],
+        },
+      },
+      {
         name: "set_task_status",
         description: "Set a task's status. todo/done tick the checkbox in the note; in-progress/blocked are richer board states. Identify the task by noteId + line (0-indexed) or blockId.",
         inputSchema: {
@@ -235,8 +261,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "send_email",
-        description: "Send an email from the user's connected mailbox. To reply in-thread, pass inReplyTo (and references) from read_email. Confirm the recipient and content with the user before sending — this leaves their machine.",
+        name: "draft_email",
+        description: "Prepare an email from the user's connected mailbox. The draft waits in Basalt for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email.",
         inputSchema: {
           type: "object",
           properties: {
@@ -383,6 +409,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: JSON.stringify(created, null, 2) }] };
       }
 
+      case "list_projects": {
+        const projects = await fetchBasalt(`/api/projects`);
+        return { content: [{ type: "text", text: JSON.stringify(projects, null, 2) }] };
+      }
+
+      case "get_project": {
+        const slug = String(request.params.arguments?.slug ?? "");
+        const project = await fetchBasalt(`/api/projects/${encodeURIComponent(slug)}`);
+        return { content: [{ type: "text", text: JSON.stringify(project, null, 2) }] };
+      }
+
+      case "log_decision": {
+        const a = request.params.arguments ?? {};
+        const res = await fetchBasalt(`/api/projects/${encodeURIComponent(String(a.slug ?? ""))}/decisions`, "POST", { text: a.text });
+        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+      }
+
       case "set_task_status": {
         const a = request.params.arguments ?? {};
         const res = await fetchBasalt(`/api/tasks/status`, "POST", { noteId: a.noteId, line: a.line, blockId: a.blockId, status: a.status });
@@ -407,10 +450,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
       }
 
-      case "send_email": {
+      case "draft_email": {
         const a = request.params.arguments ?? {};
-        const res = await fetchBasalt(`/api/mail/send`, "POST", { to: a.to, subject: a.subject, body: a.body, inReplyTo: a.inReplyTo, references: a.references });
-        return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
+        // Staging, not sending: /api/mail/send refuses API tokens outright.
+        const res = await fetchBasalt(`/api/mail/drafts`, "POST", { to: a.to, subject: a.subject, body: a.body, inReplyTo: a.inReplyTo, references: a.references });
+        return { content: [{ type: "text", text: JSON.stringify({ ...res, status: "awaiting_confirmation", note: "The user must review and send this draft in Basalt." }, null, 2) }] };
       }
 
       default:

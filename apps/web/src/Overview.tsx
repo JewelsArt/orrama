@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
 import { CharacterAvatar } from "./avatars.js";
+import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { Gantt } from "./Gantt.js";
 import { IconChevron } from "./icons.js";
 import { onWs } from "./ws.js";
@@ -12,6 +13,14 @@ const DOMAINS: { id: Domain; label: string; color: string }[] = [
   { id: "academic", label: "Academic", color: "#b587e8" },
 ];
 const STEP_CAP = 12;
+
+/**
+ * Front-matter `status:` values that park a project. Several spellings each,
+ * because the note is hand-editable and "paused" and "on hold" mean the same
+ * thing to a person.
+ */
+const SLEEP_STATES = new Set(["sleeping", "asleep", "paused", "on-hold", "on hold", "someday"]);
+const CANCEL_STATES = new Set(["cancelled", "canceled", "dropped", "abandoned"]);
 
 type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
 /** Order matters: this is how the dropdown lists them. `cls` maps to the .st.* colours. */
@@ -26,7 +35,15 @@ const statusOf = (t: DashboardTask): TaskStatus =>
 
 /** Overview: the project board, split by life-area (Personal / Professional /
  *  Academic). Every step, %, owner is a view over checkboxes in the notes. */
-export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
+export function Overview({
+  me,
+  onOpenNote,
+  onOpenProject,
+}: {
+  me: Me;
+  onOpenNote: (id: string) => void;
+  onOpenProject: (slug: string) => void;
+}) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamSlug, setTeamSlug] = useState<string | null>(localStorage.getItem("basalt-team"));
   const [data, setData] = useState<DashboardData | null>(null);
@@ -34,8 +51,9 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
   // Projects are open by default (like the mock); this tracks the ones collapsed.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState<Set<string>>(new Set());
-  // Fully-done projects fold away into a "Completed" sub-page.
-  const [showCompleted, setShowCompleted] = useState(false);
+  // Anything not being worked on folds away: finished, sleeping, or dropped.
+  const [shelf, setShelf] = useState<"active" | "sleeping" | "cancelled" | "completed">("active");
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   // Projects flipped to the Gantt view; persisted so the board reopens the way you left it.
   const [gantt, setGantt] = useState<Set<string>>(() => {
     try {
@@ -93,11 +111,17 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
   };
 
   // Owners can unregister a project (removes the board mapping; the note stays).
-  const removeProject = async (id: string, name: string) => {
-    if (!window.confirm(`Remove “${name}” from the board?\n\nThe note and its tag stay — it just stops being tracked as a project.`)) return;
-    await api("DELETE", `/api/admin/projects/${id}`);
-    if (teamSlug) void load(teamSlug);
-  };
+  const removeProject = (id: string, name: string) =>
+    setConfirm({
+      title: `Remove “${name}” from the board?`,
+      body: "The note and its tag stay — it just stops being tracked as a project.",
+      confirmLabel: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        await api("DELETE", `/api/admin/projects/${id}`);
+        if (teamSlug) void load(teamSlug);
+      },
+    });
 
   // Gantt drag/resize/schedule → start:/due: tokens on the task line (file is the truth).
   const setDates = async (t: DashboardTask, dates: { start?: string | null; due?: string | null }) => {
@@ -126,11 +150,34 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     return m;
   }, [data]);
 
-  // A project is "complete" once every step is done (0-task projects never count).
-  const activeProjects = useMemo(() => projects.filter((p) => !(p.total > 0 && p.done === p.total)), [projects]);
-  const completedProjects = useMemo(() => projects.filter((p) => p.total > 0 && p.done === p.total), [projects]);
-  const shown = showCompleted ? completedProjects : activeProjects;
+  /**
+   * Where a project sits. `status:` in the note wins — a sleeping project stays
+   * asleep even with steps left, a cancelled one never comes back on its own —
+   * and otherwise "complete" means every step is ticked (0-step projects never
+   * count as done).
+   */
+  const sleeping = useMemo(() => projects.filter((p) => SLEEP_STATES.has(p.status)), [projects]);
+  const cancelled = useMemo(() => projects.filter((p) => CANCEL_STATES.has(p.status)), [projects]);
+  const parked = new Set([...sleeping, ...cancelled].map((p) => p.project));
+  const activeProjects = useMemo(
+    () => projects.filter((p) => !parked.has(p.project) && !(p.total > 0 && p.done === p.total)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, sleeping, cancelled],
+  );
+  const completedProjects = useMemo(
+    () => projects.filter((p) => !parked.has(p.project) && p.total > 0 && p.done === p.total),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, sleeping, cancelled],
+  );
+  const shown = shelf === "completed" ? completedProjects : shelf === "sleeping" ? sleeping : shelf === "cancelled" ? cancelled : activeProjects;
   const openTasks = activeProjects.reduce((s, p) => s + (p.total - p.done), 0);
+
+  /** Sleep / cancel / wake — one front-matter field, written to the note. */
+  const setLifecycle = async (p: { slug: string | null; project: string }, status: string) => {
+    if (!p.slug) return;
+    await api("PATCH", `/api/projects/${encodeURIComponent(p.slug)}`, { status });
+    if (teamSlug) void load(teamSlug);
+  };
 
   return (
     <div className="overview">
@@ -161,19 +208,33 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
             ))}
           </div>
           <span className="ov-bar-meta">
-            {showCompleted
-              ? `${completedProjects.length} completed`
-              : `${openTasks} open · ${activeProjects.length} ${activeProjects.length === 1 ? "project" : "projects"}`}
+            {shelf === "active"
+              ? `${openTasks} open · ${activeProjects.length} ${activeProjects.length === 1 ? "project" : "projects"}`
+              : `${shown.length} ${shelf}`}
           </span>
-          {(completedProjects.length > 0 || showCompleted) && (
-            <button
-              className={`ov-completed-tab ${showCompleted ? "on" : ""}`}
-              onClick={() => setShowCompleted((v) => !v)}
-              aria-pressed={showCompleted}
-            >
-              {showCompleted ? "‹ Active projects" : `Completed projects · ${completedProjects.length}`}
-            </button>
-          )}
+          <div className="ov-shelves">
+            {/* Every shelf is reachable from every shelf — no going home first. */}
+            {shelf !== "active" && (
+              <button className="ov-completed-tab on" onClick={() => setShelf("active")}>
+                ‹ Active projects
+              </button>
+            )}
+            {shelf !== "sleeping" && sleeping.length > 0 && (
+              <button className="ov-completed-tab" onClick={() => setShelf("sleeping")}>
+                Sleeping · {sleeping.length}
+              </button>
+            )}
+            {shelf !== "cancelled" && cancelled.length > 0 && (
+              <button className="ov-completed-tab" onClick={() => setShelf("cancelled")}>
+                Cancelled · {cancelled.length}
+              </button>
+            )}
+            {shelf !== "completed" && completedProjects.length > 0 && (
+              <button className="ov-completed-tab" onClick={() => setShelf("completed")}>
+                Completed · {completedProjects.length}
+              </button>
+            )}
+          </div>
         </div>
 
         {digest && digest.configured && (
@@ -204,25 +265,44 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
           const steps = all ? p.tasks : p.tasks.slice(0, STEP_CAP);
           const nextDue = p.tasks.map((t) => t.due).filter(Boolean).sort()[0];
           return (
-            <article key={p.project} className="ov-project" style={{ ["--pc" as string]: color }}>
+            <article
+              key={p.project}
+              className={`ov-project ${parked.has(p.project) ? "parked" : ""}`}
+              style={{ ["--pc" as string]: color }}
+            >
               <button className="ov-project-head" onClick={() => setCollapsed((s) => toggleSet(s, p.project))} aria-expanded={open}>
                 <span className="ov-chev" data-open={open}>
                   <IconChevron open={open} />
                 </span>
-                <span className="ov-pname">{p.project}</span>
+                <span
+                  className="ov-pname link"
+                  role="link"
+                  tabIndex={0}
+                  title="Open the project workspace"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (p.slug) onOpenProject(p.slug);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && p.slug) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onOpenProject(p.slug);
+                    }
+                  }}
+                >
+                  {p.project}
+                </span>
                 <span className="ov-battery" aria-hidden>
                   <i className="d" style={{ width: `${donePct}%` }} />
                   <i className="w" style={{ width: `${workPct}%` }} />
                 </span>
                 <span className="ov-pct">{pct}%</span>
-                <span className="ov-owners">
-                  {(p.assignees.length ? p.assignees : [me.displayName]).slice(0, 3).map((a) => (
-                    <span key={a} className="av" title={a} style={{ background: color }}>
-                      {a[0]?.toUpperCase()}
-                    </span>
-                  ))}
-                </span>
-                <span className="ov-due">{nextDue ? `due ${nextDue.slice(5)}` : "no due date"}</span>
+                {parked.has(p.project) ? (
+                  <span className="ov-state">{SLEEP_STATES.has(p.status) ? "sleeping" : "cancelled"}</span>
+                ) : (
+                  <span className="ov-due">{nextDue ? `due ${nextDue.slice(5)}` : "no due date"}</span>
+                )}
                 <span
                   className={`ov-gantt-sw ${gantt.has(p.project) ? "on" : ""}`}
                   role="switch"
@@ -243,6 +323,59 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
                 >
                   <i aria-hidden />
                   Gantt
+                </span>
+                <span
+                  className="ov-life"
+                  role="group"
+                  aria-label="Project lifecycle"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  {parked.has(p.project) ? (
+                    <>
+                      <button className="ov-life-btn" title="Put it back on the active board" onClick={() => void setLifecycle(p, "on-track")}>
+                        Wake
+                      </button>
+                      {SLEEP_STATES.has(p.status) && (
+                        <button
+                          className="ov-life-btn danger"
+                          title="Stop the project — the note and its history stay"
+                          onClick={() =>
+                            setConfirm({
+                              title: `Cancel “${p.project}”?`,
+                              body: "It moves to the Cancelled shelf. Everything in the note stays.",
+                              confirmLabel: "Cancel the project",
+                              danger: true,
+                              onConfirm: () => void setLifecycle(p, "cancelled"),
+                            })
+                          }
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button className="ov-life-btn" title="Not this month's problem — keep it, hide it" onClick={() => void setLifecycle(p, "sleeping")}>
+                        Sleep
+                      </button>
+                      <button
+                        className="ov-life-btn danger"
+                        title="Stop the project — the note and its history stay"
+                        onClick={() =>
+                          setConfirm({
+                            title: `Cancel “${p.project}”?`,
+                            body: "It moves to the Cancelled shelf. The note, its steps, its documents and its history stay exactly as they are — you can bring it back any time.",
+                            confirmLabel: "Cancel the project",
+                            danger: true,
+                            onConfirm: () => void setLifecycle(p, "cancelled"),
+                          })
+                        }
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  )}
                 </span>
               </button>
 
@@ -279,12 +412,11 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
                       <div className="ov-steps-head">
                         <span>Status</span>
                         <span>Step</span>
-                        <span>Owner</span>
                         <span>Timeline</span>
-                        <span>Docs</span>
+                        <span>Note</span>
                       </div>
                       {steps.map((t) => (
-                        <Step key={`${t.noteId}:${t.line}`} t={t} color={color} defaultOwner={me.displayName} onStatus={setStatus} onOpen={onOpenNote} />
+                        <Step key={`${t.noteId}:${t.line}`} t={t} onStatus={setStatus} onOpen={onOpenNote} />
                       ))}
                       {!all && p.tasks.length > STEP_CAP && (
                         <button className="ov-more" onClick={() => setShowAll((s) => toggleSet(s, p.project))}>
@@ -301,55 +433,28 @@ export function Overview({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
 
         {data && shown.length === 0 && (
           <p className="empty">
-            {showCompleted ? "No completed projects yet — finish every step in a project and it lands here." : `No ${scope === "all" ? "" : scope} projects here yet.`}
+            {shelf === "completed"
+              ? "No completed projects yet — finish every step in a project and it lands here."
+              : shelf === "sleeping"
+                ? "Nothing asleep. Park a project here when it is not this month's problem."
+                : shelf === "cancelled"
+                  ? "Nothing cancelled."
+                  : `No ${scope === "all" ? "" : scope} projects here yet.`}
           </p>
         )}
       </div>
 
-      <aside className="who" aria-label="Who's working on what">
-        <h2>Who's on what</h2>
-        {data?.members.map((m) => (
-          <div key={m.id} className="who-row">
-            <CharacterAvatar id={m.avatar ?? "basalt"} size={28} />
-            <div className="who-body">
-              <div className="who-name">
-                {m.displayName}
-                <span className="who-open">{m.openTasks} open</span>
-              </div>
-              {m.inProgress.map((t, i) => (
-                <button key={i} className="who-task now ghost" onClick={() => onOpenNote(t.noteId)}>
-                  {t.text}
-                </button>
-              ))}
-              {m.inProgress.length === 0 &&
-                m.assigned.slice(0, 2).map((t, i) => (
-                  <button key={i} className="who-task ghost" onClick={() => onOpenNote(t.noteId)}>
-                    {t.text}
-                  </button>
-                ))}
-              {m.lastEdit && (
-                <button className="who-last ghost" onClick={() => onOpenNote(m.lastEdit!.id)}>
-                  edited “{m.lastEdit.title}” {ago(m.lastEdit.at)}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </aside>
+      <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
 
 function Step({
   t,
-  color,
-  defaultOwner,
   onStatus,
   onOpen,
 }: {
   t: DashboardTask;
-  color: string;
-  defaultOwner: string;
   onStatus: (t: DashboardTask, status: TaskStatus) => void;
   onOpen: (id: string) => void;
 }) {
@@ -357,7 +462,6 @@ function Step({
   const ref = useRef<HTMLDivElement>(null);
   const status = statusOf(t);
   const cur = STATUS_OPTS.find((s) => s.id === status)!;
-  const owner = t.assignee ?? defaultOwner;
 
   // Close the dropdown on any click outside it.
   useEffect(() => {
@@ -400,12 +504,6 @@ function Step({
       </div>
       <span className="ov-step-name" title={t.text}>
         {t.text}
-      </span>
-      <span className="ov-step-owner">
-        <span className="av" style={{ background: color }}>
-          {owner[0]?.toUpperCase()}
-        </span>
-        {owner}
       </span>
       <span className="ov-tl">
         {t.due ? <span className={`ov-tl-pill ${cur.cls}`}>{t.due.slice(5)}</span> : <span className="ov-tl-none">—</span>}

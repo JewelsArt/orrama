@@ -5,16 +5,18 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
 process.env.BASALT_JWT_SECRET = "test-secret";
-process.env.BASALT_TERMINAL = "1";
 
 const { buildServer } = await import("../src/main.js");
+const { tables } = await import("../src/db.js");
 
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let db: Awaited<ReturnType<typeof buildServer>>["db"];
+let store: Awaited<ReturnType<typeof buildServer>>["store"];
 const tokens: Record<string, string> = {};
 
 const api = async (method: string, url: string, user?: string, body?: unknown) => {
@@ -33,6 +35,7 @@ beforeAll(async () => {
   const built = await buildServer();
   app = built.app;
   db = built.db;
+  store = built.store;
   for (const email of ["jules@basalt.dev", "erin@basalt.dev", "mara@basalt.dev"]) {
     const r = await api("POST", "/api/auth/login", undefined, { email, password: "basalt-demo" });
     expect(r.status).toBe(200);
@@ -455,6 +458,206 @@ describe("graph + plan + profile", () => {
     expect(erinList.json.some((c: { name: string }) => c.name === "Secret Source")).toBe(false);
   });
 
+  it("companies: alphabetical #company view, positions list, patch keeps the body, personal stays private", async () => {
+    const list = await api("GET", "/api/companies", "erin");
+    expect(list.status).toBe(200);
+    const names = list.json.map((c: { name: string }) => c.name);
+    expect([...names].sort((a: string, b: string) => a.localeCompare(b))).toEqual(names);
+    const scooperz = list.json.find((c: { name: string }) => c.name === "Scooperz");
+    expect(scooperz).toMatchObject({ sector: "Marketing", linkedin: "linkedin.com/company/scooperz" });
+    expect(scooperz.positions).toContain("Data Analyst intern");
+
+    // front-matter patch: card fields change, the note body survives untouched
+    const patch = await api("PATCH", `/api/companies/${scooperz.id}`, "erin", {
+      description: "Social-media agency in Amsterdam.",
+      positions: ["Data Analyst intern", "BI Intern"],
+    });
+    expect(patch.status).toBe(200);
+    const note = await api("GET", `/api/vault/note/${scooperz.id}`, "erin");
+    expect(note.json.content).toContain("Social-media agency in Amsterdam.");
+    expect(note.json.content).toContain("People here: [[Marijke Elzinga]]");
+    const after = (await api("GET", "/api/companies", "erin")).json.find((c: { name: string }) => c.name === "Scooperz");
+    expect(after.positions).toEqual(["Data Analyst intern", "BI Intern"]);
+
+    // a contact note is not a company note
+    const freek = (await api("GET", "/api/contacts", "erin")).json.find((c: { name: string }) => c.name === "Pieter Haans");
+    expect((await api("PATCH", `/api/companies/${freek.id}`, "erin", { description: "nope" })).status).toBe(400);
+
+    // mara's personal company never reaches erin
+    await api("PUT", "/api/vault/note", "mara", {
+      path: "Personal/mara/Companies/Stealth Co.md",
+      content: "---\ntitle: Stealth Co\ntags: [company]\npositions: [Growth Lead]\n---\n# Stealth Co\n",
+    });
+    const maraList = await api("GET", "/api/companies", "mara");
+    expect(maraList.json.some((c: { name: string; personal: boolean }) => c.name === "Stealth Co" && c.personal)).toBe(true);
+    const erinList = await api("GET", "/api/companies", "erin");
+    expect(erinList.json.some((c: { name: string }) => c.name === "Stealth Co")).toBe(false);
+  });
+
+  describe("project workspace", () => {
+    let slug = "";
+
+    it("assembles the project note into a workspace: header, sections, people, tasks", async () => {
+      const created = await api("POST", "/api/projects", "jules", { name: "Thesis Forecasting", domain: "academic" });
+      expect(created.status).toBe(200);
+      slug = created.json.slug;
+
+      await api("PATCH", `/api/projects/${slug}`, "jules", { prompt: "Help with the AMSIB thesis.", status: "on-track", deadline: "2027-01-18" });
+      await api("POST", `/api/projects/${slug}/decisions`, "jules", { text: "scope to NL vs FR" });
+      await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "ask Ruben for the Q3 export" });
+      await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "book the defence room", task: true });
+      const freek = (await api("GET", "/api/contacts", "jules")).json.find((c: { name: string }) => c.name === "Pieter Haans");
+      expect((await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: freek.id })).status).toBe(200);
+
+      const w = await api("GET", `/api/projects/${slug}`, "jules");
+      expect(w.status).toBe(200);
+      expect(w.json).toMatchObject({ name: "Thesis Forecasting", status: "on-track", deadline: "2027-01-18", domain: "academic" });
+      expect(w.json.prompt).toBe("Help with the AMSIB thesis.");
+      expect(w.json.decisions[0]).toContain("scope to NL vs FR");
+      expect(w.json.inbox).toContain("ask Ruben for the Q3 export");
+      expect(w.json.people.map((p: { title: string }) => p.title)).toContain("Pieter Haans");
+      // a captured task is a real checkbox in the note, so it joins the board
+      expect(w.json.tasks.some((t: { text: string }) => t.text.includes("book the defence room"))).toBe(true);
+      // sections live in the note itself — delete the DB and this rebuilds
+      expect(w.json.content).toContain("## Prompt");
+      expect(w.json.content).toContain("[[Pieter Haans]]");
+      // and the same project is listed
+      expect((await api("GET", "/api/projects", "jules")).json.some((p: { slug: string }) => p.slug === slug)).toBe(true);
+    });
+
+    it("detaching a person drops only their link from ## People", async () => {
+      const contacts = (await api("GET", "/api/contacts", "jules")).json;
+      const freek = contacts.find((c: { name: string }) => c.name === "Pieter Haans");
+      const esther = contacts.find((c: { name: string }) => c.name === "Marijke Elzinga");
+      await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: esther.id });
+      expect((await api("GET", `/api/projects/${slug}`, "jules")).json.people).toHaveLength(2);
+
+      expect((await api("DELETE", `/api/projects/${slug}/people/${freek.id}`, "jules")).status).toBe(200);
+      const after = (await api("GET", `/api/projects/${slug}`, "jules")).json;
+      expect(after.people.map((p: { title: string }) => p.title)).toEqual(["Marijke Elzinga"]);
+      // the section survives, and so does everything else in the note
+      expect(after.content).toContain("## People");
+      expect(after.content).toContain("## Prompt");
+    });
+
+    it("patching header fields leaves every other section alone", async () => {
+      const before = (await api("GET", `/api/projects/${slug}`, "jules")).json;
+      expect(before.people.length).toBeGreaterThan(0);
+      expect(before.decisions.length).toBeGreaterThan(0);
+
+      expect((await api("PATCH", `/api/projects/${slug}`, "jules", { status: "at-risk", deadline: "2027-01-18" })).status).toBe(200);
+
+      const after = (await api("GET", `/api/projects/${slug}`, "jules")).json;
+      expect(after.status).toBe("at-risk");
+      expect(after.deadline).toBe("2027-01-18");
+      expect(after.people.map((p: { title: string }) => p.title)).toEqual(before.people.map((p: { title: string }) => p.title));
+      expect(after.decisions).toEqual(before.decisions);
+      expect(after.prompt).toBe(before.prompt);
+      expect(after.inbox).toEqual(before.inbox);
+    });
+
+    it("the board carries each project's lifecycle status from its note", async () => {
+      const board = async () => (await api("GET", "/api/dashboard/engineering", "jules")).json.projects;
+      const mine = (rows: { project: string; status?: string; slug?: string }[]) => rows.find((p) => p.project === "Thesis Forecasting");
+
+      expect(mine(await board())).toMatchObject({ slug, status: "at-risk" });
+
+      await api("PATCH", `/api/projects/${slug}`, "jules", { status: "sleeping" });
+      expect(mine(await board())?.status).toBe("sleeping");
+
+      await api("PATCH", `/api/projects/${slug}`, "jules", { status: "cancelled" });
+      expect(mine(await board())?.status).toBe("cancelled");
+
+      // waking it up is the same one field, and the note keeps everything else
+      await api("PATCH", `/api/projects/${slug}`, "jules", { status: "on-track" });
+      const w = (await api("GET", `/api/projects/${slug}`, "jules")).json;
+      expect(w.status).toBe("on-track");
+      expect(w.people.length).toBeGreaterThan(0);
+      expect(w.tasks.length).toBeGreaterThan(0);
+    });
+
+    it("documents land beside the note; traversal and dotfiles are refused", async () => {
+      const pdf = Buffer.from("%PDF-1.4 hello thesis").toString("base64");
+      expect((await api("POST", `/api/projects/${slug}/files`, "jules", { name: "brief.pdf", dataBase64: pdf })).status).toBe(200);
+
+      const w = await api("GET", `/api/projects/${slug}`, "jules");
+      expect(w.json.files.map((f: { name: string }) => f.name)).toEqual(["brief.pdf"]);
+      expect(fs.existsSync(path.join(store.vaultRoot, "04-Projects", slug, "files", "brief.pdf"))).toBe(true);
+
+      const dl = await app.inject({
+        method: "GET",
+        url: `/api/projects/${slug}/files/brief.pdf`,
+        headers: { authorization: `Bearer ${tokens.jules}` },
+      });
+      expect(dl.statusCode).toBe(200);
+      expect(dl.body).toContain("hello thesis");
+      expect(dl.headers["x-content-type-options"]).toBe("nosniff");
+
+      for (const name of ["../../escape.pdf", "..", ".ssh", "a/b.pdf"]) {
+        expect((await api("POST", `/api/projects/${slug}/files`, "jules", { name, dataBase64: "aGk=" })).status).toBe(400);
+      }
+      // an .html document is never rendered on our own origin
+      expect((await api("POST", `/api/projects/${slug}/files`, "jules", { name: "x.html", dataBase64: "PHNjcmlwdD4x" })).status).toBe(200);
+      const html = await app.inject({
+        method: "GET",
+        url: `/api/projects/${slug}/files/x.html`,
+        headers: { authorization: `Bearer ${tokens.jules}` },
+      });
+      expect(html.headers["content-disposition"]).toContain("attachment");
+
+      // erin reads 04-Projects through the root viewer grant, but may not upload there
+      expect((await api("GET", `/api/projects/${slug}`, "erin")).status).toBe(200);
+      expect((await api("POST", `/api/projects/${slug}/files`, "erin", { name: "sneak.pdf", dataBase64: "aGk=" })).status).toBe(403);
+
+      expect((await api("DELETE", `/api/projects/${slug}/files/brief.pdf`, "jules")).status).toBe(200);
+      expect((await api("GET", `/api/projects/${slug}`, "jules")).json.files.some((f: { name: string }) => f.name === "brief.pdf")).toBe(false);
+    });
+
+    it("spreadsheets come back as capped rows, and only for readable projects", async () => {
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Deals");
+      ws.addRow(["Company", "Stage", "Value"]);
+      ws.addRow(["Scooperz", "Won", 12500]);
+      ws.addRow(["Adyen", "Proposal", 4000]);
+      // a gap: exceljs rows are sparse, and a hole must reach the client as ""
+      const gap = ws.addRow([]);
+      gap.getCell(1).value = "Mollie";
+      gap.getCell(3).value = 900;
+      const buf = Buffer.from(await wb.xlsx.writeBuffer());
+      expect((await api("POST", `/api/projects/${slug}/files`, "jules", { name: "deals.xlsx", dataBase64: buf.toString("base64") })).status).toBe(200);
+
+      const sheet = await api("GET", `/api/projects/${slug}/files/deals.xlsx/sheet`, "jules");
+      expect(sheet.status).toBe(200);
+      expect(sheet.json.sheets).toHaveLength(1);
+      expect(sheet.json.sheets[0].name).toBe("Deals");
+      expect(sheet.json.sheets[0].rows[0]).toEqual(["Company", "Stage", "Value"]);
+      expect(sheet.json.sheets[0].rows[1]).toEqual(["Scooperz", "Won", "12500"]);
+      // every cell is a string — no holes, no nulls
+      expect(sheet.json.sheets[0].rows[3]).toEqual(["Mollie", "", "900"]);
+      for (const row of sheet.json.sheets[0].rows) {
+        for (const c of row) expect(typeof c).toBe("string");
+      }
+      expect(sheet.json.sheets[0].truncated).toBe(false);
+
+      // wrong type, and a project the caller cannot read
+      expect((await api("GET", `/api/projects/${slug}/files/x.html/sheet`, "jules")).status).toBe(400);
+      expect((await api("GET", "/api/projects/skunkworks/files/deals.xlsx/sheet", "erin")).status).toBe(404);
+    });
+
+    it("a project the caller cannot read is a 404 — workspace, documents and list (§5.4)", async () => {
+      await api("PUT", "/api/vault/note", "mara", {
+        path: "Personal/mara/Skunkworks.md",
+        content: "---\ntitle: Skunkworks\ntags:\n  - project\n  - project/skunkworks\n---\n# Skunkworks\n\n- [ ] secret step\n",
+      });
+      expect((await api("GET", "/api/projects/skunkworks", "mara")).status).toBe(200);
+      expect((await api("GET", "/api/projects/skunkworks", "erin")).status).toBe(404);
+      expect((await api("GET", "/api/projects/skunkworks/files/x.pdf", "erin")).status).toBe(404);
+      expect((await api("POST", "/api/projects/skunkworks/files", "erin", { name: "x.pdf", dataBase64: "aGk=" })).status).toBe(404);
+      expect((await api("GET", "/api/projects", "erin")).json.some((p: { slug: string }) => p.slug === "skunkworks")).toBe(false);
+    });
+  });
+
   it("home aggregates personal stats, trend, agenda and focus", async () => {
     const r = await api("GET", "/api/home", "erin");
     expect(r.status).toBe(200);
@@ -494,7 +697,7 @@ describe("history (§10)", () => {
   });
 });
 
-describe("mcp, watcher, terminal", () => {
+describe("mcp, watcher", () => {
   it("watcher rebase: external edits update the index and Y.Doc", async () => {
     const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
     const before = fs.readFileSync(p, "utf8");
@@ -510,18 +713,68 @@ describe("mcp, watcher, terminal", () => {
     expect(note.json.content).toContain("watcher test line");
   });
 
-  it("terminal route rejects non-owners", async () => {
-    // erin is not owner
-    const res = await app.inject({
-      method: "GET",
-      url: `/api/terminal?token=${tokens["erin"]}`,
-      headers: { upgrade: "websocket", connection: "upgrade" }
-    });
-    // Fastify WS inject doesn't fully run WS, but might return 400/403 or similar
-    // Actually if it's a normal GET it will 404 because no normal handler exists.
-    // If we pass headers it might still 404 if plugin intercepts it?
-    // Let's just expect it not to be 200/101
-    expect(res.statusCode).not.toBe(200);
-    expect(res.statusCode).not.toBe(101);
+});
+
+/**
+ * Path handling is part of the permission model, not plumbing around it: every
+ * ACL decision is made about a *folder*, and the folder is derived from the path
+ * the caller supplied. If that string is judged before it is canonicalised, the
+ * two disagree — `Personal/<me>/../../X/n.md` reads as the caller's own personal
+ * vault, then lands in X. Callers that go through `noteWriteSchema` are shielded
+ * by its no-`..` regex, but `store.write` is also reached directly (the AI
+ * `write_note` tool passes a model-supplied string), so the guarantee has to
+ * live here.
+ */
+describe("vault path canonicalisation (§5)", () => {
+  const vaultRoot = () => path.join(process.env.BASALT_DATA_DIR!, "vault");
+  const mara = () => store.aclUser(db.select().from(tables.users).where(eq(tables.users.username, "mara")).get()!.id);
+
+  it("does not let a personal-vault prefix launder a write into another team's folder", () => {
+    // mara is marketing-only, so she has no edit grant on Engineering/. Once the
+    // path is canonicalised the ACL sees "Engineering" and refuses on its own —
+    // uncanonicalised it saw "Personal/mara/../.." and read that as her own space.
+    expect(() => store.write(mara(), "Personal/mara/../../Engineering/planted.md", "# planted\n")).toThrow(
+      /do not have edit access/,
+    );
+    expect(fs.existsSync(path.join(vaultRoot(), "Engineering/planted.md"))).toBe(false);
+  });
+
+  it("does not let one user write into another user's personal vault", () => {
+    expect(() => store.write(mara(), "Personal/mara/../erin/planted.md", "# planted\n")).toThrow(
+      /do not have edit access/,
+    );
+    expect(fs.existsSync(path.join(vaultRoot(), "Personal/erin/planted.md"))).toBe(false);
+  });
+
+  it("refuses to escape the vault root, including via a same-prefix sibling", () => {
+    // Deliberately the owner: owners bypass every ACL check, so the path guard is
+    // the only thing left standing. `path.join` + a bare startsWith(root) accepts
+    // this — the resolved path begins with the root *string*, but the directory
+    // is a sibling of the vault.
+    const jules = store.aclUser(db.select().from(tables.users).where(eq(tables.users.username, "jules")).get()!.id);
+    expect(jules.isOwner).toBe(true);
+    expect(() => store.write(jules, "../vault-evil/planted.md", "# planted\n")).toThrow(/invalid path/);
+    expect(fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "vault-evil"))).toBe(false);
+    expect(() => store.write(jules, "/etc/basalt-planted.md", "# planted\n")).toThrow(/invalid path/);
+  });
+
+  it("still accepts a redundant but harmless path, normalised", () => {
+    // Marketing may edit Shared/; "./" and doubled slashes are not an attack.
+    const note = store.write(mara(), "Shared/./notes-canon.md", "# canon\n");
+    expect(note.path).toBe("Shared/notes-canon.md");
+    expect(fs.existsSync(path.join(vaultRoot(), "Shared/notes-canon.md"))).toBe(true);
+  });
+
+  it("rejects non-markdown targets", () => {
+    expect(() => store.write(mara(), "Shared/.env", "SECRET=1\n")).toThrow();
+  });
+});
+
+describe("production secret guard", () => {
+  it("refuses to boot in production on a shipped placeholder", async () => {
+    const { assertProductionSecrets } = await import("../src/env.js");
+    // env.jwtSecret is "test-secret" here, so only the untouched key trips it.
+    expect(() => assertProductionSecrets("production")).toThrow(/BASALT_SECRET_KEY/);
+    expect(() => assertProductionSecrets("development")).not.toThrow();
   });
 });

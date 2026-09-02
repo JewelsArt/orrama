@@ -8,7 +8,7 @@ import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
-import { env, vaultDir } from "./env.js";
+import { assertProductionSecrets, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
@@ -25,7 +25,6 @@ import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
 import { mailRoutes } from "./routes/mail.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
-import { terminalRoutes } from "./routes/terminal.js";
 import { initWebhooks } from "./webhooks.js";
 import { eq } from "drizzle-orm";
 
@@ -41,6 +40,7 @@ declare module "fastify" {
 }
 
 export async function buildServer() {
+  assertProductionSecrets();
   const db = createDb();
   // Single-workspace server (spec §3): one company, one vault, one container.
   if (db.select().from(tables.workspace).all().length === 0) {
@@ -112,7 +112,7 @@ Vault layout:
   await authRoutes(app, db, store);
   await vaultRoutes(app, db, store);
   await taskRoutes(app, db, store);
-  await projectRoutes(app, store);
+  await projectRoutes(app, store, db);
   await dashboardRoutes(app, db, store);
   await adminRoutes(app, db, store);
   await aiRoutes(app, db, store);
@@ -124,7 +124,6 @@ Vault layout:
   await icsRoutes(app, db, store);
   await mailRoutes(app, db);
   await integrationRoutes(app, db, store);
-  await terminalRoutes(app, db, store);
   initWebhooks(db, store);
 
   app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));
