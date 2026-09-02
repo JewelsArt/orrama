@@ -214,3 +214,27 @@ describe("suggested links", () => {
     expect(related.some((r) => r.id === "c")).toBe(false); // unrelated
   });
 });
+
+describe("resolveLink accepts the forms links actually take", () => {
+  const index = new VaultIndex();
+  index.upsert({
+    path: "07-Claude/agents/the-scribe.md",
+    content: "---\nid: n-scribe\ntitle: The Scribe\naliases: [Scribe]\n---\n# The Scribe\n",
+  });
+
+  it("matches by title, alias, filename, path, and path with extension", () => {
+    for (const target of [
+      "The Scribe",
+      "the scribe",
+      "Scribe",
+      "the-scribe",
+      "07-Claude/agents/the-scribe",
+      "07-Claude/agents/the-scribe.md",
+      "./07-Claude/agents/the-scribe.md",
+      "07-Claude/agents/the-scribe%2Emd",
+    ]) {
+      expect(index.resolveLink(target)?.id, target).toBe("n-scribe");
+    }
+    expect(index.resolveLink("nobody home")).toBeUndefined();
+  });
+});

@@ -10,6 +10,13 @@ import type {
 
 /** [[Target]] | [[Target|alias]] | [[Target#Heading]] | [[Target#Heading|alias]] */
 const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
+/**
+ * Markdown-style links to other notes — `[text](Some Note.md)`, which Obsidian
+ * treats as a link like any other. Skipped: anything with a scheme (http:,
+ * mailto:) and anything that is not a .md target, so images and PDFs stay out
+ * of the note graph.
+ */
+const MD_LINK_RE = /(!?)\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;
 
 /**
  * Inline #tag. Must start a word boundary; allows letters, digits, -, _, and / for hierarchy.
@@ -108,6 +115,23 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
         target: m[1]!.trim(),
         heading: m[2]?.trim(),
         alias: m[3]?.trim(),
+        raw: m[0],
+        line: i,
+      });
+    }
+
+    for (const m of line.matchAll(MD_LINK_RE)) {
+      const raw = m[3]!.replace(/^<|>$/g, "").trim();
+      if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("#")) continue; // external or in-page
+      const [pathPart, heading] = raw.split("#");
+      let target = decodeURIComponent(pathPart ?? "").trim();
+      if (!target.toLowerCase().endsWith(".md")) continue;
+      target = target.replace(/\.md$/i, "").replace(/^\.\//, "");
+      if (target === "") continue;
+      links.push({
+        target,
+        heading: heading?.trim(),
+        alias: m[2]?.trim() || undefined,
         raw: m[0],
         line: i,
       });

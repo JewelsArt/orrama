@@ -95,3 +95,29 @@ Inline \`#code-tag\` must not count. #share/marketing
     expect(titleFromPath("Team/Roadmap 2026.md")).toBe("Roadmap 2026");
   });
 });
+
+describe("links Obsidian counts too", () => {
+  it("reads markdown-style links to notes, skipping externals and attachments", () => {
+    const note = parseNote(
+      [
+        "# N",
+        "",
+        "See [the plan](04-Projects/thesis.md) and [notes](./Home.md).",
+        "An [external](https://example.com/x.md) and an ![image](img/shot.png).",
+        "Encoded: [guide](AMSIB%20Thesis%20Guide.md#deadlines)",
+        "",
+        "```",
+        "[fenced](should-not-count.md)",
+        "```",
+      ].join("\n"),
+    );
+    const targets = note.links.map((l) => l.target);
+    expect(targets).toContain("04-Projects/thesis");
+    expect(targets).toContain("Home");
+    expect(targets).toContain("AMSIB Thesis Guide");
+    expect(targets).not.toContain("should-not-count");
+    expect(targets.some((t) => t.includes("example.com"))).toBe(false);
+    expect(targets.some((t) => t.includes("shot"))).toBe(false);
+    expect(note.links.find((l) => l.target === "AMSIB Thesis Guide")?.heading).toBe("deadlines");
+  });
+});

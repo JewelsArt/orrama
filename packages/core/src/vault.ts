@@ -73,15 +73,19 @@ export class VaultIndex {
     if (!note) return;
     this.notes.delete(id);
     this.byPath.delete(note.path);
-    for (const key of [note.title, ...note.aliases, titleFromPath(note.path)]) {
+    for (const key of this.linkKeys(note)) {
       if (this.byTitle.get(key.toLowerCase()) === id) this.byTitle.delete(key.toLowerCase());
     }
   }
 
+  /** Every string a link may legitimately use to mean this note. */
+  private linkKeys(note: IndexedNote): string[] {
+    const noExt = note.path.replace(/\.md$/i, "");
+    return [note.title, ...note.aliases, titleFromPath(note.path), noExt, note.path];
+  }
+
   private registerTitles(note: IndexedNote): void {
-    for (const key of [note.title, ...note.aliases, titleFromPath(note.path)]) {
-      this.byTitle.set(key.toLowerCase(), note.id);
-    }
+    for (const key of this.linkKeys(note)) this.byTitle.set(key.toLowerCase(), note.id);
   }
 
   get(id: NoteId): IndexedNote | undefined {
@@ -93,10 +97,27 @@ export class VaultIndex {
     return id ? this.notes.get(id) : undefined;
   }
 
-  /** Resolve a [[link target]] to a note by title, alias, or filename (case-insensitive). */
+  /**
+   * Resolve a link target to a note by title, alias, filename or vault path —
+   * case-insensitively, with or without the `.md`, and tolerant of the `./` and
+   * `%20` forms Obsidian writes into markdown-style links.
+   */
   resolveLink(target: string): IndexedNote | undefined {
-    const id = this.byTitle.get(target.trim().toLowerCase());
-    return id ? this.notes.get(id) : undefined;
+    let key = target.trim();
+    if (key.includes("%")) {
+      try {
+        key = decodeURIComponent(key);
+      } catch {
+        // leave the raw string: a stray % is not our problem to fix
+      }
+    }
+    key = key.replace(/^\.\//, "").replace(/\/+$/, "");
+    const tries = [key, key.replace(/\.md$/i, "")];
+    for (const t of tries) {
+      const id = this.byTitle.get(t.toLowerCase());
+      if (id) return this.notes.get(id);
+    }
+    return undefined;
   }
 
   all(): IndexedNote[] {
