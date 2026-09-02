@@ -109,3 +109,60 @@ describe("mail account", () => {
     expect((await api("GET", "/api/mail/account", tokens["jules"])).json().connected).toBe(false);
   });
 });
+
+/**
+ * Nothing automated sends mail. The agent reads untrusted text — inbox messages,
+ * notes any teammate can write — while holding the vault's contents and a live
+ * SMTP session, so text arriving through those channels must not be able to
+ * address a message out. Staging a draft is the most an automated caller can do;
+ * the send itself needs a signed-in human.
+ */
+describe("mail send gate", () => {
+  let apiToken: string;
+  let draftId: string;
+
+  beforeAll(async () => {
+    // Reconnect an account (the disconnect test above removed it).
+    db.insert(tables.mailAccounts)
+      .values({
+        id: `mail-${crypto.randomUUID().slice(0, 8)}`,
+        userId: ids["jules"]!,
+        email: "you@gmail.com",
+        imapHost: "imap.gmail.com", imapPort: 993,
+        smtpHost: "smtp.gmail.com", smtpPort: 465,
+        passwordEncrypted: encryptSecret("app-password-secret"),
+        createdAt: Date.now(), lastCheckedAt: null, lastError: null,
+      })
+      .run();
+    const r = await api("POST", "/api/tokens", tokens["jules"], { label: "test-automation" });
+    apiToken = r.json().token;
+  });
+
+  it("refuses a direct send from an API token", async () => {
+    const r = await api("POST", "/api/mail/send", apiToken, { to: "x@y.com", subject: "hi", body: "yo" });
+    expect(r.status).toBe(403);
+    expect(r.json().error).toMatch(/cannot send mail directly/);
+  });
+
+  it("lets an automated caller stage a draft, attributed to its surface", async () => {
+    const r = await api("POST", "/api/mail/drafts", apiToken, { to: "x@y.com", subject: "staged", body: "review me" });
+    expect(r.status).toBe(200);
+    expect(r.json().createdBy).toBe("token");
+    draftId = r.json().id;
+
+    const list = await api("GET", "/api/mail/drafts", tokens["jules"]);
+    expect(list.json().map((d: { id: string }) => d.id)).toContain(draftId);
+  });
+
+  it("keeps drafts private to their owner", async () => {
+    expect((await api("GET", "/api/mail/drafts", tokens["erin"])).json()).toEqual([]);
+    // Erin cannot clear a draft she cannot see.
+    await api("DELETE", `/api/mail/drafts/${draftId}`, tokens["erin"]);
+    expect((await api("GET", "/api/mail/drafts", tokens["jules"])).json()).toHaveLength(1);
+  });
+
+  it("lets the owner discard a staged draft", async () => {
+    expect((await api("DELETE", `/api/mail/drafts/${draftId}`, tokens["jules"])).status).toBe(200);
+    expect((await api("GET", "/api/mail/drafts", tokens["jules"])).json()).toEqual([]);
+  });
+});

@@ -80,6 +80,13 @@ CREATE TABLE IF NOT EXISTS mail_accounts (
   password_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL,
   last_checked_at INTEGER, last_error TEXT
 );
+CREATE TABLE IF NOT EXISTS mail_drafts (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, "to" TEXT NOT NULL,
+  subject TEXT NOT NULL, body TEXT NOT NULL,
+  in_reply_to TEXT, "references" TEXT,
+  created_by TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mail_drafts_user ON mail_drafts (user_id);
 CREATE TABLE IF NOT EXISTS api_tokens (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,

@@ -7,7 +7,7 @@
  * messages are fetched live over IMAP and never stored (like the ICS layer).
  */
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { mailConnectSchema, mailSendSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
@@ -81,7 +81,9 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
 
   app.get<{ Querystring: { limit?: string } }>("/api/mail/inbox", auth, async (req) => {
     const row = requireAccount(req.userId);
-    const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+    // 60, not 30: with Gmail's tabs on, personal mail is a small slice of the
+    // inbox, and a 30-message window can hold no Primary at all.
+    const limit = Math.min(Math.max(Number(req.query.limit) || 60, 1), 120);
     try {
       const items = await listInbox(credsFor(row), limit);
       markChecked(row.id, null);
@@ -110,7 +112,15 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
     }
   });
 
+  /**
+   * Send immediately — only from a signed-in session, i.e. a human at the
+   * keyboard. API tokens (MCP clients, scripts) and the in-app agent stage a
+   * draft instead; see stageDraft and the module doc on mail_drafts.
+   */
   app.post("/api/mail/send", auth, async (req) => {
+    if (req.viaToken) {
+      throw new HttpError(403, "API tokens cannot send mail directly — POST /api/mail/drafts and confirm it in Basalt");
+    }
     const row = requireAccount(req.userId);
     const body = mailSendSchema.parse(req.body);
     try {
@@ -122,4 +132,72 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
       throw new HttpError(502, `could not send: ${m}`);
     }
   });
+
+  // ---- Drafts awaiting human confirmation ---------------------------------
+
+  const draftPublic = (d: typeof tables.mailDrafts.$inferSelect) => ({
+    id: d.id,
+    to: d.to,
+    subject: d.subject,
+    body: d.body,
+    // Carried through so the composer can still thread an agent-drafted reply.
+    inReplyTo: d.inReplyTo,
+    references: d.references,
+    createdBy: d.createdBy,
+    createdAt: d.createdAt,
+  });
+
+  app.get("/api/mail/drafts", auth, async (req) =>
+    db
+      .select()
+      .from(tables.mailDrafts)
+      .where(eq(tables.mailDrafts.userId, req.userId))
+      .all()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(draftPublic),
+  );
+
+  /** Stage a message for the caller to approve. Open to API tokens by design. */
+  app.post("/api/mail/drafts", auth, async (req) => {
+    requireAccount(req.userId);
+    const body = mailSendSchema.parse(req.body);
+    const draft = stageDraft(db, req.userId, body, req.viaToken ? "token" : "agent");
+    return draftPublic(draft);
+  });
+
+  /**
+   * Discard — also how a confirmed draft is cleared: the UI opens it in the
+   * composer, so the bytes that go out are the ones the user just looked at
+   * (and possibly edited), sent through /api/mail/send like any other message.
+   * There is deliberately no "send this stored draft" endpoint; one send path
+   * means one place where a session is required.
+   */
+  app.delete<{ Params: { id: string } }>("/api/mail/drafts/:id", auth, async (req) => {
+    db.delete(tables.mailDrafts)
+      .where(and(eq(tables.mailDrafts.id, req.params.id), eq(tables.mailDrafts.userId, req.userId)))
+      .run();
+    return { ok: true };
+  });
+}
+
+/** Shared with the AI tool layer so both stage drafts the same way. */
+export function stageDraft(
+  db: Db,
+  userId: string,
+  input: { to: string; subject: string; body: string; inReplyTo?: string; references?: string },
+  createdBy: "agent" | "token",
+) {
+  const draft = {
+    id: `draft-${crypto.randomUUID().slice(0, 8)}`,
+    userId,
+    to: input.to,
+    subject: input.subject,
+    body: input.body,
+    inReplyTo: input.inReplyTo ?? null,
+    references: input.references ?? null,
+    createdBy,
+    createdAt: Date.now(),
+  };
+  db.insert(tables.mailDrafts).values(draft).run();
+  return draft;
 }

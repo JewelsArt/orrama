@@ -8,7 +8,7 @@
  * exactly like the ICS feed layer. The only thing at rest is the app password,
  * AES-GCM encrypted (see secrets.ts).
  */
-import { ImapFlow } from "imapflow";
+import { ImapFlow, type FetchMessageObject } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { decryptSecret } from "./secrets.js";
@@ -74,6 +74,49 @@ export interface InboxItem {
   date: string | null;
   seen: boolean;
   messageId: string | null;
+  /** Gmail's own tab for this message, when the server tells us. */
+  category: MailCategory;
+}
+
+export const MAIL_CATEGORIES = ["primary", "social", "promotions", "updates", "forums"] as const;
+export type MailCategory = (typeof MAIL_CATEGORIES)[number];
+
+/**
+ * Which Gmail tab each uid sits in.
+ *
+ * Gmail classifies server-side and exposes it to IMAP through the `X-GM-RAW`
+ * search extension, so this asks Gmail the same question its own UI answers.
+ *
+ * The catch that matters: **a message can hold several category labels at once**
+ * — Revolut's newsletter comes back for both `category:primary` and
+ * `category:updates` — and Gmail shows anything carrying `primary` in Primary.
+ * So primary is searched too, and it wins; the other categories only decide
+ * where a message goes when Gmail did not put it in Primary at all. Searching
+ * only the non-primary categories (the obvious shortcut) files half your actual
+ * inbox under Updates.
+ */
+async function gmailCategories(client: ImapFlow, uids: number[]): Promise<Map<number, MailCategory>> {
+  const out = new Map<number, MailCategory>();
+  const caps = client.capabilities;
+  if (!caps?.has("X-GM-EXT-1") || uids.length === 0) return out;
+  const lo = Math.min(...uids);
+  const primary = new Set<number>();
+
+  for (const category of MAIL_CATEGORIES) {
+    try {
+      // uid:lo:* keeps each search to the window we actually fetched.
+      const hits = await client.search({ uid: `${lo}:*`, gmraw: `category:${category}` }, { uid: true });
+      for (const uid of Array.isArray(hits) ? hits : []) {
+        if (category === "primary") primary.add(uid);
+        else out.set(uid, category);
+      }
+    } catch {
+      // A server that lies about the capability, or a transient failure: the
+      // affected messages stay Primary rather than the whole list failing.
+    }
+  }
+  for (const uid of primary) out.set(uid, "primary");
+  return out;
 }
 
 /** Most-recent `limit` messages from INBOX (envelopes only — cheap, one round trip). */
@@ -86,7 +129,10 @@ export async function listInbox(c: MailCreds, limit = 30): Promise<InboxItem[]> 
     const total = client.mailbox && typeof client.mailbox !== "boolean" ? client.mailbox.exists : 0;
     if (total > 0) {
       const from = Math.max(1, total - limit + 1);
-      for await (const msg of client.fetch(`${from}:*`, { envelope: true, flags: true, uid: true })) {
+      const raw: { msg: FetchMessageObject; uid: number }[] = [];
+      for await (const msg of client.fetch(`${from}:*`, { envelope: true, flags: true, uid: true })) raw.push({ msg, uid: msg.uid });
+      const categories = await gmailCategories(client, raw.map((r) => r.uid));
+      for (const { msg } of raw) {
         const env = msg.envelope;
         const sender = env?.from?.[0];
         out.push({
@@ -97,6 +143,7 @@ export async function listInbox(c: MailCreds, limit = 30): Promise<InboxItem[]> 
           date: env?.date ? env.date.toISOString() : null,
           seen: msg.flags?.has("\\Seen") ?? false,
           messageId: env?.messageId ?? null,
+          category: categories.get(msg.uid) ?? "primary",
         });
       }
     }

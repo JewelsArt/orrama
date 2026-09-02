@@ -6,7 +6,9 @@ export const taskStatusSchema = z.enum(["todo", "in-progress", "done", "blocked"
 
 export const registerSchema = z.object({
   email: z.string().email(),
-  username: z.string().regex(/^[\w.-]{2,32}$/),
+  // Must start alphanumeric: a username becomes a path segment under Personal/,
+  // and ".." is otherwise a legal username.
+  username: z.string().regex(/^[a-z0-9][\w.-]{1,31}$/i),
   displayName: z.string().min(1).max(80),
   password: z.string().min(8).max(256),
   inviteToken: z.string().optional(),
@@ -29,7 +31,7 @@ export const noteWriteSchema = z.object({
 });
 
 export const noteMoveSchema = z.object({
-  fromPath: z.string(),
+  fromPath: z.string().regex(/^(?!\/)(?!.*\.\.).+\.md$/),
   toPath: z.string().regex(/^(?!\/)(?!.*\.\.).+\.md$/),
 });
 

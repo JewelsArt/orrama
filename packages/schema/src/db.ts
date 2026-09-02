@@ -204,6 +204,31 @@ export const mailAccounts = sqliteTable("mail_accounts", {
   lastError: text("last_error"),
 });
 
+/**
+ * Outbound mail staged by a non-human caller (the in-app agent, or an MCP client
+ * on an API token). Nothing here is sent until the account owner presses Send in
+ * a signed-in session.
+ *
+ * The agent reads untrusted text — inbox messages, notes anyone on the team can
+ * write — and also holds the vault's contents, so an instruction hidden in that
+ * text could otherwise address mail to itself. A prompt telling the model to
+ * confirm first is not a control; this table is. `createdBy` records which
+ * surface staged it so the confirmation UI can say so.
+ */
+export const mailDrafts = sqliteTable("mail_drafts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  to: text("to").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  /** RFC Message-IDs, set when the draft is a reply. */
+  inReplyTo: text("in_reply_to"),
+  references: text("references"),
+  /** "agent" = the in-app Ask panel, "token" = an MCP/API-token client. */
+  createdBy: text("created_by", { enum: ["agent", "token"] }).notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
 /** Projects: a folder or tag designated as the unit progress is computed against (spec §3). */
 export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
