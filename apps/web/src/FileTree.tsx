@@ -54,11 +54,17 @@ export function FileTree({
   activeId,
   colorForId,
   onOpen,
+  onSpotlight,
 }: {
   notes: TreeNote[];
   activeId: string | null;
   colorForId?: (id: string) => string;
   onOpen: (id: string) => void;
+  /**
+   * Pointing at a row lights the matching nodes on the map: one note for a file,
+   * everything beneath it for a folder. `null` when the pointer leaves.
+   */
+  onSpotlight?: (spot: { ids: Set<string>; label: string } | null) => void;
 }) {
   const dot = (id: string) =>
     colorForId ? <span className="ft-dot" style={{ background: colorForId(id) }} aria-hidden /> : null;
@@ -75,6 +81,18 @@ export function FileTree({
   });
 
   const tree = useMemo(() => buildTree(notes), [notes]);
+
+  /** Every note id at or below a folder — what "hovering the group" means. */
+  const idsUnder = (node: FolderNode): Set<string> => {
+    const out = new Set<string>();
+    const walk = (n: FolderNode) => {
+      for (const note of n.notes) out.add(note.id);
+      for (const f of n.folders) walk(f);
+    };
+    walk(node);
+    return out;
+  };
+  const spotlight = (spot: { ids: Set<string>; label: string } | null) => onSpotlight?.(spot);
 
   const allFolderPaths = useMemo(() => {
     const s = new Set<string>();
@@ -114,6 +132,10 @@ export function FileTree({
           className="ft-folder"
           style={{ paddingLeft: depth * 14 }}
           onClick={() => toggle(node.path)}
+          onPointerEnter={() => spotlight({ ids: idsUnder(node), label: cleanFolderName(node.name) })}
+          onPointerLeave={() => spotlight(null)}
+          onFocus={() => spotlight({ ids: idsUnder(node), label: cleanFolderName(node.name) })}
+          onBlur={() => spotlight(null)}
           aria-expanded={!effectiveClosed.has(node.path)}
         >
           <IconChevron open={!effectiveClosed.has(node.path)} />
@@ -130,6 +152,10 @@ export function FileTree({
               className={`ft-note ${n.id === activeId ? "active" : ""}`}
               style={{ paddingLeft: (depth + 1) * 14 + 4 }}
               onClick={() => onOpen(n.id)}
+              onPointerEnter={() => spotlight({ ids: new Set([n.id]), label: n.title })}
+              onPointerLeave={() => spotlight(null)}
+              onFocus={() => spotlight({ ids: new Set([n.id]), label: n.title })}
+              onBlur={() => spotlight(null)}
             >
               {dot(n.id)}
               <span className="ft-note-title">{n.title}</span>
@@ -163,7 +189,13 @@ export function FileTree({
         ) : (
           <>
             {matches.map((n) => (
-              <button key={n.id} className={`ft-note ft-match ${n.id === activeId ? "active" : ""}`} onClick={() => onOpen(n.id)}>
+              <button
+                key={n.id}
+                className={`ft-note ft-match ${n.id === activeId ? "active" : ""}`}
+                onClick={() => onOpen(n.id)}
+                onPointerEnter={() => spotlight({ ids: new Set([n.id]), label: n.title })}
+                onPointerLeave={() => spotlight(null)}
+              >
                 {dot(n.id)}
                 <span className="ft-note-title">{n.title}</span>
                 <span className="ft-note-path">{n.folder || "/"}</span>

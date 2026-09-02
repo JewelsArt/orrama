@@ -8,17 +8,22 @@ import {
   forceY,
   type Simulation,
 } from "d3-force";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface GraphData {
-  nodes: { id: string; title: string; folder: string; links: number; tasks: number }[];
+  nodes: { id: string; title: string; folder: string; links: number; tasks: number; description?: string; tags?: string[] }[];
   edges: { from: string; to: string }[];
 }
+
+const TAG_PREFIX = "tag:";
 
 interface SimNode {
   id: string;
   title: string;
-  color: string;
+  folder: string;
+  description: string;
+  /** Degree — how many edges touch this node. Drives radius, Obsidian-style. */
+  deg: number;
   r: number;
   x: number;
   y: number;
@@ -32,80 +37,203 @@ interface SimLink {
   target: SimNode;
 }
 
+export interface GraphSettings {
+  /** Force controls, the four that actually change how a graph reads. */
+  linkDistance: number;
+  repel: number;
+  center: number;
+  nodeScale: number;
+  /** Local mode: only the open note's neighbourhood, `depth` hops out. */
+  local: boolean;
+  depth: number;
+  /** Draw #tags as their own nodes, the way Obsidian's graph does. */
+  tags: boolean;
+}
+
+const DEFAULTS: GraphSettings = { linkDistance: 38, repel: 115, center: 0.09, nodeScale: 1, local: false, depth: 1, tags: false };
+
+const loadSettings = (): GraphSettings => {
+  try {
+    return { ...DEFAULTS, ...(JSON.parse(localStorage.getItem("basalt-graph") ?? "{}") as Partial<GraphSettings>) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+};
+
 /** Layout + view persist across note open/close so the map never re-scatters. */
 const savedPos = new Map<string, { x: number; y: number }>();
 const savedView = { x: 0, y: 0, k: 1, inited: false };
+
+/** Nodes within `depth` hops of `from`, over undirected edges. */
+function neighbourhood(edges: { from: string; to: string }[], from: string, depth: number): Set<string> {
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    (adj.get(e.from) ?? adj.set(e.from, []).get(e.from)!).push(e.to);
+    (adj.get(e.to) ?? adj.set(e.to, []).get(e.to)!).push(e.from);
+  }
+  const seen = new Set([from]);
+  let frontier = [from];
+  for (let d = 0; d < depth; d++) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const other of adj.get(id) ?? []) {
+        if (!seen.has(other)) {
+          seen.add(other);
+          next.push(other);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return seen;
+}
 
 /**
  * The map: a live force-directed graph, the way Obsidian does it. Nodes repel
  * and collide (so they never stack), links pull like springs, and you can grab
  * any node and drag it — the rest of the web reacts. Wheel to zoom, drag the
  * background to pan, hover to light up a node's neighbourhood, click to open.
- * Colour comes from the shared category palette, so a note is the same colour
- * here as in the file list. Canvas (not SVG/WebGL) because at hundreds of nodes
- * it stays smooth and the 2-D interaction model is exactly what this needs.
+ *
+ * Deliberately monochrome: a node's *size* carries its degree and nothing else
+ * competes for attention, so the shape of the vault is what you see. Colour
+ * still lives in the file list and the category filter, where it labels things.
+ * Canvas (not SVG/WebGL) because at hundreds of nodes it stays smooth and the
+ * 2-D interaction model is exactly what this needs.
  */
 export function GraphCanvas({
   graph,
   visibleIds,
   highlightIds,
-  colorForId,
+  focusId,
+  spotlight,
+  onShown,
   onOpen,
 }: {
   graph: GraphData | null;
   visibleIds: Set<string>;
   highlightIds: Set<string> | null;
-  colorForId: (id: string) => string;
+  /** The open note: highlighted, and the anchor for local mode. */
+  focusId?: string | null;
+  /**
+   * Nodes to pick out of the crowd — what the file tree is pointing at. Behaves
+   * like a hover you did not have to aim: those nodes go accent, everything else
+   * fades, and the readout names the file or folder.
+   */
+  spotlight?: { ids: Set<string>; label: string } | null;
+  /** Reports what is actually on screen, so the caller's hint can tell the truth. */
+  onShown?: (info: { count: number; local: boolean; depth: number }) => void;
   onOpen: (id: string) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<string | null>(null);
   const highlightRef = useRef(highlightIds);
   highlightRef.current = highlightIds;
-  const colorRef = useRef(colorForId);
-  colorRef.current = colorForId;
+  const focusRef = useRef(focusId ?? null);
+  focusRef.current = focusId ?? null;
+  const spotRef = useRef(spotlight ?? null);
+  spotRef.current = spotlight ?? null;
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
   const redrawRef = useRef<(() => void) | null>(null);
-  const recolorRef = useRef<(() => void) | null>(null);
+  const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
+
+  const [hovered, setHovered] = useState<{ title: string; folder: string; description: string } | null>(null);
+  const [settings, setSettings] = useState<GraphSettings>(loadSettings);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const set = <K extends keyof GraphSettings>(k: K, v: GraphSettings[K]) =>
+    setSettings((s) => {
+      const next = { ...s, [k]: v };
+      localStorage.setItem("basalt-graph", JSON.stringify(next));
+      return next;
+    });
+
+  /**
+   * With the tag layer on, every #tag becomes a node and every note carrying it
+   * gets an edge to it — which is what makes an Obsidian graph look so much
+   * denser than a note-links-only one. Built here rather than server-side: the
+   * tags already ride along with each node.
+   */
+  const tagged = useMemo(() => {
+    if (!graph || !settings.tags) return graph;
+    const used = new Map<string, number>();
+    for (const n of graph.nodes) for (const t of new Set(n.tags ?? [])) used.set(t, (used.get(t) ?? 0) + 1);
+    const nodes = [...graph.nodes];
+    const edges = [...graph.edges];
+    for (const [tag, count] of used) {
+      nodes.push({
+        id: TAG_PREFIX + tag,
+        title: `#${tag}`,
+        folder: "",
+        links: count,
+        tasks: 0,
+        description: `${count} note${count === 1 ? "" : "s"} tagged #${tag}`,
+      });
+    }
+    for (const n of graph.nodes) for (const t of new Set(n.tags ?? [])) edges.push({ from: n.id, to: TAG_PREFIX + t });
+    return { nodes, edges };
+  }, [graph, settings.tags]);
+
+  // In local mode the node set itself shrinks to the open note's neighbourhood.
+  const shownIds = useMemo(() => {
+    const tagIds = settings.tags && tagged ? tagged.nodes.filter((n) => n.id.startsWith(TAG_PREFIX)).map((n) => n.id) : [];
+    if (!tagged || !settings.local || !focusId) return new Set([...visibleIds, ...tagIds]);
+    const near = neighbourhood(tagged.edges, focusId, settings.depth);
+    return new Set([...visibleIds, ...tagIds].filter((id) => near.has(id)));
+  }, [tagged, visibleIds, settings.local, settings.depth, settings.tags, focusId]);
+
+  const onShownRef = useRef(onShown);
+  onShownRef.current = onShown;
+  useEffect(() => {
+    onShownRef.current?.({ count: shownIds.size, local: settings.local && !!focusId, depth: settings.depth });
+  }, [shownIds, settings.local, settings.depth, focusId]);
 
   // Rebuild the simulation only when the actual set of nodes/edges changes —
-  // not on every unrelated re-render (colour/highlight updates just redraw).
-  const graphKey = graph
-    ? graph.nodes
-        .filter((n) => visibleIds.has(n.id))
+  // not on every unrelated re-render (highlight/force tweaks just redraw).
+  const graphKey = tagged
+    ? tagged.nodes
+        .filter((n) => shownIds.has(n.id))
         .map((n) => n.id)
         .sort()
         .join(",") +
       "|" +
-      graph.edges.length
+      tagged.edges.length
     : "";
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas || !graph) return;
+    if (!canvas || !tagged) return;
     const ctx = canvas.getContext("2d")!;
     const parent = canvas.parentElement!;
 
-    const nodes: SimNode[] = graph.nodes
-      .filter((n) => visibleIds.has(n.id))
-      .map((n) => {
-        const prev = savedPos.get(n.id);
-        return {
-          id: n.id,
-          title: n.title,
-          color: colorRef.current(n.id),
-          r: Math.min(4 + n.links * 1.1, 12),
-          x: prev?.x ?? (Math.random() - 0.5) * 600,
-          y: prev?.y ?? (Math.random() - 0.5) * 600,
-          vx: 0,
-          vy: 0,
-        };
-      });
+    const shown = tagged.nodes.filter((n) => shownIds.has(n.id));
+    const ids = new Set(shown.map((n) => n.id));
+    const edges = tagged.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+
+    const degree = new Map<string, number>();
+    for (const e of edges) {
+      degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+      degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
+    }
+
+    const nodes: SimNode[] = shown.map((n) => {
+      const prev = savedPos.get(n.id);
+      const deg = degree.get(n.id) ?? 0;
+      return {
+        id: n.id,
+        title: n.title,
+        folder: n.folder,
+        description: n.description ?? "",
+        deg,
+        // sqrt so a hub reads as bigger without swallowing the screen
+        r: 3 + Math.sqrt(deg) * 1.9,
+        x: prev?.x ?? (Math.random() - 0.5) * 600,
+        y: prev?.y ?? (Math.random() - 0.5) * 600,
+        vx: 0,
+        vy: 0,
+      };
+    });
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    const links: SimLink[] = graph.edges
-      .filter((e) => byId.has(e.from) && byId.has(e.to) && e.from !== e.to)
-      .map((e) => ({ source: byId.get(e.from)!, target: byId.get(e.to)! }));
+    const links: SimLink[] = edges.map((e) => ({ source: byId.get(e.from)!, target: byId.get(e.to)! }));
 
     let w = parent.clientWidth;
     let h = parent.clientHeight;
@@ -115,16 +243,17 @@ export function GraphCanvas({
         "link",
         forceLink<SimNode, SimLink>(links)
           .id((n) => n.id)
-          .distance(38)
+          .distance(settings.linkDistance)
           .strength(0.3),
       )
-      .force("charge", forceManyBody<SimNode>().strength(-115).distanceMax(420))
+      .force("charge", forceManyBody<SimNode>().strength(-settings.repel).distanceMax(420))
       .force("collide", forceCollide<SimNode>((n) => n.r + 4).strength(0.95))
       .force("center", forceCenter(0, 0).strength(0.08))
-      .force("x", forceX(0).strength(0.09))
-      .force("y", forceY(0).strength(0.09))
+      .force("x", forceX(0).strength(settings.center))
+      .force("y", forceY(0).strength(settings.center))
       .velocityDecay(0.4)
       .alphaDecay(0.025);
+    simRef.current = sim;
 
     if (!savedView.inited) {
       savedView.x = w / 2;
@@ -153,12 +282,19 @@ export function GraphCanvas({
       ctx.clearRect(0, 0, w, h);
 
       const styles = getComputedStyle(document.documentElement);
-      const lineColor = styles.getPropertyValue("--text-faint").trim() || "#555";
+      const lineColor = styles.getPropertyValue("--text-faint").trim() || "#888";
+      const nodeColor = styles.getPropertyValue("--text-dim").trim() || "#888";
       const labelColor = styles.getPropertyValue("--text-dim").trim() || "#999";
+      const accent = styles.getPropertyValue("--accent").trim() || "#5b51dd";
+      const textColor = styles.getPropertyValue("--text").trim() || "#111";
       const font = styles.getPropertyValue("--font-ui") || "sans-serif";
       const k = savedView.k;
+      const scale = settings.nodeScale;
 
       const hover = hoverRef.current;
+      const focus = focusRef.current;
+      const spot = spotRef.current;
+      const spotted = (id: string) => spot !== null && spot.ids.has(id);
       const highlight = highlightRef.current;
       const lit = (id: string) => highlight === null || highlight.has(id);
       const neighbors = new Set<string>();
@@ -173,51 +309,54 @@ export function GraphCanvas({
       for (const l of links) {
         const a = project(l.source);
         const b = project(l.target);
-        const hot = hover === l.source.id || hover === l.target.id;
+        const inSpot = spotted(l.source.id) || spotted(l.target.id);
+        const hot = hover === l.source.id || hover === l.target.id || inSpot;
         const faded = !lit(l.source.id) && !lit(l.target.id);
-        ctx.strokeStyle = hot ? "#ffffff" : lineColor;
-        ctx.globalAlpha = hot ? 0.6 : faded ? 0.04 : hover ? 0.08 : 0.14;
-        ctx.lineWidth = hot ? 1.4 : 1;
+        ctx.strokeStyle = hot ? accent : lineColor;
+        ctx.globalAlpha = hot ? 0.55 : faded ? 0.05 : hover || spot ? 0.07 : 0.18;
+        ctx.lineWidth = hot ? 1.3 : 1;
         ctx.beginPath();
         ctx.moveTo(a.sx, a.sy);
         ctx.lineTo(b.sx, b.sy);
         ctx.stroke();
       }
 
-      // nodes
+      // nodes — one ink, size is the only signal
       for (const n of nodes) {
         const p = project(n);
         const isHover = n.id === hover;
+        const isFocus = n.id === focus;
         const isNeighbor = neighbors.has(n.id);
         const isLit = lit(n.id);
-        const dimmed = hover ? !isHover && !isNeighbor : !isLit;
-        // Scale the node up by 30% when hovered
-        const rr = Math.max(n.r * k * (isHover ? 1.3 : 1), 2);
-        ctx.globalAlpha = isHover ? 1 : dimmed ? (isLit ? 0.3 : 0.12) : 0.95;
-        ctx.fillStyle = n.color;
+        const isSpot = spotted(n.id);
+        const dimmed = spot ? !isSpot : hover ? !isHover && !isNeighbor : !isLit;
+        const rr = Math.max(n.r * scale * k * (isHover || isSpot ? 1.3 : 1), 1.6);
+        ctx.globalAlpha = isHover || isFocus || isSpot ? 1 : dimmed ? (isLit ? 0.22 : 0.08) : 0.8;
+        ctx.fillStyle = isHover || isFocus || isSpot ? accent : nodeColor;
         ctx.beginPath();
         ctx.arc(p.sx, p.sy, rr, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // labels — Obsidian style: nothing at a glance, the hovered node and its
-      // neighbours always, and everything (lit) once you zoom in to read.
-      const showAll = k >= 1.3;
+      // labels — nothing at a glance, the hovered node and its neighbours
+      // always, and everything (lit) once you zoom in to read.
+      const showAll = k >= 1.6;
       ctx.font = `500 11px ${font}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       for (const n of nodes) {
         const isHover = n.id === hover;
+        const isFocus = n.id === focus;
         const isNeighbor = neighbors.has(n.id);
-        const show = isHover || isNeighbor || (!hover && showAll && (highlight === null || highlight.has(n.id)));
+        // Only what you are pointing at gets a label — a neighbourhood of labels
+        // is the thing that made this unreadable. Zoom in for the rest.
+        const show = isHover || isFocus || (!hover && showAll && lit(n.id));
         if (!show) continue;
         const p = project(n);
-        // Emphasize the text slightly via opacity rather than color change
-        ctx.globalAlpha = isHover ? 1 : 0.75;
-        ctx.fillStyle = labelColor;
+        ctx.globalAlpha = isHover || isFocus ? 1 : 0.7;
+        ctx.fillStyle = isHover || isFocus ? textColor : labelColor;
         const label = n.title.length > 26 ? n.title.slice(0, 25) + "…" : n.title;
-        // Adjust the Y offset using the same hover scale factor
-        const rr = Math.max(n.r * k * (isHover ? 1.3 : 1), 2);
+        const rr = Math.max(n.r * scale * k * (isHover ? 1.3 : 1), 1.6);
         ctx.fillText(label, p.sx, p.sy + rr + 3);
       }
       ctx.globalAlpha = 1;
@@ -228,10 +367,6 @@ export function GraphCanvas({
       draw();
     });
     redrawRef.current = draw;
-    recolorRef.current = () => {
-      for (const n of nodes) n.color = colorRef.current(n.id);
-      draw();
-    };
 
     // ---- interaction ----
     let dragNode: SimNode | null = null;
@@ -249,7 +384,7 @@ export function GraphCanvas({
       for (let i = nodes.length - 1; i >= 0; i--) {
         const n = nodes[i]!;
         const p = project(n);
-        const rr = Math.max(n.r * savedView.k, 2) + 5;
+        const rr = Math.max(n.r * settings.nodeScale * savedView.k, 2) + 5;
         if ((p.sx - cx) ** 2 + (p.sy - cy) ** 2 <= rr * rr) return n;
       }
       return null;
@@ -281,6 +416,7 @@ export function GraphCanvas({
         if (id !== hoverRef.current) {
           hoverRef.current = id;
           canvas.style.cursor = id ? "pointer" : "grab";
+          setHovered(hit ? { title: hit.title, folder: hit.folder, description: hit.description } : null);
           draw();
         }
         return;
@@ -299,7 +435,7 @@ export function GraphCanvas({
     const onUp = (e: PointerEvent) => {
       const { cx, cy } = cssPos(e);
       if (dragNode) {
-        if (!moved) onOpenRef.current(dragNode.id);
+        if (!moved && !dragNode.id.startsWith(TAG_PREFIX)) onOpenRef.current(dragNode.id);
         dragNode.fx = null;
         dragNode.fy = null;
         sim.alphaTarget(0);
@@ -308,19 +444,19 @@ export function GraphCanvas({
         panning = false;
         if (!moved) {
           const hit = hitTest(cx, cy);
-          if (hit) onOpenRef.current(hit.id);
+          if (hit && !hit.id.startsWith(TAG_PREFIX)) onOpenRef.current(hit.id);
         }
       }
     };
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const { cx, cy } = cssPos(e);
-      
-      // Smooth proportional zoom based on scroll magnitude. 
+
+      // Smooth proportional zoom based on scroll magnitude.
       // Math.exp gives a perfectly linear zoom feel regardless of current scale.
       const scaleMultiplier = Math.exp(-e.deltaY * 0.0015);
       const k2 = Math.max(0.2, Math.min(4, savedView.k * scaleMultiplier));
-      
+
       const gx = (cx - savedView.x) / savedView.k;
       const gy = (cy - savedView.y) / savedView.k;
       savedView.k = k2;
@@ -339,8 +475,8 @@ export function GraphCanvas({
 
     return () => {
       sim.stop();
+      simRef.current = null;
       redrawRef.current = null;
-      recolorRef.current = null;
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -350,13 +486,112 @@ export function GraphCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphKey]);
 
-  // Category filter → repaint (fade); palette change → recolour. No sim rebuild.
+  // Force tweaks retune the running simulation instead of rebuilding it, so the
+  // layout breathes into its new shape rather than scattering.
+  useEffect(() => {
+    const sim = simRef.current;
+    if (!sim) return;
+    (sim.force("link") as ReturnType<typeof forceLink<SimNode, SimLink>> | undefined)?.distance(settings.linkDistance);
+    (sim.force("charge") as ReturnType<typeof forceManyBody<SimNode>> | undefined)?.strength(-settings.repel);
+    (sim.force("x") as ReturnType<typeof forceX<SimNode>> | undefined)?.strength(settings.center);
+    (sim.force("y") as ReturnType<typeof forceY<SimNode>> | undefined)?.strength(settings.center);
+    sim.alpha(0.5).restart();
+  }, [settings.linkDistance, settings.repel, settings.center]);
+
+  // Filter fade and node-size changes are pure repaints.
   useEffect(() => {
     redrawRef.current?.();
-  }, [highlightIds]);
-  useEffect(() => {
-    recolorRef.current?.();
-  }, [colorForId]);
+  }, [highlightIds, focusId, spotlight, settings.nodeScale]);
 
-  return <canvas className="graph-canvas" ref={ref} />;
+  // A one-file spotlight reads like a hover: folder and gist, not a count.
+  const spotOne =
+    spotlight && spotlight.ids.size === 1
+      ? tagged?.nodes.find((n) => spotlight.ids.has(n.id))
+      : undefined;
+
+  return (
+    <>
+      <canvas className="graph-canvas" ref={ref} />
+      {spotlight && !hovered ? (
+        <div className="graph-readout" aria-live="polite">
+          <b>{spotlight.label}</b>
+          <code>
+            {spotOne ? spotOne.folder || "/" : `${spotlight.ids.size} notes on the map`}
+          </code>
+          {spotOne?.description && <p>{spotOne.description}</p>}
+        </div>
+      ) : (
+        hovered && (
+          <div className="graph-readout" aria-live="polite">
+            <b>{hovered.title}</b>
+            {hovered.folder && <code>{hovered.folder}</code>}
+            {hovered.description && <p>{hovered.description}</p>}
+          </div>
+        )
+      )}
+      <div className={`graph-ui ${panelOpen ? "open" : ""}`}>
+        <button className="graph-gear" onClick={() => setPanelOpen((o) => !o)} aria-expanded={panelOpen} aria-label="Graph settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
+          </svg>
+        </button>
+        {panelOpen && (
+          <div className="graph-panel">
+            <label className="graph-row switch">
+              <span>Local graph</span>
+              <input
+                type="checkbox"
+                checked={settings.local}
+                disabled={!focusId}
+                onChange={(e) => set("local", e.target.checked)}
+              />
+            </label>
+            {!focusId && <p className="graph-note">Open a note to use the local graph.</p>}
+            {settings.local && focusId && (
+              <label className="graph-row">
+                <span>Depth</span>
+                <input type="range" min={1} max={4} step={1} value={settings.depth} onChange={(e) => set("depth", +e.target.value)} />
+                <b>{settings.depth}</b>
+              </label>
+            )}
+            <label className="graph-row switch">
+              <span>Tags as nodes</span>
+              <input type="checkbox" checked={settings.tags} onChange={(e) => set("tags", e.target.checked)} />
+            </label>
+            <hr />
+            <label className="graph-row">
+              <span>Link distance</span>
+              <input type="range" min={15} max={120} value={settings.linkDistance} onChange={(e) => set("linkDistance", +e.target.value)} />
+              <b>{settings.linkDistance}</b>
+            </label>
+            <label className="graph-row">
+              <span>Repel force</span>
+              <input type="range" min={20} max={400} value={settings.repel} onChange={(e) => set("repel", +e.target.value)} />
+              <b>{settings.repel}</b>
+            </label>
+            <label className="graph-row">
+              <span>Center pull</span>
+              <input type="range" min={0} max={40} value={Math.round(settings.center * 100)} onChange={(e) => set("center", +e.target.value / 100)} />
+              <b>{settings.center.toFixed(2)}</b>
+            </label>
+            <label className="graph-row">
+              <span>Node size</span>
+              <input type="range" min={50} max={250} value={Math.round(settings.nodeScale * 100)} onChange={(e) => set("nodeScale", +e.target.value / 100)} />
+              <b>{settings.nodeScale.toFixed(1)}×</b>
+            </label>
+            <button
+              className="graph-reset"
+              onClick={() => {
+                localStorage.setItem("basalt-graph", JSON.stringify(DEFAULTS));
+                setSettings({ ...DEFAULTS });
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
 }

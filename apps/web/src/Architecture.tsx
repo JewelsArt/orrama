@@ -26,9 +26,29 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
     setGraph(await api<GraphData>("GET", "/api/vault/graph"));
   }, []);
 
+  // Remembered after the note closes so the map can stay anchored on it — that
+  // is what makes the local graph useful: read a note, step back, see its web.
+  const [lastOpenId, setLastOpenId] = useState<string | null>(null);
+  const [shown, setShown] = useState<{ count: number; local: boolean; depth: number }>({ count: 0, local: false, depth: 1 });
+  // What the file tree is pointing at, mirrored onto the map.
+  const [spotlight, setSpotlight] = useState<{ ids: Set<string>; label: string } | null>(null);
+
+  // Esc closes the note and drops you back on the map — the way every editor works.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const el = document.activeElement;
+      const typing = el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA)$/.test(el.tagName) || !!el.closest(".cm-editor"));
+      if (!typing) setOpen(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const openNote = useCallback(async (id: string) => {
     const note = await api<NoteDetail>("GET", `/api/vault/note/${id}`);
     setOpen(note);
+    setLastOpenId(note.id);
     setStatus("saved");
     api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`).then(setRelated);
   }, []);
@@ -184,7 +204,7 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
             </button>
           ))}
         </div>
-        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} />
+        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} onSpotlight={setSpotlight} />
         {open && (
           <button className="ft-map ghost" onClick={() => setOpen(null)}>
             ← Back to the map
@@ -201,6 +221,9 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
                 <span className="editor-path">{open.path}</span>
               </div>
               <span className="editor-presence">
+                <button className="editor-close" onClick={() => setOpen(null)} title="Close note (Esc)" aria-label="Close note">
+                  ✕
+                </button>
                 {open.canEdit && !isProject && (
                   <button className="make-project" onClick={makeProject} title="Add project tags so this note shows on the board">
                     + Make this a project
@@ -231,13 +254,17 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
               graph={graph}
               visibleIds={allIds}
               highlightIds={category === "all" ? null : scopedIds}
-              colorForId={colorForId}
+              focusId={lastOpenId}
+              spotlight={spotlight}
+              onShown={setShown}
               onOpen={openNote}
             />
             <span className="map-hint">
-              {category === "all"
-                ? `${tree.length} notes`
-                : `${scoped.length} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
+              {shown.local
+                ? `${shown.count} of ${tree.length} · local graph, depth ${shown.depth}`
+                : category === "all"
+                  ? `${tree.length} notes`
+                  : `${scoped.length} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
               · drag a node · scroll to zoom · click to open
             </span>
           </div>

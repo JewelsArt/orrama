@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@basalt/sync";
 import { docFromUpdates, docContent } from "@basalt/sync";
 import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
-import { appendLine, canEdit, suggestRelated } from "@basalt/core";
+import { appendLine, canEdit, parseFrontmatter, suggestRelated } from "@basalt/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { hash, type VaultStore } from "../vaultStore.js";
@@ -99,6 +99,36 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
    * Link graph over the requester's readable notes (Architecture backdrop + local
    * graph). Edges to unreadable notes are dropped entirely — not stubbed (§5.4).
    */
+  /**
+   * A one-line gist of a note: its own `description:` front-matter if the author
+   * wrote one, else the first real sentence of the body — skipping headings,
+   * quotes, list markers, links and images, which say nothing about content.
+   */
+  const describe = (n: { frontmatter: Record<string, unknown>; content: string }): string => {
+    const fm = n.frontmatter["description"] ?? n.frontmatter["summary"];
+    if (typeof fm === "string" && fm.trim() !== "") return fm.trim().slice(0, 220);
+    const body = parseFrontmatter(n.content).bodyStart;
+    const lines = n.content.split("\n").slice(body);
+    let inFence = false;
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (/^(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence || line === "" || line.startsWith("#") || line.startsWith(">")) continue;
+      if (/^(\||-{3,}|\*{3,})/.test(line)) continue;
+      const text = line
+        .replace(/^[-*+]\s+(\[[ xX]\]\s+)?/, "")
+        .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t: string, a?: string) => a ?? t)
+        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+        .replace(/[*_`]/g, "")
+        .trim();
+      if (text.length > 1) return text.slice(0, 220);
+    }
+    return "";
+  };
+
   app.get("/api/vault/graph", auth, async (req) => {
     const user = store.aclUser(req.userId);
     const readable = store.readable(user);
@@ -108,9 +138,11 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       title: n.title,
       folder: n.folder,
       sector: n.frontmatter["sector"] || null,
-      tags: n.tags.map(t => t.tag),
+      tags: n.tags.map((t) => t.tag),
       links: n.links.length,
       tasks: n.tasks.filter((t) => !t.checked).length,
+      /** One line about the note, for the map's hover readout. */
+      description: describe(n),
     }));
     const edges: { from: string; to: string }[] = [];
     for (const n of readable) {
