@@ -11,9 +11,10 @@ import { livePreview } from "./livePreview.js";
 
 /** Markdown highlight tuned to the theme tokens; live-preview styling, source stays visible. */
 const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "700" },
-  { tag: tags.heading2, fontSize: "1.25em", fontWeight: "650" },
-  { tag: tags.heading3, fontSize: "1.1em", fontWeight: "600" },
+  { tag: tags.heading1, fontSize: "1.9em", fontWeight: "800", lineHeight: "1.25" },
+  { tag: tags.heading2, fontSize: "1.45em", fontWeight: "750", lineHeight: "1.3" },
+  { tag: tags.heading3, fontSize: "1.2em", fontWeight: "700" },
+  { tag: tags.heading4, fontSize: "1.05em", fontWeight: "700" },
   { tag: tags.strong, fontWeight: "700" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.link, color: "var(--accent)" },
@@ -101,9 +102,9 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
             if (u.docChanged) onChangeRef.current(u.state.doc.toString());
           }),
           EditorView.theme({
-            "&": { height: "100%", fontSize: "15px" },
-            ".cm-scroller": { fontFamily: "var(--font-ui)", lineHeight: "var(--editor-line-height)", padding: "0 4px 40vh" },
-            ".cm-content": { caretColor: "var(--accent)", maxWidth: "760px", margin: "0 auto" },
+            "&": { height: "100%", fontSize: "15.5px" },
+            ".cm-scroller": { fontFamily: "var(--font-ui)", lineHeight: "var(--editor-line-height)", padding: "0 16px 40vh" },
+            ".cm-content": { caretColor: "var(--accent)", maxWidth: "720px", margin: "0 auto", paddingTop: "6px" },
             "&.cm-focused": { outline: "none" },
             ".cm-cursor": { borderLeftColor: "var(--accent)" },
             ".cm-activeLine": { background: "transparent" },

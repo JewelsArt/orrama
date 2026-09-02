@@ -1,153 +1,169 @@
-/* Basalt design tokens (spec §11). Token-first: components only ever use vars.
-   Glass design language: frosted translucent surfaces over a soft radial-blob
-   backdrop. Two themes, swapped by the animated rail toggle:
-     [data-theme="command"] — graphite monochrome, silver accent, purple mark
-     [data-theme="light"]   — frosted white, sapphire accent, purple mark
-   The mock lives in ~/basalt-dash-mock (architecture-glass.html is canonical). */
+/* Basalt design tokens. Token-first: components only ever use vars, so a theme
+   is a token set and nothing else.
+
+   Flat light-first language (replaces the old frosted-glass one): solid
+   surfaces, 1px hairline borders, generous whitespace, one violet accent used
+   sparingly, near-black primary buttons. No blur, no gradients, no glow.
+
+     :root / [data-theme="light"]   — paper white (the design target)
+     [data-theme="command"]         — the same design inverted onto near-black
+
+   The glass-era names (--glass*, --blur, --blob-*) are kept and redefined as
+   flat values so every component keeps working; new work should reach for
+   --surface / --panel / --border instead. */
 
 :root,
-[data-theme="command"] {
-  /* Command Center — graphite glass (dark default). */
-
-  /* backdrop gradient stops + glow blobs (consumed by base.css body) */
-  --bg-0: #0a0a0b;
-  --bg-1: #161618;
-  --bg-2: #323234;
-  --blob-a: #706f70;
-  --blob-b: #9a9ba0;
-  --blob-c: #47474b;
-
-  /* solid app ground (fallback under the gradient) */
-  --bg: #0a0a0b;
-
-  /* frosted glass surfaces */
-  --glass: rgba(255, 255, 255, 0.06);
-  --glass-2: rgba(255, 255, 255, 0.04);
-  --glass-strong: rgba(255, 255, 255, 0.1);
-  --glass-brd: rgba(255, 255, 255, 0.13);
-  --glass-hi: rgba(255, 255, 255, 0.2);
-  --card-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.55);
-  --blur: blur(22px) saturate(150%);
-  --dot: rgba(255, 255, 255, 0.05);
-
-  /* raised / overlay surfaces mapped onto the glass family */
-  --bg-raised: rgba(255, 255, 255, 0.055);
-  --bg-overlay: rgba(20, 20, 24, 0.82);
-  --panel: rgba(255, 255, 255, 0.045);
-  --panel-strong: rgba(255, 255, 255, 0.09);
-  --border: rgba(255, 255, 255, 0.11);
-  --border-strong: rgba(255, 255, 255, 0.2);
-
-  /* text (cool light-gray family) */
-  --text: #edeef1;
-  --text-dim: rgba(235, 237, 241, 0.62);
-  --text-faint: rgba(235, 237, 241, 0.4);
-
-  /* accents — silver interactive spark, purple wordmark */
-  --accent: #cdd2db;
-  --accent-deep: #aab0bb;
-  --accent-soft: rgba(205, 210, 219, 0.14);
-  --accent-dim: rgba(205, 210, 219, 0.14);
-  --logo: #6f5ae8;
-  --focus: #8f7bf0;
-
-  /* category / badge hues — muted so they sit quietly on graphite */
-  --blue: #6fabec;
-  --green: #57c99b;
-  --orange: #e2a662;
-  --purple: #b587e8;
-  --pink: #e284a6;
-  --cat-a: #cdd2db;
-  --cat-b: #7c7a80;
-
-  --t-finance: #57c99b;
-  --t-marketing: #e284a6;
-  --t-leadership: #e2a662;
-  --t-operations: #6fabec;
-  --t-engineering: #b587e8;
-  --t-university: #52a8c0;
-  --t-design: #d46ba8;
-
-  --danger: #e5838f;
-  --warn: #e2a662;
-  --ok: #57c99b;
-  --shadow: var(--card-shadow);
-
-  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 22px;
-  --editor-line-height: 1.65;
-  color-scheme: dark;
-}
-
 [data-theme="light"],
 [data-theme="paper"] {
-  /* Light — frosted white glass, sapphire accent. */
+  /* ---- ground + surfaces ---------------------------------------------- */
+  --bg: #f7f7f8;
+  --bg-0: #f7f7f8;
+  --bg-1: #f7f7f8;
+  --bg-2: #f7f7f8;
+  --blob-a: transparent;
+  --blob-b: transparent;
+  --blob-c: transparent;
 
-  --bg-0: #eef1f8;
-  --bg-1: #e7ecf6;
-  --bg-2: #e7ecf6;
-  --blob-a: #cdd0dc;
-  --blob-b: #2f7eda;
-  --blob-c: #c6d1d7;
+  --surface: #ffffff;
+  --glass: #ffffff;
+  --glass-2: #ffffff;
+  --glass-strong: #ffffff;
+  --glass-brd: rgba(17, 18, 22, 0.09);
+  /* Inset "top highlight" of the glass era — invisible in a flat language. */
+  --glass-hi: transparent;
+  --blur: none;
+  --dot: rgba(17, 18, 22, 0.08);
 
-  --bg: #eef1f8;
+  --bg-raised: #f2f2f4;
+  /* Floating panels are solid surfaces; the dimmer behind them is --scrim. */
+  --bg-overlay: #ffffff;
+  --scrim: rgba(17, 18, 22, 0.28);
+  --panel: #f6f6f7;
+  --panel-strong: #ededf0;
+  --border: rgba(17, 18, 22, 0.09);
+  --border-strong: rgba(17, 18, 22, 0.16);
 
-  --glass: rgba(255, 255, 255, 0.55);
-  --glass-2: rgba(255, 255, 255, 0.4);
-  --glass-strong: rgba(255, 255, 255, 0.66);
-  --glass-brd: rgba(255, 255, 255, 0.85);
-  --glass-hi: rgba(255, 255, 255, 0.95);
-  --card-shadow: 0 10px 34px -14px rgba(40, 53, 94, 0.2);
-  --blur: blur(22px) saturate(150%);
-  --dot: rgba(40, 53, 94, 0.1);
+  /* Shadows are for things that genuinely float; cards use borders instead. */
+  --card-shadow: none;
+  --shadow: 0 1px 2px rgba(17, 18, 22, 0.05);
+  --shadow-pop: 0 10px 32px -12px rgba(17, 18, 22, 0.18), 0 2px 6px -2px rgba(17, 18, 22, 0.08);
 
-  --bg-raised: rgba(255, 255, 255, 0.55);
-  --bg-overlay: rgba(255, 255, 255, 0.9);
-  --panel: rgba(255, 255, 255, 0.45);
-  --panel-strong: rgba(255, 255, 255, 0.72);
-  --border: rgba(40, 53, 94, 0.1);
-  --border-strong: rgba(40, 53, 94, 0.2);
+  /* ---- text ------------------------------------------------------------ */
+  --text: #101114;
+  --text-dim: #5f636c;
+  --text-faint: #90959f;
 
-  --text: #1c2230;
-  --text-dim: #55617a;
-  --text-faint: #8b94a8;
+  /* ---- accent: one violet, used sparingly ------------------------------ */
+  --accent: #5b51dd;
+  --accent-deep: #4a41c4;
+  --accent-soft: rgba(91, 81, 221, 0.1);
+  --accent-dim: rgba(91, 81, 221, 0.14);
+  --logo: #5b51dd;
+  --focus: #5b51dd;
+  /* Primary buttons are near-black, not accent-coloured. */
+  --solid: #16171b;
+  --solid-text: #ffffff;
 
-  --accent: #2f7eda;
-  --accent-deep: #245fb0;
-  --accent-soft: rgba(47, 126, 218, 0.12);
-  --accent-dim: rgba(47, 126, 218, 0.12);
-  --logo: #6f5ae8;
-  --focus: #6f5ae8;
+  /* ---- data hues: muted, only where colour carries meaning ------------- */
+  --blue: #3b7ddd;
+  --green: #1a9d5f;
+  --orange: #cf7a1b;
+  --purple: #7a5bd6;
+  --pink: #c8407f;
+  --cat-a: #5b51dd;
+  --cat-b: #9aa0ab;
 
-  --blue: #2f9bff;
-  --green: #12a150;
-  --orange: #e07b1a;
-  --purple: #7c3aed;
-  --pink: #db2777;
-  --cat-a: #2f7eda;
-  --cat-b: #b8a9d4;
+  --t-finance: #1a9d5f;
+  --t-marketing: #c8407f;
+  --t-leadership: #cf7a1b;
+  --t-operations: #3b7ddd;
+  --t-engineering: #7a5bd6;
+  --t-university: #0f7f95;
+  --t-design: #b23a92;
 
-  --t-finance: #12a150;
-  --t-marketing: #db2777;
-  --t-leadership: #e0821a;
-  --t-operations: #2f7eda;
-  --t-engineering: #7c3aed;
-  --t-university: #0e7490;
-  --t-design: #c026a0;
+  --danger: #d33b52;
+  --warn: #cf7a1b;
+  --ok: #1a9d5f;
 
-  --danger: #db2777;
-  --warn: #e07b1a;
-  --ok: #12a150;
-  --shadow: var(--card-shadow);
+  /* ---- type + geometry -------------------------------------------------- */
+  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --editor-line-height: 1.7;
+  color-scheme: light;
+}
+
+[data-theme="command"] {
+  /* The same flat language inverted: near-black ground, one step up per layer. */
+  --bg: #0e0f11;
+  --bg-0: #0e0f11;
+  --bg-1: #0e0f11;
+  --bg-2: #0e0f11;
+  --blob-a: transparent;
+  --blob-b: transparent;
+  --blob-c: transparent;
+
+  --surface: #141518;
+  --glass: #141518;
+  --glass-2: #141518;
+  --glass-strong: #191a1e;
+  --glass-brd: rgba(255, 255, 255, 0.08);
+  --glass-hi: transparent;
+  --blur: none;
+  --dot: rgba(255, 255, 255, 0.07);
+
+  --bg-raised: #1b1c20;
+  --bg-overlay: #17181c;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --panel: #191a1e;
+  --panel-strong: #212227;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --card-shadow: none;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 14px 40px -14px rgba(0, 0, 0, 0.7), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
+
+  --text: #ecedf0;
+  --text-dim: #a1a5ad;
+  --text-faint: #73777f;
+
+  --accent: #8f86f2;
+  --accent-deep: #a79ff5;
+  --accent-soft: rgba(143, 134, 242, 0.14);
+  --accent-dim: rgba(143, 134, 242, 0.18);
+  --logo: #8f86f2;
+  --focus: #8f86f2;
+  --solid: #ffffff;
+  --solid-text: #101114;
+
+  --blue: #6fabec;
+  --green: #4cc38a;
+  --orange: #e0a35e;
+  --purple: #a98cf0;
+  --pink: #e07fa8;
+  --cat-a: #8f86f2;
+  --cat-b: #7c8089;
+
+  --t-finance: #4cc38a;
+  --t-marketing: #e07fa8;
+  --t-leadership: #e0a35e;
+  --t-operations: #6fabec;
+  --t-engineering: #a98cf0;
+  --t-university: #56aec4;
+  --t-design: #d46ba8;
+
+  --danger: #e5697e;
+  --warn: #e0a35e;
+  --ok: #4cc38a;
 
   --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --radius: 12px;
   --radius-sm: 8px;
-  --radius-lg: 22px;
-  --editor-line-height: 1.65;
-  color-scheme: light;
+  --radius-lg: 16px;
+  --editor-line-height: 1.7;
+  color-scheme: dark;
 }

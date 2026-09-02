@@ -31,9 +31,21 @@ function useBentoReorder(ids: string[]) {
   const visualRectsRef = useRef<Map<string, DOMRect>>(new Map());
 
   // FLIP: after every reorder, slide the non-dragged cards from where they were.
+  // The effect itself still runs after every render — that pass also clears stale
+  // transforms and refreshes the drag hit-test rects, so restricting it to
+  // `[order]` leaves cards stranded mid-animation. Only the *animation* is gated,
+  // on the order having actually changed: an unrelated re-render (the theme
+  // toggle, a data refresh) shifts card metrics by a pixel or two, which this
+  // used to read as a reorder and answer with a 0.6s transform on all six
+  // backdrop-filter cards. Mid-theme-transition that both cost frames and got
+  // baked into the view-transition snapshot, so the dashboard appeared displaced
+  // for the length of the reveal.
+  const prevOrder = useRef(order);
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
+    const reordered = prevOrder.current !== order;
+    prevOrder.current = order;
 
     // 1. Immediately clear transforms to prepare for static layout measurement
     grid.querySelectorAll<HTMLElement>("[data-card]").forEach((el) => {
@@ -52,7 +64,7 @@ function useBentoReorder(ids: string[]) {
       let visual = visualRectsRef.current.get(id);
       if (!visual) visual = rects.current.get(id);
       
-      if (visual && id !== draggingId.current) {
+      if (visual && id !== draggingId.current && reordered) {
         const dx = visual.left - target.left;
         const dy = visual.top - target.top;
         

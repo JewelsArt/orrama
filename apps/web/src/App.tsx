@@ -5,8 +5,9 @@ import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
 import { Contacts } from "./Contacts.js";
+import { Project } from "./Project.js";
 import { Dashboard } from "./Dashboard.js";
-import { IconAdmin, IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMail, IconMark, IconMoon, IconOverview, IconPlanning, IconSearch, IconSun, IconTerminal } from "./icons.js";
+import { IconArchitecture, IconAsk, IconContacts, IconDashboard, IconMail, IconMark, IconMoon, IconOverview, IconPlanning, IconSearch, IconSun } from "./icons.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
 import { Overview } from "./Overview.js";
@@ -14,7 +15,6 @@ import { Planning } from "./Planning.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
-import { Terminal } from "./Terminal.js";
 import { connectWs, disconnectWs } from "./ws.js";
 
 export type View =
@@ -22,9 +22,9 @@ export type View =
   | { kind: "architecture"; noteId?: string }
   | { kind: "planning" }
   | { kind: "overview" }
+  | { kind: "project"; slug: string }
   | { kind: "contacts" }
   | { kind: "mail" }
-  | { kind: "terminal" }
   | { kind: "admin" };
 
 const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
@@ -34,15 +34,16 @@ const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; own
   { kind: "overview", label: "Overview", icon: IconOverview },
   { kind: "contacts", label: "Contacts", icon: IconContacts },
   { kind: "mail", label: "Mail", icon: IconMail },
-  { kind: "terminal", label: "Terminal", icon: IconTerminal, ownerOnly: true },
-  { kind: "admin", label: "Admin", icon: IconAdmin, ownerOnly: true },
 ];
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [view, setView] = useState<View>({ kind: "dashboard" });
-  const [theme, setTheme] = useState(localStorage.getItem("basalt-theme") ?? "command");
+  // Light is the design target now; "command" is the same language inverted.
+  const [theme, setTheme] = useState(localStorage.getItem("basalt-theme") ?? "light");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // A project workspace is opened from the board, so the rail keeps Overview lit.
+  const activeKind: View["kind"] = view.kind === "project" ? "overview" : view.kind;
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -72,20 +73,32 @@ export function App() {
       const root = document.documentElement;
       root.style.setProperty("--rx", `${e.clientX}px`);
       root.style.setProperty("--ry", `${e.clientY}px`);
-      // Apply synchronously so the View Transition captures the new theme.
+      // dataset is written directly, not via React state: startViewTransition
+      // captures the new state as soon as this callback returns, and a setState
+      // wouldn't have flushed by then. setTheme only keeps React in step after.
+      let ripple: HTMLDivElement | null = null;
       const swap = () => {
         root.dataset.theme = next;
+        // Mounted inside the callback so it exists only in the "new" capture —
+        // that's what gives it an entry animation of its own. It must stay
+        // viewport-sized (see .theme-ripple): anything that overflows the
+        // document enlarges the root snapshot and displaces the whole page.
+        ripple = document.createElement("div");
+        ripple.className = "theme-ripple";
+        document.body.appendChild(ripple);
         setTheme(next);
       };
       const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
       if (!start) {
-        swap();
+        root.dataset.theme = next;
+        setTheme(next);
         return;
       }
       root.classList.add("rippling");
-      start
-        .call(document, swap)
-        .finished.finally(() => root.classList.remove("rippling"));
+      start.call(document, swap).finished.finally(() => {
+        root.classList.remove("rippling");
+        ripple?.remove();
+      });
     },
     [isLight],
   );
@@ -132,8 +145,8 @@ export function App() {
             <button
               key={n.kind}
               role="tab"
-              aria-selected={view.kind === n.kind}
-              className={`rail-item ${view.kind === n.kind ? "active" : ""}`}
+              aria-selected={activeKind === n.kind}
+              className={`rail-item ${activeKind === n.kind ? "active" : ""}`}
               onClick={() => setView({ kind: n.kind } as View)}
             >
               <n.icon />
@@ -170,7 +183,7 @@ export function App() {
           <CharacterAvatar id={me.avatar} size={32} />
           <span className="account-text">
             <span className="account-name">{me.displayName}</span>
-            <span className="account-team">{firstTeam ? firstTeam.name : me.isOwner ? "Workspace owner" : "No team yet"}</span>
+            <span className="account-team">your vault</span>
           </span>
         </button>
       </nav>
@@ -181,15 +194,15 @@ export function App() {
         ) : view.kind === "architecture" ? (
           <Architecture me={me} noteId={view.noteId} />
         ) : view.kind === "planning" ? (
-          <Planning me={me} onOpenNote={openNote} />
+          <Planning me={me} onOpenNote={openNote} onOpenProject={(slug) => setView({ kind: "project", slug })} />
         ) : view.kind === "overview" ? (
-          <Overview me={me} onOpenNote={openNote} />
+          <Overview me={me} onOpenNote={openNote} onOpenProject={(slug) => setView({ kind: "project", slug })} />
+        ) : view.kind === "project" ? (
+          <Project me={me} slug={view.slug} onBack={() => setView({ kind: "overview" })} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
           <Contacts me={me} onOpenNote={openNote} />
         ) : view.kind === "mail" ? (
           <Mail me={me} />
-        ) : view.kind === "terminal" ? (
-          <Terminal me={me} />
         ) : (
           <Admin />
         )}

@@ -7,6 +7,7 @@
  *  - [[wiki links]] conceal their brackets and show the alias
  *  - #tags, @mentions, due: dates, !p priorities and ^block-ids become chips
  *  - heading markers (##) hide until you edit the line
+ *  - tables render as tables, `---` as a rule, fenced code gets a slab
  */
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
 import {
@@ -27,6 +28,58 @@ const DUE_RE = /(^|\s)(due:)(\d{4}-\d{2}-\d{2})/g;
 const PRIO_RE = /(^|\s)!p([123])\b/g;
 const BLOCK_ID_RE = /\s\^[\w-]+\s*$/;
 const FENCE_RE = /^(```|~~~)/;
+
+const TABLE_SEP_RE = /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
+const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
+
+/** Split a markdown row on unescaped pipes, dropping the outer ones. */
+const cells = (line: string): string[] => {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+};
+
+/** A markdown table, rendered. Text only — the source is one keystroke away. */
+class TableWidget extends WidgetType {
+  constructor(private readonly rows: string[][]) {
+    super();
+  }
+  eq(other: TableWidget) {
+    return JSON.stringify(other.rows) === JSON.stringify(this.rows);
+  }
+  toDOM() {
+    const wrap = document.createElement("div");
+    wrap.className = "cm-table-wrap";
+    const table = document.createElement("table");
+    table.className = "cm-table";
+    const [head, ...body] = this.rows;
+    if (head) {
+      const thead = table.createTHead().insertRow();
+      for (const c of head) {
+        const th = document.createElement("th");
+        th.textContent = c;
+        thead.appendChild(th);
+      }
+    }
+    const tbody = table.createTBody();
+    for (const row of body) {
+      const tr = tbody.insertRow();
+      for (const c of row) tr.insertCell().textContent = c;
+    }
+    wrap.appendChild(table);
+    return wrap;
+  }
+  ignoreEvent() {
+    return false;
+  }
+}
+
+class RuleWidget extends WidgetType {
+  toDOM() {
+    const hr = document.createElement("div");
+    hr.className = "cm-hr";
+    return hr;
+  }
+}
 
 class CheckboxWidget extends WidgetType {
   constructor(
@@ -256,6 +309,70 @@ export function livePreview(opts: Options): Extension {
     { decorations: (v) => v.decorations },
   );
 
+  /**
+   * Block-level preview: tables, horizontal rules and fenced code. A StateField,
+   * not a view plugin — CodeMirror only accepts block decorations from state,
+   * and these span whole lines. A block yields to its source the moment the
+   * cursor lands inside it.
+   */
+  const blockPreview = (): Extension => {
+    const compute = (state: EditorState): DecorationSet => {
+      const doc = state.doc;
+      const cursorLine = doc.lineAt(state.selection.main.head).number;
+      const fm = frontmatterRange(state);
+      const bodyStartLine = fm ? doc.lineAt(fm.to).number + 1 : 1;
+      const out: { from: number; to: number; deco: Decoration }[] = [];
+
+      let ln = bodyStartLine;
+      let inFence = false;
+      while (ln <= doc.lines) {
+        const line = doc.line(ln);
+        const text = line.text;
+
+        if (FENCE_RE.test(text.trimStart())) {
+          inFence = !inFence;
+          out.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-code-line cm-code-edge" }) });
+          ln++;
+          continue;
+        }
+        if (inFence) {
+          out.push({ from: line.from, to: line.from, deco: Decoration.line({ class: "cm-code-line" }) });
+          ln++;
+          continue;
+        }
+
+        // table: a header row followed by a |---|---| separator
+        const next = ln + 1 <= doc.lines ? doc.line(ln + 1) : null;
+        if (text.includes("|") && next && next.text.includes("|") && TABLE_SEP_RE.test(next.text)) {
+          let end = ln + 1;
+          while (end + 1 <= doc.lines && doc.line(end + 1).text.includes("|") && doc.line(end + 1).text.trim() !== "") end++;
+          if (cursorLine < ln || cursorLine > end) {
+            const rows: string[][] = [cells(text)];
+            for (let r = ln + 2; r <= end; r++) rows.push(cells(doc.line(r).text));
+            out.push({ from: line.from, to: doc.line(end).to, deco: Decoration.replace({ widget: new TableWidget(rows), block: true }) });
+          }
+          ln = end + 1;
+          continue;
+        }
+
+        if (HR_RE.test(text) && ln !== cursorLine) {
+          out.push({ from: line.from, to: line.to, deco: Decoration.replace({ widget: new RuleWidget(), block: true }) });
+        }
+        ln++;
+      }
+      out.sort((a, b) => a.from - b.from || a.to - b.to);
+      return Decoration.set(out.map((d) => d.deco.range(d.from, d.to)), true);
+    };
+    return StateField.define<DecorationSet>({
+      create: compute,
+      update(deco, tr) {
+        if (tr.docChanged || tr.selection) return compute(tr.state);
+        return deco.map(tr.changes);
+      },
+      provide: (f) => EditorView.decorations.from(f),
+    });
+  };
+
   // Follow wiki links with cmd/ctrl+click.
   const linkClick = EditorView.domEventHandlers({
     mousedown(e, view) {
@@ -268,5 +385,5 @@ export function livePreview(opts: Options): Extension {
     },
   });
 
-  return [frontmatterCollapse(), plugin, linkClick];
+  return [frontmatterCollapse(), blockPreview(), plugin, linkClick];
 }

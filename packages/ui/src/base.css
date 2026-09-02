@@ -15,23 +15,9 @@ body {
   font-family: var(--font-ui);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  /* Soft radial-blob glow over a diagonal ground — the glass sits on top. */
-  background:
-    radial-gradient(60% 55% at 16% 10%, color-mix(in srgb, var(--blob-a) 40%, transparent) 0%, transparent 62%),
-    radial-gradient(55% 50% at 90% 6%, color-mix(in srgb, var(--blob-b) 24%, transparent) 0%, transparent 58%),
-    radial-gradient(70% 65% at 80% 98%, color-mix(in srgb, var(--blob-c) 48%, transparent) 0%, transparent 62%),
-    linear-gradient(150deg, var(--bg-1) 0%, var(--bg-0) 48%, var(--bg-2) 100%);
-  background-attachment: fixed;
-}
-
-[data-theme="light"] body,
-[data-theme="paper"] body {
-  background:
-    radial-gradient(55% 55% at 15% 10%, color-mix(in srgb, var(--blob-a) 80%, transparent) 0%, transparent 60%),
-    radial-gradient(55% 55% at 90% 6%, color-mix(in srgb, var(--blob-b) 22%, transparent) 0%, transparent 55%),
-    radial-gradient(60% 60% at 80% 95%, color-mix(in srgb, var(--blob-c) 70%, transparent) 0%, transparent 60%),
-    linear-gradient(150deg, var(--bg-0) 0%, var(--bg-1) 100%);
-  background-attachment: fixed;
+  /* Flat ground. The old radial-blob glow is gone: surfaces separate by border
+     and one step of lightness, not by glow. */
+  background: var(--bg);
 }
 
 #root {
@@ -78,14 +64,36 @@ a {
 
 /* Animated theme toggle — a water-ripple reveal from the click point.
    The rail's toggle button sets --rx/--ry and adds .rippling before swapping.
-   The clip-path guarantees the reveal; the mask paints soft rings trailing the
-   wavefront (registered --wave so it animates) for a rippling feel, and degrades
-   to a clean circular wipe where the mask isn't honored. */
-@property --wave {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 0%;
-}
+
+   PERF — the constraint that shapes everything here. Only transform, opacity,
+   filter and backdrop-filter are compositor-animatable. `clip-path` is NOT, and
+   neither is `mask-image`, so a circular wipe re-rasters the whole snapshot every
+   frame: ~7 megapixels at DPR 2, over a page carrying 27 backdrop-filter
+   surfaces. That was slow in both WebKit (the Tauri shell) and Chromium, which is
+   what real paint cost looks like as opposed to an engine quirk. Shortening it
+   only traded the jank for no visible animation at all.
+
+   So the motion is built from transform + opacity, which the compositor owns
+   outright and which therefore hold frame rate at ANY duration — that's what buys
+   back a slow, soft 600ms. `transform-origin` carries the click point, so the new
+   theme still blooms out of the toggle rather than dissolving uniformly; origin
+   is static per transition, so it costs nothing to animate around.
+
+   The droplet reads from `.theme-ripple` below: concentric rings baked into ONE
+   static radial-gradient, expanded by scaling the layer about the click point.
+   The gradient never changes, so there is nothing to repaint — the rings sweeping
+   outward are just a texture being transformed. The eye reads the ring front as
+   carrying the theme change, which is what sells it as a reveal even though the
+   theme underneath is a uniform cross-fade rather than a wipe.
+
+   Dead end, recorded so it isn't retried: a six-stop `mask-image` gradient driven
+   off a registered `--wave` property — a per-frame mask bitmap on top of the
+   per-frame raster. And note WHY the first attempt at these rings broke the page:
+   the layer was a 1206px div with negative margins, which pushed document height
+   to ~1203px against a 720px viewport. That overflow enlarged the root snapshot's
+   bounds, so the group animation scaled and displaced everything mid-transition.
+   `position: fixed; inset: 0` is exactly the viewport and cannot overflow — keep
+   it that way. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
@@ -98,38 +106,73 @@ a {
   z-index: 9999;
 }
 html.rippling::view-transition-new(root) {
-  animation: theme-reveal 1.1s cubic-bezier(0.33, 0, 0.15, 1);
-  -webkit-mask-image: radial-gradient(
-    circle at var(--rx, 50%) var(--ry, 50%),
-    #000 0,
-    #000 calc(var(--wave) - 13%),
-    rgba(0, 0, 0, 0.4) calc(var(--wave) - 9%),
-    #000 calc(var(--wave) - 5.5%),
-    rgba(0, 0, 0, 0.58) calc(var(--wave) - 2%),
-    #000 var(--wave)
-  );
-  mask-image: radial-gradient(
-    circle at var(--rx, 50%) var(--ry, 50%),
-    #000 0,
-    #000 calc(var(--wave) - 13%),
-    rgba(0, 0, 0, 0.4) calc(var(--wave) - 9%),
-    #000 calc(var(--wave) - 5.5%),
-    rgba(0, 0, 0, 0.58) calc(var(--wave) - 2%),
-    #000 var(--wave)
-  );
+  /* The click point, so the new theme grows out of the toggle. */
+  transform-origin: var(--rx, 50%) var(--ry, 50%);
+  /* Slightly behind the ring front, so the rings look like they carry the change. */
+  animation: theme-reveal 0.72s cubic-bezier(0.3, 0.7, 0.2, 1) 0.06s both;
 }
 @keyframes theme-reveal {
   from {
-    clip-path: circle(0% at var(--rx, 50%) var(--ry, 50%));
-    --wave: 0%;
+    opacity: 0;
+    transform: scale(0.972);
   }
   to {
-    clip-path: circle(175% at var(--rx, 50%) var(--ry, 50%));
-    --wave: 175%;
+    opacity: 1;
+    transform: scale(1);
   }
 }
+
+/* The droplet. One static gradient of concentric rings, scaled outward from the
+   click point — transform and opacity only, so the duration is free. Sits in the
+   new state only, hence a single entry animation and no `old` pseudo. */
+.theme-ripple {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  view-transition-name: theme-ripple;
+  background: radial-gradient(
+    circle at var(--rx, 50%) var(--ry, 50%),
+    transparent 0 4%,
+    color-mix(in srgb, var(--text) 20%, transparent) 6.5%,
+    color-mix(in srgb, var(--text) 5%, transparent) 9%,
+    transparent 11.5%,
+    color-mix(in srgb, var(--text) 13%, transparent) 15%,
+    color-mix(in srgb, var(--text) 3%, transparent) 18%,
+    transparent 21%,
+    color-mix(in srgb, var(--text) 7%, transparent) 25%,
+    transparent 30%
+  );
+}
+::view-transition-group(theme-ripple) {
+  z-index: 10001;
+}
+::view-transition-old(theme-ripple) {
+  display: none;
+}
+::view-transition-new(theme-ripple) {
+  transform-origin: var(--rx, 50%) var(--ry, 50%);
+  animation: theme-droplet 0.78s cubic-bezier(0.16, 0.85, 0.3, 1) both;
+}
+@keyframes theme-droplet {
+  from {
+    transform: scale(0.05);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(4.2);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  html.rippling::view-transition-new(root) {
+  html.rippling::view-transition-new(root),
+  ::view-transition-new(theme-ripple) {
     animation: none;
+  }
+  .theme-ripple {
+    display: none;
   }
 }

@@ -165,9 +165,3 @@ export const IconPromote = () => (
   </svg>
 );
 
-export const IconTerminal = ({ size = 16 }: { size?: number } = {}) => (
-  <svg {...base} width={size} height={size}>
-    <polyline points="4 11.5 8 8 4 4.5"></polyline>
-    <line x1="9" y1="12.5" x2="14" y2="12.5"></line>
-  </svg>
-);
