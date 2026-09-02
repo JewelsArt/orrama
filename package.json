@@ -2,7 +2,7 @@
   "name": "basalt",
   "private": true,
   "version": "0.1.0",
-  "description": "Basalt — team knowledge base on plain Markdown files. Obsidian you can share with your team without giving up your files.",
+  "description": "Basalt \u2014 team knowledge base on plain Markdown files. Obsidian you can share with your team without giving up your files.",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.9.0",
   "engines": {
@@ -12,7 +12,8 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "dev": "turbo run dev",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
