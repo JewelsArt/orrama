@@ -19,6 +19,36 @@ export const loginSchema = z.object({
   password: z.string(),
 });
 
+/**
+ * How the app looks, stored on the account so a second device inherits it.
+ *
+ * Validated strictly rather than trusted as opaque JSON, because every one of
+ * these colours is handed to `style.setProperty("--v-…", value)` on the client.
+ * A custom property is a string until something reads it, and `background:
+ * var(--v-pink)` would happily resolve a `url(…)` into a request. Six hex digits
+ * is the whole grammar; nothing else needs to be expressible.
+ */
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+export const visionProfileSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+  name: z.string().min(1).max(60),
+  colors: z.array(hexColor).length(7),
+  /** Basalt's own colour. Optional: profiles predate the slot. */
+  brand: hexColor.optional(),
+});
+
+export const appearanceSchema = z.object({
+  theme: z.enum(["light", "paper", "command"]).optional(),
+  vision: z
+    .string()
+    .regex(/^(none|deuteranopia|protanopia|tritanopia|custom:[A-Za-z0-9_-]{1,40})$/)
+    .optional(),
+  profiles: z.array(visionProfileSchema).max(20).optional(),
+});
+
+export type Appearance = z.infer<typeof appearanceSchema>;
+
 export const noteWriteSchema = z.object({
   path: z
     .string()

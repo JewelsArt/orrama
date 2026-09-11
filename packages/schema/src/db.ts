@@ -17,6 +17,9 @@ export const users = sqliteTable("users", {
   avatar: text("avatar").notNull().default("basalt"),
   /** Secret for the user's outbound ICS feed URL (null = feed disabled). */
   icsToken: text("ics_token"),
+  /** JSON: theme, colour-vision mode and hand-built palettes (appearanceSchema).
+   *  On the account rather than in localStorage so a phone inherits the desk. */
+  appearance: text("appearance"),
   createdAt: integer("created_at").notNull(),
 });
 

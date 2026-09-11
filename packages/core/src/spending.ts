@@ -1,0 +1,267 @@
+/**
+ * Spending categories and what they say about next month.
+ *
+ * The rules live in a Markdown table in the vault, not in this file: which
+ * merchants count as "groceries" is a personal judgement that changes as your
+ * life does, and it should be editable in Obsidian without a deploy. This
+ * module only knows how to apply rules and how to summarise the result.
+ */
+import { cells, isRule, mapHeader } from "./table.js";
+import type { StatementRow } from "./statement.js";
+
+export interface CategoryRule {
+  category: string;
+  /** Lower-cased substrings; a description matching any of them belongs here. */
+  matches: string[];
+  colour: string | null;
+  /**
+   * Wins over every unpinned rule regardless of match length.
+   *
+   * Used for the Subscriptions category, which is built from the subscriptions
+   * ledger rather than typed into the rules note. A recurring charge should be
+   * filed as recurring first and by merchant type second: Adobe is a
+   * subscription that happens to be software, and seeing it under Software
+   * hides the number you actually want, which is what the standing orders cost.
+   */
+  pinned?: boolean;
+}
+
+export interface CategoryMonth {
+  month: string;
+  /** Category → euros spent that month. */
+  byCategory: Record<string, number>;
+  total: number;
+}
+
+export interface CategoryForecast {
+  category: string;
+  /** Middle of the complete months — a median, so one large purchase does not
+   *  become next month's expectation. */
+  typical: number;
+  low: number;
+  high: number;
+  /** Complete months this is based on; below three there is no forecast. */
+  months: number;
+  /** Most recent complete month, for "last month you spent…". */
+  last: number | null;
+}
+
+const HEADERS: Record<string, string> = {
+  category: "category",
+  name: "category",
+  group: "category",
+  matches: "matches",
+  match: "matches",
+  merchants: "matches",
+  keywords: "matches",
+  colour: "colour",
+  color: "colour",
+};
+
+export const UNCATEGORISED = "Other";
+
+/** Read the rules table. Rows without a category or any match are skipped. */
+export function parseCategoryRules(content: string): CategoryRule[] {
+  const out: CategoryRule[] = [];
+  let cols: string[] | null = null;
+  for (const line of content.split(/\r?\n/)) {
+    if (!line.trim().startsWith("|")) {
+      cols = null;
+      continue;
+    }
+    const row = cells(line);
+    if (isRule(row)) continue;
+    if (!cols) {
+      const mapped = mapHeader(row, HEADERS);
+      if (mapped.includes("category") && mapped.includes("matches")) cols = mapped;
+      continue;
+    }
+    const get = (k: string) => {
+      const at = cols!.indexOf(k);
+      return at === -1 ? "" : (row[at] ?? "").trim();
+    };
+    const category = get("category");
+    const matches = get("matches")
+      .split(",")
+      .map((m) => m.trim().toLowerCase())
+      .filter(Boolean);
+    if (!category || matches.length === 0) continue;
+    out.push({ category, matches, colour: get("colour") || null });
+  }
+  return out;
+}
+
+/**
+ * Fold accents, so `doner` finds "THE DÖNER COMPANY" and `pathe` finds "PATHÉ".
+ * Card descriptors are inconsistent about diacritics and nobody should have to
+ * type the ö to catch their kebab.
+ */
+const fold = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Terms shorter than this only match as a whole description. "ns" as a
+ *  substring hits "haNS en grietje"; as an exact match it is the railway. */
+const MIN_SUBSTRING = 3;
+
+/**
+ * Which category a description falls in. The LONGEST matching term wins, so
+ * "uber eats" beats "uber" and a meal is not filed as a taxi.
+ *
+ * A term written `=ns` matches only when the whole description is "ns" — the
+ * escape hatch for short merchant names that would otherwise match half the
+ * statement as a substring.
+ */
+export function categoryOf(description: string, rules: CategoryRule[]): string {
+  const hay = fold(description).trim();
+  let best = "";
+  let bestLen = 0;
+  for (const rule of rules) {
+    for (const raw of rule.matches) {
+      const exact = raw.startsWith("=");
+      const m = fold(exact ? raw.slice(1) : raw).trim();
+      if (!m) continue;
+      // Exact terms are scored generously so a deliberate `=ns` is not lost to
+      // some longer accidental substring elsewhere in the rules; a pinned rule
+      // outranks both.
+      const score = (exact ? m.length + 100 : m.length) + (rule.pinned ? 1000 : 0);
+      if (score <= bestLen) continue;
+      if (exact ? hay === m : m.length >= MIN_SUBSTRING && hay.includes(m)) {
+        best = rule.category;
+        bestLen = score;
+      }
+    }
+  }
+  return best || UNCATEGORISED;
+}
+
+/**
+ * What a statement row actually cost: its outflow plus any fee on it.
+ *
+ * Card payments and ATM withdrawals are spending by definition. **A transfer is
+ * spending exactly when the rules note names it** — and that is the whole
+ * mechanism, because there is no way to tell from the bank's data whether
+ * "To Stichting DUWO" is rent, whether "AMAZON PAYMENTS EUROPE SCA" is a
+ * purchase, or whether "To WAEL BOUAYSS" is a loan, a repayment or a shared
+ * dinner. The vault knows; the parser cannot.
+ *
+ * Defaulting an unnamed transfer to NOT spending is the safe direction. Money
+ * moving between Jules's own accounts, and money sent to a friend and sent
+ * straight back, would otherwise both inflate the total — and inflating it is
+ * worse than omitting, because an omission is visible ("moved out, not counted")
+ * while an inflation just looks like a bad month.
+ *
+ * Money coming IN is never spending, whatever it matches.
+ */
+export const costOf = (r: StatementRow, rules: CategoryRule[] = []): number => {
+  if (r.amount >= 0) return r.fee;
+  const counts = r.flow === "spend" || (r.flow === "moved" && categoryOf(r.description, rules) !== UNCATEGORISED);
+  return (counts ? -r.amount : 0) + r.fee;
+};
+
+export function monthlyByCategory(rows: StatementRow[], rules: CategoryRule[]): CategoryMonth[] {
+  const months = new Map<string, CategoryMonth>();
+  for (const r of rows) {
+    const cost = costOf(r, rules);
+    if (cost <= 0) continue;
+    const key = r.date.slice(0, 7);
+    const m = months.get(key) ?? { month: key, byCategory: {}, total: 0 };
+    const cat = categoryOf(r.description, rules);
+    m.byCategory[cat] = Math.round(((m.byCategory[cat] ?? 0) + cost) * 100) / 100;
+    m.total = Math.round((m.total + cost) * 100) / 100;
+    months.set(key, m);
+  }
+  return [...months.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+const median = (xs: number[]): number => {
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : ((s[mid - 1]! + s[mid]!) / 2);
+};
+
+/**
+ * Drop the month the statement stops inside.
+ *
+ * This is the difference between a useful forecast and a badly wrong one: an
+ * export taken on the 3rd contains three days of that month, and averaging it
+ * in drags every category's expectation down by a third or more. A month counts
+ * only if the data runs past its end.
+ */
+export function completeMonths(months: CategoryMonth[], lastDate: string): CategoryMonth[] {
+  const cutoff = lastDate.slice(0, 7);
+  const dayOfMonth = Number.parseInt(lastDate.slice(8, 10), 10);
+  const lastDayOfCutoff = new Date(
+    Date.UTC(Number.parseInt(cutoff.slice(0, 4), 10), Number.parseInt(cutoff.slice(5, 7), 10), 0),
+  ).getUTCDate();
+  // The final month survives only if the statement reaches its last day.
+  return months.filter((m) => m.month < cutoff || (m.month === cutoff && dayOfMonth >= lastDayOfCutoff));
+}
+
+/**
+ * What each category typically costs, from complete months only.
+ *
+ * Deliberately a median and a range rather than a trend line or a regression:
+ * with under a year of history, "the middle of what you usually spend" is a
+ * claim the data supports. A slope is not.
+ */
+export function forecast(months: CategoryMonth[], minMonths = 3): CategoryForecast[] {
+  const names = new Set<string>();
+  for (const m of months) for (const c of Object.keys(m.byCategory)) names.add(c);
+
+  const out: CategoryForecast[] = [];
+  for (const category of names) {
+    // Absent from a month means zero spent, not missing — otherwise a category
+    // bought once looks like a reliable monthly cost.
+    const series = months.map((m) => m.byCategory[category] ?? 0);
+    if (months.length < minMonths) continue;
+    const r = (n: number) => Math.round(n * 100) / 100;
+    out.push({
+      category,
+      typical: r(median(series)),
+      low: r(Math.min(...series)),
+      high: r(Math.max(...series)),
+      months: months.length,
+      last: series.length ? r(series[series.length - 1]!) : null,
+    });
+  }
+  return out.sort((a, b) => b.typical - a.typical || a.category.localeCompare(b.category));
+}
+
+
+export interface CategoryMerchant {
+  name: string;
+  total: number;
+  count: number;
+}
+
+/**
+ * The merchants behind each category, biggest first.
+ *
+ * Descriptions are normalised only by case and whitespace — no clever
+ * stripping of store numbers or city names. A card descriptor is the closest
+ * thing to a receipt you have, and rewriting it to look tidier makes the app
+ * disagree with the bank about what you bought.
+ */
+export function merchantsByCategory(
+  rows: StatementRow[],
+  rules: CategoryRule[],
+  limit = 6,
+): Record<string, CategoryMerchant[]> {
+  const per = new Map<string, Map<string, CategoryMerchant>>();
+  for (const r of rows) {
+    const cost = costOf(r, rules);
+    if (cost <= 0) continue;
+    const cat = categoryOf(r.description, rules);
+    const name = r.description.trim().replace(/\s+/g, " ").toUpperCase();
+    const bucket = per.get(cat) ?? new Map<string, CategoryMerchant>();
+    const cur = bucket.get(name) ?? { name, total: 0, count: 0 };
+    cur.total = Math.round((cur.total + cost) * 100) / 100;
+    cur.count++;
+    bucket.set(name, cur);
+    per.set(cat, bucket);
+  }
+  const out: Record<string, CategoryMerchant[]> = {};
+  for (const [cat, bucket] of per) {
+    out[cat] = [...bucket.values()].sort((a, b) => b.total - a.total).slice(0, limit);
+  }
+  return out;
+}

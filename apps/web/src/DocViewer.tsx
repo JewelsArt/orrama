@@ -56,11 +56,18 @@ function SheetTable({ sheet }: { sheet: Sheet }) {
 }
 
 export function DocViewer({
-  slug,
+  base,
   name,
   onClose,
 }: {
-  slug: string;
+  /**
+   * The collection this file lives in, as an API path with no trailing slash —
+   * `/api/projects/<slug>/files` or `/api/finance/files`. Passing the prefix
+   * rather than a project slug is what lets the Finance area reuse this viewer
+   * unchanged; both collections expose the same three routes (the raw file,
+   * `/html`, `/sheet`).
+   */
+  base: string;
   name: string;
   onClose: () => void;
 }) {
@@ -85,7 +92,7 @@ export function DocViewer({
         if (ext === ".xlsx" || ext === ".xlsm") {
           const res = await api<{ sheets: Sheet[] }>(
             "GET",
-            `/api/projects/${encodeURIComponent(slug)}/files/${encodeURIComponent(name)}/sheet`,
+            `${base}/${encodeURIComponent(name)}/sheet`,
           );
           setBook(res.sheets);
           return;
@@ -93,12 +100,12 @@ export function DocViewer({
         if (ext === ".docx") {
           const res = await api<{ html: string }>(
             "GET",
-            `/api/projects/${encodeURIComponent(slug)}/files/${encodeURIComponent(name)}/html`,
+            `${base}/${encodeURIComponent(name)}/html`,
           );
           setHtml(res.html);
           return;
         }
-        const blob = await apiBlob(`/api/projects/${encodeURIComponent(slug)}/files/${encodeURIComponent(name)}`);
+        const blob = await apiBlob(`${base}/${encodeURIComponent(name)}`);
         if ([".txt", ".md", ".csv", ".json"].includes(ext)) {
           setText(await blob.text());
         } else {
@@ -112,10 +119,10 @@ export function DocViewer({
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [slug, name, ext]);
+  }, [base, name, ext]);
 
   const download = async () => {
-    const blob = await apiBlob(`/api/projects/${encodeURIComponent(slug)}/files/${encodeURIComponent(name)}`);
+    const blob = await apiBlob(`${base}/${encodeURIComponent(name)}`);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = name;
