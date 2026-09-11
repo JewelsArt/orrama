@@ -21,6 +21,7 @@ import { wsRoutes } from "./routes/ws.js";
 import { planRoutes } from "./routes/plan.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { contactRoutes } from "./routes/contacts.js";
+import { financeRoutes } from "./routes/finance.js";
 import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
 import { mailRoutes } from "./routes/mail.js";
@@ -121,15 +122,36 @@ Vault layout:
   await calendarRoutes(app, db, store);
   await contactRoutes(app, db, store);
   await homeRoutes(app, db, store);
+  await financeRoutes(app, db, store);
   await icsRoutes(app, db, store);
   await mailRoutes(app, db);
   await integrationRoutes(app, db, store);
   initWebhooks(db, store);
 
-  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length }));
-
   // Serve the built web app when present (self-host: one container serves everything).
   const webDist = path.resolve(import.meta.dirname, "../../web/dist");
+
+  /**
+   * Digest of the bundle currently on disk. `index.html` names the hashed asset
+   * files, so it changes exactly when a rebuild produces new ones — which makes
+   * it the answer to "is the running tab stale?". The web client remembers the
+   * value it booted with and lights up the rail's Reload button when the served
+   * build moves past it; without that the only way to pick up a `pnpm ship` in
+   * the desktop shell was to quit and reopen the app (the Tauri window has no
+   * menu, so ⌘R was unbound). Read per request, not cached at boot, so a plain
+   * `vite build` with no server restart is noticed too. Null in dev, where Vite
+   * serves the bundle and nothing is on disk to hash.
+   */
+  const buildId = (): string | null => {
+    try {
+      return crypto.createHash("sha1").update(fs.readFileSync(path.join(webDist, "index.html"))).digest("hex").slice(0, 12);
+    } catch {
+      return null;
+    }
+  };
+
+  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length, build: buildId() }));
+
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, {
       root: webDist,

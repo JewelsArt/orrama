@@ -7,10 +7,42 @@
  */
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import {
+  completeMonths,
+  forecast,
+  monthlyByCategory,
+  monthlyTotals,
+  parseCategoryRules,
+  parseSubscriptions,
+  savingsPlan,
+  parsePayslipTable,
+} from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
+import { balanceSpan, buildRules, financeNote, loadTxns } from "./finance.js";
+import { icsEventsFor } from "./ics.js";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * Claude Code drops a transcript per session into `Claude Sessions/` — 550 of
+ * the vault's 613 files. They are ordinary notes (indexed, searchable,
+ * linkable) and stay that way everywhere else; they are just not *knowledge
+ * base*. Counting them made "Total notes" a measure of how much Claude has run
+ * rather than how much Jules has written, and it swamped every derived figure:
+ * the category donut read 76% "Claude & tools", and one bulk re-index of the
+ * folder was the whole 14-day activity trend. So the dashboard counts the
+ * curated vault and reports the transcripts as their own number.
+ *
+ * Tasks are deliberately NOT filtered — no transcript contains a checkbox, so
+ * open/done counts were already clean, and a `- [ ]` that ever does appear in
+ * one is a real task Jules wrote mid-session.
+ *
+ * Mirrored client-side by `isSessionLog` in apps/web/src/categories.ts, which
+ * shapes the donut off the note tree. Change one, change the other.
+ */
+const SESSION_DIR = "Claude Sessions/";
+const isSessionLog = (notePath: string) => notePath.startsWith(SESSION_DIR);
 
 export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   app.get("/api/home", { preHandler: [app.authenticate] }, async (req) => {
@@ -18,20 +50,14 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const grants = store.grants();
     const projects = store.projects();
     const notes = store.readable(user);
+    const curated = notes.filter((n) => !isSessionLog(n.path));
     const tasks = store.index.tasks(user, grants, projects);
 
     const open = tasks.filter((t) => !t.checked);
     const done = tasks.filter((t) => t.checked);
 
-    // 14-day activity: readable notes last touched on each day.
     const today = new Date();
     today.setHours(12, 0, 0, 0);
-    const trend: { day: string; count: number }[] = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * 86_400_000);
-      const key = iso(d);
-      trend.push({ day: key, count: notes.filter((n) => n.mtimeMs && iso(new Date(n.mtimeMs)) === key).length });
-    }
 
     // This week's booked hours (my task blocks Mon–Sun).
     const monday = new Date(today);
@@ -49,7 +75,19 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         : [];
     const weekHours = Math.round((weekBlocks.reduce((s, b) => s + b.durationMin, 0) / 60) * 10) / 10;
 
-    // Agenda for the next 7 days: my events + my task blocks, dated and sorted.
+    // The Finance area: two ledgers, each a note carrying a Markdown table, found
+    // by tag so they can live anywhere. Same parser both ways — income names the
+    // first column "Source" instead of "Service", which is the only difference.
+    const subsNote = financeNote(store, user, "subscriptions");
+    const incomeNote = financeNote(store, user, "income");
+    const subsNoteId = subsNote?.id ?? null;
+    const subscriptions = subsNote ? parseSubscriptions(subsNote.content, iso(today)) : [];
+    const income = incomeNote ? parseSubscriptions(incomeNote.content, iso(today)) : [];
+
+    // Agenda for the next 7 days. Everything dated that is coming up, from all
+    // four places it can live — which is the point of the card, and why it used
+    // to be permanently empty: it read the `events` table alone and so was blind
+    // to subscribed calendars, to the tasks Jules actually dates, and to money.
     const todayKey = iso(today);
     const weekEndKey = iso(new Date(today.getTime() + 6 * 86_400_000));
     const objById = new Map(myObjects.map((o) => [o.id, o]));
@@ -65,18 +103,82 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .from(tables.events)
       .where(and(eq(tables.events.ownerId, user.id), gte(tables.events.date, todayKey), lte(tables.events.date, weekEndKey)))
       .all();
-    const agenda = [
-      ...rangeEvents.map((e) => ({ kind: "event" as const, date: e.date, title: e.title, startMin: e.startMin, durationMin: e.durationMin, noteId: null as string | null })),
+    // Subscribed calendars (Google et al) are expanded per request from the
+    // stored ICS, exactly as routes/calendar.ts does for Planning — there is no
+    // Google API here, just the secret .ics URL the user pasted into Settings.
+    const icsItems = await icsEventsFor(db, user.id, user.username, todayKey, weekEndKey).catch(() => []);
+
+    type AgendaRow = {
+      kind: "event" | "task" | "due" | "charge" | "income";
+      date: string;
+      title: string;
+      /** Minutes past midnight; null for all-day rows, which sort before timed ones. */
+      startMin: number | null;
+      durationMin: number | null;
+      noteId: string | null;
+      line: number | null;
+      source: string | null;
+      amount: number | null;
+      currency: string | null;
+    };
+    const row = (r: Partial<AgendaRow> & Pick<AgendaRow, "kind" | "date" | "title">): AgendaRow => ({
+      startMin: null, durationMin: null, noteId: null, line: null, source: null, amount: null, currency: null, ...r,
+    });
+
+    const agenda: AgendaRow[] = [
+      ...rangeEvents.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.startMin, durationMin: e.durationMin })),
+      ...icsItems.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.allDay ? null : e.startMin, durationMin: e.durationMin, source: e.feedLabel ?? "calendar" })),
       ...rangeBlocks.map((b) => {
         const obj = objById.get(b.taskObjectId);
         const note = obj ? store.index.get(obj.noteId) : undefined;
         const line = note?.tasks.find((t) => t.blockId === obj?.blockId);
-        return { kind: "task" as const, date: b.date, title: line?.text ?? note?.title ?? "Task", startMin: b.startMin, durationMin: b.durationMin, noteId: note?.id ?? null };
+        return row({ kind: "task", date: b.date, title: line?.text ?? note?.title ?? "Task", startMin: b.startMin, durationMin: b.durationMin, noteId: note?.id ?? null, line: line?.line ?? null });
       }),
-    ].sort((a, b) => a.date.localeCompare(b.date) || a.startMin - b.startMin);
+      // Tasks due inside the window. The Deadlines card is sorted oldest-first
+      // and so opens on what is already late; this is the other question — what
+      // lands this week — and today they do not overlap at all.
+      ...open
+        .filter((t) => t.due && t.due >= todayKey && t.due <= weekEndKey)
+        .map((t) => row({ kind: "due", date: t.due!, title: t.text, noteId: t.noteId, line: t.line, source: t.project })),
+      ...subscriptions
+        .filter((sub) => sub.next && sub.next >= todayKey && sub.next <= weekEndKey)
+        .map((sub) => row({ kind: "charge", date: sub.next!, title: sub.service, noteId: subsNoteId, amount: -sub.amount, currency: sub.currency })),
+      ...income
+        .filter((inc) => inc.next && inc.next >= todayKey && inc.next <= weekEndKey)
+        .map((inc) => row({ kind: "income", date: inc.next!, title: inc.service, noteId: incomeNote?.id ?? null, amount: inc.amount, currency: inc.currency })),
+    ].sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        (a.startMin ?? -1) - (b.startMin ?? -1) ||
+        a.title.localeCompare(b.title),
+    );
+
+    // Deadlines: every open task that carries a date, oldest first, so the card
+    // opens on what is actually late rather than on what was typed last. 44 of
+    // the 97 open tasks are dated and 20 of those are past — a number that had
+    // no home on the dashboard before. Undated work is not missing, it is what
+    // the priority-ordered `focus` list below is for.
+    const todayStr = iso(today);
+    const DAY = 86_400_000;
+    const deadlines = open
+      .filter((t) => t.due)
+      .sort((a, b) => a.due!.localeCompare(b.due!) || a.noteTitle.localeCompare(b.noteTitle))
+      .slice(0, 24)
+      .map((t) => ({
+        noteId: t.noteId,
+        noteTitle: t.noteTitle,
+        line: t.line,
+        text: t.text,
+        project: t.project,
+        due: t.due!,
+        priority: t.priority ?? null,
+        overdue: t.due! < todayStr,
+        // Signed whole days from today; negative is late. Both dates are parsed
+        // as UTC midnight so DST never turns a 7-day gap into 6.96.
+        days: Math.round((Date.parse(`${t.due!}T00:00:00Z`) - Date.parse(`${todayStr}T00:00:00Z`)) / DAY),
+      }));
 
     // Focus: the open tasks most worth doing next.
-    const todayStr = iso(today);
     const focus = [...open]
       .sort(
         (a, b) =>
@@ -100,14 +202,125 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return {
       user: { displayName: db.select().from(tables.users).where(eq(tables.users.id, user.id)).get()?.displayName ?? user.username, username: user.username },
       stats: {
-        notes: notes.length,
+        notes: curated.length,
+        sessions: notes.length - curated.length,
         openTasks: open.length,
         doneTasks: done.length,
+        overdueTasks: open.filter((t) => t.due && t.due < todayStr).length,
         weekHours,
       },
-      trend,
+      deadlines,
       agenda,
       focus,
+      /**
+       * What the month is actually doing, not just what the ledgers plan for.
+       *
+       * The card used to show income minus commitments and call it "left per
+       * month", which is a number about intentions: it knows nothing about the
+       * €1,000 of groceries, transport and everything else that leaves by card.
+       * This is the same pipeline the Finance tab runs, compacted to the four
+       * figures a dashboard has room for.
+       */
+      /**
+       * What the month actually cost, and what could be put aside.
+       *
+       * Anchored on the LAST COMPLETE month, not the one in progress. On the
+       * 3rd of September the current month is three days of data, and a
+       * dashboard leading with €187 against a typical €1,809 is a fact about
+       * the calendar rather than about spending. The month in progress is still
+       * reported, underneath, where it cannot be mistaken for the headline.
+       */
+      spending: (() => {
+        const txns = loadTxns(store.vaultRoot);
+        if (txns.length === 0) return null;
+        const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
+        const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
+        const catMonths = monthlyByCategory(txns, rules);
+        const last = txns[txns.length - 1]!.date;
+        const finished = completeMonths(catMonths, last);
+        const outlook = forecast(finished);
+        if (finished.length === 0) return null;
+
+        const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
+        const savings = savingsPlan({
+          categories: outlook.map((f) => ({
+            category: f.category,
+            totals: finished.map((m) => m.byCategory[f.category] ?? 0),
+            committed: rules.some((r) => r.pinned && r.category === f.category),
+          })),
+          spendMonths: finished.map((m) => m.total),
+          payslipNet: (slipNote ? parsePayslipTable(slipNote.content) : [])
+            .map((r) => r.net)
+            .filter((n): n is number => n !== null),
+          ledgerIncome: monthlyTotals(income).reduce((a, t) => a + t.monthly, 0),
+          // Read from the same helper the Finance tab uses. Passing null here
+          // sent the plan down the payslip fallback and produced a different
+          // savings target on the two screens, from one set of numbers.
+          drift: balanceSpan(store.vaultRoot).drift,
+        });
+
+        const month = finished[finished.length - 1]!;
+        const typical = Math.round(outlook.reduce((a, f) => a + f.typical, 0) * 100) / 100;
+        const running = catMonths.find((m) => m.month === last.slice(0, 7));
+        const [y, mo, d] = last.split("-").map(Number) as [number, number, number];
+        const colourOf = (name: string) => rules.find((r) => r.category === name)?.colour ?? null;
+
+        return {
+          /** The last COMPLETE month — the one the card leads with. */
+          month: month.month,
+          total: month.total,
+          typical,
+          /** Its biggest categories, each a door to that month filtered. */
+          categories: Object.entries(month.byCategory)
+            .map(([category, total]) => ({
+              category,
+              total: Math.round(total * 100) / 100,
+              typical: outlook.find((f) => f.category === category)?.typical ?? 0,
+              colour: colourOf(category),
+            }))
+            .sort((a, b) => b.total - a.total)
+            .slice(0, 5),
+          /** The month still running, reported but never as the headline. */
+          running:
+            running && running.month !== month.month
+              ? { month: running.month, total: running.total, dayOf: d, daysIn: new Date(Date.UTC(y, mo, 0)).getUTCDate() }
+              : null,
+          savings: {
+            target: savings.target,
+            surplus: savings.surplus,
+            trimmable: savings.trimmable,
+            observed: savings.observed,
+            targetRate: savings.targetRate,
+            top: savings.headroom.slice(0, 3).map((h) => ({ category: h.category, save: h.save, colour: colourOf(h.category) })),
+          },
+          basedOn: finished.length,
+        };
+      })(),
+      finance: {
+        out: {
+          noteId: subsNoteId,
+          totals: monthlyTotals(subscriptions),
+          items: [...subscriptions].sort((a, b) => (a.next ?? "9999").localeCompare(b.next ?? "9999")).slice(0, 8),
+          count: subscriptions.length,
+        },
+        in: {
+          noteId: incomeNote?.id ?? null,
+          totals: monthlyTotals(income),
+          items: [...income].sort((a, b) => (a.next ?? "9999").localeCompare(b.next ?? "9999")).slice(0, 8),
+          count: income.length,
+        },
+        /** In minus out, per currency. Only currencies that appear on both sides
+         *  can net honestly; one that appears on a single side is passed through
+         *  as-is rather than being converted at a rate we do not have. */
+        net: (() => {
+          const by = new Map<string, number>();
+          for (const s of income) by.set(s.currency, (by.get(s.currency) ?? 0) + s.monthly);
+          for (const s of subscriptions) by.set(s.currency, (by.get(s.currency) ?? 0) - s.monthly);
+          return [...by]
+            .map(([currency, monthly]) => ({ currency, monthly: Math.round(monthly * 100) / 100 }))
+            .sort((a, b) => Math.abs(b.monthly) - Math.abs(a.monthly));
+        })(),
+      },
     };
   });
 }

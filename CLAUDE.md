@@ -56,7 +56,7 @@ lives DB-only).
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: backlog→grid time-blocks, events, ICS overlay, est. via `/api/plan`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
+| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -143,6 +143,97 @@ one written into the file. That is what keeps renames link-safe (task objects ke
 on the note id), and it means pointing Basalt at a fresh vault modifies every
 file in it once. `scripts/merge-vaults.mjs` is the one-off that folded Basalt's
 old copy into the Obsidian vault (newest-wins per file, carrying ids across).
+
+## The Finance area
+
+`Finance.tsx` (web) + `routes/finance.ts` (server) + four core modules
+(`statement.ts`, `spending.ts`, `subscriptions.ts`, `payslip.ts`, `savings.ts`).
+Same rule as everywhere else: **nothing lives only in the database.** The
+ledgers are Markdown tables in notes found by tag (`#income`,
+`#subscriptions`, `#payslips`, `#spending-categories`), and statements and
+payslips are real files in `02-Areas/finance/files/`.
+
+**One route, several pages**, narrowing at each step and all reachable from each
+other — overview → all spending → one category → one month of it → one merchant
+→ the transactions. The `View` carries `category`, `merchant`, `page` and
+`month`; `month` wins over `category`, because a month opened from inside
+Shopping keeps `category` set and that is what filters it. Every chart column,
+every chart point, every category row, every merchant row and every month band
+is a button. Adding a surface here means adding a link out of it.
+
+**The savings model** (`packages/core/src/savings.ts`) is the one piece of real
+analysis, and it is deliberately derived from Jules's own months rather than
+from a rule of thumb: `target = surplus + Σ(typical month − good month)` over
+discretionary categories, where "good" is the 25th percentile of the months on
+record — a number he has already lived through, not an aspiration. Two traps it
+is built around. **Money in comes from the BANK**, not from payslips: where the
+statement carries balances, whatever came in is whatever went out plus the
+change in balance, and payslips see only one employer (on the real file the
+payslip median said €500/month while the balance was climbing €300 on top of
+€1,000 of spending — the payslip version reported a deficit for an account that
+was visibly growing). And **committed categories are never "trimmable"** —
+telling someone to spend less on a subscription this month is noise; only a
+cancellation moves it.
+
+`loadTxns` and `buildRules` are shared by all four endpoints on purpose: three
+copies of a de-duplication rule is three chances for two pages to disagree about
+what a month cost. When a month view is filtered to a category, its "typical"
+must be that category's median, not the whole month's — comparing €250 of
+shopping against a €1,000 all-category median is the bug the finance tests
+exist to catch.
+
+Charts are hand-drawn SVG with no chart library, and they sit on the page
+ground rather than inside a card (`.fin-plot`), with rounded gridlines
+(`niceTicks`) whose labels are dropped when they would collide with the
+typical/average datum. The palette is scoped to `.fin`; see the long comment in
+`packages/ui/src/tokens.css` for why the category colours are what they are, and
+why green is status-only rather than a category.
+
+**Finance is a documented exception to the flat design language** — elevation,
+gradient surfaces and larger radii are allowed inside `.fin` and nowhere else.
+The block in `app.css` says so; do not "fix" it to match the rest of the app,
+and do not copy it outward.
+
+## The Planning tab
+
+`Planning.tsx` + `routes/plan.ts` + `routes/calendar.ts`. A week/month calendar
+over task time-blocks and events, and the only place the app will fill your
+calendar for you.
+
+**The grid was empty because the vault's dates were not in it.** It drew blocks
+and events alone, so a week with no meetings was a blank 24-hour rectangle while
+the same vault held 44 dated tasks, a thesis deadline and a subscription charge.
+None of those own a time of day, so they are not grid items — they are the
+**dated band** between the day heads and the hours (`GET
+/api/calendar/markers`), carrying the same four sources the Dashboard agenda
+unifies: `due` (an open task's `due:`), `milestone` (a project's
+`start:`/`deadline:` front-matter), `charge` and `income` (the ledgers, expanded
+across the range with `advance`, because `next` is one date and a month view
+spans six weeks). A due chip opens the task's own `TaskCard`, so the deadline
+band is a way *into* the work rather than a label on it.
+
+**The hour window follows the content.** The day opens on 07:00–23:00 and
+`windowFor` widens it around anything outside — a 06:30 block moves the top of
+the grid, it never falls off it. The mono label in the head gutter is the
+toggle: it says which hours you are looking at, and clicking it forces the full
+24h (`localStorage`, `basalt-plan-fullday`). Do not "fix" this back to a fixed
+0–24 grid: two thirds of it is a picture of when nothing happens.
+
+**"Plan my week" proposes; it never writes** (`POST /api/plan/auto`). Most
+urgent first — overdue, then at-risk, then by deadline and priority — into the
+gaps that are actually free, 09:00–18:00 on weekdays, at most 2h a sitting and
+`hoursPerDay` of task time a day *counting what is already booked*. Nothing
+lands over an existing block, event or subscribed-calendar occurrence, nothing
+lands in the past, and nothing lands after its own deadline unless it is already
+overdue (every day is late by then). The response is a proposal the client draws
+as dashed ghosts — click one to drop it — and **booking loops the ordinary `POST
+/api/tasks/blocks`**, so one path still promotes the checkbox and writes the
+block, and nothing reaches the calendar the user has not looked at first.
+
+`buildPlan` is shared by `GET /api/plan` (the whole vault, what the tab asks
+for), `GET /api/plan/:teamSlug` (kept because the permission tests pin it — a
+non-member must get a 404) and the auto-scheduler, so the backlog, the estimate
+on a card and the proposal can never disagree about what a task costs.
 
 ## Removed on purpose
 
@@ -289,9 +380,7 @@ as widgets and chips, tables render as tables, `---` as a rule, fenced code as a
 slab, and the active line always shows raw source. **Block decorations must come
 from a StateField, never a ViewPlugin** — CodeMirror throws otherwise, which is
 why `frontmatterCollapse` and `blockPreview` are fields while the per-line pass
-is a plugin. Esc (or the ✕ in the note header) closes a note back to the map. Planning is a calendar: `planned_date` on task objects,
-`POST /api/tasks/schedule` (auto-promotes), drag from backlog to days, parallel
-read-only lanes for selected teammates.
+is a plugin. Esc (or the ✕ in the note header) closes a note back to the map.
 
 ## Dev loop
 

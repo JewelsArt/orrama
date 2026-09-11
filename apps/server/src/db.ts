@@ -121,6 +121,11 @@ export function createDb(file = dbPath()) {
     /* column exists */
   }
   try {
+    sqlite.exec(`ALTER TABLE users ADD COLUMN appearance TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
     sqlite.exec(`ALTER TABLE projects ADD COLUMN domain TEXT`);
   } catch {
     /* column exists */

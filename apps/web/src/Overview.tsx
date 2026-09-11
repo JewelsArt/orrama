@@ -2,15 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
 import { CharacterAvatar } from "./avatars.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
+import { CANCEL_STATES, DOMAIN_COLOR, SLEEP_STATES } from "./categories.js";
 import { Gantt } from "./Gantt.js";
 import { IconChevron } from "./icons.js";
 import { onWs } from "./ws.js";
 
 type Domain = "personal" | "professional" | "academic";
 const DOMAINS: { id: Domain; label: string; color: string }[] = [
-  { id: "personal", label: "Personal", color: "#57c99b" },
-  { id: "professional", label: "Professional", color: "#6fabec" },
-  { id: "academic", label: "Academic", color: "#b587e8" },
+  // The same three tokens DOMAIN_COLOR uses. They were duplicated as hex here,
+  // so a retint in categories.ts left the board's own lane headers behind.
+  { id: "personal", label: "Personal", color: "var(--area-personal)" },
+  { id: "professional", label: "Professional", color: "var(--area-professional)" },
+  { id: "academic", label: "Academic", color: "var(--area-academic)" },
 ];
 const STEP_CAP = 12;
 
@@ -19,8 +22,6 @@ const STEP_CAP = 12;
  * because the note is hand-editable and "paused" and "on hold" mean the same
  * thing to a person.
  */
-const SLEEP_STATES = new Set(["sleeping", "asleep", "paused", "on-hold", "on hold", "someday"]);
-const CANCEL_STATES = new Set(["cancelled", "canceled", "dropped", "abandoned"]);
 
 type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
 /** Order matters: this is how the dropdown lists them. `cls` maps to the .st.* colours. */
@@ -257,7 +258,7 @@ export function Overview({
         {shown.map((p, pi) => {
           const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
           const open = !collapsed.has(p.project);
-          const color = DOMAIN_COLOR[p.domain ?? "personal"] ?? PROJECT_COLORS[pi % PROJECT_COLORS.length] ?? "#6fabec";
+          const color = DOMAIN_COLOR[p.domain ?? "personal"] ?? PROJECT_COLORS[pi % PROJECT_COLORS.length] ?? "var(--area-professional)";
           const inProgress = p.tasks.filter((t) => !t.checked && t.object?.status === "in-progress").length;
           const donePct = p.total ? (p.done / p.total) * 100 : 0;
           const workPct = p.total ? (inProgress / p.total) * 100 : 0;
@@ -409,11 +410,13 @@ export function Overview({
                   </p>
                   ) : (
                     <>
+                      {/* Named so the narrow-container rules can drop a column
+                          and its heading together. */}
                       <div className="ov-steps-head">
-                        <span>Status</span>
-                        <span>Step</span>
-                        <span>Timeline</span>
-                        <span>Note</span>
+                        <span className="ov-th-status">Status</span>
+                        <span className="ov-th-step">Step</span>
+                        <span className="ov-th-timeline">Timeline</span>
+                        <span className="ov-th-note">Note</span>
                       </div>
                       {steps.map((t) => (
                         <Step key={`${t.noteId}:${t.line}`} t={t} onStatus={setStatus} onOpen={onOpenNote} />
@@ -515,8 +518,16 @@ function Step({
   );
 }
 
-const DOMAIN_COLOR: Record<string, string> = { personal: "#57c99b", professional: "#6fabec", academic: "#b587e8" };
-const PROJECT_COLORS = ["#6fabec", "#b587e8", "#e284a6", "#57c99b", "#e2a662", "#7ea6ff"];
+/** Fallback accents for a project with no life-area. Tokens, so they follow the
+ *  theme like everything else. */
+const PROJECT_COLORS = [
+  "var(--v-cyan)",
+  "var(--v-lilac)",
+  "var(--v-pink)",
+  "var(--v-green)",
+  "var(--v-amber)",
+  "var(--v-azure)",
+];
 
 function toggleSet(s: Set<string>, key: string): Set<string> {
   const next = new Set(s);

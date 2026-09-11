@@ -60,8 +60,33 @@ export class VaultStore {
   get vaultRoot(): string {
     return this.root;
   }
-  private inFlightWrites = new Set<string>();
+  /**
+   * Paths this process has just written, mapped to the exact bytes it wrote, so
+   * the watcher can recognise its own echo.
+   *
+   * This used to be a bare Set of paths, suppressed for a second after a write —
+   * which silently DISCARDED any external edit landing inside that window, and
+   * discarded it for good: nothing re-read the file afterwards, so the index
+   * kept a stale copy indefinitely. Adding a subscription through the app and
+   * then correcting a number in Obsidian a moment later did exactly that.
+   * Comparing content instead of racing a clock means our own write is skipped
+   * precisely when the file still holds what we put there, and a real edit is
+   * never dropped no matter how fast it follows.
+   */
+  private inFlightWrites = new Map<string, string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+  /** Cheap content fingerprint for the echo check above. */
+  private static digest(content: string): string {
+    return crypto.createHash("sha1").update(content).digest("hex");
+  }
+
+  /** Remember what we just wrote so the watcher can ignore the resulting event.
+   *  The timer only bounds memory: correctness comes from the digest. */
+  private markWritten(relPath: string, content: string): void {
+    this.inFlightWrites.set(relPath, VaultStore.digest(content));
+    setTimeout(() => this.inFlightWrites.delete(relPath), 5000);
+  }
 
   constructor(private db: Db) {}
 
@@ -101,9 +126,9 @@ export class VaultStore {
     }).on("all", (event, absPath) => {
       if (!absPath.toLowerCase().endsWith(".md")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
-      
-      if (this.inFlightWrites.has(relPath)) return;
-      
+
+      // No early return on "we wrote this": whether it is our echo is decided in
+      // handleExternalChange, by comparing the bytes on disk with what we wrote.
       const existingTimeout = this.watchTimeouts.get(relPath);
       if (existingTimeout) clearTimeout(existingTimeout);
       
@@ -119,12 +144,21 @@ export class VaultStore {
       try {
         if (!fs.existsSync(absPath)) return;
         let content = fs.readFileSync(absPath, "utf8");
+
+        // Our own write coming back round: the file still holds exactly what we
+        // put there, so there is nothing to learn from it. Anything else is a
+        // real edit — Obsidian, an editor, a script — and must be indexed even
+        // if it lands microseconds after one of our writes.
+        if (this.inFlightWrites.get(relPath) === VaultStore.digest(content)) {
+          this.inFlightWrites.delete(relPath);
+          return;
+        }
+
         const parsed = parseNote(content, titleFromPath(relPath));
         if (!parsed.id) {
           content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-          this.inFlightWrites.add(relPath);
+          this.markWritten(relPath, content);
           fs.writeFileSync(absPath, content);
-          setTimeout(() => this.inFlightWrites.delete(relPath), 1000);
         }
         
         const existing = this.index.getByPath(relPath);
@@ -343,9 +377,8 @@ export class VaultStore {
     }
 
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    this.inFlightWrites.add(relPath);
+    this.markWritten(relPath, finalContent);
     fs.writeFileSync(abs, finalContent);
-    setTimeout(() => this.inFlightWrites.delete(relPath), 1000);
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
     if (!existing) {
       const doc = createNoteDoc(finalContent);
@@ -375,10 +408,11 @@ export class VaultStore {
       throw new HttpError(403, "need edit access to both source and destination folders");
     }
     fs.mkdirSync(path.dirname(absTo), { recursive: true });
-    this.inFlightWrites.add(fromPath);
-    this.inFlightWrites.add(toPath);
+    // A rename produces unlink+add; the destination arrives holding the note's
+    // own bytes, so the digest recognises it. The source path is simply gone.
+    this.markWritten(fromPath, note.content);
+    this.markWritten(toPath, note.content);
     fs.renameSync(absFrom, absTo);
-    setTimeout(() => { this.inFlightWrites.delete(fromPath); this.inFlightWrites.delete(toPath); }, 1000);
     this.index.remove(fromPath);
     const moved = this.index.upsert({ path: toPath, content: note.content, mtimeMs: Date.now() });
     this.syncNoteRow(moved);

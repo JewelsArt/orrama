@@ -1,9 +1,29 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type TreeNote } from "./api.js";
-import { CATEGORIES, categoryOf } from "./categories.js";
+import type { FinancePage } from "./App.js";
+import { CATEGORIES, DOMAIN_COLOR, categoryOf, daysTo, isProjectActive, isSessionLog, relDay } from "./categories.js";
+import { iconFor, paletteFor } from "./Finance.js";
 import { onWs } from "./ws.js";
 
-const DASH_CARDS = ["hero", "activity", "focus", "schedule", "tasks", "analytics"];
+/** What each card is called, for the remove button's label and the picker. */
+const CARD_META = {
+  deadlines: { label: "Deadlines", hint: "Dated work, oldest first", c: "var(--v-pink)" },
+  schedule: { label: "Next 7 days", hint: "Calendar, work and charges", c: "var(--v-lilac)" },
+  projects: { label: "Projects", hint: "Active projects and progress", c: "var(--v-azure)" },
+  spending: { label: "Last month", hint: "What it cost, and where it went", c: "var(--v-magenta)" },
+  saving: { label: "Saving", hint: "What could be put aside", c: "var(--v-green)" },
+  commitments: { label: "Money in and out", hint: "What is due, what is coming", c: "var(--v-cyan)" },
+  focus: { label: "In Focus", hint: "Highest priority work", c: "var(--v-amber)" },
+  hero: { label: "Vault Overview", hint: "Notes and task counts", c: "var(--v-cyan)" },
+  category: { label: "By category", hint: "Shape of the vault", c: "var(--v-lilac)" },
+} satisfies Record<string, { label: string; hint: string; c: string }>;
+/** Lookup for ids that arrive as plain strings (the saved order, a data-card). */
+const meta = (id: string) => CARD_META[id as keyof typeof CARD_META];
+
+/* Default slot order, most actionable first. Adding or removing an id here
+   invalidates any saved arrangement (useBentoReorder compares lengths), which
+   is what we want: a layout saved before a card existed has no opinion on it. */
+const DASH_CARDS = ["deadlines", "schedule", "projects", "spending", "saving", "commitments", "focus", "hero", "category"];
 
 /**
  * Draggable bento. Pick up a card and it gets physical inertia — tilts into the
@@ -83,12 +103,20 @@ function useBentoReorder(ids: string[]) {
     visualRectsRef.current.clear();
   });
 
+  /**
+   * Bound to the grip at the top of a card, never to the card itself. When the
+   * whole surface was the drag target, every pointerdown inside it opened a
+   * drag: a click on a project row was swallowed before it could navigate, and
+   * the only reason links worked at all was an exclusion list of tag names that
+   * a plain <li> row was never on. A dedicated handle means one place starts a
+   * drag and everything else is just content.
+   */
   const onDragStart = useCallback((e: React.PointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
-    if ((e.target as HTMLElement).closest("button, a, input, select, textarea, [role='button']")) return;
-    const el = e.currentTarget;
-    const id = el.dataset.card;
-    if (!id) return;
+    const el = e.currentTarget.closest<HTMLElement>("[data-card]");
+    const id = el?.dataset.card;
+    if (!el || !id) return;
+    e.preventDefault(); // the grip is a <button>; don't let it take focus/click
     draggingId.current = id;
 
     const rect = el.getBoundingClientRect();
@@ -317,13 +345,27 @@ function useBentoReorder(ids: string[]) {
  * Basalt's own palette + Plus Jakarta Sans. Fully scoped under `.home`.
  */
 
+interface SubscriptionItem {
+  service: string;
+  amount: number;
+  currency: string;
+  cadence: string;
+  next: string | null;
+  monthly: number;
+  note: string;
+}
 interface AgendaItem {
-  kind: "event" | "task";
+  kind: "event" | "task" | "due" | "charge";
   date: string;
   title: string;
-  startMin: number;
-  durationMin: number;
+  startMin: number | null;
+  durationMin: number | null;
   noteId: string | null;
+  line: number | null;
+  /** Feed label for a calendar event, project for a due task. */
+  source: string | null;
+  amount: number | null;
+  currency: string | null;
 }
 interface FocusItem {
   noteId: string;
@@ -336,12 +378,65 @@ interface FocusItem {
   assignee: string | null;
   overdue: boolean;
 }
+interface DeadlineItem {
+  noteId: string;
+  noteTitle: string;
+  line: number;
+  text: string;
+  project: string | null;
+  due: string;
+  priority: number | null;
+  overdue: boolean;
+  days: number;
+}
+export interface ProjectRow {
+  slug: string;
+  key: string;
+  name: string;
+  domain: string | null;
+  noteId: string | null;
+  total: number;
+  done: number;
+  status: string | null;
+  start: string | null;
+  deadline: string | null;
+  nextDue: string | null;
+  overdue: number;
+}
 interface HomeData {
   user: { displayName: string; username: string };
-  stats: { notes: number; openTasks: number; doneTasks: number; weekHours: number };
-  trend: { day: string; count: number }[];
+  stats: { notes: number; sessions: number; openTasks: number; doneTasks: number; overdueTasks: number; weekHours: number };
+  deadlines: DeadlineItem[];
   agenda: AgendaItem[];
   focus: FocusItem[];
+  finance: {
+    out: Ledger;
+    in: Ledger;
+    net: { currency: string; monthly: number }[];
+  };
+  /** What the statement says the month is doing. Null with no statement filed. */
+  spending: {
+    month: string;
+    total: number;
+    typical: number;
+    categories: { category: string; total: number; typical: number; colour: string | null }[];
+    running: { month: string; total: number; dayOf: number; daysIn: number } | null;
+    savings: {
+      target: number;
+      surplus: number;
+      trimmable: number;
+      observed: number | null;
+      targetRate: number | null;
+      top: { category: string; save: number; colour: string | null }[];
+    };
+    basedOn: number;
+  } | null;
+}
+interface Ledger {
+  noteId: string | null;
+  totals: { currency: string; monthly: number }[];
+  items: SubscriptionItem[];
+  count: number;
 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -352,27 +447,119 @@ const fmtTime = (m: number) => {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(mm).padStart(2, "0")} ${ap}`;
 };
+/** "Today" / "Tomorrow" / "Fri 5 Sep" — the week list is read by day, not date. */
+const dayLabel = (date: string): string => {
+  const d = daysTo(date);
+  if (d === 0) return "Today";
+  if (d === 1) return "Tomorrow";
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+};
+
+/**
+ * Money always carries the currency's own decimals — €10.00, never €10. The
+ * table is hand-written, so "10" and "19.99" sit side by side in it; trimming
+ * the zeros would print them as different kinds of number and lose the decimal
+ * alignment that makes a column of amounts scannable.
+ */
+const money = (amount: number, currency: string | null): string =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: currency || "EUR",
+    // A charge shows as "−€13.99" rather than a bare minus that reads as a typo.
+    signDisplay: amount < 0 ? "always" : "auto",
+  }).format(amount);
+
+/** Ledger total as one string; several currencies collapse to a count so the
+ *  bar never claims a single figure it cannot honestly produce. */
+const ledgerLabel = (l: { totals: { currency: string; monthly: number }[] }): string =>
+  l.totals.length === 0 ? "—" : l.totals.length === 1 ? `${money(l.totals[0]!.monthly, l.totals[0]!.currency)}` : `${l.totals.length} currencies`;
+
+/** Both bars scale against the larger side, so the shorter one reads as a ratio. */
+const barPct = (fin: { in: { totals: { monthly: number }[] }; out: { totals: { monthly: number }[] } }, side: "in" | "out"): number => {
+  const sum = (t: { monthly: number }[]) => t.reduce((a, b) => a + Math.abs(b.monthly), 0);
+  const hi = Math.max(sum(fin.in.totals), sum(fin.out.totals));
+  return hi === 0 ? 0 : Math.round((sum(fin[side].totals) / hi) * 100);
+};
+
 const BADGE = ["blue", "purple", "green", "orange", "pink"] as const;
 /** Playful rotating card colours (Panze energy) — variety, not semantics.
  *  Teal-led, no violet/indigo. */
-const CARD_COLORS = ["#12b3a6", "#ff6b9d", "#3b82f6", "#ffa53a", "#22c993"];
+/** "Aug 26" — a month, said the way the Finance tab says it. */
+const shortMonth = (m: string) =>
+  new Date(`${m}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 
-export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) => void }) {
+/** No colour assigned — the neutral fill the contact avatars already use. */
+const NO_DOMAIN = "var(--cat-b)";
+
+export function Dashboard({
+  me,
+  onOpenNote,
+  onOpenProject,
+  onOpenOverview,
+  onOpenPlanning,
+  onOpenCategory,
+  onOpenFinance,
+  onOpenSettings,
+}: {
+  me: Me;
+  onOpenNote: (id: string) => void;
+  onOpenProject: (slug: string) => void;
+  onOpenOverview: () => void;
+  onOpenPlanning: () => void;
+  onOpenCategory: (id: string) => void;
+  /** Anywhere in the Finance area: a page, a month, a category. */
+  onOpenFinance: (to?: { page?: FinancePage; month?: string; category?: string }) => void;
+  onOpenSettings: () => void;
+}) {
   const [home, setHome] = useState<HomeData | null>(null);
   const [tree, setTree] = useState<TreeNote[]>([]);
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  /** Which ledger the add-row form is open for, or null when it is closed. */
+  const [adding, setAdding] = useState<"income" | "subscriptions" | null>(null);
+  /**
+   * Cards taken off the dashboard. Kept apart from the saved ORDER, which always
+   * lists every card: a hidden card keeps its slot, so putting it back drops it
+   * where it was rather than at the end. (It also keeps useBentoReorder's
+   * length check meaningful — that is how it detects a stale saved layout.)
+   */
+  const [hidden, setHidden] = useState<Set<string>>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("dh-hidden") || "[]");
+      return new Set(Array.isArray(saved) ? saved.filter((id: string) => id in CARD_META) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    localStorage.setItem("dh-hidden", JSON.stringify([...hidden]));
+  }, [hidden]);
+  const shown = (id: string) => !hidden.has(id);
+  const removeCard = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const id = e.currentTarget.closest<HTMLElement>("[data-card]")?.dataset.card;
+    if (id) setHidden((h) => new Set(h).add(id));
+  }, []);
+  const restoreCard = useCallback((id: string) => {
+    setHidden((h) => {
+      const next = new Set(h);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const { order, gridRef, onDragStart } = useBentoReorder(DASH_CARDS);
   const ord = (id: string) => ({ order: order.indexOf(id) });
-  const [calMonth, setCalMonth] = useState(() => {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1);
-  });
-  const [selDay, setSelDay] = useState(() => iso(new Date()));
 
   const load = useCallback(async () => {
-    const [h, t] = await Promise.all([api<HomeData>("GET", "/api/home"), api<TreeNote[]>("GET", "/api/vault/tree")]);
+    const [h, t, p] = await Promise.all([
+      api<HomeData>("GET", "/api/home"),
+      api<TreeNote[]>("GET", "/api/vault/tree"),
+      api<ProjectRow[]>("GET", "/api/projects"),
+    ]);
     setHome(h);
     setTree(t);
+    setProjects(p);
   }, []);
 
   useEffect(() => {
@@ -396,35 +583,60 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
     await load();
   };
 
+  // The donut is a shape-of-the-vault reading, so it runs on the curated notes:
+  // 550 of the 613 files are Claude session transcripts, and left in they drown
+  // every real slice (they alone made the chart read "Claude & tools 76%").
+  const curated = useMemo(() => tree.filter((n) => !isSessionLog(n)), [tree]);
   const byCategory = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const n of tree) counts.set(categoryOf(n), (counts.get(categoryOf(n)) ?? 0) + 1);
+    for (const n of curated) counts.set(categoryOf(n), (counts.get(categoryOf(n)) ?? 0) + 1);
     return CATEGORIES.map((c) => ({ id: c.id, label: c.label, color: c.color, count: counts.get(c.id) ?? 0 })).filter((c) => c.count > 0);
-  }, [tree]);
+  }, [curated]);
 
-  // Activity: this week vs last week from the 14-day trend.
-  const weeks = useMemo(() => {
-    const t = home?.trend ?? [];
-    const last = t.slice(0, 7).map((d) => d.count);
-    const now = t.slice(7, 14).map((d) => d.count);
-    const sum = (a: number[]) => a.reduce((s, x) => s + x, 0);
-    const delta = sum(last) === 0 ? (sum(now) > 0 ? 100 : 0) : Math.round(((sum(now) - sum(last)) / sum(last)) * 100);
-    return { last, now, thisWeek: sum(now), delta };
-  }, [home]);
+  // Tasks carry their project's *name*; the board addresses projects by slug.
+  // This is the bridge that lets a deadline row's project chip open the
+  // workspace instead of being decoration.
+  const slugByProject = useMemo(() => new Map(projects.map((p) => [p.name, p.slug])), [projects]);
+  /* A focus row wears its project's life-area colour — the same rule the
+     Projects card, the Overview board and the project workspace already follow,
+     so a project is one colour wherever it appears. It used to cycle five hues
+     by list position, which was a rainbow that meant nothing and borrowed the
+     category palette the donut beside it uses to mean something. */
+  const domainByProject = useMemo(() => new Map(projects.map((p) => [p.name, p.domain])), [projects]);
+  const focusColor = useCallback(
+    (project: string | null) => (project ? DOMAIN_COLOR[domainByProject.get(project) ?? ""] : undefined) ?? NO_DOMAIN,
+    [domainByProject],
+  );
+  // "Active" has to mean it: a finished or parked project is not work in flight,
+  // and counting it made the card's own subtitle wrong.
+  const activeProjects = useMemo(() => projects.filter(isProjectActive), [projects]);
+  const restingCount = projects.length - activeProjects.length;
+  const openProjectNamed = useCallback(
+    (name: string | null) => {
+      const slug = name ? slugByProject.get(name) : undefined;
+      if (slug) onOpenProject(slug);
+    },
+    [slugByProject, onOpenProject],
+  );
 
+  const fin = home?.finance;
+  const spend = home?.spending ?? null;
+  /** The rules note's colour when it has one, else the Finance fallback — so a
+   *  category is the same colour here as on the page this card opens. */
+  const catColour = useCallback((colour: string | null, name: string) => paletteFor([{ category: name, colour }])(name), []);
   const now = new Date();
   const first = (home?.user.displayName ?? me.displayName).split(" ")[0];
-  const agendaByDay = useMemo(() => {
+  /** The next seven days, but only the ones that hold something — seven rows of
+   *  "nothing" is a worse answer than a short list. */
+  const days = useMemo(() => {
     const m = new Map<string, AgendaItem[]>();
     for (const a of home?.agenda ?? []) {
       const list = m.get(a.date) ?? [];
       list.push(a);
       m.set(a.date, list);
     }
-    return m;
+    return [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([date, rows]) => ({ date, rows }));
   }, [home]);
-  const dayAgenda = agendaByDay.get(selDay) ?? [];
-  const donePct = home ? Math.round((home.stats.doneTasks / Math.max(home.stats.doneTasks + home.stats.openTasks, 1)) * 100) : 0;
 
   return (
     <div className="home">
@@ -433,12 +645,23 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
           <h1 className="dh-h1">Dashboard</h1>
           <p className="dh-sub">Welcome back, {first}. Here's your vault at a glance.</p>
         </div>
-        <div className="dh-top-meta">Updated {now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+        <div className="dh-top-right">
+          <span className="dh-top-meta">Updated {now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+          <button
+            className={`dh-edit ${editing ? "on" : ""}`}
+            onClick={() => setEditing((v) => !v)}
+            aria-pressed={editing}
+          >
+            {editing ? "Done" : "Edit"}
+          </button>
+        </div>
       </header>
 
-      <div className="dh-grid" ref={gridRef} style={{ position: "relative" }}>
+      <div className={`dh-grid ${editing ? "is-editing" : ""}`} ref={gridRef} style={{ position: "relative" }}>
         {/* hero */}
-        <section className="dh-card dh-hero" data-card="hero" style={ord("hero")} onPointerDown={onDragStart}>
+        {shown("hero") && (
+        <section className="dh-card dh-hero" data-card="hero" style={ord("hero")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.hero.label} />
           <div className="dh-hero-head">
             <div>
               <h2 className="dh-card-title">Vault Overview</h2>
@@ -448,13 +671,11 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
           </div>
           <div className="dh-big">{home?.stats.notes ?? "—"}</div>
           <div className="dh-big-row">
-            <span className="dh-big-label">Total notes</span>
-            {home && weeks.delta !== 0 && (
-              <span className={`dh-delta ${weeks.delta >= 0 ? "up" : "down"}`}>
-                {weeks.delta >= 0 ? "↑" : "↓"} {Math.abs(weeks.delta)}% this week
-              </span>
-            )}
+            <span className="dh-big-label">Notes written</span>
           </div>
+          {!!home?.stats.sessions && (
+            <div className="dh-big-note">plus {home.stats.sessions} Claude session logs</div>
+          )}
           <div className="dh-tiles">
             <div className="dh-tile">
               <span className="dh-chip indigo sm">{ic.tasks}</span>
@@ -479,40 +700,47 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
             </div>
           </div>
         </section>
-
-        {/* activity chart */}
-        <section className="dh-card dh-card-activity" data-card="activity" style={ord("activity")} onPointerDown={onDragStart}>
-          <div className="dh-card-head">
-            <div>
-              <h2 className="dh-card-title">Activity</h2>
-              <div className="dh-legend">
-                <span className="dh-leg"><i className="dot accent" /> This week</span>
-                <span className="dh-leg"><i className="dot muted" /> Last week</span>
-              </div>
-            </div>
-            <span className="dh-pill-static">14 days</span>
-          </div>
-          {home && <LineChart last={weeks.last} now={weeks.now} />}
-        </section>
+        )}
 
         {/* in focus */}
-        <section className="dh-card" data-card="focus" style={ord("focus")} onPointerDown={onDragStart}>
+        {shown("focus") && (
+        <section className="dh-card" data-card="focus" style={ord("focus")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.focus.label} />
           <div className="dh-card-head">
-            <h2 className="dh-card-title">In Focus</h2>
-            <button className="dh-link" onClick={() => onOpenNote(home?.focus[0]?.noteId ?? "")}>View all</button>
+            <div>
+              <h2 className="dh-card-title">In Focus</h2>
+              <p className="dh-card-sub">Highest priority, dated or not.</p>
+            </div>
+            <button className="dh-link" onClick={onOpenOverview}>View all</button>
           </div>
           <ul className="dh-fcards">
-            {home?.focus.slice(0, 5).map((f, i) => (
+            {home?.focus.slice(0, 5).map((f) => (
               <li
                 key={`${f.noteId}:${f.line}`}
                 className="dh-fcard"
-                style={{ ["--c" as string]: CARD_COLORS[i % CARD_COLORS.length] }}
+                style={{ ["--c" as string]: focusColor(f.project) }}
                 onClick={() => onOpenNote(f.noteId)}
               >
                 <span className="dh-fcard-ic">{f.text[0]?.toUpperCase()}</span>
                 <div className="dh-fcard-body">
                   <span className="dh-fcard-title">{f.text}</span>
-                  <span className="dh-fcard-sub">{f.noteTitle}{f.project ? ` · ${f.project}` : ""}</span>
+                  {/* Both halves are real elements so each can truncate on its
+                      own. As a bare text node plus a button they could not: the
+                      button began partway along the line and ran past the card. */}
+                  <span className="dh-fcard-sub">
+                    <span className="dh-fcard-note">{f.noteTitle}</span>
+                    {f.project && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <button
+                          className="dh-task-proj"
+                          onClick={(e) => { e.stopPropagation(); openProjectNamed(f.project); }}
+                        >
+                          {f.project}
+                        </button>
+                      </>
+                    )}
+                  </span>
                 </div>
                 {(f.priority || f.due) && (
                   <span className="dh-fcard-badge">{f.due ? f.due.slice(5) : `P${f.priority}`}</span>
@@ -523,93 +751,339 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
             {home && home.focus.length === 0 && <li className="dh-empty">Nothing pressing right now.</li>}
           </ul>
         </section>
+        )}
 
-        {/* schedule */}
-        <section className="dh-card dh-card-schedule" data-card="schedule" style={ord("schedule")} onPointerDown={onDragStart}>
+        {/* next 7 days — calendar, work and money, merged */}
+        {shown("schedule") && (
+        <section className="dh-card dh-card-week" data-card="schedule" style={ord("schedule")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.schedule.label} />
           <div className="dh-card-head">
-            <h2 className="dh-card-title">Schedule</h2>
-            <span className="dh-icon-btn">{ic.cal}</span>
+            <div>
+              <h2 className="dh-card-title">Next 7 days</h2>
+              <p className="dh-card-sub">Calendar, work and charges.</p>
+            </div>
+            <button className="dh-link" onClick={onOpenPlanning}>Planning</button>
           </div>
-          <div className="dh-sched">
-            <MiniCalendar month={calMonth} setMonth={setCalMonth} selDay={selDay} setSelDay={setSelDay} marks={agendaByDay} />
-            <div className="dh-agenda">
-              {dayAgenda.map((a, i) => (
-                <div key={i} className="dh-agenda-row" onClick={() => a.noteId && onOpenNote(a.noteId)} style={{ cursor: a.noteId ? "pointer" : "default" }}>
-                  <span className="dh-agenda-time">{fmtTime(a.startMin)}</span>
-                  <div className={`dh-agenda-card ${a.kind}`}>
-                    <span className="dh-agenda-title">{a.title}</span>
-                    <span className="dh-agenda-kind">{a.kind === "event" ? "Meeting" : "Focus block"}</span>
-                  </div>
-                  <span className="dh-agenda-ic">{ic.video}</span>
-                </div>
+          {days.length > 0 ? (
+            <ul className="dh-week">
+              {days.map((d) => (
+                <li key={d.date} className="dh-day">
+                  <span className="dh-day-label">{dayLabel(d.date)}</span>
+                  <ul className="dh-day-rows">
+                    {d.rows.map((a, i) => (
+                      <li
+                        key={i}
+                        className={`dh-ag ${a.kind}`}
+                        onClick={() => (a.noteId ? onOpenNote(a.noteId) : undefined)}
+                        style={{ cursor: a.noteId ? "pointer" : "default" }}
+                      >
+                        <span className="dh-ag-time">{a.startMin !== null ? fmtTime(a.startMin) : "all day"}</span>
+                        <span className="dh-ag-title">{a.title}</span>
+                        {a.amount !== null ? (
+                          <span className="dh-ag-amt">{money(a.amount, a.currency)}</span>
+                        ) : (
+                          a.source && <span className="dh-ag-tag">{a.source}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
               ))}
-              {dayAgenda.length === 0 && <div className="dh-agenda-empty">Nothing scheduled.</div>}
+            </ul>
+          ) : (
+            <div className="dh-empty-block">
+              <p>Nothing in the next seven days.</p>
+              {/* The usual reason this card is empty is that no calendar is
+                  subscribed — say so, rather than leaving a blank week. */}
+              <button className="dh-link" onClick={onOpenSettings}>Connect a calendar →</button>
             </div>
-          </div>
+          )}
         </section>
+        )}
 
-        {/* today's tasks */}
-        <section className="dh-card" data-card="tasks" style={ord("tasks")} onPointerDown={onDragStart}>
+        {/* ---- Finance, in three cards -------------------------------------
+             One card could not carry this any more. Spending, saving and the
+             two ledgers are different questions asked at different moments, and
+             every figure below is a door into the Finance area rather than a
+             number to look at. */}
+        {shown("spending") && (
+        <section className="dh-card" data-card="spending" style={ord("spending")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.spending.label} />
           <div className="dh-card-head">
-            <h2 className="dh-card-title">Today's Tasks</h2>
-          </div>
-          <ul className="dh-tasks">
-            {home?.focus.slice(0, 5).map((f, i) => (
-              <li key={`${f.noteId}:${f.line}`} className="dh-task" style={{ ["--c" as string]: CARD_COLORS[i % CARD_COLORS.length] }}>
-                <button className="dh-radio" aria-label={`Complete ${f.text}`} onClick={(e) => { e.stopPropagation(); void check(f.noteId, f.line); }} />
-                <span className="dh-task-text" onClick={() => onOpenNote(f.noteId)}>{f.text}</span>
-                {f.due && <span className={`dh-task-time ${f.overdue ? "over" : ""}`}>{f.due.slice(5)}</span>}
-              </li>
-            ))}
-            {home && home.focus.length === 0 && <li className="dh-empty">All caught up.</li>}
-          </ul>
-          <div className="dh-task-foot">
-            <div className="dh-prog">
-              <div className="dh-prog-bar"><span style={{ width: `${donePct}%` }} /></div>
-              <span className="dh-prog-lbl">{home?.stats.doneTasks ?? 0} of {(home?.stats.doneTasks ?? 0) + (home?.stats.openTasks ?? 0)} done · {donePct}%</span>
+            <div>
+              <h2 className="dh-card-title">{spend ? shortMonth(spend.month) : "Last month"}</h2>
+              <p className="dh-card-sub">What it cost, and where it went.</p>
             </div>
+            <button className="dh-link" onClick={() => onOpenFinance({ page: "spending" })}>All spending</button>
           </div>
-        </section>
-
-        {/* analytics */}
-        <section className="dh-card" data-card="analytics" style={ord("analytics")} onPointerDown={onDragStart}>
-          <div className="dh-card-head">
-            <h2 className="dh-card-title">Analytics</h2>
-            <span className="dh-pill-static">This month</span>
-          </div>
-          <div className="dh-stats">
-            <div className="dh-stat">
-              <span className="dh-chip indigo sm">{ic.book}</span>
-              <div className="dh-stat-num">{home?.stats.notes ?? "—"}</div>
-              <div className="dh-stat-lbl">Notes</div>
-            </div>
-            <div className="dh-stat">
-              <span className="dh-chip blue sm">{ic.link}</span>
-              <div className="dh-stat-num">{home?.stats.openTasks ?? "—"}</div>
-              <div className="dh-stat-lbl">Open</div>
-            </div>
-            <div className="dh-stat">
-              <span className="dh-chip green sm">{ic.clock}</span>
-              <div className="dh-stat-num">{home ? `${home.stats.weekHours}h` : "—"}</div>
-              <div className="dh-stat-lbl">This week</div>
-            </div>
-          </div>
-          <div className="dh-src">
-            <span className="dh-src-title">Notes by category</span>
-            <div className="dh-src-body">
-              <Donut data={byCategory} total={tree.length} />
-              <ul className="dh-src-legend">
-                {byCategory.map((c) => (
-                  <li key={c.id}>
-                    <i className="dot" style={{ background: c.color }} />
-                    <span>{c.label}</span>
-                    <b>{Math.round((c.count / Math.max(tree.length, 1)) * 100)}%</b>
+          {spend ? (
+            <>
+              <button className="dh-spend" onClick={() => onOpenFinance({ month: spend.month })}>
+                <span className="dh-net">
+                  <span className="dh-net-num">{money(spend.total, "EUR")}</span>
+                  <span className="dh-net-lbl">
+                    {spend.total > spend.typical ? "above" : "below"} a typical {money(spend.typical, "EUR")}
+                  </span>
+                </span>
+                <span className="dh-pace">
+                  <i className="track">
+                    <i className="fill" style={{ width: `${Math.min((spend.total / Math.max(spend.typical, 1)) * 100, 100)}%` }} />
+                    <i className="typical" />
+                  </i>
+                </span>
+              </button>
+              <ul className="dh-cats">
+                {spend.categories.map((c) => (
+                  <li key={c.category}>
+                    <button
+                      className="dh-cat"
+                      style={{ ["--c" as string]: catColour(c.colour, c.category) }}
+                      onClick={() => onOpenFinance({ month: spend.month, category: c.category })}
+                    >
+                      <i className="tile">{iconFor(c.category)}</i>
+                      <span className="nm">{c.category}</span>
+                      <span className="bar">
+                        <i style={{ width: `${(c.total / Math.max(spend.categories[0]?.total ?? 1, 1)) * 100}%` }} />
+                      </span>
+                      <b>{money(c.total, "EUR")}</b>
+                    </button>
                   </li>
                 ))}
               </ul>
+              {spend.running && (
+                <button className="dh-running" onClick={() => onOpenFinance({ month: spend.running!.month })}>
+                  {shortMonth(spend.running.month)} so far: <b>{money(spend.running.total, "EUR")}</b>
+                  <em>day {spend.running.dayOf} of {spend.running.daysIn}</em>
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="dh-empty-block">
+              <p>No statement filed yet.</p>
+              <p className="dh-empty-hint">Upload a bank export on the Finance page and this fills in.</p>
+            </div>
+          )}
+        </section>
+        )}
+
+        {shown("saving") && (
+        <section className="dh-card" data-card="saving" style={ord("saving")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.saving.label} />
+          <div className="dh-card-head">
+            <div>
+              <h2 className="dh-card-title">Saving</h2>
+              <p className="dh-card-sub">On your own numbers.</p>
+            </div>
+            <button className="dh-link" onClick={() => onOpenFinance({ page: "savings" })}>The working</button>
+          </div>
+          {spend && spend.savings.target > 0 ? (
+            <>
+              <button className="dh-spend" onClick={() => onOpenFinance({ page: "savings" })}>
+                <span className="dh-net">
+                  <span className="dh-net-num up">{money(spend.savings.target, "EUR")}</span>
+                  <span className="dh-net-lbl">
+                    a month is realistic
+                    {spend.savings.targetRate !== null && ` · ${spend.savings.targetRate}% of what comes in`}
+                  </span>
+                </span>
+                <span className="dh-save-bar">
+                  <i className="surplus" style={{ width: `${(Math.max(0, spend.savings.surplus) / spend.savings.target) * 100}%` }} />
+                  <i className="trim" style={{ width: `${(spend.savings.trimmable / spend.savings.target) * 100}%` }} />
+                </span>
+                <span className="dh-spend-foot">
+                  <span><b>{money(Math.max(0, spend.savings.surplus), "EUR")}</b> already left over</span>
+                  <span className="save"><b>{money(spend.savings.trimmable, "EUR")}</b> trimmable</span>
+                </span>
+              </button>
+              <ul className="dh-cats">
+                {spend.savings.top.map((h) => (
+                  <li key={h.category}>
+                    <button
+                      className="dh-cat"
+                      style={{ ["--c" as string]: catColour(h.colour, h.category) }}
+                      onClick={() => onOpenFinance({ category: h.category })}
+                    >
+                      <i className="tile">{iconFor(h.category)}</i>
+                      <span className="nm">{h.category}</span>
+                      <span className="bar">
+                        <i style={{ width: `${(h.save / Math.max(spend.savings.top[0]?.save ?? 1, 1)) * 100}%` }} />
+                      </span>
+                      <b>{money(h.save, "EUR")}</b>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <div className="dh-empty-block">
+              <p>Not enough history yet.</p>
+              <p className="dh-empty-hint">Three complete months of statement are needed before a typical month means anything.</p>
+            </div>
+          )}
+        </section>
+        )}
+
+        {shown("commitments") && (
+        <section className="dh-card" data-card="commitments" style={ord("commitments")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.commitments.label} />
+          <div className="dh-card-head">
+            <div>
+              <h2 className="dh-card-title">Money in and out</h2>
+              <p className="dh-card-sub">Monthly, recurring.</p>
+            </div>
+            <div className="dh-head-tools">
+              <button className="dh-link" onClick={() => setAdding("income")}>+ Income</button>
+              <button className="dh-link" onClick={() => setAdding("subscriptions")}>+ Sub</button>
             </div>
           </div>
+
+          {fin && (fin.in.count > 0 || fin.out.count > 0) ? (
+            <>
+              <div className="dh-flow">
+                <button className="dh-flow-row" onClick={() => onOpenFinance({ page: "income" })}>
+                  <span className="dh-flow-lbl">In</span>
+                  <span className="dh-flow-bar"><i className="in" style={{ width: `${barPct(fin, "in")}%` }} /></span>
+                  <span className="dh-flow-amt">{ledgerLabel(fin.in)}</span>
+                </button>
+                <button className="dh-flow-row" onClick={() => onOpenFinance({ page: "subscriptions" })}>
+                  <span className="dh-flow-lbl">Out</span>
+                  <span className="dh-flow-bar"><i className="out" style={{ width: `${barPct(fin, "out")}%` }} /></span>
+                  <span className="dh-flow-amt">{ledgerLabel(fin.out)}</span>
+                </button>
+              </div>
+              <ul className="dh-subs">
+                {fin.out.items.slice(0, 5).map((sub) => {
+                  const d = sub.next ? daysTo(sub.next) : null;
+                  return (
+                    <li key={sub.service} className="dh-sub" onClick={() => onOpenFinance({ page: "subscriptions" })}>
+                      <span className="dh-sub-name">{sub.service}</span>
+                      <span className="dh-sub-when">{d !== null ? relDay(d) : sub.cadence}</span>
+                      <span className="dh-sub-amt">{money(sub.amount, sub.currency)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : (
+            <div className="dh-empty-block">
+              <p>Nothing tracked yet.</p>
+              <p className="dh-empty-hint">Add what comes in and what goes out — the net, and the week ahead, follow from it.</p>
+            </div>
+          )}
         </section>
+        )}
+
+        {shown("deadlines") && (
+        <section className="dh-card dh-card-deadlines" data-card="deadlines" style={ord("deadlines")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.deadlines.label} />
+          <div className="dh-card-head">
+            <div>
+              <h2 className="dh-card-title">Deadlines</h2>
+              <p className="dh-card-sub">Dated work, oldest first.</p>
+            </div>
+            {!!home?.stats.overdueTasks && <span className="dh-pill-alert">{home.stats.overdueTasks} overdue</span>}
+          </div>
+          <ul className="dh-tasks">
+            {home?.deadlines.slice(0, 6).map((d) => (
+              <li key={`${d.noteId}:${d.line}`} className="dh-task">
+                <button className="dh-radio" aria-label={`Complete ${d.text}`} onClick={(e) => { e.stopPropagation(); void check(d.noteId, d.line); }} />
+                <div className="dh-task-body">
+                  <span className="dh-task-text" onClick={() => onOpenNote(d.noteId)}>{d.text}</span>
+                  <span className="dh-task-meta">
+                    {d.project && slugByProject.has(d.project) ? (
+                      <button className="dh-task-proj" onClick={() => openProjectNamed(d.project)}>{d.project}</button>
+                    ) : (
+                      <button className="dh-task-proj plain" onClick={() => onOpenNote(d.noteId)}>{d.project ?? d.noteTitle}</button>
+                    )}
+                  </span>
+                </div>
+                <span className={`dh-task-time ${d.overdue ? "over" : ""}`}>{relDay(d.days)}</span>
+              </li>
+            ))}
+            {home && home.deadlines.length === 0 && <li className="dh-empty">Nothing dated. Add a due: to a task.</li>}
+          </ul>
+          {home && home.deadlines.length > 6 && (
+            <div className="dh-task-foot">
+              <button className="dh-link" onClick={onOpenOverview}>{home.deadlines.length - 6} more dated →</button>
+            </div>
+          )}
+        </section>
+        )}
+
+        {/* projects */}
+        {shown("projects") && (
+        <section className="dh-card" data-card="projects" style={ord("projects")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.projects.label} />
+          <div className="dh-card-head">
+            <div>
+              <h2 className="dh-card-title">Projects</h2>
+              <p className="dh-card-sub">{activeProjects.length} active.</p>
+            </div>
+            <button className="dh-link" onClick={onOpenOverview}>Board</button>
+          </div>
+          <ul className="dh-projs">
+            {activeProjects.slice(0, 6).map((p) => {
+              // A project-level `deadline:` is the stronger promise when it is
+              // there; otherwise the soonest due date among its own open tasks
+              // stands in, which is the only date most projects actually have.
+              const when = p.deadline ?? p.nextDue;
+              const days = when ? daysTo(when) : null;
+              const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+              const color = DOMAIN_COLOR[p.domain ?? ""] ?? "var(--accent)";
+              return (
+                <li key={p.slug} className="dh-proj" style={{ ["--c" as string]: color }} onClick={() => onOpenProject(p.slug)}>
+                  <div className="dh-proj-body">
+                    <span className="dh-proj-name">{p.name}</span>
+                    <span className="dh-proj-sub">
+                      {p.total > 0 ? `${p.done}/${p.total} steps` : "no steps yet"}
+                      {p.overdue > 0 && <b className="dh-proj-late"> · {p.overdue} late</b>}
+                    </span>
+                    <span className="dh-proj-bar"><i style={{ width: `${pct}%` }} /></span>
+                  </div>
+                  <span className={`dh-proj-when ${days !== null && days < 0 ? "over" : ""}`}>{days !== null ? relDay(days) : "—"}</span>
+                </li>
+              );
+            })}
+            {activeProjects.length === 0 && <li className="dh-empty">Nothing active. Everything is done or parked.</li>}
+          </ul>
+          {(activeProjects.length > 6 || restingCount > 0) && (
+            <div className="dh-task-foot">
+              <button className="dh-link" onClick={onOpenOverview}>
+                {[activeProjects.length > 6 ? `${activeProjects.length - 6} more active` : "", restingCount > 0 ? `${restingCount} done or parked` : ""].filter(Boolean).join(" · ")} →
+              </button>
+            </div>
+          )}
+        </section>
+        )}
+
+        {/* by category — the vault's shape, and the way into it */}
+        {shown("category") && (
+        <section className="dh-card" data-card="category" style={ord("category")}>
+          <CardTools onDragStart={onDragStart} editing={editing} onRemove={removeCard} label={CARD_META.category.label} />
+          <div className="dh-card-head">
+            <div>
+              <h2 className="dh-card-title">By category</h2>
+              <p className="dh-card-sub">{curated.length} notes written.</p>
+            </div>
+          </div>
+          <div className="dh-src-body">
+            <Donut data={byCategory} total={curated.length} />
+            <ul className="dh-src-legend">
+              {byCategory.map((c) => (
+                <li key={c.id}>
+                  {/* Opens Architecture already filtered to this slice — the
+                      category chips there read from the same categories.ts. */}
+                  <button className="dh-cat" onClick={() => onOpenCategory(c.id)}>
+                    <i className="dot" style={{ background: c.color }} />
+                    <span>{c.label}</span>
+                    <b>{Math.round((c.count / Math.max(curated.length, 1)) * 100)}%</b>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+        )}
 
         {/* add a component (placeholder — real components come later) */}
         <button className="dh-card dh-add" style={{ order: 99 }} onClick={() => setAddOpen(true)} aria-label="Add a component">
@@ -619,27 +1093,52 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
         </button>
       </div>
 
+      {adding && (
+        <AddMoneyRow
+          kind={adding}
+          noteMissing={!(adding === "income" ? fin?.in.noteId : fin?.out.noteId)}
+          onClose={() => setAdding(null)}
+          onSaved={() => {
+            setAdding(null);
+            void load();
+          }}
+        />
+      )}
+
       {addOpen && (
         <div className="overlay" onClick={() => setAddOpen(false)}>
           <div className="dh-add-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Add a component</h3>
-            <p className="dh-add-modal-sub">Drop widgets onto your dashboard. More arrive soon — here's what's coming:</p>
-            <div className="dh-add-grid">
-              {[
-                { c: "#3b82f6", label: "Recent notes" },
-                { c: "#22c993", label: "Habit tracker" },
-                { c: "#ffa53a", label: "Pinned tasks" },
-                { c: "#ff6b9d", label: "Reading list" },
-                { c: "#12b3a6", label: "Streak" },
-                { c: "#7c3aed", label: "Quick note" },
-              ].map((w) => (
-                <div key={w.label} className="dh-add-opt" style={{ ["--c" as string]: w.c }}>
-                  <span className="dh-add-opt-ic" />
-                  <span>{w.label}</span>
-                  <span className="dh-add-opt-soon">soon</span>
-                </div>
-              ))}
-            </div>
+            <p className="dh-add-modal-sub">
+              {hidden.size > 0
+                ? "Cards you have taken off. Each one goes back to the slot it came from."
+                : "Every card is already on your dashboard. Remove one with Edit and it will wait here."}
+            </p>
+            {hidden.size > 0 && (
+              <div className="dh-add-grid">
+                {/* Ordered by the saved layout, not by when they were removed, so
+                    the picker reads in the same order as the dashboard. */}
+                {order
+                  .filter((id) => hidden.has(id))
+                  .map((id) => (
+                    <button
+                      key={id}
+                      className="dh-add-opt"
+                      style={{ ["--c" as string]: meta(id).c }}
+                      onClick={() => {
+                        restoreCard(id);
+                        setAddOpen(false);
+                      }}
+                    >
+                      <span className="dh-add-opt-ic" />
+                      <span className="dh-add-opt-body">
+                        <b>{meta(id).label}</b>
+                        <em>{meta(id).hint}</em>
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
             <div className="dh-add-modal-foot">
               <button className="dh-link" onClick={() => setAddOpen(false)}>Close</button>
             </div>
@@ -650,96 +1149,151 @@ export function Dashboard({ me, onOpenNote }: { me: Me; onOpenNote: (id: string)
   );
 }
 
-function LineChart({ last, now }: { last: number[]; now: number[] }) {
-  const w = 520;
-  const h = 300;
-  const pad = { t: 20, r: 12, b: 30, l: 12 };
-  const max = Math.max(1, ...last, ...now);
-  const iw = w - pad.l - pad.r;
-  const ih = h - pad.t - pad.b;
-  const x = (i: number) => pad.l + (i / 6) * iw;
-  const y = (v: number) => pad.t + ih - (v / max) * ih;
-  const smooth = (arr: number[]) => {
-    if (arr.length === 0) return "";
-    let d = `M ${x(0)},${y(arr[0]!)}`;
-    for (let i = 1; i < arr.length; i++) {
-      const xc = (x(i - 1) + x(i)) / 2;
-      d += ` C ${xc},${y(arr[i - 1]!)} ${xc},${y(arr[i]!)} ${x(i)},${y(arr[i]!)}`;
+const CADENCES = ["weekly", "monthly", "quarterly", "yearly"] as const;
+
+/**
+ * Add one row to a money ledger.
+ *
+ * It posts to the server rather than editing Markdown in the browser: the note
+ * is a shared file that Obsidian may have changed since this tab loaded it, so
+ * the append has to happen against whatever is on disk at that moment. The
+ * server re-reads, appends and writes through the store — the same path every
+ * other mutation takes, ACL and note id included.
+ */
+function AddMoneyRow({
+  kind,
+  noteMissing,
+  onClose,
+  onSaved,
+}: {
+  kind: "income" | "subscriptions";
+  noteMissing: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isIncome = kind === "income";
+  const [service, setService] = useState("");
+  const [amount, setAmount] = useState("");
+  const [cadence, setCadence] = useState<(typeof CADENCES)[number]>("monthly");
+  const [next, setNext] = useState(iso(new Date()));
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => first.current?.focus(), []);
+
+  const canSave = service.trim().length > 0 && amount.trim().length > 0 && !saving;
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api("POST", `/api/finance/${kind}`, { service, amount, cadence, next, note });
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
+      setSaving(false);
     }
-    return d;
   };
-  const days = ["M", "T", "W", "T", "F", "S", "S"];
+
   return (
-    <svg className="dh-chart" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="Activity this week vs last">
-      <defs>
-        <linearGradient id="dhFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--d-accent)" stopOpacity="0.16" />
-          <stop offset="100%" stopColor="var(--d-accent)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[0.25, 0.5, 0.75, 1].map((g) => (
-        <line key={g} x1={pad.l} x2={w - pad.r} y1={pad.t + ih * g} y2={pad.t + ih * g} className="dh-grid-line" />
-      ))}
-      <path d={`${smooth(now)} L ${x(6)},${pad.t + ih} L ${x(0)},${pad.t + ih} Z`} fill="url(#dhFill)" />
-      <path d={smooth(last)} className="dh-line-last" />
-      <path d={smooth(now)} className="dh-line-now" />
-      {now.map((v, i) => (
-        <circle key={i} cx={x(i)} cy={y(v)} r="3.5" className="dh-dot-now" />
-      ))}
-      {days.map((d, i) => (
-        <text key={i} x={x(i)} y={h - 8} textAnchor="middle" className="dh-chart-axis">{d}</text>
-      ))}
-    </svg>
+    <div className="overlay" onClick={onClose}>
+      <div
+        className="dh-add-modal dh-form"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+          // Enter saves from any field except the note, where it is just a key.
+          if (e.key === "Enter" && !e.shiftKey && (e.target as HTMLElement).tagName !== "TEXTAREA") void save();
+        }}
+      >
+        <h3>{isIncome ? "Add income" : "Add subscription"}</h3>
+        <p className="dh-add-modal-sub">
+          Goes straight into the table in your {isIncome ? "income" : "subscriptions"} note — editable in Obsidian afterwards.
+        </p>
+        {noteMissing ? (
+          <p className="dh-form-error">
+            No note is tagged <code>#{kind}</code> yet. Create one with a table of {isIncome ? "Source" : "Service"}, Amount, Every and Next columns.
+          </p>
+        ) : (
+          <>
+            <label className="dh-field">
+              <span>{isIncome ? "Source" : "Name"}</span>
+              <input ref={first} value={service} onChange={(e) => setService(e.target.value)} placeholder={isIncome ? "Scooperz" : "Spotify"} maxLength={80} />
+            </label>
+            <div className="dh-field-row">
+              <label className="dh-field">
+                <span>Amount</span>
+                <input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="10.99" inputMode="decimal" maxLength={24} />
+              </label>
+              <label className="dh-field">
+                <span>Recurrence</span>
+                <select value={cadence} onChange={(e) => setCadence(e.target.value as (typeof CADENCES)[number])}>
+                  {CADENCES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="dh-field">
+                <span>{isIncome ? "Next payment" : "Next charge"}</span>
+                <input type="date" value={next} onChange={(e) => setNext(e.target.value)} />
+              </label>
+            </div>
+            <label className="dh-field">
+              <span>Note</span>
+              <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" maxLength={140} />
+            </label>
+            {/* The amount is free text so "€10.99", "10,99" and "30 USD" all work
+                — the parser reads all three, and a number input would reject them. */}
+            <p className="dh-form-hint">Currency optional — a bare number is euros.</p>
+            {error && <p className="dh-form-error">{error}</p>}
+          </>
+        )}
+        <div className="dh-add-modal-foot">
+          <button className="dh-link" onClick={onClose}>Cancel</button>
+          {!noteMissing && (
+            <button className="dh-btn-solid" onClick={() => void save()} disabled={!canSave}>
+              {saving ? "Saving…" : "Add"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function MiniCalendar({
-  month,
-  setMonth,
-  selDay,
-  setSelDay,
-  marks,
+/**
+ * A card's own chrome: the grip that starts a drag — the only thing on a card
+ * that does — and, in edit mode, the cross that takes the card off the
+ * dashboard. Both find their card with `closest("[data-card]")` rather than
+ * being told which one they belong to, so adding a card needs no wiring.
+ */
+function CardTools({
+  onDragStart,
+  editing,
+  onRemove,
+  label,
 }: {
-  month: Date;
-  setMonth: (d: Date) => void;
-  selDay: string;
-  setSelDay: (s: string) => void;
-  marks: Map<string, unknown[]>;
+  onDragStart: (e: React.PointerEvent<HTMLElement>) => void;
+  editing: boolean;
+  onRemove: (e: React.MouseEvent<HTMLElement>) => void;
+  label: string;
 }) {
-  const y = month.getFullYear();
-  const m = month.getMonth();
-  const first = new Date(y, m, 1);
-  const startDow = (first.getDay() + 6) % 7; // Mon=0
-  const days = new Date(y, m + 1, 0).getDate();
-  const today = iso(new Date());
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < startDow; i++) cells.push(null);
-  for (let d = 1; d <= days; d++) cells.push(d);
   return (
-    <div className="dh-cal">
-      <div className="dh-cal-head">
-        <button className="dh-cal-nav" onClick={() => setMonth(new Date(y, m - 1, 1))} aria-label="Previous month">‹</button>
-        <span>{month.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</span>
-        <button className="dh-cal-nav" onClick={() => setMonth(new Date(y, m + 1, 1))} aria-label="Next month">›</button>
-      </div>
-      <div className="dh-cal-dow">{["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
-      <div className="dh-cal-grid">
-        {cells.map((d, i) => {
-          if (d === null) return <span key={i} />;
-          const key = iso(new Date(y, m, d));
-          return (
-            <button
-              key={i}
-              className={`dh-cal-day ${key === today ? "today" : ""} ${key === selDay ? "sel" : ""}`}
-              onClick={() => setSelDay(key)}
-            >
-              {d}
-              {marks.has(key) && <i className="dh-cal-mark" />}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <>
+      <button className="dh-grip" onPointerDown={onDragStart} aria-label="Drag to reorder this card" title="Drag to reorder">
+        <svg width="16" height="10" viewBox="0 0 16 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+          <path d="M3 2h10M3 5h10M3 8h10" />
+        </svg>
+      </button>
+      {editing && (
+        <button className="dh-remove" onClick={onRemove} aria-label={`Remove the ${label} card`} title={`Remove ${label}`}>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" />
+          </svg>
+        </button>
+      )}
+    </>
   );
 }
 

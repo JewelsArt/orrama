@@ -2,11 +2,30 @@ import { useEffect, useState } from "react";
 import { api, type Me } from "./api.js";
 import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
+import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
+import { VisionEditor } from "./VisionEditor.js";
+
+/* The palette swap is CSS: `data-vision` on <html> re-declares the colour
+   families. The same attribute on the swatch strip below re-declares them for
+   that subtree only, so each row previews its own mode without switching the
+   app — you pick the one whose swatches look most separated to YOU, which is
+   the honest test when you may not know your own diagnosis. */
+const VISIONS = [
+  { id: "none", label: "Standard", hint: "The default palette" },
+  { id: "deuteranopia", label: "Deuteranopia", hint: "Reduced green sensitivity — the most common form" },
+  { id: "protanopia", label: "Protanopia", hint: "Reduced red sensitivity" },
+  { id: "tritanopia", label: "Tritanopia", hint: "Reduced blue sensitivity — rare" },
+];
+const SWATCHES = ["--v-pink", "--v-amber", "--v-green", "--v-cyan", "--v-azure", "--v-lilac", "--v-magenta"];
 
 export function Settings({
   me,
   theme,
   onTheme,
+  vision,
+  onVision,
+  profiles,
+  onProfiles,
   onUpdate,
   onClose,
   onSignOut,
@@ -14,12 +33,31 @@ export function Settings({
   me: Me;
   theme: string;
   onTheme: (t: string) => void;
+  vision: string;
+  onVision: (v: string) => void;
+  profiles: VisionProfile[];
+  onProfiles: (p: VisionProfile[]) => void;
   onUpdate: (me: Me) => void;
   onClose: () => void;
   onSignOut: () => void;
 }) {
   const [name, setName] = useState(me.displayName);
   const [saving, setSaving] = useState(false);
+  /** The profile being edited; `isNew` decides whether Cancel leaves anything behind. */
+  const [editing, setEditing] = useState<{ profile: VisionProfile; isNew: boolean } | null>(null);
+
+  /* A new profile starts from the palette on screen, not from black: the seven
+     wells are pre-filled with whatever the active mode resolves to, so editing
+     is a nudge from something that already works rather than a blank canvas. */
+  const newProfile = (): VisionProfile => {
+    const cs = getComputedStyle(document.documentElement);
+    return {
+      id: `p${Date.now().toString(36)}`,
+      name: "My palette",
+      colors: PALETTE_SLOTS.map(({ token }) => cs.getPropertyValue(`--v-${token}`).trim() || "#888888"),
+      brand: cs.getPropertyValue("--fin-hero-a").trim() || "#6f49ca",
+    };
+  };
 
   const patch = async (body: { avatar?: string; displayName?: string }) => {
     setSaving(true);
@@ -91,10 +129,93 @@ export function Settings({
           </div>
         </section>
 
+        <section>
+          <h3>Colour vision</h3>
+          <p className="settings-note">
+            Where colour carries meaning — category wedges, sector pills, money in and out — these swap the palette for
+            hues that stay apart for your eyes. Ground, type and layout are unchanged.
+          </p>
+          <div className="vision-list">
+            {VISIONS.map((v) => (
+              <button
+                key={v.id}
+                className={`vision-pick ${vision === v.id ? "active" : ""}`}
+                onClick={() => onVision(v.id)}
+                aria-pressed={vision === v.id}
+              >
+                <span className="vision-swatches" data-vision={v.id} aria-hidden="true">
+                  {SWATCHES.map((c) => (
+                    <i key={c} style={{ background: `var(${c})` }} />
+                  ))}
+                </span>
+                <span className="vision-txt">
+                  <strong>{v.label}</strong>
+                  <em>{v.hint}</em>
+                </span>
+              </button>
+            ))}
+
+            {/* Hand-built profiles. Their swatches are inline values rather than
+                a data-vision lookup — that is the whole difference between these
+                and the four above, which are CSS. */}
+            {profiles.map((p) => (
+              <div key={p.id} className={`vision-pick ${vision === `custom:${p.id}` ? "active" : ""}`}>
+                <button className="vision-choose" onClick={() => onVision(`custom:${p.id}`)} aria-pressed={vision === `custom:${p.id}`}>
+                  <span className="vision-swatches" aria-hidden="true">
+                    {[...p.colors, ...(p.brand ? [p.brand] : [])].map((c, i) => (
+                      <i key={i} style={{ background: c }} />
+                    ))}
+                  </span>
+                  <span className="vision-txt">
+                    <strong>{p.name}</strong>
+                    <em>Your palette</em>
+                  </span>
+                </button>
+                <button className="vision-edit" onClick={() => setEditing({ profile: p, isNew: false })}>Edit</button>
+              </div>
+            ))}
+
+            <button className="vision-add" onClick={() => setEditing({ profile: newProfile(), isNew: true })}>
+              <IconPlus /> New profile
+            </button>
+          </div>
+        </section>
+
         <CalendarSection />
         <MailSection />
         <TokensSection />
         <WebhooksSection />
+
+        {editing && (
+          <VisionEditor
+            profile={editing.profile}
+            surface={getComputedStyle(document.documentElement).getPropertyValue("--surface").trim()}
+            mode={theme === "command" ? "dark" : "light"}
+            heroFallback={getComputedStyle(document.documentElement).getPropertyValue("--fin-hero-a").trim()}
+            pinned={{
+              ok: getComputedStyle(document.documentElement).getPropertyValue("--ok").trim(),
+              warn: getComputedStyle(document.documentElement).getPropertyValue("--warn").trim(),
+              danger: getComputedStyle(document.documentElement).getPropertyValue("--danger").trim(),
+            }}
+            onSave={(p) => {
+              onProfiles(editing.isNew ? [...profiles, p] : profiles.map((x) => (x.id === p.id ? p : x)));
+              onVision(`custom:${p.id}`);
+              setEditing(null);
+            }}
+            onDelete={
+              editing.isNew
+                ? null
+                : (id) => {
+                    onProfiles(profiles.filter((x) => x.id !== id));
+                    // Deleting the profile you are wearing has to put something
+                    // back on, or every category token stays at its last value.
+                    if (vision === `custom:${id}`) onVision("none");
+                    setEditing(null);
+                  }
+            }
+            onClose={() => setEditing(null)}
+          />
+        )}
 
         <button className="settings-signout ghost" onClick={onSignOut}>
           <IconSignOut /> Sign out

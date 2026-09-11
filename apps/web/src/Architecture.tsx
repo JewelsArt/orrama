@@ -9,10 +9,12 @@ import { onWs, sendEditing } from "./ws.js";
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
-export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
+export function Architecture({ me, noteId, category: initialCategory }: { me: Me; noteId?: string; category?: string }) {
   const [tree, setTree] = useState<TreeNote[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
-  const [category, setCategory] = useState("all");
+  // Seeded from the route so the Dashboard's category donut can open this view
+  // already scoped to the slice that was clicked.
+  const [category, setCategory] = useState(initialCategory ?? "all");
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
@@ -155,7 +157,9 @@ export function Architecture({ me, noteId }: { me: Me; noteId?: string }) {
     for (const n of tree) m.set(n.id, categoryColor(categoryOf(n)));
     return m;
   }, [tree]);
-  const colorForId = useCallback((id: string) => noteColor.get(id) ?? "#8888aa", [noteColor]);
+  // Goes to the file tree (DOM), never to the graph canvas — the canvas reads
+  // --text-dim itself and stays monochrome, so a var() here is safe.
+  const colorForId = useCallback((id: string) => noteColor.get(id) ?? "var(--vault-other)", [noteColor]);
 
   const completions = useMemo(
     () => ({

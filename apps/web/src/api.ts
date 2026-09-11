@@ -10,6 +10,13 @@ export interface Team {
   done?: number;
 }
 
+/** Theme + palette, stored on the account so every device shows the same app. */
+export interface Appearance {
+  theme?: string;
+  vision?: string;
+  profiles?: { id: string; name: string; colors: string[] }[];
+}
+
 export interface Me {
   id: string;
   email: string;
@@ -17,6 +24,7 @@ export interface Me {
   displayName: string;
   isOwner: boolean;
   avatar: string;
+  appearance: Appearance | null;
   teams: Team[];
 }
 

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { hash as argonHash, verify as argonVerify } from "@node-rs/argon2";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { loginSchema, registerSchema } from "@basalt/schema";
+import { appearanceSchema, loginSchema, registerSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -56,13 +56,18 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return publicUser(db, store, req.userId);
   });
 
-  /** Profile self-service: character avatar + display name. */
+  /** Profile self-service: character avatar, display name, appearance. */
   app.patch("/api/me", { preHandler: [app.authenticate] }, async (req) => {
-    const body = (req.body ?? {}) as { avatar?: string; displayName?: string };
+    const body = (req.body ?? {}) as { avatar?: string; displayName?: string; appearance?: unknown };
     const set: Record<string, string> = {};
     if (body.avatar && /^[a-z-]{2,24}$/.test(body.avatar)) set["avatar"] = body.avatar;
     if (body.displayName && body.displayName.trim().length >= 1 && body.displayName.length <= 80) {
       set["displayName"] = body.displayName.trim();
+    }
+    // Parsed, not stored as sent: this JSON comes back out as CSS custom
+    // properties, so the strict shape in appearanceSchema is the point.
+    if (body.appearance !== undefined) {
+      set["appearance"] = JSON.stringify(appearanceSchema.parse(body.appearance));
     }
     if (Object.keys(set).length > 0) {
       db.update(tables.users).set(set).where(eq(tables.users.id, req.userId)).run();
@@ -83,6 +88,19 @@ export function publicUser(db: Db, store: VaultStore, id: string) {
     displayName: u.displayName,
     isOwner: u.isOwner,
     avatar: u.avatar,
+    /** Re-validated on the way out too: a row written by an older build, or by
+     *  hand, must not become the one path that skips the grammar. */
+    appearance: safeAppearance(u.appearance),
     teams,
   };
+}
+
+function safeAppearance(raw: string | null) {
+  if (!raw) return null;
+  try {
+    const parsed = appearanceSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null; // not JSON at all
+  }
 }

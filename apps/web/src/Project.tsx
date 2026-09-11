@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type DashboardTask, type Me, type NoteDetail } from "./api.js";
 import { ContactSheet, initials as sheetInitials, type CompanyRecord, type ContactRecord } from "./cards.js";
+import { DOMAIN_COLOR, daysTo } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DocViewer } from "./DocViewer.js";
 import { Editor } from "./Editor.js";
@@ -49,22 +50,7 @@ export interface ProjectWorkspace {
 }
 
 const STATUSES = ["planning", "on-track", "at-risk", "blocked", "sleeping", "cancelled", "done"] as const;
-const DOMAIN_COLOR: Record<string, string> = {
-  personal: "#57c99b",
-  professional: "#6fabec",
-  academic: "#b587e8",
-};
-
 const kb = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
-
-/** Days until a YYYY-MM-DD, in whole days from today. */
-const daysTo = (date: string): number | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const then = new Date(`${date}T00:00:00`).getTime();
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  return Math.round((then - today) / 86_400_000);
-};
 
 /**
  * The project workspace: one page per project, opened from the Overview board.
@@ -120,6 +106,7 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
   return (
     <div className="proj">
       <header className="proj-top">
+        <div className="proj-top-id">
         <button className="proj-back" onClick={onBack} aria-label="Back to Overview">
           ← Overview
         </button>
@@ -129,7 +116,12 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
             {w.domain}
           </span>
         )}
+        </div>
 
+        {/* Controls and the ring travel together: as one flex item they wrap to
+            the next line as a unit. Loose in the header they wrapped separately,
+            which stranded the ring alone on a line of its own. */}
+        <div className="proj-top-meta">
         <span className="proj-meta">
           <select
             className="proj-status"
@@ -176,6 +168,7 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
           </svg>
           <b>{pct}%</b>
         </span>
+        </div>
       </header>
 
       <div className="proj-grid">
@@ -453,7 +446,7 @@ function Files({ w, onChanged }: { w: ProjectWorkspace; onChanged: () => Promise
       </div>
       {busy && <p className="proj-hint">Uploading {busy}…</p>}
       {err && <p className="form-error">{err}</p>}
-      {reading && <DocViewer slug={w.slug} name={reading} onClose={() => setReading(null)} />}
+      {reading && <DocViewer base={`/api/projects/${encodeURIComponent(w.slug)}/files`} name={reading} onClose={() => setReading(null)} />}
       <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </Card>
   );

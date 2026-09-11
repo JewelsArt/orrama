@@ -20,7 +20,14 @@ interface Overview {
 
 const NEXT_ROLE = { viewer: "editor", editor: "admin", admin: "viewer" } as const;
 /* Team palette = the vault's graph group colors. */
-const COLORS = ["#4a9eff", "#e5383b", "#a855f7", "#2dd4bf", "#f5a623", "#8888aa"];
+/**
+ * Team colours, as CONCRETE hex rather than tokens: unlike everywhere else,
+ * these are written into the database when a team is created, and a `var()`
+ * stored in a row would resolve against whatever stylesheet happened to be
+ * loaded later. Same family as the app palette, light-mode values, picked so a
+ * new team lands somewhere distinguishable from the last.
+ */
+const COLORS = ["#0091c3", "#d52273", "#824af6", "#00ac2c", "#a65f00", "#7c8296"];
 
 export function Admin() {
   const [data, setData] = useState<Overview | null>(null);

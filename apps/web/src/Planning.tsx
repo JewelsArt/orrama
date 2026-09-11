@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me } from "./api.js";
-import { CharacterAvatar } from "./avatars.js";
+import { IconWand } from "./icons.js";
 import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
 
@@ -32,9 +32,10 @@ interface PlanTask {
 }
 
 interface PlanData {
-  team: { slug: string; name: string; color: string };
   source: "heuristic" | "ai";
   hoursPerDay: number;
+  atRisk: number;
+  totalHours: number;
   assignees: { assignee: string; totalHours: number; tasks: PlanTask[] }[];
 }
 
@@ -53,11 +54,39 @@ interface CalEvent {
   allDay?: boolean;
 }
 
-interface Member {
+/**
+ * A dated thing with no time of day — a deadline, a project milestone, a
+ * payment. It has no place *inside* an hour grid, which is why the calendar
+ * used to be blank while the vault was full: everything Jules actually dates
+ * lives here. `GET /api/calendar/markers`.
+ */
+interface DayMarker {
   id: string;
-  username: string;
-  avatar: string;
-  displayName: string;
+  kind: "due" | "milestone" | "charge" | "income";
+  date: string;
+  title: string;
+  noteId: string | null;
+  line: number | null;
+  source: string | null;
+  amount: number | null;
+  currency: string | null;
+  overdue: boolean;
+  priority: number | null;
+}
+
+/** One block the auto-scheduler suggests. Nothing is written until "Book". */
+interface Proposal {
+  noteId: string;
+  line: number;
+  blockId: string | null;
+  text: string;
+  project: string | null;
+  due: string | null;
+  atRisk: boolean;
+  date: string;
+  startMin: number;
+  durationMin: number;
+  estimateHours: number;
 }
 
 type Popup =
@@ -69,12 +98,18 @@ type Popup =
 /* ---------- time helpers ---------- */
 
 const DAY_MS = 86_400_000;
-const DAY_START = 0; // 00:00 — show the whole day; the grid scrolls and opens near "now"
-const DAY_END = 24 * 60; // 24:00
+/**
+ * The grid's default window. A full 24h of hairlines is mostly a picture of
+ * when nothing happens — two thirds of it is asleep — so the day opens on the
+ * hours that get used and *widens itself* around anything outside them (see
+ * `windowFor`). "Full day" forces the whole 24h back.
+ */
+const DEFAULT_START = 7 * 60;
+const DEFAULT_END = 23 * 60;
 const PX_PER_MIN = 52 / 60; // 52px per hour
 const SNAP = 30;
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const mondayOf = (d: Date) => {
   const x = new Date(d);
   x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
@@ -83,8 +118,27 @@ const mondayOf = (d: Date) => {
 };
 const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 const fmtH = (min: number) => (min % 60 === 0 ? `${min / 60}h` : `${(min / 60).toFixed(1)}h`);
-const snapMin = (min: number) => Math.round(min / SNAP) * SNAP;
-const clampStart = (min: number) => Math.max(DAY_START, Math.min(snapMin(min), DAY_END - SNAP));
+const hoursLabel = (h: number) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
+/** Same formatting as the Dashboard agenda: the currency's own decimals, and a
+ *  charge signed "−€13.99" so a bare minus never reads as a typo. */
+const money = (amount: number, currency: string | null) =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: currency || "EUR",
+    signDisplay: amount < 0 ? "always" : "auto",
+  }).format(amount);
+
+/** The visible hour window: the default, widened to hold anything that falls outside it. */
+function windowFor(fullDay: boolean, spans: { startMin: number; durationMin: number }[]) {
+  if (fullDay) return [0, 24 * 60] as const;
+  let lo = DEFAULT_START;
+  let hi = DEFAULT_END;
+  for (const s of spans) {
+    lo = Math.min(lo, Math.floor(s.startMin / 60) * 60);
+    hi = Math.max(hi, Math.ceil((s.startMin + s.durationMin) / 60) * 60);
+  }
+  return [Math.max(0, lo), Math.min(24 * 60, hi)] as const;
+}
 
 /* ---------- component ---------- */
 
@@ -98,31 +152,46 @@ export function Planning({
   onOpenProject?: (slug: string) => void;
 }) {
   const [card, setCard] = useState<PlanTask | null>(null);
-  const [teamSlug, setTeamSlug] = useState<string | null>(me.teams[0]?.slug ?? null);
   const [plan, setPlan] = useState<PlanData | null>(null);
   const [events, setEvents] = useState<CalEvent[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [markers, setMarkers] = useState<DayMarker[]>([]);
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [mode, setMode] = useState<"week" | "month">("week");
-  const [people, setPeople] = useState<Set<string>>(new Set([me.username]));
   const [popup, setPopup] = useState<Popup>(null);
   const [nowTick, setNowTick] = useState(Date.now());
+  const [fullDay, setFullDay] = useState(() => localStorage.getItem("basalt-plan-fullday") === "1");
+  const [filter, setFilter] = useState<"soon" | "risk" | "all">("soon");
+  const [proposals, setProposals] = useState<Proposal[] | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   const days = useMemo(
     () => Array.from({ length: 7 }, (_, i) => new Date(weekStart.getTime() + i * DAY_MS)),
     [weekStart],
   );
+  const today = iso(new Date(nowTick));
+
+  /** Both grids at once: the week on screen, plus the six-week month block it sits in. */
+  const range = useMemo(() => {
+    const monthStart = mondayOf(new Date(weekStart.getFullYear(), weekStart.getMonth(), 1, 12));
+    const from = new Date(Math.min(weekStart.getTime() - 7 * DAY_MS, monthStart.getTime()));
+    const to = new Date(Math.max(weekStart.getTime() + 21 * DAY_MS, monthStart.getTime() + 41 * DAY_MS));
+    return { from: iso(from), to: iso(to) };
+  }, [weekStart]);
 
   const load = useCallback(async () => {
-    if (teamSlug) setPlan(await api<PlanData>("GET", `/api/plan/${teamSlug}`));
-    const from = iso(new Date(weekStart.getTime() - 7 * DAY_MS));
-    const to = iso(new Date(weekStart.getTime() + 42 * DAY_MS));
-    setEvents(await api<CalEvent[]>("GET", `/api/events?from=${from}&to=${to}`));
-  }, [teamSlug, weekStart]);
+    const [p, e, m] = await Promise.all([
+      api<PlanData>("GET", "/api/plan"),
+      api<CalEvent[]>("GET", `/api/events?from=${range.from}&to=${range.to}`),
+      api<DayMarker[]>("GET", `/api/calendar/markers?from=${range.from}&to=${range.to}`),
+    ]);
+    setPlan(p);
+    setEvents(e);
+    setMarkers(m);
+  }, [range]);
 
   useEffect(() => {
     void load();
-    api<Member[]>("GET", "/api/members").then(setMembers);
   }, [load]);
 
   useEffect(() => {
@@ -140,92 +209,226 @@ export function Planning({
     };
   }, [load]);
 
-  const allTasks = useMemo(() => plan?.assignees.flatMap((a) => a.tasks) ?? [], [plan]);
-  const backlog = useMemo(
-    () => allTasks.filter((t) => t.assignee === me.username && t.remainingHours > 0),
-    [allTasks, me.username],
+  const allTasks = useMemo(
+    () => (plan?.assignees ?? []).filter((a) => a.assignee === me.username).flatMap((a) => a.tasks),
+    [plan, me.username],
   );
+  const backlog = useMemo(() => allTasks.filter((t) => t.remainingHours > 0), [allTasks]);
+
   /**
-   * A 47-item backlog is a wall, not a plan. Default to what is actually
-   * actionable — overdue, due within a fortnight, or already in progress — and
-   * keep the rest one click away.
+   * A 43-item backlog is a wall, not a plan. The default is what is actually
+   * actionable — already late or landing inside a fortnight — and the other two
+   * cuts are one click away rather than hidden behind a "show all".
    */
-  const [backlogAll, setBacklogAll] = useState(false);
   const soon = useMemo(() => {
-    const horizon = new Date();
+    const horizon = new Date(nowTick);
     horizon.setDate(horizon.getDate() + 14);
     const cut = iso(horizon);
-    return backlog.filter((t) => (t.due && t.due <= cut) || t.atRisk);
-  }, [backlog]);
-  const shownBacklog = backlogAll ? backlog : (soon.length > 0 ? soon : backlog).slice(0, 8);
-  const memberFor = (u: string) => members.find((m) => m.username === u);
-  const teamUsernames = useMemo(() => {
-    const set = new Set(allTasks.map((t) => t.assignee).filter((a): a is string => !!a));
-    for (const e of events) set.add(e.username);
-    set.add(me.username);
-    return [...set].sort((a, b) => (a === me.username ? -1 : b === me.username ? 1 : a.localeCompare(b)));
-  }, [allTasks, events, me.username]);
-  const selected = teamUsernames.filter((u) => people.has(u));
+    return backlog.filter((t) => t.due && t.due <= cut);
+  }, [backlog, nowTick]);
+  const atRisk = useMemo(() => backlog.filter((t) => t.atRisk), [backlog]);
+  const shownBacklog = filter === "all" ? backlog : filter === "risk" ? atRisk : soon;
 
-  const togglePerson = (u: string) => {
-    const next = new Set(people);
-    if (next.has(u)) next.delete(u);
-    else next.add(u);
-    if (next.size === 0) next.add(me.username);
-    setPeople(next);
+  /* The week in numbers — the strip under the title, so the tab says something
+     even on a week you have not touched yet. */
+  const stats = useMemo(() => {
+    const weekDays = days.map(iso);
+    const inWeek = (d: string) => d >= weekDays[0]! && d <= weekDays[6]!;
+    const bookedMin = allTasks.flatMap((t) => t.blocks).reduce((s, b) => (inWeek(b.date) ? s + b.durationMin : s), 0);
+    const meetingMin = events.reduce((s, e) => (inWeek(e.date) && !e.allDay ? s + e.durationMin : s), 0);
+    const capacity = (plan?.hoursPerDay ?? 6) * 5 * 60; // five working days
+    return {
+      bookedMin,
+      meetingMin,
+      capacity,
+      unplanned: Math.round(backlog.reduce((s, t) => s + t.remainingHours, 0) * 10) / 10,
+      due: markers.filter((m) => m.kind === "due" && inWeek(m.date)).length,
+      atRisk: atRisk.length,
+      overdue: backlog.filter((t) => t.due && t.due < today).length,
+    };
+  }, [allTasks, events, days, plan, backlog, markers, atRisk, today]);
+
+  const openMarker = (m: DayMarker) => {
+    const task = m.line !== null && allTasks.find((t) => t.noteId === m.noteId && t.line === m.line);
+    if (task) setCard(task);
+    else if (m.noteId) onOpenNote(m.noteId);
   };
+
+  const autoPlan = async () => {
+    setPlanning(true);
+    try {
+      const res = await api<{ proposals: Proposal[]; unplaced: number }>("POST", "/api/plan/auto", {
+        from: iso(days[0]!),
+        to: iso(days[6]!),
+      });
+      setProposals(res.proposals);
+      if (res.proposals.length > 0) setMode("week");
+    } finally {
+      setPlanning(false);
+    }
+  };
+
+  /** Booking goes through the ordinary block endpoint — one path promotes the
+   *  checkbox and writes the block, whoever asked for it. */
+  const bookProposals = async () => {
+    if (!proposals) return;
+    setBooking(true);
+    try {
+      for (const p of proposals) {
+        await api("POST", "/api/tasks/blocks", {
+          noteId: p.noteId,
+          line: p.line,
+          blockId: p.blockId ?? undefined,
+          date: p.date,
+          startMin: p.startMin,
+          durationMin: p.durationMin,
+          estimateHours: p.estimateHours,
+        });
+      }
+      setProposals(null);
+      await load();
+    } finally {
+      setBooking(false);
+    }
+  };
+
+  const proposalHours = proposals ? proposals.reduce((s, p) => s + p.durationMin, 0) / 60 : 0;
 
   return (
     <div className="planning">
-      <header className="view-head plan-head">
-        <div className="week-nav">
-          <button className="ghost" onClick={() => setWeekStart(new Date(weekStart.getTime() - 7 * DAY_MS))} aria-label="Previous week">
-            ‹
-          </button>
-          <button className="ghost week-today" onClick={() => setWeekStart(mondayOf(new Date()))}>
-            {mode === "week"
-              ? `${days[0]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${days[6]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
-              : weekStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-          </button>
-          <button className="ghost" onClick={() => setWeekStart(new Date(weekStart.getTime() + 7 * DAY_MS))} aria-label="Next week">
-            ›
-          </button>
+      <header className="plan-top">
+        <div className="plan-title">
+          <h1 className="plan-h1">Planning</h1>
+          <p className="plan-sub">Your week, against everything the vault has dated.</p>
         </div>
-
-        <div className="scope-tabs">
-          <button className={`scope-tab ${mode === "week" ? "active" : ""}`} onClick={() => setMode("week")}>
-            Week
-          </button>
-          <button className={`scope-tab ${mode === "month" ? "active" : ""}`} onClick={() => setMode("month")}>
-            Month
-          </button>
+        <div className="plan-top-right">
+          <div className="week-nav">
+            <button
+              className="ghost"
+              onClick={() => setWeekStart(new Date(weekStart.getTime() - (mode === "week" ? 7 : 28) * DAY_MS))}
+              aria-label={mode === "week" ? "Previous week" : "Previous month"}
+            >
+              ‹
+            </button>
+            <button className="ghost week-today" onClick={() => setWeekStart(mondayOf(new Date()))}>
+              {mode === "week"
+                ? `${days[0]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${days[6]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+                : weekStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+            </button>
+            <button
+              className="ghost"
+              onClick={() => setWeekStart(new Date(weekStart.getTime() + (mode === "week" ? 7 : 28) * DAY_MS))}
+              aria-label={mode === "week" ? "Next week" : "Next month"}
+            >
+              ›
+            </button>
+          </div>
+          <div className="scope-tabs">
+            <button className={`scope-tab ${mode === "week" ? "active" : ""}`} onClick={() => setMode("week")}>
+              Week
+            </button>
+            <button className={`scope-tab ${mode === "month" ? "active" : ""}`} onClick={() => setMode("month")}>
+              Month
+            </button>
+          </div>
         </div>
-
-        {plan && (
-          <span className="plan-source" title={`Estimates are a budget; calendar blocks spend it.`}>
-            {plan.source === "ai" ? "AI estimates" : "heuristic estimates"}
-          </span>
-        )}
       </header>
+
+      <div className="plan-strip" role="group" aria-label="This week in numbers">
+        <div className="plan-tile">
+          <span className="plan-tile-lbl">Booked</span>
+          <span className="plan-tile-val">
+            {fmtH(stats.bookedMin)}
+            <em>of {fmtH(stats.capacity)}</em>
+          </span>
+          <span className="plan-tile-bar">
+            <span style={{ width: `${Math.min(stats.bookedMin / stats.capacity, 1) * 100}%` }} />
+          </span>
+        </div>
+        <div className="plan-tile">
+          <span className="plan-tile-lbl">Meetings</span>
+          <span className="plan-tile-val">{fmtH(stats.meetingMin)}</span>
+          <span className="plan-tile-note">events and subscribed calendars</span>
+        </div>
+        <div className="plan-tile">
+          <span className="plan-tile-lbl">Unplanned</span>
+          <span className="plan-tile-val">{hoursLabel(stats.unplanned)}</span>
+          <span className="plan-tile-note">{backlog.length} open steps, estimated</span>
+        </div>
+        <div className="plan-tile">
+          <span className="plan-tile-lbl">Due this week</span>
+          <span className="plan-tile-val">{stats.due}</span>
+          <span className="plan-tile-note">deadlines on the grid</span>
+        </div>
+        <div className={`plan-tile ${stats.overdue > 0 ? "bad" : ""}`}>
+          <span className="plan-tile-lbl">Late</span>
+          <span className="plan-tile-val">{stats.overdue}</span>
+          <span className="plan-tile-note">{stats.atRisk} more will be, at this pace</span>
+        </div>
+      </div>
 
       <div className="plan-body">
         <aside className="backlog" aria-label="Unplanned tasks">
-          <h3>
-            Backlog <span className="ft-count">{shownBacklog.length}</span>
-            {backlog.length > shownBacklog.length && (
-              <button className="backlog-toggle" onClick={() => setBacklogAll(true)}>
-                show all {backlog.length}
-              </button>
-            )}
-            {backlogAll && backlog.length > 8 && (
-              <button className="backlog-toggle" onClick={() => setBacklogAll(false)}>
-                show less
-              </button>
-            )}
-          </h3>
+          <div className="backlog-head">
+            <h3>Backlog</h3>
+            <div className="backlog-filters">
+              {(
+                [
+                  ["soon", "Soon", soon.length],
+                  ["risk", "At risk", atRisk.length],
+                  ["all", "All", backlog.length],
+                ] as const
+              ).map(([key, label, n]) => (
+                <button
+                  key={key}
+                  className={`backlog-filter ${filter === key ? "on" : ""}`}
+                  onClick={() => setFilter(key)}
+                  aria-pressed={filter === key}
+                >
+                  {label} <span>{n}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {proposals ? (
+            <div className="plan-proposal" role="status">
+              <p className="plan-proposal-line">
+                <strong>
+                  {proposals.length} block{proposals.length === 1 ? "" : "s"}
+                </strong>{" "}
+                · {hoursLabel(Math.round(proposalHours * 10) / 10)} suggested
+              </p>
+              <p className="plan-proposal-hint">
+                {proposals.length > 0
+                  ? "Shown dashed on the grid. Click one to drop it."
+                  : "No room left this week — nothing to book."}
+              </p>
+              <div className="plan-proposal-actions">
+                <button className="primary" disabled={booking || proposals.length === 0} onClick={bookProposals}>
+                  {booking ? "Booking…" : "Book them"}
+                </button>
+                <button className="ghost" onClick={() => setProposals(null)}>
+                  Discard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button className="plan-auto" onClick={autoPlan} disabled={planning || backlog.length === 0}>
+              <IconWand />
+              {planning ? "Working…" : "Plan my week"}
+            </button>
+          )}
+
           <p className="backlog-hint">
-            {backlogAll ? "Everything unplanned." : "Due in the next two weeks or at risk."} Drag onto the grid — books 2h, the rest stays here.
+            {filter === "all"
+              ? "Everything still unplanned."
+              : filter === "risk"
+                ? "On the current queue, these finish after their deadline."
+                : "Late, or landing inside a fortnight."}{" "}
+            Drag one onto a day to book it.
           </p>
+
           {shownBacklog.map((t) => (
             <div
               key={`${t.noteId}:${t.line}`}
@@ -243,40 +446,65 @@ export function Planning({
                 e.dataTransfer.effectAllowed = "copy";
               }}
             >
-              <span className="cal-task-est">
-                {t.remainingHours}h{t.scheduledHours > 0 ? ` of ${t.estimateHours}h` : ""}
-              </span>
               <span className="cal-task-text">{t.text}</span>
-              {t.due && <span className={`cal-task-due ${t.due < iso(new Date()) ? "overdue" : ""}`}>due {t.due.slice(5)}</span>}
+              <span className="cal-task-meta">
+                <span className="cal-task-est">
+                  {hoursLabel(t.remainingHours)}
+                  {t.scheduledHours > 0 ? ` left of ${hoursLabel(t.estimateHours)}` : ""}
+                </span>
+                {t.project && <span className="cal-task-project">{t.project}</span>}
+                {t.due && <span className={`cal-task-due ${t.due < today ? "overdue" : ""}`}>{t.due.slice(5)}</span>}
+              </span>
             </div>
           ))}
-          {shownBacklog.length === 0 && <p className="empty">Nothing due soon — the calendar is ahead of you.</p>}
+          {shownBacklog.length === 0 && (
+            <p className="empty">
+              {filter === "soon" ? "Nothing due soon — the calendar is ahead of you." : "Nothing here."}
+            </p>
+          )}
         </aside>
 
         {mode === "week" ? (
           <WeekGrid
-            me={me}
             days={days}
-            selected={selected}
-            memberFor={memberFor}
             tasks={allTasks}
             events={events}
+            markers={markers}
+            proposals={proposals ?? []}
             nowTick={nowTick}
+            fullDay={fullDay}
+            hoursPerDay={plan?.hoursPerDay ?? 6}
+            onFullDay={(v) => {
+              setFullDay(v);
+              localStorage.setItem("basalt-plan-fullday", v ? "1" : "0");
+            }}
+            onDropProposal={(p) => setProposals((cur) => (cur ? cur.filter((x) => x !== p) : cur))}
             onReload={load}
             onPopup={setPopup}
+            onOpenMarker={openMarker}
           />
         ) : (
           <MonthGrid
             anchor={weekStart}
-            tasks={allTasks.filter((t) => t.assignee && people.has(t.assignee))}
-            events={events.filter((e) => people.has(e.username))}
+            tasks={allTasks}
+            events={events}
+            markers={markers}
+            hoursPerDay={plan?.hoursPerDay ?? 6}
             onPickWeek={(d) => {
               setWeekStart(mondayOf(d));
               setMode("week");
             }}
+            onOpenMarker={openMarker}
           />
         )}
       </div>
+
+      {plan && (
+        <p className="plan-foot">
+          Estimates are {plan.source === "ai" ? "refined by AI" : "heuristic"} — a budget the calendar spends. Days hold{" "}
+          {plan.hoursPerDay}h of focused work.
+        </p>
+      )}
 
       {popup && <CalPopup popup={popup} onClose={() => setPopup(null)} onReload={load} onOpenNote={onOpenNote} />}
       {card && (
@@ -295,35 +523,37 @@ export function Planning({
 /* ---------- week grid ---------- */
 
 function WeekGrid({
-  me,
   days,
-  selected,
-  memberFor,
   tasks,
   events,
+  markers,
+  proposals,
   nowTick,
+  fullDay,
+  hoursPerDay,
+  onFullDay,
+  onDropProposal,
   onReload,
   onPopup,
+  onOpenMarker,
 }: {
-  me: Me;
   days: Date[];
-  selected: string[];
-  memberFor: (u: string) => Member | undefined;
   tasks: PlanTask[];
   events: CalEvent[];
+  markers: DayMarker[];
+  proposals: Proposal[];
   nowTick: number;
+  fullDay: boolean;
+  hoursPerDay: number;
+  onFullDay: (v: boolean) => void;
+  onDropProposal: (p: Proposal) => void;
   onReload: () => Promise<void>;
   onPopup: (p: Popup) => void;
+  onOpenMarker: (m: DayMarker) => void;
 }) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Full 24h grid: open scrolled to ~1h before now so you land in the working day, not midnight.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const n = new Date().getHours() * 60 + new Date().getMinutes();
-    el.scrollTop = Math.max(0, (n - 60) * PX_PER_MIN);
-  }, []);
+  const [marksOpen, setMarksOpen] = useState(false);
   const [drag, setDrag] = useState<{
     kind: "move" | "resize";
     itemKind: "block" | "event";
@@ -336,14 +566,40 @@ function WeekGrid({
   const dragRef = useRef(drag);
   dragRef.current = drag;
 
+  const dayKeys = useMemo(() => days.map(iso), [days]);
+  const inWeek = useCallback((d: string) => d >= dayKeys[0]! && d <= dayKeys[6]!, [dayKeys]);
+
+  const blocks = useMemo(() => {
+    const out: { block: TimeBlock; task: PlanTask }[] = [];
+    for (const t of tasks) for (const b of t.blocks) if (inWeek(b.date)) out.push({ block: b, task: t });
+    return out;
+  }, [tasks, inWeek]);
+  const timed = useMemo(() => events.filter((e) => !e.allDay && inWeek(e.date)), [events, inWeek]);
+
+  // The window follows the content: a 06:30 block or a 23:40 lecture widens the
+  // grid rather than falling off the bottom of it.
+  const [dayStart, dayEnd] = useMemo(
+    () => windowFor(fullDay, [...blocks.map((b) => b.block), ...timed, ...proposals]),
+    [fullDay, blocks, timed, proposals],
+  );
+  const gridHeight = (dayEnd - dayStart) * PX_PER_MIN;
   const hours = useMemo(() => {
     const out: number[] = [];
-    for (let m = DAY_START; m <= DAY_END; m += 60) out.push(m);
+    for (let m = dayStart; m <= dayEnd; m += 60) out.push(m);
     return out;
-  }, []);
-  const gridHeight = (DAY_END - DAY_START) * PX_PER_MIN;
+  }, [dayStart, dayEnd]);
+
   const today = iso(new Date(nowTick));
   const nowMin = new Date(nowTick).getHours() * 60 + new Date(nowTick).getMinutes();
+
+  // Open scrolled to ~an hour before now, so you land in the working day.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = Math.max(0, (nowMin - 60 - dayStart) * PX_PER_MIN);
+    // Only on mount and when the window itself changes — not on every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayStart, dayEnd]);
 
   /** Day + minute under a pointer/drop position. */
   const locate = (clientX: number, clientY: number): { date: string; min: number } | null => {
@@ -352,11 +608,11 @@ function WeekGrid({
     const rect = body.getBoundingClientRect();
     const dayWidth = rect.width / 7;
     const dayIdx = Math.max(0, Math.min(6, Math.floor((clientX - rect.left) / dayWidth)));
-    const min = DAY_START + (clientY - rect.top + body.scrollTop - (body.scrollTop ? 0 : 0)) / PX_PER_MIN;
-    return { date: iso(days[dayIdx]!), min };
+    return { date: dayKeys[dayIdx]!, min: dayStart + (clientY - rect.top) / PX_PER_MIN };
   };
+  const clampStart = (min: number) => Math.max(0, Math.min(Math.round(min / SNAP) * SNAP, 24 * 60 - SNAP));
 
-  // Pointer-driven move/resize for my items. Click without movement opens the popup.
+  // Pointer-driven move/resize. A click without movement opens the popup instead.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       const d = dragRef.current;
@@ -369,8 +625,8 @@ function WeekGrid({
           setDrag({ ...d, date: loc.date, startMin, moved: true });
         }
       } else {
-        const duration = Math.max(SNAP, snapMin(loc.min - d.startMin));
-        if (duration !== d.durationMin) setDrag({ ...d, durationMin: Math.min(duration, DAY_END - d.startMin), moved: true });
+        const duration = Math.max(SNAP, Math.round((loc.min - d.startMin) / SNAP) * SNAP);
+        if (duration !== d.durationMin) setDrag({ ...d, durationMin: Math.min(duration, 24 * 60 - d.startMin), moved: true });
       }
     };
     const onUp = async () => {
@@ -389,7 +645,7 @@ function WeekGrid({
       window.removeEventListener("pointerup", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
+  }, [dayKeys, dayStart]);
 
   // An item's *effective* day honors an in-flight drag: while dragging, the
   // stored date hasn't changed yet (that waits on the drop PATCH), so bucket by
@@ -399,48 +655,98 @@ function WeekGrid({
   const effectiveDate = (itemKind: "block" | "event", id: string, stored: string) =>
     drag && drag.itemKind === itemKind && drag.id === id ? drag.date : stored;
 
-  const laneItems = (u: string, date: string) => {
-    const blocks: { block: TimeBlock; task: PlanTask }[] = [];
-    for (const t of tasks) {
-      if (t.assignee !== u) continue;
-      for (const b of t.blocks) if (effectiveDate("block", b.id, b.date) === date) blocks.push({ block: b, task: t });
-    }
-    const evs = events.filter((e) => e.username === u && !e.allDay && effectiveDate("event", e.id, e.date) === date);
-    const allDay = events.filter((e) => e.username === u && e.date === date && e.allDay);
-    return { blocks, evs, allDay };
-  };
-
   /** Live geometry for an item, honoring an in-flight drag. */
   const geo = (id: string, itemKind: "block" | "event", date: string, startMin: number, durationMin: number) => {
     const d = dragRef.current;
     const active = d && d.id === id && d.itemKind === itemKind;
     const s = active ? d.startMin : startMin;
     const dur = active ? d.durationMin : durationMin;
-    const dt = active ? d.date : date;
-    return { top: (s - DAY_START) * PX_PER_MIN, height: dur * PX_PER_MIN, startMin: s, durationMin: dur, date: dt, dragging: !!active };
+    return { top: (s - dayStart) * PX_PER_MIN, height: dur * PX_PER_MIN, startMin: s, durationMin: dur, date: active ? d.date : date, dragging: !!active };
   };
+
+  /** Task hours booked on a day — the load bar under each column head. */
+  const loadOf = (date: string) =>
+    blocks.reduce((s, b) => (effectiveDate("block", b.block.id, b.block.date) === date ? s + b.block.durationMin : s), 0);
+
+  const marksFor = (date: string) => ({
+    allDay: events.filter((e) => e.allDay && e.date === date),
+    marks: markers.filter((m) => m.date === date),
+  });
+  const crowded = dayKeys.some((d) => {
+    const { allDay, marks } = marksFor(d);
+    return allDay.length + marks.length > 2;
+  });
 
   return (
     <div className="cal-grid" role="grid" aria-label="Week calendar">
       <div className="cal-grid-head">
-        <span className="cal-gutter-spacer" />
+        <div className="cal-gutter-spacer">
+          <button className="cal-window-toggle" onClick={() => onFullDay(!fullDay)} title="Show the whole 24 hours">
+            {fullDay ? "24h" : `${dayStart / 60}–${dayEnd / 60}`}
+          </button>
+        </div>
         {days.map((d) => {
           const day = iso(d);
+          const load = loadOf(day);
           return (
             <div key={day} className={`cal-col-head ${day === today ? "today" : ""}`}>
               <span className="cal-day-name">{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
               <span className="cal-day-num">{d.getDate()}</span>
-              {selected.length > 1 && (
-                <span className="cal-head-lanes">
-                  {selected.map((u) => {
-                    const m = memberFor(u);
-                    return (
-                      <span key={u} className="cal-head-owner" title={u}>
-                        {m ? <CharacterAvatar id={m.avatar} size={14} /> : u[0]}
-                      </span>
-                    );
-                  })}
-                </span>
+              {load > 0 && <span className="cal-col-hours">{fmtH(load)}</span>}
+              <span className={`cal-col-load ${load > hoursPerDay * 60 ? "over" : ""}`} aria-hidden>
+                <span style={{ width: `${Math.min(load / (hoursPerDay * 60), 1) * 100}%` }} />
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* The dated band: deadlines, milestones, money and all-day events — none
+          of which own an hour, and all of which used to be invisible here. */}
+      <div className={`cal-marks ${marksOpen ? "open" : ""}`}>
+        <div className="cal-marks-gutter">
+          <span>dated</span>
+          {crowded && (
+            <button className="cal-marks-toggle" onClick={() => setMarksOpen(!marksOpen)}>
+              {marksOpen ? "less" : "all"}
+            </button>
+          )}
+        </div>
+        {dayKeys.map((day) => {
+          const { allDay, marks } = marksFor(day);
+          const items = [
+            ...allDay.map((e) => ({ key: e.id, cls: "ics", label: e.title, title: e.feedLabel ?? "All day", onClick: undefined })),
+            ...marks.map((m) => ({
+              key: m.id,
+              cls:
+                m.kind === "due"
+                  ? `due ${m.overdue ? "overdue" : ""}`
+                  : m.kind === "milestone"
+                    ? "milestone"
+                    : `money ${m.kind === "income" ? "in" : ""}`,
+              label: m.amount !== null ? `${m.title} ${money(m.amount, m.currency)}` : m.title,
+              title: m.source ?? m.title,
+              onClick: () => onOpenMarker(m),
+            })),
+          ];
+          const shown = marksOpen ? items : items.slice(0, 2);
+          return (
+            <div key={day} className={`cal-marks-cell ${day === today ? "today" : ""}`}>
+              {shown.map((it) => (
+                <button
+                  key={it.key}
+                  className={`cal-mark ${it.cls}`}
+                  title={`${it.label} — ${it.title}`}
+                  onClick={it.onClick}
+                  disabled={!it.onClick}
+                >
+                  {it.label}
+                </button>
+              ))}
+              {!marksOpen && items.length > shown.length && (
+                <button className="cal-mark more" onClick={() => setMarksOpen(true)}>
+                  +{items.length - shown.length}
+                </button>
               )}
             </div>
           );
@@ -450,7 +756,7 @@ function WeekGrid({
       <div className="cal-grid-scroll" ref={scrollRef}>
         <div className="cal-gutter" style={{ height: gridHeight }}>
           {hours.map((m) => (
-            <span key={m} className="cal-hour-label" style={{ top: (m - DAY_START) * PX_PER_MIN }}>
+            <span key={m} className="cal-hour-label" style={{ top: (m - dayStart) * PX_PER_MIN }}>
               {fmtMin(m)}
             </span>
           ))}
@@ -458,15 +764,28 @@ function WeekGrid({
 
         <div className="cal-grid-body" ref={bodyRef} style={{ height: gridHeight }}>
           {hours.map((m) => (
-            <span key={m} className="cal-hour-line" style={{ top: (m - DAY_START) * PX_PER_MIN }} />
+            <span key={m} className="cal-hour-line" style={{ top: (m - dayStart) * PX_PER_MIN }} />
           ))}
+
+          {/* A week with nothing in it is a legitimate state, not a loading one —
+              say which, and say what to do about it. */}
+          {blocks.length === 0 && timed.length === 0 && proposals.length === 0 && (
+            <p className="cal-empty">
+              Nothing booked this week. Drag a step across, double-click for an event, or let Basalt lay one out.
+            </p>
+          )}
 
           {days.map((d) => {
             const day = iso(d);
+            const weekend = d.getDay() === 0 || d.getDay() === 6;
             return (
               <div
                 key={day}
-                className={`cal-col ${day === today ? "today" : ""}`}
+                className={`cal-col ${day === today ? "today" : ""} ${weekend ? "weekend" : ""}`}
+                onDoubleClick={(e) => {
+                  const loc = locate(e.clientX, e.clientY);
+                  if (loc) onPopup({ kind: "new-event", date: day, startMin: clampStart(loc.min), anchor: { x: e.clientX, y: e.clientY } });
+                }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={async (e) => {
                   e.preventDefault();
@@ -486,101 +805,99 @@ function WeekGrid({
                   await onReload();
                 }}
               >
-                {selected.map((u) => {
-                  const mine = u === me.username;
-                  const { blocks, evs, allDay } = laneItems(u, day);
-                  return (
-                    <div
-                      key={u}
-                      className={`cal-lane ${mine ? "mine" : ""}`}
-                      onDoubleClick={(e) => {
-                        if (!mine) return;
-                        const loc = locate(e.clientX, e.clientY);
-                        if (loc) onPopup({ kind: "new-event", date: day, startMin: clampStart(loc.min), anchor: { x: e.clientX, y: e.clientY } });
-                      }}
+                {proposals
+                  .filter((p) => p.date === day)
+                  .map((p, i) => (
+                    <button
+                      key={`${p.noteId}-${p.line}-${p.date}-${p.startMin}-${i}`}
+                      className="cal-item ghost"
+                      style={{ top: (p.startMin - dayStart) * PX_PER_MIN, height: p.durationMin * PX_PER_MIN }}
+                      title="Suggested — click to drop it from the plan"
+                      onClick={() => onDropProposal(p)}
                     >
-                      {mine && <span className="cal-lane-hint">double-click for event</span>}
-                      {allDay.map((ev, i) => (
-                        <span key={ev.id} className="cal-allday" style={{ top: 2 + i * 18 }} title={`${ev.title}${ev.feedLabel ? ` — ${ev.feedLabel}` : ""}`}>
-                          {ev.title}
+                      <span className="cal-item-time">
+                        {fmtMin(p.startMin)} · {fmtH(p.durationMin)}
+                      </span>
+                      <span className="cal-item-title">{p.text}</span>
+                    </button>
+                  ))}
+
+                {blocks
+                  .filter(({ block }) => effectiveDate("block", block.id, block.date) === day)
+                  .map(({ block, task }) => {
+                    const g = geo(block.id, "block", block.date, block.startMin, block.durationMin);
+                    return (
+                      <div
+                        key={block.id}
+                        className={`cal-item task ${task.due && day > task.due ? "risk" : ""} ${g.dragging ? "dragging" : ""}`}
+                        style={{ top: g.top, height: g.height }}
+                        onPointerDown={(e) => {
+                          if ((e.target as HTMLElement).closest(".cal-resize")) return;
+                          e.preventDefault();
+                          setDrag({ kind: "move", itemKind: "block", id: block.id, date: block.date, startMin: block.startMin, durationMin: block.durationMin, moved: false });
+                        }}
+                        onClick={(e) => {
+                          if (dragRef.current?.moved) return;
+                          onPopup({ kind: "block", block, task, anchor: { x: e.clientX, y: e.clientY } });
+                        }}
+                      >
+                        <span className="cal-item-time">
+                          {fmtMin(g.startMin)} · {fmtH(g.durationMin)}
                         </span>
-                      ))}
-                      {blocks.map(({ block, task }) => {
-                        const g = geo(block.id, "block", block.date, block.startMin, block.durationMin);
-                        if (g.date !== day) return null;
-                        return (
-                          <div
-                            key={block.id}
-                            className={`cal-item task ${task.due && day > task.due ? "risk" : ""} ${mine ? "" : "readonly"} ${g.dragging ? "dragging" : ""}`}
-                            style={{ top: g.top, height: g.height }}
+                        <span className="cal-item-title">{task.text}</span>
+                        <span
+                          className="cal-resize"
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDrag({ kind: "resize", itemKind: "block", id: block.id, date: block.date, startMin: block.startMin, durationMin: block.durationMin, moved: false });
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+
+                {timed
+                  .filter((ev) => effectiveDate("event", ev.id, ev.date) === day)
+                  .map((ev) => {
+                    const g = geo(ev.id, "event", ev.date, ev.startMin, ev.durationMin);
+                    const editable = ev.mine && !ev.readonly;
+                    return (
+                      <div
+                        key={ev.id}
+                        className={`cal-item event ${ev.source === "ics" ? "ics" : ""} ${editable ? "" : "readonly"} ${g.dragging ? "dragging" : ""}`}
+                        style={{ top: g.top, height: g.height }}
+                        onPointerDown={(e) => {
+                          if (!editable || (e.target as HTMLElement).closest(".cal-resize")) return;
+                          e.preventDefault();
+                          setDrag({ kind: "move", itemKind: "event", id: ev.id, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin, moved: false });
+                        }}
+                        onClick={(e) => {
+                          if (dragRef.current?.moved) return;
+                          onPopup({ kind: "event", event: ev, anchor: { x: e.clientX, y: e.clientY } });
+                        }}
+                      >
+                        <span className="cal-item-time">
+                          {fmtMin(g.startMin)} · {fmtH(g.durationMin)}
+                          {ev.feedLabel ? ` · ${ev.feedLabel}` : ""}
+                        </span>
+                        <span className="cal-item-title">{ev.title}</span>
+                        {editable && (
+                          <span
+                            className="cal-resize"
                             onPointerDown={(e) => {
-                              if (!mine || (e.target as HTMLElement).closest(".cal-resize")) return;
                               e.preventDefault();
-                              setDrag({ kind: "move", itemKind: "block", id: block.id, date: block.date, startMin: block.startMin, durationMin: block.durationMin, moved: false });
+                              e.stopPropagation();
+                              setDrag({ kind: "resize", itemKind: "event", id: ev.id, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin, moved: false });
                             }}
-                            onClick={(e) => {
-                              if (dragRef.current?.moved) return;
-                              onPopup({ kind: "block", block, task, anchor: { x: e.clientX, y: e.clientY } });
-                            }}
-                          >
-                            <span className="cal-item-time">
-                              {fmtMin(g.startMin)} · {fmtH(g.durationMin)}
-                            </span>
-                            <span className="cal-item-title">{task.text}</span>
-                            {mine && (
-                              <span
-                                className="cal-resize"
-                                onPointerDown={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setDrag({ kind: "resize", itemKind: "block", id: block.id, date: block.date, startMin: block.startMin, durationMin: block.durationMin, moved: false });
-                                }}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                      {evs.map((ev) => {
-                        const g = geo(ev.id, "event", ev.date, ev.startMin, ev.durationMin);
-                        if (g.date !== day) return null;
-                        return (
-                          <div
-                            key={ev.id}
-                            className={`cal-item event ${ev.source === "ics" ? "ics" : ""} ${ev.mine && !ev.readonly ? "" : "readonly"} ${g.dragging ? "dragging" : ""}`}
-                            style={{ top: g.top, height: g.height }}
-                            onPointerDown={(e) => {
-                              if (!ev.mine || ev.readonly || (e.target as HTMLElement).closest(".cal-resize")) return;
-                              e.preventDefault();
-                              setDrag({ kind: "move", itemKind: "event", id: ev.id, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin, moved: false });
-                            }}
-                            onClick={(e) => {
-                              if (dragRef.current?.moved) return;
-                              onPopup({ kind: "event", event: ev, anchor: { x: e.clientX, y: e.clientY } });
-                            }}
-                          >
-                            <span className="cal-item-time">
-                              {fmtMin(g.startMin)} · {fmtH(g.durationMin)}
-                              {ev.feedLabel ? ` · ${ev.feedLabel}` : ""}
-                            </span>
-                            <span className="cal-item-title">{ev.title}</span>
-                            {ev.mine && !ev.readonly && (
-                              <span
-                                className="cal-resize"
-                                onPointerDown={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  setDrag({ kind: "resize", itemKind: "event", id: ev.id, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin, moved: false });
-                                }}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-                {day === today && nowMin >= DAY_START && nowMin <= DAY_END && (
-                  <span className="cal-now" style={{ top: (nowMin - DAY_START) * PX_PER_MIN }} />
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+
+                {day === today && nowMin >= dayStart && nowMin <= dayEnd && (
+                  <span className="cal-now" style={{ top: (nowMin - dayStart) * PX_PER_MIN }} />
                 )}
               </div>
             );
@@ -682,7 +999,7 @@ function CalPopup({
             )}
             <p className="cal-popup-meta">
               {popup.event.date} · {fmtMin(popup.event.startMin)} ·{" "}
-              {popup.event.source === "ics" ? `${popup.event.feedLabel} (subscribed calendar)` : popup.event.username}
+              {popup.event.source === "ics" ? `${popup.event.feedLabel} (subscribed calendar)` : "your calendar"}
             </p>
             {popup.event.mine && !popup.event.readonly && (
               <>
@@ -766,23 +1083,40 @@ function MonthGrid({
   anchor,
   tasks,
   events,
+  markers,
+  hoursPerDay,
   onPickWeek,
+  onOpenMarker,
 }: {
   anchor: Date;
   tasks: PlanTask[];
   events: CalEvent[];
+  markers: DayMarker[];
+  hoursPerDay: number;
   onPickWeek: (d: Date) => void;
+  onOpenMarker: (m: DayMarker) => void;
 }) {
   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12);
   const start = mondayOf(first);
   const cells = Array.from({ length: 42 }, (_, i) => new Date(start.getTime() + i * DAY_MS));
   const today = iso(new Date());
-  const blockMin = new Map<string, number>();
-  for (const t of tasks) for (const b of t.blocks) blockMin.set(b.date, (blockMin.get(b.date) ?? 0) + b.durationMin);
+
+  const load = new Map<string, number>();
+  for (const t of tasks) for (const b of t.blocks) load.set(b.date, (load.get(b.date) ?? 0) + b.durationMin);
   for (const e of events) {
     if (e.allDay) continue; // an all-day chip isn't 24h of load
-    blockMin.set(e.date, (blockMin.get(e.date) ?? 0) + e.durationMin);
+    load.set(e.date, (load.get(e.date) ?? 0) + e.durationMin);
   }
+
+  /** Everything worth a line in a 90px cell, most consequential first. */
+  const cellItems = (day: string) => [
+    ...markers.filter((m) => m.date === day && m.kind === "milestone").map((m) => ({ key: m.id, cls: "milestone", label: m.title, marker: m })),
+    ...markers.filter((m) => m.date === day && m.kind === "due").map((m) => ({ key: m.id, cls: `due ${m.overdue ? "overdue" : ""}`, label: m.title, marker: m })),
+    ...events.filter((e) => e.date === day).map((e) => ({ key: e.id, cls: e.source === "ics" ? "ics" : "event", label: e.allDay ? e.title : `${fmtMin(e.startMin)} ${e.title}`, marker: null })),
+    ...markers
+      .filter((m) => m.date === day && (m.kind === "charge" || m.kind === "income"))
+      .map((m) => ({ key: m.id, cls: `money ${m.kind === "income" ? "in" : ""}`, label: `${m.title} ${money(m.amount ?? 0, m.currency)}`, marker: m })),
+  ];
 
   return (
     <div className="cal-month">
@@ -793,21 +1127,38 @@ function MonthGrid({
       ))}
       {cells.map((d) => {
         const day = iso(d);
-        const min = blockMin.get(day) ?? 0;
+        const min = load.get(day) ?? 0;
+        const items = cellItems(day);
+        const shown = items.slice(0, 3);
         return (
-          <button
+          <div
             key={day}
             className={`cal-month-day ${day === today ? "today" : ""} ${d.getMonth() !== anchor.getMonth() ? "dim" : ""}`}
-            onClick={() => onPickWeek(d)}
           >
-            <span className="cal-month-num">{d.getDate()}</span>
+            <button className="cal-month-num" onClick={() => onPickWeek(d)} title="Open this week">
+              {d.getDate()}
+            </button>
             {min > 0 && (
-              <span className="cal-month-load">
-                <span className="cal-month-bar" style={{ width: `${Math.min(min / 480, 1) * 100}%` }} />
-                {fmtH(min)}
+              <span className="cal-month-load" title={`${fmtH(min)} booked`}>
+                <span className={`cal-month-bar ${min > hoursPerDay * 60 ? "over" : ""}`} style={{ width: `${Math.min(min / (hoursPerDay * 60), 1) * 100}%` }} />
               </span>
             )}
-          </button>
+            {shown.map((it) => (
+              <button
+                key={it.key}
+                className={`cal-mark ${it.cls}`}
+                title={it.label}
+                onClick={() => (it.marker ? onOpenMarker(it.marker) : onPickWeek(d))}
+              >
+                {it.label}
+              </button>
+            ))}
+            {items.length > shown.length && (
+              <button className="cal-mark more" onClick={() => onPickWeek(d)}>
+                +{items.length - shown.length} more
+              </button>
+            )}
+          </div>
         );
       })}
     </div>

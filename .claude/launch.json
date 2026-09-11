@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "basalt-server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/server", "dev"],
+      "port": 4623
+    },
+    {
+      "name": "basalt-web-colors",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/web", "dev", "--", "--port", "4675", "--strictPort"],
+      "port": 4675
+    }
+  ]
+}

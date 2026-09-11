@@ -91,6 +91,8 @@ const MAX_SHEETS = 12;
 const MAX_ROWS = 500;
 const MAX_COLS = 40;
 
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
 export async function projectRoutes(app: FastifyInstance, store: VaultStore, db: Db) {
   const auth = { preHandler: [app.authenticate] };
 
@@ -152,6 +154,23 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const defs = rows.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
     const progress = new Map(store.index.progress(user, grants, defs).map((p) => [p.project, p]));
     const readable = store.readable(user);
+
+    // Dates per project, from its own open tasks: the Dashboard's Projects card
+    // wants "what is next here and how much of it is late", and a project-level
+    // `deadline:` answers neither (one note in the vault carries one). Computed
+    // from the same task scan the board already runs, so this costs nothing.
+    const today = iso(new Date());
+    const openByProject = new Map<string, { nextDue: string | null; overdue: number }>();
+    for (const t of store.index.tasks(user, grants, defs)) {
+      if (t.checked || !t.project) continue;
+      const cur = openByProject.get(t.project) ?? { nextDue: null, overdue: 0 };
+      if (t.due) {
+        if (t.due < today) cur.overdue++;
+        else if (!cur.nextDue || t.due < cur.nextDue) cur.nextDue = t.due;
+      }
+      openByProject.set(t.project, cur);
+    }
+
     return rows
       .map((p) => {
         const slug = p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key;
@@ -160,6 +179,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
         const note =
           readable.find((n) => n.tags.some((t) => t.tag === p.key)) ?? readable.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`);
         const prog = progress.get(p.name);
+        const dates = openByProject.get(p.name);
+        const fm = (note?.frontmatter ?? {}) as Record<string, unknown>;
+        const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
         return {
           slug,
           key: p.key,
@@ -168,6 +190,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
           noteId: note ? note.id : null,
           total: prog?.total ?? 0,
           done: prog?.done ?? 0,
+          status: str(fm["status"]) || null,
+          start: str(fm["start"]) || null,
+          deadline: str(fm["deadline"]) || null,
+          nextDue: dates?.nextDue ?? null,
+          overdue: dates?.overdue ?? 0,
         };
       })
       .filter((p) => p.noteId !== null)

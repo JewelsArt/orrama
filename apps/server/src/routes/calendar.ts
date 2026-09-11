@@ -9,8 +9,9 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { promoteTaskLine } from "@basalt/core";
+import { advance, nextCharge, parseSubscriptions, promoteTaskLine } from "@basalt/core";
 import { tables, type Db } from "../db.js";
+import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -24,6 +25,23 @@ const clampSlot = (startMin: number, durationMin: number) => {
   const duration = Math.max(SNAP, Math.min(snap(durationMin), 24 * 60 - start));
   return { start, duration };
 };
+
+/** A dated thing with no time of day: it belongs above the grid, not inside it. */
+export interface DayMarker {
+  id: string;
+  kind: "due" | "milestone" | "charge" | "income";
+  date: string;
+  title: string;
+  noteId: string | null;
+  /** Line in the note, for a due task — what makes the chip open its task card. */
+  line: number | null;
+  /** Project name for work; null for money. */
+  source: string | null;
+  amount: number | null;
+  currency: string | null;
+  overdue: boolean;
+  priority: number | null;
+}
 
 export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
@@ -201,5 +219,106 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const me = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
     const ics = me ? await icsEventsFor(db, req.userId, me.username, from, to) : [];
     return [...own, ...ics];
+  });
+
+  /**
+   * Day markers: everything the vault has *dated* that is not an appointment.
+   *
+   * The grid used to draw blocks and events only, so a week with no meetings was
+   * a blank 24-hour rectangle while the same vault held 44 dated tasks, a thesis
+   * deadline and a subscription charge. None of these have a time of day, so
+   * they are not calendar items — they are the band above the grid, the same
+   * four sources the Dashboard agenda already unifies:
+   *
+   *   due        an open task's `due:` — the reason a week is busy at all
+   *   milestone  a project's `start:`/`deadline:` front-matter
+   *   charge     a subscription's next payment, expanded across the range
+   *   income     the other ledger, same parser
+   *
+   * Money is expanded rather than taken from `next` alone: `next` is the one
+   * charge after today, and a month view spans six weeks — a weekly charge owes
+   * six marks, not one.
+   */
+  app.get<{ Querystring: { from?: string; to?: string } }>("/api/calendar/markers", auth, async (req) => {
+    const { from, to } = req.query;
+    if (!from || !to || !DAY_RE.test(from) || !DAY_RE.test(to)) throw new HttpError(400, "from/to required (YYYY-MM-DD)");
+    const user = store.aclUser(req.userId);
+    const today = new Date().toISOString().slice(0, 10);
+    const inRange = (d: string) => d >= from && d <= to;
+    const out: DayMarker[] = [];
+
+    for (const t of store.index.tasks(user, store.grants(), store.projects())) {
+      if (t.checked || !t.due || !inRange(t.due)) continue;
+      out.push({
+        id: `due-${t.noteId}-${t.line}`,
+        kind: "due",
+        date: t.due,
+        title: t.text,
+        noteId: t.noteId,
+        line: t.line,
+        source: t.project,
+        amount: null,
+        currency: null,
+        overdue: t.due < today,
+        priority: t.priority ?? null,
+      });
+    }
+
+    // Project milestones live in the note's front-matter, so they are read off
+    // the note rather than the projects table (which stores neither date).
+    const readable = store.readable(user);
+    for (const p of db.select().from(tables.projects).all()) {
+      if (p.hidden) continue;
+      const note = readable.find((n) => n.tags.some((t) => t.tag === p.key));
+      if (!note) continue;
+      const fm = note.frontmatter as Record<string, unknown>;
+      const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+      for (const [field, label] of [["start", "starts"], ["deadline", "due"]] as const) {
+        const date = str(fm[field]);
+        if (!DAY_RE.test(date) || !inRange(date)) continue;
+        out.push({
+          id: `ms-${p.key}-${field}`,
+          kind: "milestone",
+          date,
+          title: `${p.name} ${label}`,
+          noteId: note.id,
+          line: null,
+          source: p.name,
+          amount: null,
+          currency: null,
+          overdue: field === "deadline" && date < today,
+          priority: null,
+        });
+      }
+    }
+
+    for (const [kind, sign] of [["charge", -1], ["income", 1]] as const) {
+      const ledger = financeNote(store, user, kind === "charge" ? "subscriptions" : "income");
+      if (!ledger) continue;
+      for (const row of parseSubscriptions(ledger.content, from)) {
+        if (!row.next) continue;
+        // `nextCharge` rolls a hand-maintained date forward to the first charge
+        // that is not before `from`; `advance` walks the rest of the window.
+        for (let d = nextCharge(row.next, row.cadence, from), guard = 0; d <= to && guard < 64; d = advance(d, row.cadence), guard++) {
+          if (d < from) continue;
+          out.push({
+            id: `${kind}-${row.service}-${d}`,
+            kind,
+            date: d,
+            title: row.service,
+            noteId: ledger.id,
+            line: null,
+            source: null,
+            amount: sign * row.amount,
+            currency: row.currency,
+            overdue: false,
+            priority: null,
+          });
+        }
+      }
+    }
+
+    const ORDER: Record<DayMarker["kind"], number> = { milestone: 0, due: 1, charge: 2, income: 3 };
+    return out.sort((a, b) => a.date.localeCompare(b.date) || ORDER[a.kind] - ORDER[b.kind] || a.title.localeCompare(b.title));
   });
 }

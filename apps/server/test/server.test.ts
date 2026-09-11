@@ -382,6 +382,73 @@ describe("graph + plan + profile", () => {
     expect((await api("GET", "/api/plan/engineering", "mara")).status).toBe(404);
   });
 
+  it("plan without a team spans the whole vault, still ACL-filtered", async () => {
+    const erin = await api("GET", "/api/plan", "erin");
+    expect(erin.status).toBe(200);
+    expect(erin.json.team).toBeNull();
+    const erinTexts = erin.json.assignees.flatMap((a: { tasks: { text: string }[] }) => a.tasks).map((t: { text: string }) => t.text);
+    expect(erinTexts).toContain("permission test suite");
+    // the #only/marketing note is invisible to her here as everywhere else
+    expect(erinTexts).not.toContain("book influencer slots");
+  });
+
+  it("day markers: dated work in range, and never someone else's restricted note", async () => {
+    const from = "2026-07-06";
+    const to = "2026-07-19";
+    const erin = await api("GET", `/api/calendar/markers?from=${from}&to=${to}`, "erin");
+    expect(erin.status).toBe(200);
+    const titles = erin.json.map((m: { title: string }) => m.title);
+    expect(titles).toContain("permission test suite"); // due 2026-07-15
+    expect(titles).not.toContain("book influencer slots"); // #only/marketing, due 2026-07-11
+    for (const m of erin.json) {
+      expect(m.date >= from && m.date <= to).toBe(true);
+      expect(["due", "milestone", "charge", "income"]).toContain(m.kind);
+    }
+    // mara owns that note, so for her it is simply a deadline
+    const mara = await api("GET", `/api/calendar/markers?from=${from}&to=${to}`, "mara");
+    expect(mara.json.map((m: { title: string }) => m.title)).toContain("book influencer slots");
+    // a task due outside the window never leaks in
+    expect(titles).not.toContain("dashboard API"); // due 2026-07-20
+    expect((await api("GET", "/api/calendar/markers?from=whenever&to=2026-07-19", "erin")).status).toBe(400);
+  });
+
+  it("auto-plan proposes bookable slots and writes nothing", async () => {
+    const before = db.select().from(tables.taskBlocks).all().length;
+    const day = (offset: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().slice(0, 10);
+    };
+    const from = day(7);
+    const to = day(13);
+    const r = await api("POST", "/api/plan/auto", "erin", { from, to });
+    expect(r.status).toBe(200);
+    expect(r.json.proposals.length).toBeGreaterThan(0);
+
+    const perDay = new Map<string, { total: number; spans: { start: number; end: number }[] }>();
+    for (const p of r.json.proposals) {
+      expect(p.date >= from && p.date <= to).toBe(true);
+      expect(new Date(`${p.date}T12:00:00Z`).getUTCDay()).not.toBe(0); // never a weekend
+      expect(new Date(`${p.date}T12:00:00Z`).getUTCDay()).not.toBe(6);
+      expect(p.startMin).toBeGreaterThanOrEqual(9 * 60);
+      expect(p.startMin + p.durationMin).toBeLessThanOrEqual(18 * 60);
+      expect(p.durationMin % 30).toBe(0);
+      expect(p.durationMin).toBeLessThanOrEqual(120);
+      const row = perDay.get(p.date) ?? { total: 0, spans: [] };
+      row.total += p.durationMin;
+      row.spans.push({ start: p.startMin, end: p.startMin + p.durationMin });
+      perDay.set(p.date, row);
+    }
+    for (const [, row] of perDay) {
+      expect(row.total).toBeLessThanOrEqual(r.json.hoursPerDay * 60);
+      const spans = row.spans.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < spans.length; i++) expect(spans[i]!.start).toBeGreaterThanOrEqual(spans[i - 1]!.end);
+    }
+    // A proposal is a proposal: booking is the client's separate, explicit call.
+    expect(db.select().from(tables.taskBlocks).all().length).toBe(before);
+    expect((await api("POST", "/api/plan/auto", "erin", { from: to, to: from })).status).toBe(400);
+  });
+
   it("schedule places a task on a day (auto-promoting) and back to backlog", async () => {
     const erin = await api("GET", "/api/vault/tree", "erin");
     const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
@@ -658,12 +725,18 @@ describe("graph + plan + profile", () => {
     });
   });
 
-  it("home aggregates personal stats, trend, agenda and focus", async () => {
+  it("home aggregates personal stats, deadlines, agenda and focus", async () => {
     const r = await api("GET", "/api/home", "erin");
     expect(r.status).toBe(200);
     expect(r.json.stats.notes).toBeGreaterThan(0);
     expect(r.json.stats.openTasks).toBeGreaterThanOrEqual(0);
-    expect(r.json.trend).toHaveLength(14);
+    expect(r.json.stats.overdueTasks).toBeGreaterThanOrEqual(0);
+    // deadlines: dated open tasks only, ascending, each flagged against today
+    expect(Array.isArray(r.json.deadlines)).toBe(true);
+    const dues = r.json.deadlines.map((d: { due: string }) => d.due);
+    expect(dues).toEqual([...dues].sort());
+    const today = new Date().toISOString().slice(0, 10);
+    for (const d of r.json.deadlines) expect(d.overdue).toBe(d.due < today);
     expect(Array.isArray(r.json.agenda)).toBe(true);
     expect(r.json.focus.length).toBeGreaterThan(0);
     // focus is ACL-filtered: no #only/marketing task leaks to erin
@@ -678,6 +751,38 @@ describe("graph + plan + profile", () => {
     expect(r.json.avatar).toBe("ember");
     const r2 = await api("PATCH", "/api/me", "mara", { avatar: "<script>" });
     expect(r2.json.avatar).toBe("ember"); // junk ignored, not applied
+  });
+
+  it("appearance round-trips on the account", async () => {
+    const appearance = {
+      theme: "command",
+      vision: "custom:p1",
+      profiles: [{ id: "p1", name: "Mine", colors: ["#23d6ff", "#ff589d", "#08ea7a", "#a88dff", "#e09100", "#31b0ff", "#f289db"] }],
+    };
+    const r = await api("PATCH", "/api/me", "mara", { appearance });
+    expect(r.json.appearance).toEqual(appearance);
+    // A second device asking who it is gets the same palette back.
+    const me = await api("GET", "/api/me", "mara");
+    expect(me.json.appearance.profiles[0].colors[1]).toBe("#ff589d");
+  });
+
+  it("appearance rejects anything that is not a colour", async () => {
+    // These values are written straight into CSS custom properties on the
+    // client, so the grammar is the guard: six hex digits, nothing else.
+    const bad = (colors: string[]) =>
+      api("PATCH", "/api/me", "mara", {
+        appearance: { profiles: [{ id: "p1", name: "x", colors }] },
+      });
+    const seven = (c: string) => [c, "#ff589d", "#08ea7a", "#a88dff", "#e09100", "#31b0ff", "#f289db"];
+    expect((await bad(seven("url(http://evil/x)"))).status).toBe(400);
+    expect((await bad(seven("red; background: url(x)"))).status).toBe(400);
+    expect((await bad(seven("var(--anything)"))).status).toBe(400);
+    expect((await bad(["#23d6ff"])).status).toBe(400); // wrong length
+    const badMode = await api("PATCH", "/api/me", "mara", { appearance: { vision: "custom:../../etc" } });
+    expect(badMode.status).toBe(400);
+    // The good value from the previous test is still what the account holds.
+    const me = await api("GET", "/api/me", "mara");
+    expect(me.json.appearance.profiles[0].colors[0]).toBe("#23d6ff");
   });
 });
 
@@ -713,6 +818,41 @@ describe("mcp, watcher", () => {
     expect(note.json.content).toContain("watcher test line");
   });
 
+  /**
+   * The regression this exists for: the watcher used to ignore any event for a
+   * path the server had written within the last second, so an external edit
+   * landing in that window was dropped — and dropped permanently, because
+   * nothing re-read the file afterwards. Writing through the API and editing the
+   * file immediately after is the exact shape of "I added a subscription, then
+   * corrected a number in Obsidian, and the dashboard never noticed."
+   */
+  it("indexes an external edit that lands immediately after the app's own write", async () => {
+    const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
+    const welcomeId = (await api("GET", "/api/vault/tree", "jules")).json.find(
+      (n: { path: string }) => n.path === "Welcome.md",
+    ).id;
+
+    // 1. the app writes
+    const viaApp = `${fs.readFileSync(p, "utf8")}\napp wrote this\n`;
+    const w = await api("PUT", "/api/vault/note", "jules", { path: "Welcome.md", content: viaApp });
+    expect(w.status).toBe(200);
+
+    // 2. something else edits the same file straight away
+    fs.writeFileSync(p, `${viaApp}edited on disk right after\n`);
+    await new Promise((r) => setTimeout(r, 900));
+
+    const note = await api("GET", `/api/vault/note/${welcomeId}`, "jules");
+    expect(note.json.content).toContain("edited on disk right after");
+  });
+
+  it("does not re-index its own write when nothing else touched the file", async () => {
+    const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
+    await api("PUT", "/api/vault/note", "jules", { path: "Welcome.md", content: "# Welcome\n\nquiet write\n" });
+    const settled = fs.readFileSync(p, "utf8");
+    await new Promise((r) => setTimeout(r, 900));
+    // The echo changed nothing: the file is still exactly what was written.
+    expect(fs.readFileSync(p, "utf8")).toBe(settled);
+  });
 });
 
 /**
