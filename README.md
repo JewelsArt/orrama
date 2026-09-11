@@ -69,11 +69,17 @@ TypeScript end to end, except a deliberately thin Rust shell.
 
 ```bash
 pnpm install
-pnpm dev
+pnpm --dir apps/web build       # the server serves a built bundle
+pnpm --dir apps/server seed     # creates the DB and a demo vault + accounts
+pnpm --dir apps/server start    # http://127.0.0.1:4623
 ```
 
-The server serves both the API and the built web bundle on **:4623**.
-`pnpm --dir apps/web dev` (:4625) is for iterating on the frontend.
+Sign in with `jules@basalt.dev` / `basalt-demo`. Full walkthrough, including how to
+point Basalt at an existing Obsidian vault: **[INSTALL.md](INSTALL.md)**.
+
+> `pnpm build` and `pnpm dev` fan out to `apps/desktop`, which is a Tauri app and
+> needs a Rust toolchain. Use the scoped commands above unless you want a desktop
+> bundle. `pnpm --dir apps/web dev` (:4625) is for iterating on the frontend.
 
 After changing web code, `pnpm ship` — typecheck, test, build, restart. Editing
 source alone changes nothing in a running instance, because it serves the *built*
