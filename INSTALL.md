@@ -16,11 +16,12 @@ cd basalt
 
 pnpm install                      # ~3s warm, ~1min on a cold pnpm store
 pnpm --dir apps/web build         # ~2s  — builds the UI the server serves
-pnpm --dir apps/server seed       # creates the database and a demo vault
 pnpm --dir apps/server start      # serves API + UI on http://127.0.0.1:4623
 ```
 
-Open <http://127.0.0.1:4623> and sign in with **`jules@basalt.dev`** / **`basalt-demo`**.
+Open <http://127.0.0.1:4623>. A fresh install shows **Create your account** —
+the first account founds the workspace and owns it. Nothing is sent anywhere;
+there is no Basalt account service.
 
 > **Do not run `pnpm build`** unless you have a Rust toolchain — see the next section.
 
@@ -75,26 +76,27 @@ files at boot. Skip this and the server runs but every page is a 404.
 
 **Verify:** `apps/web/dist/index.html` exists.
 
-### 3. Create the database and a starting vault
+### 3. (Optional) Start from a sample vault
 
 ```bash
 pnpm --dir apps/server seed
 ```
 
-**This step is not optional.** A fresh install has an empty database and *no user
-accounts*, so without it the login screen rejects everything and there is no way in.
+Not required. It creates 13 Markdown files — linked notes, tags, checkbox tasks,
+projects and contacts — so the dashboard and graph have something to show, plus
+three demo accounts (`jules` / `erin` / `mara` `@basalt.dev`, password
+`basalt-demo`).
 
-Seeding creates `data/basalt.db` and `data/vault/` with 13 Markdown files — linked
-notes, tags, checkbox tasks, projects and contacts — plus three accounts:
+Those demo passwords are printed in the source, so they are a way to look around,
+not an account. If you seed and then intend to keep the install, turn one into a
+real account:
 
-| Email | Password |
-|---|---|
-| `jules@basalt.dev` | `basalt-demo` |
-| `erin@basalt.dev` | `basalt-demo` |
-| `mara@basalt.dev` | `basalt-demo` |
+```bash
+pnpm --dir apps/server account
+```
 
-These are demo credentials in the source. Treat them as a way in, not as an account —
-see **Security** below.
+It asks for an email, a name and a password, typed interactively. Skip seeding
+entirely and the app offers **Create your account** on first open instead.
 
 ### 4. Start the server
 
@@ -108,14 +110,22 @@ It runs TypeScript directly through `tsx`, so there is no server build step.
 **Verify:**
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4623/     # expect 200
-curl -s -X POST http://127.0.0.1:4623/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"jules@basalt.dev","password":"basalt-demo"}'        # expect a token
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:4623/          # expect 200
+curl -s http://127.0.0.1:4623/api/auth/status                            # {"needsSetup":true} on a fresh install
 ```
 
-Open the URL, sign in, and you should land on the Dashboard with seeded projects and
-overdue tasks.
+Open the URL. On a fresh install you get **Create your account**; after that, a
+sign-in form. Either way you land on the Dashboard.
+
+### 5. Set up quick unlock (optional)
+
+Settings → **Unlock** offers a 4-digit passcode, and Touch ID where the device
+supports it. Both are shortcuts over an account that already exists: the password
+stays the credential, and is the only way back in if the passcode locks out.
+
+The passcode is checked on the server, not in the browser — five wrong tries start
+a cooldown and ten disable it — so it is a real gate rather than a screen you can
+skip past with devtools.
 
 ---
 
@@ -220,9 +230,16 @@ first open.
 You ran `pnpm build` or `pnpm dev` without Rust. Use the scoped commands from
 **The Rust trap**.
 
-**Login rejects the demo credentials**
-`pnpm --dir apps/server seed` has not run, so there are no accounts. Check:
-`sqlite3 data/basalt.db "select email from users;"` — three rows expected.
+**The sign-in form rejects everything on a brand-new install**
+There are no accounts yet, and you should be seeing the setup screen instead.
+Check `curl -s http://127.0.0.1:4623/api/auth/status` — if it says
+`{"needsSetup":true}` but you get a login form, the web bundle is stale: rebuild
+with `pnpm --dir apps/web build` and restart.
+
+**Locked out of the passcode**
+Ten wrong entries disable it deliberately. Choose "Use password instead" on the
+lock screen; a successful password login clears the counter. Forgotten the
+password too? `pnpm --dir apps/server account` sets a new one.
 
 **Every page is a blank 404 but the API responds**
 `apps/web/dist` is missing. Run `pnpm --dir apps/web build`.
@@ -258,17 +275,23 @@ node --version                                  # require >= 22
 pnpm --version                                  # require 11.x; npm i -g pnpm@11.9.0
 pnpm install                                    # expect exit 0
 pnpm --dir apps/web build                       # expect apps/web/dist/index.html
-pnpm --dir apps/server seed                     # expect data/basalt.db + 13 .md files
 pnpm --dir apps/server start &                  # backgrounded; serves :4623
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4623/     # expect 200
+curl -s http://127.0.0.1:4623/api/auth/status                     # {"needsSetup":true}
 ```
+
+The install is then complete: a human creates the first account in the browser.
+Do not run `seed` to get past this — it exists for the sample vault, and its demo
+passwords are public. There is no way to create the first account from the command
+line by design; `account` edits one that already exists.
 
 Rules that are not obvious from the scripts:
 
 - **Never run `pnpm build` or `pnpm dev`** to get a running server. Both invoke the
   Tauri desktop build and need a Rust toolchain. Use the scoped commands above.
-- **`seed` is mandatory on a fresh database.** No accounts exist otherwise and login
-  is impossible. It is a manual script, not a first-run hook.
+- **`seed` is optional and is NOT how you get an account.** It loads a sample vault
+  and demo logins whose passwords are in the repo. A fresh install offers account
+  creation in the browser; that is the intended path.
 - **`apps/web` must be built before the server starts**, not after — static files are
   registered at boot.
 - The server needs no build; it runs TypeScript via `tsx`.

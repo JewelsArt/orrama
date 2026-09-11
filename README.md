@@ -70,12 +70,13 @@ TypeScript end to end, except a deliberately thin Rust shell.
 ```bash
 pnpm install
 pnpm --dir apps/web build       # the server serves a built bundle
-pnpm --dir apps/server seed     # creates the DB and a demo vault + accounts
 pnpm --dir apps/server start    # http://127.0.0.1:4623
 ```
 
-Sign in with `jules@basalt.dev` / `basalt-demo`. Full walkthrough, including how to
-point Basalt at an existing Obsidian vault: **[INSTALL.md](INSTALL.md)**.
+A fresh install asks you to create an account — the first one founds the workspace
+and owns it. `pnpm --dir apps/server seed` is optional and loads a sample vault.
+Full walkthrough, including how to point Basalt at an existing Obsidian vault:
+**[INSTALL.md](INSTALL.md)**.
 
 > `pnpm build` and `pnpm dev` fan out to `apps/desktop`, which is a Tauri app and
 > needs a Rust toolchain. Use the scoped commands above unless you want a desktop
@@ -110,8 +111,9 @@ not a feature with a finished onboarding flow around it.
 
 Honest state of things:
 
-- **Single user.** Accounts, teams and grants all exist; there is no invite flow, and
-  first-run setup still seeds demo accounts.
+- **Single user.** Accounts, teams and grants all exist, and a fresh install now
+  creates a real account rather than handing out demo logins — but there is still
+  no invite flow, so a second person cannot be added from the UI.
 - **No CI.** The 262 tests pass, but only when run by hand.
 - **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
 - The original build spec (`~/basalt-prompt.md`) planned a team product for 5–50
