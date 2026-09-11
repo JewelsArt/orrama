@@ -1,0 +1,258 @@
+/* Colour-vision modes. Set `data-vision` on <html> (Settings > Colour vision).
+
+   WHAT THIS IS. Dichromacy collapses the hue circle onto a line, so a palette
+   picked for normal vision can put two categories on the same point of it —
+   Basalt's default set leaves its closest pair at ΔE 6.0 under deuteranopia,
+   which is a legend you cannot read. Each mode below replaces the two colour
+   families with a set chosen by maximising the SMALLEST pairwise distance after
+   simulating that vision (Brettel/Viénot on linear RGB, distance in oklab).
+   Separation comes from the surviving axis and from lightness, which no form of
+   colour blindness takes away.
+
+   THE SLOT NAMES STOP DESCRIBING THE COLOUR HERE. `--v-green` under
+   deuteranopia is an olive, and that is the point: olive and blue are
+   distinguishable where green and red are not. Read the names as stable keys —
+   "category 3" — not as promises about hue. They are rotated onto the hues they
+   claim wherever the maths leaves room, so most stay recognisable.
+
+   WHAT DOES NOT CHANGE. Ground, surfaces, borders, type, layout, and the
+   Finance hero gradient. A vision mode is a palette swap and nothing else, so
+   it composes with either theme — six real surfaces, all checked.
+
+   STATUS gets picked separately. --ok/--warn/--danger and Finance's
+   --fin-pos/--fin-neg are the one place the app leans on green-vs-red, which is
+   exactly what red-green blindness removes. Under deuteranopia and protanopia
+   positive becomes the bluest member of the set and negative the warmest, which
+   is the long-standing convention for the same reason; tritanopia keeps green
+   and red, because that pair is what tritanopia leaves intact.
+
+   REGENERATING. These are solved, not hand-picked. Re-run the generator rather
+   than nudging a hex — one hex moved by hand is one pair collapsed by hand. */
+
+/* light + deuteranopia — worst pair under this vision: fills ΔE 15.9, ink ΔE 10.9,
+   status trio ΔE 19.2. Ink contrast on the card surface 4.51:1 and up. */
+:root:not([data-theme="command"])[data-vision="deuteranopia"],
+:root:not([data-theme="command"]) [data-vision="deuteranopia"] {
+  --v-pink: #d30a12;
+  --v-amber: #fe7614;
+  --v-green: #046245;
+  --v-cyan: #0dad8f;
+  --v-azure: #0779c2;
+  --v-lilac: #0132da;
+  --v-magenta: #a390fe;
+
+  --ink-pink: #e80c15;
+  --ink-amber: #7d5404;
+  --ink-green: #067568;
+  --ink-cyan: #0564a6;
+  --ink-azure: #1f43e2;
+  --ink-lilac: #9648f2;
+  --ink-magenta: #c926b5;
+  --ink-red: #e50b7a;
+
+  /* status: positive azure, caution magenta, negative pink */
+  --ok: var(--ink-azure);
+  --warn: var(--ink-magenta);
+  --danger: var(--ink-pink);
+  --fin-pos: var(--ink-azure);
+  --fin-neg: var(--ink-pink);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}
+
+/* light + protanopia — worst pair under this vision: fills ΔE 17.8, ink ΔE 12.4,
+   status trio ΔE 23.3. Ink contrast on the card surface 4.50:1 and up. */
+:root:not([data-theme="command"])[data-vision="protanopia"],
+:root:not([data-theme="command"]) [data-vision="protanopia"] {
+  --v-pink: #97044f;
+  --v-amber: #5e6b04;
+  --v-green: #1db80b;
+  --v-cyan: #0fb1b8;
+  --v-azure: #4b17df;
+  --v-lilac: #927cfe;
+  --v-magenta: #fe2090;
+
+  --ink-pink: #aa3a04;
+  --ink-amber: #747806;
+  --ink-green: #056c66;
+  --ink-cyan: #087eb5;
+  --ink-azure: #4266fd;
+  --ink-lilac: #592edc;
+  --ink-magenta: #d20b96;
+  --ink-red: #ac064d;
+
+  /* status: positive azure, caution amber, negative red */
+  --ok: var(--ink-azure);
+  --warn: var(--ink-amber);
+  --danger: var(--ink-red);
+  --fin-pos: var(--ink-azure);
+  --fin-neg: var(--ink-red);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}
+
+/* light + tritanopia — worst pair under this vision: fills ΔE 21.8, ink ΔE 14.5,
+   status trio ΔE 25.2. Ink contrast on the card surface 4.50:1 and up. */
+:root:not([data-theme="command"])[data-vision="tritanopia"],
+:root:not([data-theme="command"]) [data-vision="tritanopia"] {
+  --v-pink: #ec860c;
+  --v-amber: #756705;
+  --v-green: #1db80b;
+  --v-cyan: #0eacd4;
+  --v-azure: #0132da;
+  --v-lilac: #cb48f8;
+  --v-magenta: #8b057d;
+
+  --ink-pink: #e30b5d;
+  --ink-amber: #a52d04;
+  --ink-green: #747806;
+  --ink-cyan: #056788;
+  --ink-azure: #066eeb;
+  --ink-lilac: #800fc5;
+  --ink-magenta: #c334ca;
+  --ink-red: #a2067d;
+
+  /* status: positive green, caution azure, negative pink */
+  --ok: var(--ink-green);
+  --warn: var(--ink-azure);
+  --danger: var(--ink-pink);
+  --fin-pos: var(--ink-green);
+  --fin-neg: var(--ink-pink);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}
+
+/* dark + deuteranopia — worst pair under this vision: fills ΔE 14.5, ink ΔE 11.6,
+   status trio ΔE 23.2. Ink contrast on the card surface 4.51:1 and up. */
+[data-theme="command"][data-vision="deuteranopia"],
+[data-theme="command"] [data-vision="deuteranopia"] {
+  --v-pink: #fe9296;
+  --v-amber: #fed014;
+  --v-green: #918a08;
+  --v-cyan: #0ca393;
+  --v-azure: #26bcfe;
+  --v-lilac: #1182fd;
+  --v-magenta: #ffbafb;
+
+  --ink-pink: #fe7b4c;
+  --ink-amber: #fdbe12;
+  --ink-green: #0ba224;
+  --ink-cyan: #0fb5dd;
+  --ink-azure: #1e8dfd;
+  --ink-lilac: #ccbffe;
+  --ink-magenta: #fe4693;
+  --ink-red: #feada7;
+
+  /* status: positive azure, caution green, negative amber */
+  --ok: var(--ink-azure);
+  --warn: var(--ink-green);
+  --danger: var(--ink-amber);
+  --fin-pos: var(--ink-azure);
+  --fin-neg: var(--ink-amber);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}
+
+/* dark + protanopia — worst pair under this vision: fills ΔE 18.3, ink ΔE 14.2,
+   status trio ΔE 27.4. Ink contrast on the card surface 4.51:1 and up. */
+[data-theme="command"][data-vision="protanopia"],
+[data-theme="command"] [data-vision="protanopia"] {
+  --v-pink: #fe4210;
+  --v-amber: #fea053;
+  --v-green: #a1f115;
+  --v-cyan: #18f5e0;
+  --v-azure: #72b8fe;
+  --v-lilac: #5977fd;
+  --v-magenta: #ea208b;
+
+  --ink-pink: #feb68e;
+  --ink-amber: #78ea21;
+  --ink-green: #18a209;
+  --ink-cyan: #31cbfe;
+  --ink-azure: #1b98fe;
+  --ink-lilac: #fb40ad;
+  --ink-magenta: #fe819f;
+  --ink-red: #fe4a4e;
+
+  /* status: positive cyan, caution amber, negative red */
+  --ok: var(--ink-cyan);
+  --warn: var(--ink-amber);
+  --danger: var(--ink-red);
+  --fin-pos: var(--ink-cyan);
+  --fin-neg: var(--ink-red);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}
+
+/* dark + tritanopia — worst pair under this vision: fills ΔE 22.9, ink ΔE 18.9,
+   status trio ΔE 29.1. Ink contrast on the card surface 4.56:1 and up. */
+[data-theme="command"][data-vision="tritanopia"],
+[data-theme="command"] [data-vision="tritanopia"] {
+  --v-pink: #fe330b;
+  --v-amber: #c5e714;
+  --v-green: #1aab0a;
+  --v-cyan: #18edf3;
+  --v-azure: #0a8fd1;
+  --v-lilac: #cf38c9;
+  --v-magenta: #feafc7;
+
+  --ink-pink: #d7720a;
+  --ink-amber: #83e813;
+  --ink-green: #4fa109;
+  --ink-cyan: #0da2bb;
+  --ink-azure: #a7ccfe;
+  --ink-lilac: #bc61fe;
+  --ink-magenta: #fd3fa8;
+  --ink-red: #feb788;
+
+  /* status: positive green, caution azure, negative magenta */
+  --ok: var(--ink-green);
+  --warn: var(--ink-azure);
+  --danger: var(--ink-magenta);
+  --fin-pos: var(--ink-green);
+  --fin-neg: var(--ink-magenta);
+
+  /* Finance's own ramp yields to the accessible set; its donut is the one
+     place in the app where colour alone carries the meaning. */
+  --cat-pink: var(--v-pink);
+  --cat-cyan: var(--v-cyan);
+  --cat-magenta: var(--v-magenta);
+  --cat-azure: var(--v-azure);
+  --cat-purple: var(--v-lilac);
+  --cat-lilac: var(--v-lilac);
+}

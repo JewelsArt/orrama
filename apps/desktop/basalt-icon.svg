@@ -1,55 +1,68 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    App icon: the same three columns as IconMark in apps/web/src/icons.tsx, seen
+    from above, each a cube, at the same three violet tones — generated from the
+    same geometry rather than redrawn, so the Dock icon and the rail mark cannot
+    drift into being nearly-but-not-quite the same shape.
+
+    TWO NUMBERS DIFFER FROM THE MARK, ON PURPOSE.
+      artwork span   760 of the tile's 896 (85%)
+      gap            push 0.04, shrink 0.12   (the mark uses 0.10 / 0.28)
+    The mark is read at 18-26px in a rail, where a tight gap fills in and the
+    cluster turns into a blob. The icon is read at 128px+ on a tile, where the
+    same tight gap groups the cubes and the facet shading does the separating on
+    its own. Same drawing, different viewing distance. If you sync them, sync
+    toward the mark's wider gap — not the other way.
+
+    THE SHADOW LIVES HERE AND NOWHERE ELSE. The rail mark cannot carry one: it is
+    drawn in currentColor over both a paper-white and a near-black ground, and a
+    shadow dark enough to read on the first is invisible on the second. This icon
+    always sits on its own light tile, so it knows what it is casting onto.
+
+    One hue (oklch 280 degrees) at three lightnesses. Every cube wears the same
+    three tones in the same places, because one light source lights every cube
+    the same way — do not grade the cubes front-to-back on top of that.
+
+    Regenerate every platform size from this file:
+        cd apps/desktop && npx tauri icon basalt-icon.svg
+  -->
   <defs>
-    <!-- graphite tile -->
-    <linearGradient id="gTile" gradientUnits="userSpaceOnUse" x1="128" y1="96" x2="900" y2="944">
-      <stop offset="0" stop-color="#24252f"/>
-      <stop offset="0.55" stop-color="#141419"/>
-      <stop offset="1" stop-color="#0a0a0d"/>
+    <clipPath id="cTile"><rect x="64" y="64" width="896" height="896" rx="220"/></clipPath>
+    <!-- Violet-tinted, not black: a neutral shadow over a violet-tinted white
+         goes grey and dirty. color-interpolation-filters is sRGB on purpose —
+         the SVG default of linearRGB renders the falloff pale and too wide. -->
+    <filter id="fDrop" x="-25%" y="-25%" width="150%" height="155%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="17" stdDeviation="15" flood-color="#2e2570" flood-opacity="0.30"/>
+    </filter>
+    <linearGradient id="gTile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#efedf8"/>
     </linearGradient>
-    <!-- purple hero column -->
-    <linearGradient id="gPurple" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9b83ff"/>
-      <stop offset="1" stop-color="#5a44d6"/>
-    </linearGradient>
-    <!-- silver facets -->
-    <linearGradient id="gSilverL" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#dee1ea"/>
-      <stop offset="1" stop-color="#a6abba"/>
-    </linearGradient>
-    <linearGradient id="gSilverR" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9aa0b0"/>
-      <stop offset="1" stop-color="#666b7c"/>
-    </linearGradient>
-    <linearGradient id="gGraph" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#585d6b"/>
-      <stop offset="1" stop-color="#363945"/>
-    </linearGradient>
-    <!-- purple glow behind the mark -->
-    <radialGradient id="gGlow" gradientUnits="userSpaceOnUse" cx="512" cy="470" r="380">
-      <stop offset="0" stop-color="#6f5ae8" stop-opacity="0.42"/>
-      <stop offset="0.6" stop-color="#6f5ae8" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#6f5ae8" stop-opacity="0"/>
+    <radialGradient id="gGlow" gradientUnits="userSpaceOnUse" cx="512" cy="500" r="400">
+      <stop offset="0" stop-color="#5b51dd" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#5b51dd" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <!-- rounded graphite tile -->
   <rect x="64" y="64" width="896" height="896" rx="220" fill="url(#gTile)"/>
-  <!-- soft inner top highlight -->
-  <rect x="64.5" y="64.5" width="895" height="895" rx="219.5" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="1.5"/>
+  <!-- A white tile needs an edge, or it dissolves into a light Dock. -->
+  <rect x="65" y="65" width="894" height="894" rx="219" fill="none"
+        stroke="#5b51dd" stroke-opacity="0.13" stroke-width="2"/>
 
-  <!-- glow -->
-  <ellipse cx="512" cy="470" rx="360" ry="360" fill="url(#gGlow)"/>
+  <ellipse cx="512" cy="500" rx="400" ry="400" fill="url(#gGlow)"/>
 
-  <!-- basalt columns (interlocking faceted prisms) -->
-  <g stroke="#0a0a0d" stroke-opacity="0.28" stroke-width="2" stroke-linejoin="round">
-    <polygon points="215,363.5 377,282.5 377,741.5 215,822.5" fill="url(#gSilverL)"/>
-    <polygon points="377,282.5 539,201.5 539,660.5 377,741.5" fill="url(#gPurple)"/>
-    <polygon points="539,201.5 701,282.5 701,741.5 539,660.5" fill="url(#gSilverR)"/>
-    <polygon points="701,282.5 809,336.5 809,768.5 701,741.5" fill="url(#gGraph)"/>
+  <!-- Clipped to the tile so the shadow can never leak past a rounded corner. -->
+  <g clip-path="url(#cTile)">
+    <g filter="url(#fDrop)">
+      <polygon points="330.3,236.9 512,132 693.7,236.9 512,341.8" fill="#8c90ff"/>
+      <polygon points="330.3,446.7 330.3,236.9 512,341.8 512,551.6" fill="#6760ed"/>
+      <polygon points="693.7,236.9 693.7,446.7 512,551.6 512,341.8" fill="#493eb9"/>
+      <polygon points="133.8,577.3 315.4,472.4 497.1,577.3 315.4,682.2" fill="#8c90ff"/>
+      <polygon points="133.8,787.1 133.8,577.3 315.4,682.2 315.4,892" fill="#6760ed"/>
+      <polygon points="497.1,577.3 497.1,787.1 315.4,892 315.4,682.2" fill="#493eb9"/>
+      <polygon points="526.9,577.3 708.6,472.4 890.2,577.3 708.6,682.2" fill="#8c90ff"/>
+      <polygon points="526.9,787.1 526.9,577.3 708.6,682.2 708.6,892" fill="#6760ed"/>
+      <polygon points="890.2,577.3 890.2,787.1 708.6,892 708.6,682.2" fill="#493eb9"/>
+    </g>
   </g>
-
-  <!-- lit top ridge -->
-  <polyline points="215,363.5 377,282.5 539,201.5 701,282.5 809,336.5"
-            fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="4"
-            stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

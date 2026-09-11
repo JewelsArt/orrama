@@ -62,43 +62,37 @@ a {
   background: transparent;
 }
 
-/* Animated theme toggle — a water-ripple reveal from the click point.
-   The rail's toggle button sets --rx/--ry and adds .rippling before swapping.
+/* Animated theme toggle — a circular wipe of the new theme, growing out of the
+   rail's toggle button (after Sol Kiernan's "Light/Dark mode button animation").
+   The button sets --rx/--ry to its own centre and --r-end to the distance to the
+   furthest viewport corner, then swaps the theme inside startViewTransition.
 
-   PERF — the constraint that shapes everything here. Only transform, opacity,
-   filter and backdrop-filter are compositor-animatable. `clip-path` is NOT, and
-   neither is `mask-image`, so a circular wipe re-rasters the whole snapshot every
-   frame: ~7 megapixels at DPR 2, over a page carrying 27 backdrop-filter
-   surfaces. That was slow in both WebKit (the Tauri shell) and Chromium, which is
-   what real paint cost looks like as opposed to an engine quirk. Shortening it
-   only traded the jank for no visible animation at all.
+   HISTORY, because this reverses an earlier decision on purpose. The first
+   version avoided clip-path exactly because clip-path is not compositor-
+   animatable: clipping re-rasters the snapshot every frame, ~7 megapixels at
+   DPR 2, and back then the page carried 27 backdrop-filter surfaces on top of
+   that. It was genuinely slow, so the reveal was faked with a transform-scaled
+   ring texture over a uniform cross-fade — motion the compositor owned outright.
 
-   So the motion is built from transform + opacity, which the compositor owns
-   outright and which therefore hold frame rate at ANY duration — that's what buys
-   back a slow, soft 600ms. `transform-origin` carries the click point, so the new
-   theme still blooms out of the toggle rather than dissolving uniformly; origin
-   is static per transition, so it costs nothing to animate around.
+   That premise is gone. The Aug 2026 flat redesign removed every backdrop-filter
+   in the app (`--blur` is `none`; grep returns only comments), so the per-frame
+   raster is a plain snapshot with no blur layers behind it, and a real wipe is
+   affordable again. Confirmed smooth in the Tauri window (WKWebView, Sep 2026) —
+   which is the engine that mattered, since the original slowness was measured
+   there. Still the most expensive thing on the page during those 620ms, so
+   re-check it here if blur or heavy filters ever come back.
 
-   The droplet reads from `.theme-ripple` below: concentric rings baked into ONE
-   static radial-gradient, expanded by scaling the layer about the click point.
-   The gradient never changes, so there is nothing to repaint — the rings sweeping
-   outward are just a texture being transformed. The eye reads the ring front as
-   carrying the theme change, which is what sells it as a reveal even though the
-   theme underneath is a uniform cross-fade rather than a wipe.
-
-   Dead end, recorded so it isn't retried: a six-stop `mask-image` gradient driven
-   off a registered `--wave` property — a per-frame mask bitmap on top of the
-   per-frame raster. And note WHY the first attempt at these rings broke the page:
-   the layer was a 1206px div with negative margins, which pushed document height
-   to ~1203px against a 720px viewport. That overflow enlarged the root snapshot's
-   bounds, so the group animation scaled and displaced everything mid-transition.
-   `position: fixed; inset: 0` is exactly the viewport and cannot overflow — keep
-   it that way. */
+   What survives from the old note, still true: keep any element involved
+   `position: fixed; inset: 0`. The first ring attempt used a 1206px div with
+   negative margins, which pushed document height past the viewport, enlarged the
+   root snapshot's bounds, and scaled and displaced the whole page mid-
+   transition. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
 }
+/* The old theme holds still underneath; the new one is clipped in over the top. */
 ::view-transition-old(root) {
   z-index: 1;
 }
@@ -106,73 +100,59 @@ a {
   z-index: 9999;
 }
 html.rippling::view-transition-new(root) {
-  /* The click point, so the new theme grows out of the toggle. */
-  transform-origin: var(--rx, 50%) var(--ry, 50%);
-  /* Slightly behind the ring front, so the rings look like they carry the change. */
-  animation: theme-reveal 0.72s cubic-bezier(0.3, 0.7, 0.2, 1) 0.06s both;
+  animation: theme-wipe 0.62s cubic-bezier(0.35, 0, 0.15, 1) both;
 }
-@keyframes theme-reveal {
+@keyframes theme-wipe {
   from {
-    opacity: 0;
-    transform: scale(0.972);
+    clip-path: circle(0px at var(--rx, 50%) var(--ry, 50%));
   }
   to {
-    opacity: 1;
-    transform: scale(1);
+    clip-path: circle(var(--r-end, 150vmax) at var(--rx, 50%) var(--ry, 50%));
   }
 }
 
-/* The droplet. One static gradient of concentric rings, scaled outward from the
-   click point — transform and opacity only, so the duration is free. Sits in the
-   new state only, hence a single entry animation and no `old` pseudo. */
-.theme-ripple {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  view-transition-name: theme-ripple;
-  background: radial-gradient(
-    circle at var(--rx, 50%) var(--ry, 50%),
-    transparent 0 4%,
-    color-mix(in srgb, var(--text) 20%, transparent) 6.5%,
-    color-mix(in srgb, var(--text) 5%, transparent) 9%,
-    transparent 11.5%,
-    color-mix(in srgb, var(--text) 13%, transparent) 15%,
-    color-mix(in srgb, var(--text) 3%, transparent) 18%,
-    transparent 21%,
-    color-mix(in srgb, var(--text) 7%, transparent) 25%,
-    transparent 30%
-  );
+/* The icon is lifted out of the root snapshot so it turns over on its own rather
+   than being swapped instantly by the wipe front — which, since the wipe starts
+   at this very button, would otherwise happen on frame one. Sits above the new
+   root so the clip never crops it. */
+.theme-ic {
+  position: relative;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  view-transition-name: theme-ic;
 }
-::view-transition-group(theme-ripple) {
+.rail-item .theme-ic svg {
+  position: absolute;
+  inset: 0;
+}
+::view-transition-group(theme-ic) {
   z-index: 10001;
 }
-::view-transition-old(theme-ripple) {
-  display: none;
+::view-transition-old(theme-ic) {
+  animation: theme-ic-out 0.42s cubic-bezier(0.4, 0, 0.6, 1) both;
 }
-::view-transition-new(theme-ripple) {
-  transform-origin: var(--rx, 50%) var(--ry, 50%);
-  animation: theme-droplet 0.78s cubic-bezier(0.16, 0.85, 0.3, 1) both;
+::view-transition-new(theme-ic) {
+  animation: theme-ic-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
 }
-@keyframes theme-droplet {
-  from {
-    transform: scale(0.05);
-    opacity: 1;
-  }
-  70% {
-    opacity: 0.7;
-  }
+@keyframes theme-ic-out {
   to {
-    transform: scale(4.2);
     opacity: 0;
+    transform: rotate(-80deg) scale(0.4);
+  }
+}
+@keyframes theme-ic-in {
+  from {
+    opacity: 0;
+    transform: rotate(80deg) scale(0.4);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html.rippling::view-transition-new(root),
-  ::view-transition-new(theme-ripple) {
+  ::view-transition-old(theme-ic),
+  ::view-transition-new(theme-ic) {
     animation: none;
-  }
-  .theme-ripple {
-    display: none;
   }
 }

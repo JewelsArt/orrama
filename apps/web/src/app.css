@@ -1,13 +1,19 @@
 /* Basalt web. Flat surfaces, 1px borders, mono details. The only decoration
    allowed is information: team color, progress, the graph. */
 
+/* The first thing drawn, before /api/me answers. It is the wordmark too, so it
+   wears the wordmark's face — but held back in --text-faint, because a splash
+   should not shout at someone who is already inside the app. */
 .boot {
   display: grid;
   place-items: center;
   height: 100%;
   color: var(--text-faint);
-  font-family: var(--font-mono);
-  letter-spacing: 0.3em;
+  font-family: var(--font-brand);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .shell {
@@ -27,14 +33,28 @@
   border-right: 1px solid var(--border);
   color: var(--text-dim);
 }
+/* The wordmark is the UI face at its heaviest, set in caps. Mono reads as
+   terminal, and the terminal was deliberately removed from this app — the
+   chrome should not keep claiming it.
+
+   Caps, tracked out, and smaller than the lowercase setting it replaces: caps
+   have no descenders and read a size larger than they are, and they need the
+   letter spacing that lowercase does not — set solid they close up into a
+   block. The wide tracking also rhymes with the gaps between the cells in the
+   mark, which is why this setting sits with it rather than beside it.
+
+   The transform is CSS, not the markup, so the accessible name stays the word
+   "basalt" rather than six letters a screen reader might spell out. */
 .rail-brand {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 4px 10px 18px;
+  gap: 11px;
+  font-family: var(--font-brand);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 10px 13px;
   color: var(--text);
 }
 .rail-brand svg {
@@ -80,6 +100,39 @@
 }
 .rail-item.active svg {
   opacity: 1;
+}
+/* Back sits above the nav and is the one rail item that can be unavailable —
+   greyed rather than hidden, so the rail never reflows as history fills. */
+.rail-back {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.rail-back:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.rail-back:disabled:hover {
+  background: none;
+  color: var(--text-dim);
+}
+.rail-back span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A build newer than this tab's is being served: colour the icon and label,
+   and swap the ⌘R hint for a dot. Accent, not a banner — it is information,
+   not an interruption. */
+.rail-item.has-update,
+.rail-item.has-update:hover {
+  color: var(--accent);
+}
+.rail-item.has-update svg {
+  opacity: 1;
+}
+.rail-item.has-update .rail-kbd {
+  color: var(--accent);
 }
 .rail-kbd {
   margin-left: auto;
@@ -349,7 +402,11 @@ kbd {
   letter-spacing: 0.08em;
 }
 .login-wordmark {
+  font-family: var(--font-brand);
+  font-weight: 800;
   font-size: 20px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -543,6 +600,321 @@ kbd {
 .theme-pick.active {
   border-color: var(--accent);
   color: var(--text);
+}
+
+/* ---- colour-vision picker -------------------------------------------------
+   Each row previews its own palette: the swatch strip carries data-vision, so
+   vision.css re-declares the families for that strip alone. You compare the
+   modes side by side, in the theme you actually use, without switching. */
+.settings-note {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vision-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+}
+.vision-pick:hover {
+  border-color: var(--border-strong);
+}
+.vision-pick.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.vision-swatches {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.vision-swatches i {
+  width: 9px;
+  height: 20px;
+  border-radius: 2px;
+}
+.vision-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.vision-txt strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+.vision-txt em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* A saved profile's row splits in two: the body picks it, the Edit button opens
+   it. One <button> inside another is invalid HTML, so the row is a <div> and
+   both halves are real buttons. */
+.vision-pick:has(.vision-choose) {
+  padding: 0;
+  gap: 0;
+}
+.vision-choose {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.vision-edit {
+  flex: none;
+  align-self: stretch;
+  padding: 0 13px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-faint);
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.vision-edit:hover {
+  color: var(--accent);
+}
+.vision-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 11px;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.vision-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- palette editor -------------------------------------------------------
+   Wells on the left, the real Finance page on the right. The preview carries
+   the draft's custom properties on its own wrapper, so it is not a mock of the
+   palette — it IS the palette, one subtree early. */
+.vised-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+.vised {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 100%);
+  max-height: 100%;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.vised-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.vised-name {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  color: var(--text);
+  font: 700 14px var(--font-ui);
+}
+.vised-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.vised-actions button {
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+}
+.vised-actions button:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.vised-save {
+  background: var(--solid) !important;
+  border-color: transparent !important;
+  color: var(--solid-text) !important;
+}
+.vised-del:hover {
+  color: var(--danger) !important;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent) !important;
+}
+.vised-x {
+  padding: 8px 10px !important;
+  border-color: transparent !important;
+  background: none !important;
+}
+.vised-body {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+.vised-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+.vised-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vised-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+.vised-slot:hover {
+  background: var(--panel);
+}
+/* Basalt's own colour is not one of the seven; the rule says so. */
+.vised-sep {
+  height: 1px;
+  margin: 8px 6px 4px;
+  background: var(--border);
+}
+/* The native well, stripped of its chrome so it reads as a swatch. */
+.vised-well {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.vised-well::-webkit-color-swatch-wrapper { padding: 2px; }
+.vised-well::-webkit-color-swatch { border: none; border-radius: 7px; }
+.vised-well::-moz-color-swatch { border: none; border-radius: 7px; }
+.vised-slot-txt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.vised-slot-txt strong { font-size: 13px; font-weight: 650; color: var(--text); }
+.vised-slot-txt em { font-style: normal; font-size: 11px; color: var(--text-faint); }
+.vised-hex {
+  flex: none;
+  width: 78px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 7px;
+  color: var(--text-dim);
+  font: 600 11.5px var(--font-mono);
+}
+.vised-ratio {
+  flex: none;
+  width: 46px;
+  text-align: right;
+  font: 600 11px var(--font-mono);
+  color: var(--text-faint);
+}
+/* Below 4.5:1 the derived text colour is not reliably readable. Said before you
+   save, not discovered afterwards on a pill you cannot read. */
+.vised-ratio.low { color: var(--danger); }
+.vised-warn {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vised-warn strong { color: var(--text); font-weight: 700; }
+
+.vised-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: auto;
+  background: var(--fin-ground);
+}
+.vised-strip {
+  display: flex;
+  gap: 3px;
+  padding: 16px 18px 0;
+}
+.vised-strip i {
+  flex: 1;
+  height: 22px;
+  border-radius: 4px;
+}
+/* The real .fin, sized for a side panel: its own grids are cut to two columns
+   and the hero number down a step, because .fin's breakpoints watch the
+   viewport and this panel is a fraction of it. */
+.vised-fin {
+  padding: 14px 18px 18px;
+  min-height: 0;
+  overflow: visible;
+}
+.vised-fin .fin-hero { margin-bottom: 18px; }
+.vised-fin .fin-tops { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.vised-fin .fin-tops > :nth-child(3) { display: none; }
+.vised-fin .fin-hero-num { font-size: 30px; }
+.vised-fin .fin-top-cat b { font-size: 20px; }
+.vised-fin .fin-rest { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+
+@media (max-width: 900px) {
+  .vised-body { grid-template-columns: 1fr; }
+  .vised-slots { border-right: none; border-bottom: 1px solid var(--border); }
 }
 .settings-signout {
   display: inline-flex;
@@ -802,10 +1174,13 @@ kbd {
 }
 
 /* ---- overview (Monday-style glass board) ---- */
+/* One column, because there is one child. This was a two-column grid with a
+   288px side panel; the panel went away in the dashboard rebuild and the track
+   did not, so 304px of every window went to nothing — and the board, squeezed
+   by exactly that much, could no longer fit the steps table (see .ov-steps). */
 .overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 288px;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
   padding: 22px 24px 26px;
@@ -988,10 +1363,10 @@ kbd {
   height: 100%;
 }
 .ov-battery .d {
-  background: #33d391;
+  background: var(--ok);
 }
 .ov-battery .w {
-  background: #fbb043;
+  background: var(--warn);
 }
 .ov-pct {
   font-family: var(--font-mono);
@@ -1015,7 +1390,7 @@ kbd {
   place-items: center;
   font-size: 10.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-vivid);
   flex: none;
 }
 .ov-due {
@@ -1029,6 +1404,11 @@ kbd {
 .ov-steps {
   padding: 0 8px 10px;
   border-top: 1px solid var(--border);
+  /* Queried, not the viewport: this table's width comes from the board, which
+     the rail and the page padding move independently of the window. A media
+     query got this wrong in both directions — it fired while the table still
+     fit, and it stayed quiet while the table was already broken. */
+  container-type: inline-size;
 }
 .ov-steps-head,
 .ov-step {
@@ -1037,6 +1417,30 @@ kbd {
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
+}
+/* Below the width all four columns need, drop them by how little they carry:
+   the source note first, then the date. Status is a control and Step is the
+   row's identity, so those two are the pair that always survives. Without this
+   the STEP track collapsed to 0 and its header printed over TIMELINE. */
+@container (max-width: 588px) {
+  .ov-steps-head,
+  .ov-step {
+    grid-template-columns: 132px minmax(0, 1fr) 116px;
+  }
+  .ov-th-note,
+  .ov-step .ov-docs {
+    display: none;
+  }
+}
+@container (max-width: 428px) {
+  .ov-steps-head,
+  .ov-step {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+  .ov-th-timeline,
+  .ov-step .ov-tl {
+    display: none;
+  }
 }
 .ov-steps-head {
   font: 600 10px var(--font-mono);
@@ -1059,16 +1463,16 @@ kbd {
   border: none;
   border-radius: 7px;
   font: 700 12px var(--font-ui);
-  color: #0f0f14;
+  color: var(--solid-text);
   white-space: nowrap;
   cursor: pointer;
   width: 100%;
 }
 .st.done {
-  background: #33d391;
+  background: var(--ok);
 }
 .st.work {
-  background: #fbb043;
+  background: var(--warn);
 }
 .st.todo {
   background: var(--panel-strong);
@@ -1076,7 +1480,7 @@ kbd {
   font-weight: 600;
 }
 .st.blocked {
-  background: #ef6461;
+  background: var(--danger);
 }
 .st-caret {
   margin-left: 5px;
@@ -1131,13 +1535,13 @@ kbd {
   flex: none;
 }
 .st-dot.done {
-  background: #33d391;
+  background: var(--ok);
 }
 .st-dot.work {
-  background: #fbb043;
+  background: var(--warn);
 }
 .st-dot.blocked {
-  background: #ef6461;
+  background: var(--danger);
 }
 .st-dot.todo {
   background: var(--text-faint);
@@ -1174,14 +1578,14 @@ kbd {
   margin-left: 12px;
   padding: 4px 10px;
   border-radius: 7px;
-  border: 1px solid color-mix(in srgb, #ef6461 34%, transparent);
-  background: color-mix(in srgb, #ef6461 12%, transparent);
-  color: #ef6461;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
   font: 600 11.5px var(--font-ui);
   cursor: pointer;
 }
 .ov-remove:hover {
-  background: color-mix(in srgb, #ef6461 20%, transparent);
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
 }
 .ov-step-name {
   font-size: 13.5px;
@@ -1224,9 +1628,11 @@ kbd {
   font-size: 11px;
 }
 .ov-docs {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  /* inline-BLOCK, not inline-flex: the label is a bare text node, and a flex
+     container will not ellipsize its anonymous item — it clipped the note title
+     mid-word instead. */
+  display: inline-block;
+  vertical-align: middle;
   padding: 4px 9px;
   border-radius: 7px;
   font-size: 12px;
@@ -1411,12 +1817,12 @@ kbd {
   border: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 50%, transparent);
 }
 .gantt-bar.done {
-  background: color-mix(in srgb, #33d391 22%, transparent);
-  border-color: color-mix(in srgb, #33d391 50%, transparent);
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
 }
 .gantt-bar.work {
-  background: color-mix(in srgb, #fbb043 24%, transparent);
-  border-color: color-mix(in srgb, #fbb043 55%, transparent);
+  background: color-mix(in srgb, var(--warn) 24%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
 }
 .gantt-bar.dragging {
   cursor: grabbing;
@@ -1469,7 +1875,7 @@ kbd {
   opacity: 1;
 }
 .gantt-unset:hover {
-  color: var(--warn, #fbb043);
+  color: var(--warn);
 }
 .gantt-empty {
   position: absolute;
@@ -1591,127 +1997,108 @@ kbd {
 
 /* ---- planning ---- */
 .planning {
-  height: 100%;
-  overflow: auto;
-  padding: 18px 26px;
   display: flex;
   flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 22px 24px 20px;
+  overflow: hidden;
 }
-.plan-meta {
+.plan-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  flex-wrap: wrap;
+}
+.plan-h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.plan-sub {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.plan-top-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
 }
-.plan-stat {
-  font-size: 12.5px;
-  color: var(--text-dim);
+
+/* The week in numbers. The grid can legitimately be empty — a week with no
+   meetings is not a bug — so the tab has to say something before you reach it. */
+.plan-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  flex: none;
 }
-.plan-stat strong {
-  color: var(--text);
-  font-family: var(--font-mono);
-}
-.plan-stat.risk strong,
-.plan-stat.risk {
-  color: var(--danger);
-}
-.plan-source {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 2px 7px;
-}
-.plan-lanes {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.plan-lane {
+.plan-tile {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
-}
-.plan-lane-head {
+  padding: 9px 12px 10px;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.plan-lane-name {
-  font-weight: 650;
-}
-.plan-lane-load {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.plan-tasks {
-  list-style: none;
-  margin: 0;
-  padding: 6px 8px;
-}
-.plan-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  border-left: 2px solid transparent;
-}
-.plan-task:hover {
-  background: var(--panel-strong);
-}
-.plan-task.risk {
-  border-left-color: var(--danger);
-}
-.plan-est {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--accent);
-  min-width: 34px;
-  text-align: right;
-}
-.plan-text {
-  flex: 1;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
+}
+.plan-tile-lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.plan-tile-val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.plan-tile-val em {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.plan-tile.bad .plan-tile-val {
+  color: var(--danger);
+}
+.plan-tile-note {
+  font-size: 11px;
+  color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
 }
-.plan-project {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
+.plan-tile-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--panel-strong);
+  overflow: hidden;
+  margin-top: 3px;
 }
-.plan-dates {
-  display: flex;
-  gap: 10px;
-  font-family: var(--font-mono);
+.plan-tile-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.plan-foot {
+  flex: none;
+  margin: 10px 0 0;
   font-size: 11.5px;
-}
-.plan-finish {
-  color: var(--text-dim);
-}
-.plan-due {
   color: var(--text-faint);
-}
-.plan-due.risk {
-  color: var(--danger);
-}
-.plan-open {
-  font-size: 11.5px;
-  font-family: var(--font-mono);
-}
-.plan-footnote {
-  margin-top: auto;
-  padding-top: 18px;
-  color: var(--text-faint);
-  font-size: 11.5px;
 }
 
 /* ---- admin ---- */
@@ -2064,13 +2451,13 @@ kbd {
   margin: 8px 0;
   padding: 10px 12px;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, #ef6461 40%, transparent);
-  background: color-mix(in srgb, #ef6461 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--text);
   font-size: 12.5px;
 }
 .ask-error strong {
-  color: #ef6461;
+  color: var(--danger);
 }
 .ask-error span {
   word-break: break-word;
@@ -2106,16 +2493,17 @@ kbd {
   .side {
     display: none;
   }
-  .overview {
-    grid-template-columns: 1fr;
-  }
   .who {
     display: none;
   }
   .rail {
     width: 60px;
   }
-  .rail-item span,
+  /* Labels go, icons stay. The theme toggle keeps its icon in a <span> (it
+     needs its own view-transition-name to cross-fade sun into moon), so a bare
+     `.rail-item span` hid the toggle itself — the one rail item that vanished
+     when the window narrowed. */
+  .rail-item span:not(.theme-ic),
   .rail-kbd,
   .account-text,
   .rail-brand span {
@@ -2489,7 +2877,7 @@ kbd {
 }
 .cm-mention {
   color: var(--ok);
-  background: rgba(45, 212, 191, 0.08);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
   border-radius: 3px;
   padding: 0 4px;
   font-size: 0.9em;
@@ -2514,7 +2902,7 @@ kbd {
 }
 .cm-prio.p1 {
   color: var(--danger);
-  background: rgba(229, 56, 59, 0.1);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .cm-prio.p2 {
   color: var(--warn);
@@ -2526,9 +2914,6 @@ kbd {
 }
 
 /* ---- planning calendar ---- */
-.plan-head {
-  gap: 12px;
-}
 .week-nav {
   display: flex;
   align-items: center;
@@ -2541,36 +2926,8 @@ kbd {
 .week-today {
   font-family: var(--font-mono);
   font-size: 12px;
-  min-width: 130px;
+  min-width: 138px;
   text-align: center;
-}
-.people-picker {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.person-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px 3px 4px;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  background: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 12px;
-}
-.person-chip svg {
-  opacity: 0.5;
-}
-.person-chip.active {
-  border-color: var(--border-strong);
-  background: var(--panel-strong);
-  color: var(--text);
-}
-.person-chip.active svg {
-  opacity: 1;
 }
 
 .plan-body {
@@ -2580,8 +2937,10 @@ kbd {
   min-height: 0;
   margin-top: 14px;
 }
+
+/* ---- backlog rail ---- */
 .backlog {
-  width: 230px;
+  width: 252px;
   flex: none;
   overflow: auto;
   border: 1px solid var(--border);
@@ -2589,41 +2948,118 @@ kbd {
   background: var(--panel);
   padding: 12px;
 }
-.backlog h3 {
-  margin: 0 0 2px;
+.backlog-head h3 {
+  margin: 0 0 8px;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-faint);
   font-family: var(--font-mono);
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
-.backlog-toggle {
-  margin-left: auto;
-  border: none;
+.backlog-filters {
+  display: flex;
+  gap: 4px;
+}
+.backlog-filter {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 99px;
   background: none;
   color: var(--text-faint);
-  font: 600 10.5px var(--font-ui);
+  font: 600 11px var(--font-ui);
+  padding: 3px 4px;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.backlog-toggle:hover { color: var(--accent); }
-.backlog h3 { display: flex; align-items: center; gap: 7px; }
+.backlog-filter span {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  opacity: 0.7;
+}
+.backlog-filter:hover {
+  border-color: var(--border-strong);
+  color: var(--text-dim);
+}
+.backlog-filter.on {
+  border-color: var(--border-strong);
+  background: var(--panel-strong);
+  color: var(--text);
+}
 .backlog-hint {
   color: var(--text-faint);
   font-size: 11.5px;
-  margin: 4px 0 10px;
+  margin: 10px 0 10px;
+  line-height: 1.45;
 }
 .backlog .cal-task {
   margin-bottom: 6px;
 }
+.backlog .empty {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* The one place the app fills the calendar for you — and it proposes first. */
+.plan-auto {
+  margin-top: 10px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: 650 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.plan-auto:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.plan-auto:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.plan-proposal {
+  margin-top: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+}
+.plan-proposal-line {
+  margin: 0;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+.plan-proposal-hint {
+  margin: 3px 0 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.plan-proposal-actions {
+  display: flex;
+  gap: 6px;
+}
+.plan-proposal-actions button {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 8px;
+}
 
 .cal-task {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
-  padding: 5px 8px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
   border: 1px solid var(--border);
   border-left: 2px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -2632,15 +3068,27 @@ kbd {
   cursor: grab;
   position: relative;
 }
+.cal-task:hover {
+  border-color: var(--border-strong);
+}
 .cal-task:active {
   cursor: grabbing;
 }
 .cal-task.risk {
   border-left-color: var(--danger);
 }
-.cal-task.readonly {
-  cursor: default;
-  opacity: 0.75;
+.cal-task-text {
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cal-task-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
 .cal-task-est {
   font-family: var(--font-mono);
@@ -2648,7 +3096,9 @@ kbd {
   color: var(--accent);
   flex: none;
 }
-.cal-task-text {
+.cal-task-project {
+  font-size: 10.5px;
+  color: var(--text-faint);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -2664,113 +3114,14 @@ kbd {
 .cal-task-due.overdue {
   color: var(--danger);
 }
-.cal-unplan {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 12px;
-  display: none;
-}
-.cal-task:hover .cal-unplan {
-  display: block;
-}
-.cal-unplan:hover {
-  color: var(--danger);
-}
 
-.cal-week {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  min-width: 0;
-  overflow: auto;
-}
-.cal-day {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-}
-.cal-day.weekend {
-  background: transparent;
-}
-.cal-day.today {
-  border-color: var(--accent);
-}
-.cal-day.droppable {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
-.cal-day-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 7px 9px;
-  border-bottom: 1px solid var(--border);
-}
-.cal-day-name {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.cal-day-num {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.cal-day.today .cal-day-num {
-  color: var(--accent);
-  font-weight: 700;
-}
-.cal-lanes {
-  display: flex;
-  gap: 4px;
-  padding: 6px;
-  flex: 1;
-  min-height: 0;
-}
-.cal-lane {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-radius: var(--radius-sm);
-}
-.cal-lane-owner {
-  align-self: center;
-  opacity: 0.7;
-}
-.cal-lane .cal-task {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.cal-lane-sum {
-  margin-top: auto;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-faint);
-  text-align: right;
-  padding: 2px 4px 0;
-}
-.cal-lane-sum.over {
-  color: var(--warn);
-}
-
+/* ---- month ---- */
 .cal-month {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(72px, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(86px, 1fr);
   gap: 5px;
   min-width: 0;
   overflow: auto;
@@ -2786,39 +3137,52 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--panel);
-  padding: 6px 8px;
-  cursor: pointer;
+  padding: 5px 6px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-  color: var(--text-dim);
-}
-.cal-month-day:hover {
-  border-color: var(--border-strong);
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
 }
 .cal-month-day.today {
   border-color: var(--accent);
 }
 .cal-month-day.dim {
-  opacity: 0.4;
+  opacity: 0.45;
 }
 .cal-month-num {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0 2px;
   font-family: var(--font-mono);
   font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cal-month-day.today .cal-month-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-month-num:hover {
+  color: var(--accent);
 }
 .cal-month-load {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  width: 100%;
-}
-.cal-month-bar {
   display: block;
   height: 3px;
   border-radius: 2px;
+  background: var(--panel-strong);
+  overflow: hidden;
+}
+.cal-month-bar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
   background: var(--accent);
-  margin-bottom: 3px;
+}
+.cal-month-bar.over {
+  background: var(--warn);
 }
 
 /* ---- week time grid ---- */
@@ -2838,32 +3202,192 @@ kbd {
   border-bottom: 1px solid var(--border);
   background: var(--bg-raised);
 }
+.cal-gutter-spacer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Reads as a range, not a control, until you want it: the grid already tells
+   you which hours it is showing, so the label *is* the button. */
+.cal-window-toggle {
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 4px;
+  color: var(--text-faint);
+  font: 400 9.5px var(--font-mono);
+  padding: 1px 4px;
+  cursor: pointer;
+}
+.cal-window-toggle:hover {
+  border-color: var(--border);
+  color: var(--text-dim);
+}
 .cal-col-head {
-  padding: 7px 9px 5px;
+  padding: 7px 9px 6px;
   border-left: 1px solid var(--border);
   display: flex;
   align-items: baseline;
   gap: 7px;
   flex-wrap: wrap;
 }
+.cal-col-head.today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.cal-day-name {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cal-day-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
 .cal-col-head.today .cal-day-num {
   color: var(--accent);
   font-weight: 700;
 }
-.cal-head-lanes {
-  display: flex;
-  gap: 3px;
+.cal-col-hours {
   margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
 }
-.cal-head-owner {
-  display: inline-flex;
-  opacity: 0.75;
+.cal-col-load {
+  flex-basis: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--panel-strong);
+  overflow: hidden;
+  margin-top: 4px;
 }
+.cal-col-load > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.cal-col-load.over > span {
+  background: var(--warn);
+}
+
+/* The dated band: deadlines, milestones, money, all-day events. Nothing here
+   owns an hour, so nothing here belongs in the grid below. */
+.cal-marks {
+  display: grid;
+  grid-template-columns: 52px repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  max-height: 62px;
+  overflow: hidden;
+}
+.cal-marks.open {
+  max-height: 210px;
+  overflow-y: auto;
+}
+.cal-marks-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 5px 7px 5px 0;
+}
+.cal-marks-gutter > span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.cal-marks-toggle {
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font: 600 9.5px var(--font-ui);
+  cursor: pointer;
+  padding: 0;
+}
+.cal-marks-toggle:hover {
+  color: var(--accent);
+}
+.cal-marks-cell {
+  border-left: 1px solid var(--border);
+  padding: 4px 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-marks-cell.today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.cal-mark {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 2px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text-dim);
+  font: 500 10.5px var(--font-ui);
+  line-height: 1.35;
+  padding: 2px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.cal-mark:disabled {
+  cursor: default;
+}
+.cal-mark:hover:not(:disabled) {
+  color: var(--text);
+}
+.cal-mark.due {
+  border-left-color: var(--warn);
+  color: var(--text);
+}
+.cal-mark.due.overdue {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+.cal-mark.milestone {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 650;
+}
+.cal-mark.money {
+  border-left-color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.cal-mark.money.in {
+  border-left-color: var(--ok);
+  color: var(--ok);
+}
+.cal-mark.ics,
+.cal-mark.event {
+  border-left-color: var(--blue);
+}
+.cal-mark.more {
+  border-left-color: transparent;
+  background: none;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
 .cal-grid-scroll {
   flex: 1;
   overflow-y: auto;
   display: grid;
   grid-template-columns: 52px 1fr;
+  /* The first and last hour labels are centred on their own line, so without
+     this half of "07:00" sits above the scroll box. Padding the scroller moves
+     gutter and body together, so the geometry still lines up. */
+  padding: 9px 0 12px;
 }
 .cal-gutter {
   position: relative;
@@ -2893,23 +3417,13 @@ kbd {
 .cal-col {
   position: relative;
   border-left: 1px solid var(--border);
-  display: flex;
-}
-.cal-col.today {
-  background: rgba(245, 166, 35, 0.025);
-}
-.cal-lane {
-  position: relative;
-  flex: 1;
   min-width: 0;
 }
-.cal-lane + .cal-lane {
-  border-left: 1px dashed var(--border);
+.cal-col.weekend {
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
 }
-.cal-lane-hint {
-  position: absolute;
-  inset: 0;
-  display: none;
+.cal-col.today {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 .cal-now {
   position: absolute;
@@ -2930,6 +3444,21 @@ kbd {
   background: var(--danger);
 }
 
+/* Sits behind the columns so drag, drop and double-click still reach them. */
+.cal-empty {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 34%;
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .cal-item {
   position: absolute;
   left: 3px;
@@ -2944,6 +3473,7 @@ kbd {
   flex-direction: column;
   gap: 1px;
   user-select: none;
+  text-align: left;
 }
 .cal-item.dragging {
   opacity: 0.9;
@@ -2975,9 +3505,20 @@ kbd {
   border-left-color: var(--danger);
 }
 .cal-item.event {
-  background: rgba(74, 158, 255, 0.13);
-  border: 1px solid rgba(74, 158, 255, 0.4);
-  border-left: 3px solid #4a9eff;
+  background: color-mix(in srgb, var(--blue) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  border-left: 3px solid var(--blue);
+}
+/* A proposal, not a booking: dashed until you say yes. */
+.cal-item.ghost {
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cal-item.ghost:hover {
+  border-style: solid;
+  color: var(--text);
 }
 .cal-item.readonly {
   opacity: 0.65;
@@ -3460,8 +4001,16 @@ kbd {
    Dashboard — clean light SaaS surface (HireFlow-style layout,
    Basalt palette). Scoped under .home; the dark app is untouched.
    Type: Plus Jakarta Sans.
+
+   The Finance area shares this palette rather than declaring a second one:
+   these --d-* names are aliases over the global tokens, so both surfaces flip
+   with the theme together and there is one place to retint. A page that forgets
+   to opt in here still renders — text inherits — but every background silently
+   resolves to transparent, which is exactly how the Finance bars first shipped
+   invisible.
    ============================================================ */
-.home {
+.home,
+.fin {
   /* Dashboard palette now rides the global glass tokens, so it flips with the
      theme toggle. Fills are frosted glass; hues + tints come from the tokens. */
   --d-bg: transparent;
@@ -3479,6 +4028,12 @@ kbd {
   --d-orange: var(--orange); --d-orange-bg: color-mix(in srgb, var(--orange) 15%, transparent);
   --d-purple: var(--purple); --d-purple-bg: color-mix(in srgb, var(--purple) 15%, transparent);
   --d-pink: var(--pink); --d-pink-bg: color-mix(in srgb, var(--pink) 15%, transparent);
+  /* Money in/out and late/over are STATUS, not decoration: they ride --ok and
+     --danger so a colour-vision mode reaches them. Only the chips and badges,
+     which are decorative, stay on the hue names above. */
+  --d-ok: var(--ok); --d-ok-bg: color-mix(in srgb, var(--ok) 15%, transparent);
+  --d-warn: var(--warn); --d-warn-bg: color-mix(in srgb, var(--warn) 15%, transparent);
+  --d-danger: var(--danger); --d-danger-bg: color-mix(in srgb, var(--danger) 15%, transparent);
   --d-sans: var(--font-ui);
 
   height: 100%;
@@ -3506,9 +4061,78 @@ kbd {
   color: var(--d-ink-2);
   font-size: 14px;
 }
+.dh-top-right { display: flex; align-items: center; gap: 12px; }
 .dh-top-meta {
   font-size: 12.5px;
   color: var(--d-ink-3);
+}
+.dh-edit {
+  border: 1px solid var(--d-line);
+  background: var(--surface);
+  color: var(--d-ink-2);
+  border-radius: 9px;
+  padding: 6px 14px;
+  font: 650 12px var(--font-ui);
+  cursor: pointer;
+}
+.dh-edit:hover { color: var(--d-ink); border-color: var(--d-line-2); }
+/* In edit mode the button is the way out, so it reads as the active control. */
+.dh-edit.on {
+  background: var(--solid);
+  border-color: var(--solid);
+  color: var(--bg);
+}
+
+/* ---- edit mode -----------------------------------------------------------
+   Cards wiggle, iOS-homescreen style. Two things make it read as "loose"
+   rather than "broken": the rotation is tiny (0.5deg — enough to see, not
+   enough to blur text), and each card is given its own duration and delay so
+   they drift out of phase instead of rocking in lockstep like one rigid sheet.
+   Transform only, so this costs the compositor nothing while it runs. */
+@keyframes dhWiggle {
+  0%, 100% { transform: rotate(-0.5deg) translateY(0); }
+  50% { transform: rotate(0.5deg) translateY(-1px); }
+}
+.dh-grid.is-editing .dh-card {
+  animation: dhWiggle 0.34s ease-in-out infinite;
+}
+.dh-grid.is-editing .dh-card:nth-child(2n) { animation-duration: 0.39s; animation-delay: -0.12s; }
+.dh-grid.is-editing .dh-card:nth-child(3n) { animation-duration: 0.31s; animation-delay: -0.22s; }
+.dh-grid.is-editing .dh-card:nth-child(5n) { animation-duration: 0.37s; animation-delay: -0.06s; }
+/* The card being dragged is positioned by the drag loop's own transform —
+   wiggling it too would fight that and jitter the card under the pointer. */
+.dh-grid.is-editing .dh-card[style*="z-index: 40"] { animation: none; }
+/* The add tile is a target, not a card you can remove — it holds still. */
+.dh-grid.is-editing .dh-add { animation: none; }
+
+.dh-remove {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--solid);
+  color: var(--bg);
+  cursor: pointer;
+  padding: 0;
+  z-index: 3;
+  box-shadow: var(--shadow-pop);
+  animation: dhPop 0.16s cubic-bezier(0.2, 1.3, 0.5, 1) both;
+}
+.dh-remove:hover { background: var(--danger); border-color: var(--danger); }
+@keyframes dhPop {
+  from { opacity: 0; transform: scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dh-grid.is-editing .dh-card { animation: none; }
+  .dh-remove { animation: none; }
+  /* Edit mode still has to be legible without motion, so the cards say so. */
+  .dh-grid.is-editing .dh-card { outline: 1px dashed var(--d-line-2); outline-offset: 3px; }
 }
 
 .dh-grid {
@@ -3530,11 +4154,43 @@ kbd {
   padding: 20px 22px;
   animation: dhRise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   min-width: 0;
-  /* draggable bento: inertia handled imperatively in Dashboard.tsx */
-  cursor: grab;
+  /* draggable bento: inertia handled imperatively in Dashboard.tsx. The card
+     itself is NOT the drag surface — only .dh-grip is — so the whole body stays
+     ordinary clickable content. */
+  position: relative;
   will-change: transform;
 }
-.dh-card :where(button, a, input, .dh-fcard, .dh-task-text, .dh-cal-day, .dh-agenda-row) {
+/* The handle: three rules on the top edge, centred. Visible but recessive, and
+   it comes forward when the pointer is anywhere on the card. Padding well past
+   the glyph gives it a real touch target without a big visual footprint. */
+.dh-grip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  padding: 5px 0 7px;
+  border: none;
+  background: none;
+  color: var(--d-line);
+  cursor: grab;
+  opacity: 0.9;
+  transition: color 0.15s ease;
+  touch-action: none;
+  z-index: 1;
+}
+.dh-card:hover .dh-grip { color: var(--d-ink-3); }
+.dh-grip:hover { color: var(--d-ink-2); }
+.dh-grip:active { cursor: grabbing; }
+.dh-grip:focus-visible {
+  outline: 2px solid var(--d-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.dh-card :where(button, a, input, .dh-fcard, .dh-task-text) {
   cursor: pointer;
 }
 .dh-card-activity {
@@ -3634,14 +4290,19 @@ kbd {
   color: var(--d-ink-2);
   font-weight: 500;
 }
+.dh-big-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--d-ink-3);
+}
 .dh-delta {
   font-size: 11.5px;
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 999px;
 }
-.dh-delta.up { color: var(--d-green); background: var(--d-green-bg); }
-.dh-delta.down { color: var(--d-pink); background: var(--d-pink-bg); }
+.dh-delta.up { color: var(--d-ok); background: var(--d-ok-bg); }
+.dh-delta.down { color: var(--d-danger); background: var(--d-danger-bg); }
 .dh-tiles {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -3698,7 +4359,7 @@ kbd {
 .dh-grid-line { stroke: var(--d-line); stroke-width: 1; }
 .dh-line-now { fill: none; stroke: var(--d-accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .dh-line-last { fill: none; stroke: var(--d-ink-3); stroke-width: 2; stroke-dasharray: 4 4; opacity: 0.6; }
-.dh-dot-now { fill: #fff; stroke: var(--d-accent); stroke-width: 2; }
+.dh-dot-now { fill: var(--surface); stroke: var(--d-accent); stroke-width: 2; }
 .dh-chart-axis { fill: var(--d-ink-3); font-size: 11px; font-weight: 600; font-family: var(--d-sans); }
 
 /* add-component tile */
@@ -3763,6 +4424,16 @@ kbd {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--text);
+  /* It restores a card now, so it is a button rather than a preview tile. */
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dh-add-opt:hover {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
 }
 .dh-add-opt-ic {
   width: 26px;
@@ -3772,6 +4443,9 @@ kbd {
   flex: none;
   box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--c) 60%, transparent);
 }
+.dh-add-opt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.dh-add-opt-body b { font-weight: 700; font-size: 13px; color: var(--text); }
+.dh-add-opt-body em { font-style: normal; font-size: 11.5px; color: var(--text-dim); }
 .dh-add-opt-soon {
   margin-left: auto;
   font-family: var(--font-mono);
@@ -3783,7 +4457,47 @@ kbd {
   border-radius: 6px;
   padding: 2px 6px;
 }
-.dh-add-modal-foot { display: flex; justify-content: flex-end; margin-top: 18px; }
+.dh-add-modal-foot { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* Add-a-row form */
+.dh-form { max-width: 460px; }
+.dh-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; flex: 1; min-width: 0; }
+.dh-field > span {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.dh-field input,
+.dh-field select {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font: 500 13px var(--font-ui);
+}
+.dh-field input:focus, .dh-field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.dh-field-row { display: flex; gap: 10px; }
+.dh-form-hint { margin: 0; font-size: 11.5px; color: var(--text-faint); }
+.dh-form-error { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); line-height: 1.5; }
+.dh-form-error code {
+  font: 600 11.5px var(--font-mono);
+  background: var(--panel);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.dh-btn-solid {
+  background: var(--solid);
+  color: var(--bg);
+  border: 1px solid var(--solid);
+  border-radius: 9px;
+  padding: 8px 16px;
+  font: 650 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.dh-btn-solid:disabled { opacity: 0.45; cursor: default; }
 
 /* list (in focus) */
 .dh-list { list-style: none; margin: 0; padding: 0; }
@@ -3801,7 +4515,7 @@ kbd {
   border-radius: 50%;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--on-vivid);
   font-weight: 700;
   font-size: 15px;
   flex: none;
@@ -3835,136 +4549,231 @@ kbd {
 .dh-badge.orange { color: var(--d-orange); background: var(--d-orange-bg); }
 .dh-badge.pink { color: var(--d-pink); background: var(--d-pink-bg); }
 .dh-star { color: var(--d-ink-3); display: inline-flex; flex: none; }
-.dh-row:hover .dh-star { color: #eab308; }
+.dh-row:hover .dh-star { color: var(--ink-amber); }
 
 /* schedule */
-.dh-sched { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 1320px) { .dh-sched { grid-template-columns: 1fr; } }
-/* fill the card: the calendar grows to use the height, agenda sits below —
-   no dead space under "Nothing scheduled". */
-.dh-card-schedule { display: flex; flex-direction: column; }
-.dh-card-schedule .dh-sched {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.dh-card-schedule .dh-cal {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.dh-card-schedule .dh-cal-grid {
-  flex: 1;
-  grid-auto-rows: 1fr;
-}
-.dh-card-schedule .dh-cal-day {
-  height: auto;
-  min-height: 32px;
-}
-.dh-card-schedule .dh-agenda { flex: none; }
-.dh-card-schedule .dh-agenda-empty {
-  display: grid;
-  place-items: center;
-  padding: 14px;
-  border: 1px dashed var(--d-line);
-  border-radius: 12px;
+/* Next 7 days: days stacked, each a label plus its rows. Only days that hold
+   something are rendered, so the card is short when the week is quiet rather
+   than seven lines of "nothing". */
+.dh-week { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.dh-day-label {
+  display: block;
+  font: 700 10.5px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   color: var(--d-ink-3);
-  font-size: 13px;
+  margin-bottom: 6px;
 }
-.dh-cal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-.dh-cal-nav {
-  background: none;
-  border: none;
-  color: var(--d-ink-2);
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0 6px;
-}
-.dh-cal-dow {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-bottom: 4px;
-}
-.dh-cal-dow span {
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
+.dh-day-rows { list-style: none; margin: 0; padding: 0; }
+.dh-ag { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; min-width: 0; }
+.dh-ag + .dh-ag { border-top: 1px solid var(--d-line); }
+/* A 4px spine in the row's own colour: calendar, focus block, due, money. */
+.dh-ag { border-left: 3px solid transparent; padding-left: 9px; margin-left: -12px; }
+.dh-ag.event { border-left-color: var(--d-accent); }
+.dh-ag.task { border-left-color: var(--d-warn); }
+.dh-ag.due { border-left-color: var(--d-danger); }
+/* Money out is pink like a deadline; money in is the only green spine. */
+.dh-ag.charge { border-left-color: var(--d-danger); }
+.dh-ag.income { border-left-color: var(--d-ok); }
+.dh-ag.income .dh-ag-amt { color: var(--d-ok); }
+.dh-ag-time {
+  font: 600 11px var(--font-mono);
   color: var(--d-ink-3);
-}
-.dh-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.dh-cal-day {
-  position: relative;
-  aspect-ratio: 1;
-  border: none;
-  background: none;
-  border-radius: 9px;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--d-ink);
-  cursor: pointer;
-}
-.dh-cal-day:hover { background: var(--d-line-2); }
-.dh-cal-day.sel { box-shadow: inset 0 0 0 1.5px var(--d-accent); }
-.dh-cal-day.today { background: var(--d-accent); color: var(--bg); }
-.dh-cal-mark {
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--d-accent);
-}
-.dh-cal-day.today .dh-cal-mark { background: var(--bg); }
-.dh-agenda { display: flex; flex-direction: column; gap: 8px; }
-.dh-agenda-row { display: flex; align-items: center; gap: 10px; }
-.dh-agenda-time {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--d-ink-3);
-  width: 62px;
   flex: none;
+  width: 48px;
 }
-.dh-agenda-card {
+.dh-ag-title {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--d-line);
-  border-left: 3px solid var(--d-accent);
-  border-radius: 10px;
-  padding: 7px 10px;
-  display: flex;
-  flex-direction: column;
-}
-.dh-agenda-card.task { border-left-color: var(--d-orange); }
-.dh-agenda-title {
   font-size: 13px;
-  font-weight: 600;
+  color: var(--d-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dh-agenda-kind { font-size: 11px; color: var(--d-ink-3); }
-.dh-agenda-ic { color: var(--d-accent); flex: none; }
-.dh-agenda-empty, .dh-empty {
+.dh-ag:hover .dh-ag-title { color: var(--d-accent); }
+.dh-ag-tag {
+  font-size: 11px;
+  color: var(--d-ink-3);
+  flex: none;
+  max-width: 34%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-ag-amt { font: 700 12px var(--font-mono); color: var(--d-ink-2); flex: none; }
+
+/* Finance: net, then the in/out ratio, then what is coming. */
+.dh-net { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.dh-net-num { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--d-ok); }
+.dh-net-num.down { color: var(--d-danger); }
+.dh-net-lbl { font-size: 12.5px; color: var(--d-ink-2); }
+.dh-flow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.dh-flow-row { display: flex; align-items: center; gap: 10px; }
+.dh-flow-lbl {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--d-ink-3);
+  width: 26px;
+  flex: none;
+}
+.dh-flow-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--d-line); overflow: hidden; }
+.dh-flow-bar i { display: block; height: 100%; border-radius: 4px; }
+.dh-flow-bar i.in { background: var(--d-ok); }
+.dh-flow-bar i.out { background: var(--d-danger); }
+.dh-flow-amt { font: 700 12px var(--font-mono); color: var(--d-ink-2); flex: none; }
+
+/* Subscriptions */
+.dh-subs { list-style: none; margin: 0; padding: 0; }
+.dh-sub { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; cursor: pointer; }
+.dh-sub + .dh-sub { border-top: 1px solid var(--d-line); }
+.dh-sub-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-sub:hover .dh-sub-name { color: var(--d-accent); }
+.dh-sub-when { font-size: 11.5px; color: var(--d-ink-3); flex: none; }
+.dh-sub-amt { font: 700 12.5px var(--font-mono); color: var(--d-ink); flex: none; }
+
+/* Pills and an action share the right-hand side of a card header. */
+.dh-head-tools { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* Empty states that tell you what to do, not just that there is nothing. */
+.dh-empty-block { padding: 10px 0; color: var(--d-ink-3); font-size: 13px; }
+.dh-empty-block p { margin: 0 0 6px; }
+.dh-empty-hint { font-size: 12px; line-height: 1.5; }
+.dh-empty-hint code {
+  font: 600 11.5px var(--font-mono);
+  background: var(--d-line-2);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* A legend row is the way into the category, so it is a real button. */
+.dh-cat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  text-align: left;
+}
+.dh-cat span { flex: 1; color: var(--d-ink); }
+.dh-cat b { font-weight: 700; color: var(--d-ink-2); font-size: 12.5px; }
+.dh-cat:hover span { color: var(--d-accent); }
+
+.dh-empty {
   font-size: 13px;
   color: var(--d-ink-3);
   padding: 14px 0;
 }
 
 /* today's tasks */
+/* Overdue is the one number on this dashboard that should read as a warning,
+   so it gets the alert pill rather than the neutral --d-line-2 one. */
+.dh-pill-alert {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--d-danger);
+  background: var(--d-danger-bg);
+  border: 1px solid color-mix(in srgb, var(--d-danger) 25%, transparent);
+  border-radius: 8px;
+  padding: 4px 10px;
+  flex: none;
+}
+
+/* A task row on the Deadlines card carries a second line (its project), so the
+   text half becomes a column while the radio and the date stay centred. */
+.dh-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dh-task-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dh-task-proj {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--d-ink-3);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-task-proj:hover { color: var(--d-accent); }
+/* The In Focus sub-line is "note title · project", and either half can be long.
+   A flex row lets both shrink and ellipsis independently. `max-width: 100%` on
+   the button alone was not enough: it resolves against the whole line, so a
+   button starting halfway along could still end up half a line past the edge. */
+.dh-fcard-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.dh-fcard-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-fcard-sub .dh-task-proj {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.dh-fcard-sub .dh-task-proj:hover { color: var(--d-accent); }
+/* The fallback chip (no project behind it) still opens the note, so it gets the
+   same hover — nothing on this card looks clickable without being clickable. */
+.dh-task-proj.plain:hover { color: var(--d-ink-2); }
+
+.dh-projs { list-style: none; margin: 0; padding: 0; }
+.dh-proj {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.dh-proj + .dh-proj { border-top: 1px solid var(--d-line); }
+.dh-proj-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dh-proj-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-proj:hover .dh-proj-name { color: var(--d-accent); }
+.dh-proj-sub { font-size: 11.5px; color: var(--d-ink-3); }
+.dh-proj-late { color: var(--d-danger); font-weight: 700; }
+/* Progress reads in the project's own life-area colour (--c), which is the same
+   colour it carries on the Overview board. */
+.dh-proj-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--d-line);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.dh-proj-bar i { display: block; height: 100%; background: var(--c, var(--d-accent)); border-radius: 2px; }
+.dh-proj-when { font-size: 12px; font-weight: 600; color: var(--d-ink-3); flex: none; }
+.dh-proj-when.over { color: var(--d-danger); }
+
 .dh-tasks { list-style: none; margin: 0; padding: 0; }
 .dh-task { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
 .dh-task + .dh-task { border-top: 1px solid var(--d-line); }
@@ -3991,7 +4800,7 @@ kbd {
 }
 .dh-task-text:hover { color: var(--d-accent); }
 .dh-task-time { font-size: 12px; font-weight: 600; color: var(--d-ink-3); flex: none; }
-.dh-task-time.over { color: var(--d-pink); }
+.dh-task-time.over { color: var(--d-danger); }
 .dh-task-foot { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--d-line); }
 .dh-prog { display: flex; flex-direction: column; gap: 7px; }
 .dh-prog-bar { height: 6px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
@@ -4054,7 +4863,7 @@ kbd {
   display: grid;
   place-items: center;
   background: var(--c);
-  color: #fff;
+  color: var(--on-vivid);
   font-weight: 800;
   font-size: 15px;
   flex: none;
@@ -4071,7 +4880,7 @@ kbd {
 }
 .dh-fcard-sub {
   font-size: 12px;
-  color: color-mix(in srgb, var(--c) 45%, var(--d-ink-2));
+  color: var(--d-ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4082,8 +4891,8 @@ kbd {
   padding: 3px 9px;
   border-radius: 999px;
   flex: none;
-  color: var(--c);
-  background: color-mix(in srgb, var(--c) 20%, transparent);
+  color: var(--d-ink-2);
+  background: var(--d-line-2);
 }
 .dh-fcard-star { color: color-mix(in srgb, var(--c) 55%, var(--d-ink-3)); display: inline-flex; flex: none; }
 .dh-fcard:hover .dh-fcard-star { color: var(--c); }
@@ -4114,7 +4923,7 @@ kbd {
 .ct-card { display:grid; grid-template-columns:46px 1fr auto auto; align-items:center; gap:14px; padding:13px 10px; border-top:1px solid var(--border); border-radius:10px; cursor:pointer; transition:background .13s ease; }
 .ct-card.firstvis { border-top-color:transparent; }
 .ct-card:hover { background:var(--bg-raised); }
-.ct-av { width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:15px; color:#fff; flex:none; background:var(--cat-b); }
+.ct-av { width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:800; font-size:15px; color:var(--on-vivid); flex:none; background:var(--cat-b); }
 .ct-idn { min-width:0; display:flex; flex-direction:column; gap:2px; }
 .ct-name { font-weight:700; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ct-role { font-size:12.5px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -4137,7 +4946,7 @@ kbd {
 .ct-backdrop { position:fixed; inset:0; background:var(--scrim); display:flex; align-items:center; justify-content:center; z-index:100; }
 .ct-modal { width:min(440px,92vw); border-radius:var(--radius-lg); padding:22px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow-pop); }
 .ct-m-head { display:flex; align-items:flex-start; gap:14px; }
-.ct-m-av { width:58px; height:58px; border-radius:16px; display:grid; place-items:center; font-weight:800; font-size:20px; color:#fff; flex:none; background:var(--cat-b); }
+.ct-m-av { width:58px; height:58px; border-radius:16px; display:grid; place-items:center; font-weight:800; font-size:20px; color:var(--on-vivid); flex:none; background:var(--cat-b); }
 .ct-m-idn { flex:1; min-width:0; }
 .ct-m-name { font-size:19px; font-weight:800; letter-spacing:-0.01em; }
 .ct-m-role { font-size:13px; color:var(--text-dim); margin-top:2px; }
@@ -4154,7 +4963,7 @@ kbd {
 .ct-m-body { min-width:0; flex:1; }
 .ct-m-actions { display:flex; gap:8px; margin-top:18px; }
 .ct-btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px; border-radius:11px; border:1px solid var(--border); background:var(--panel); color:var(--text); font:650 13px var(--font-ui); cursor:pointer; text-decoration:none; }
-.ct-btn.pri { background:var(--accent); color:#fff; border-color:transparent; }
+.ct-btn.pri { background:var(--accent); color:var(--on-vivid); border-color:transparent; }
 .ct-btn:hover { border-color:color-mix(in srgb,var(--accent) 40%,var(--bg)); }
 
 .ct-tag-select { font:700 11px var(--font-ui); padding:2px 16px 2px 8px; border-radius:99px; color:var(--tc); background:color-mix(in srgb,var(--tc) 12%,var(--bg)); border:1px solid color-mix(in srgb,var(--tc) 26%,var(--bg)); appearance:none; -webkit-appearance:none; outline:none; cursor:pointer; background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 4px center; background-size:12px; }
@@ -4190,7 +4999,7 @@ kbd {
 .co-alpha-l:hover { color:var(--accent); }
 .co-alpha-l.empty { color:var(--text-faint); opacity:.4; cursor:default; }
 .co-alpha-l.active { color:var(--accent); background:color-mix(in srgb, var(--accent) 20%, transparent); }
-.co-bubble { position:absolute; left:calc(100% + 12px); top:50%; transform:translateY(-50%); width:56px; height:56px; display:grid; place-items:center; border-radius:18px; background:var(--accent); color:#fff; font:800 24px var(--font-ui); box-shadow:0 14px 34px -12px rgba(0,0,0,.5); pointer-events:none; }
+.co-bubble { position:absolute; left:calc(100% + 12px); top:50%; transform:translateY(-50%); width:56px; height:56px; display:grid; place-items:center; border-radius:18px; background:var(--accent); color:var(--on-vivid); font:800 24px var(--font-ui); box-shadow:0 14px 34px -12px rgba(0,0,0,.5); pointer-events:none; }
 
 .co-letter { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:10px; margin:0 0 9px; color:var(--text); padding:4px 0; font:700 12px var(--font-mono); letter-spacing:.08em; color:var(--text-dim); background:linear-gradient(var(--bg) 60%, transparent); }
 .co-letter-rule { flex:1; height:1px; background:var(--border); }
@@ -4199,7 +5008,7 @@ kbd {
 .co-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:10px; }
 .co-card { display:grid; grid-template-columns:44px 1fr auto; align-items:start; gap:13px; padding:15px 16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); cursor:pointer; transition:border-color .14s ease, background .14s ease; }
 .co-card:hover, .co-card:focus-visible { border-color:var(--border-strong); background:var(--bg-raised); outline:none; }
-.co-logo { width:44px; height:44px; border-radius:13px; display:grid; place-items:center; font:800 15px var(--font-ui); color:#fff; flex:none; }
+.co-logo { width:44px; height:44px; border-radius:13px; display:grid; place-items:center; font:800 15px var(--font-ui); color:var(--on-vivid); flex:none; }
 .co-main { min-width:0; }
 .co-name { display:flex; align-items:center; gap:7px; font-weight:750; font-size:14.5px; letter-spacing:-0.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .co-desc { margin:4px 0 0; font-size:12.5px; line-height:1.45; color:var(--text-dim); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -4226,7 +5035,14 @@ kbd {
 .proj-back:hover { color:var(--text); border-color:var(--border-strong); }
 .proj-name { margin:0; font-size:21px; font-weight:800; letter-spacing:-0.02em; }
 .proj-domain { font:700 10.5px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; padding:3px 9px; border-radius:99px; }
-.proj-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-left:auto; }
+/* Two groups, so the header wraps as "identity" / "controls" rather than
+   shedding one control at a time. Neither is pushed right with margin-left:auto:
+   that pins the controls to the far edge on a wide header and, once they wrap,
+   strands them right-aligned under nothing. Left-packed they stay next to the
+   title when there is room and sit directly under it when there is not. */
+.proj-top-id { display:flex; align-items:center; gap:12px; min-width:0; }
+.proj-top-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0; }
+.proj-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .proj-status, .proj-date input { background:var(--panel); border:1px solid var(--border); border-radius:8px; color:var(--text); font:600 12px var(--font-ui); padding:5px 8px; }
 .proj-date { display:inline-flex; align-items:center; gap:6px; font:600 10px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); }
 .proj-count { font:700 11.5px var(--font-mono); padding:4px 10px; border-radius:99px; color:var(--text-dim); background:var(--panel); border:1px solid var(--border); }
@@ -4287,7 +5103,7 @@ kbd {
 .proj-person span { min-width:0; display:flex; flex-direction:column; }
 .proj-person b { font-size:12.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .proj-person i { font-style:normal; font-size:11px; color:var(--text-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.proj-av { flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font:800 10px var(--font-ui); color:#fff; background:var(--cat-b); }
+.proj-av { flex:none; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font:800 10px var(--font-ui); color:var(--on-vivid); background:var(--cat-b); }
 .proj-av.company { border-radius:8px; background:var(--t-operations); }
 .proj-li { flex:none; width:24px; height:24px; border-radius:6px; display:grid; place-items:center; font:800 10px var(--font-ui); color:var(--text-faint); border:1px solid var(--border); text-decoration:none; }
 .proj-li:hover { color:var(--accent); }
@@ -4382,7 +5198,7 @@ kbd {
   font-size: 12.5px;
   color: var(--text-faint);
 }
-.mail-list-error { color: #e5793a; }
+.mail-list-error { color: var(--danger); }
 
 /* Drafts staged by the agent / an API token: held back until a human sends them. */
 .mail-pending {
@@ -4580,3 +5396,1122 @@ kbd {
 }
 .mail-composer-actions { display: flex; align-items: center; gap: 10px; }
 .mail-composer-actions .primary { display: inline-flex; align-items: center; gap: 7px; }
+
+/* ---- Finance area --------------------------------------------------------
+   Same flat language as the rest: solid surfaces, hairline borders, colour only
+   where it carries meaning — green for money in, pink for money out, and the
+   gross/net bar where the GAP between the two bars is the tax. */
+.fin { padding: 26px 30px 40px; min-height: 100%; box-sizing: border-box; background: var(--fin-ground); color: var(--d-ink); font-family: var(--d-sans); }
+.fin-loading { color: var(--text-faint); font-size: 13px; }
+.fin-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.fin-h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.fin-sub { margin: 4px 0 0; color: var(--d-ink-2); font-size: 14px; }
+.fin-upload {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--solid); color: var(--bg); border: 1px solid var(--solid);
+  border-radius: 9px; padding: 9px 15px; font: 650 12.5px var(--font-ui); cursor: pointer;
+}
+.fin-upload:disabled { opacity: 0.55; cursor: default; }
+.fin-upload svg { width: 14px; height: 14px; }
+.fin-flash {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+  border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 13px; color: var(--d-ink-2);
+}
+.fin-flash button { margin-left: auto; border: none; background: none; color: var(--text-faint); font-size: 16px; cursor: pointer; }
+
+.fin-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+@media (max-width: 1040px) { .fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.fin-kpi {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
+}
+.fin-kpi-lbl { font: 700 10px var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--d-ink-3); }
+.fin-kpi b { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; color: var(--d-ink); }
+.fin-kpi b.down { color: var(--fin-neg); }
+.fin-kpi b.muted { color: var(--d-ink-3); }
+.fin-kpi-sub { font-size: 11.5px; color: var(--d-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Cards in a row share a height. Without this the Payslips card sets the row
+   height and the Saving card beside it floats with a gap under it, which reads
+   as a layout bug rather than as two cards of different lengths. */
+.fin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.fin-grid > * { min-width: 0; }
+.fin-grid > .fin-card { display: flex; flex-direction: column; }
+/* The last block in a card sinks to the bottom, so the footers line up across
+   a row even when the middles are different lengths. */
+.fin-grid > .fin-card > :last-child { margin-top: auto; }
+@media (max-width: 900px) { .fin-grid { grid-template-columns: 1fr; } }
+.fin-span { grid-column: 1 / -1; }
+.fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; min-width: 0; }
+.fin-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.fin-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+/* Year chips: small, quiet, and pushed to the right of the heading. The active
+   one is a solid fill rather than a colour wash, matching the rail's active tab. */
+.fin-years { margin-left: auto; display: flex; gap: 4px; }
+.fin-year {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--d-ink-3);
+  border-radius: 7px;
+  padding: 3px 9px;
+  font: 650 11px var(--font-mono);
+  cursor: pointer;
+}
+.fin-year:hover { color: var(--d-ink); }
+.fin-year.on { background: var(--solid); border-color: var(--solid); color: var(--bg); }
+.fin-years + .fin-link { margin-left: 10px; }
+
+.fin-link { margin-left: auto; border: none; background: none; color: var(--d-accent); font: 600 12px var(--font-ui); cursor: pointer; }
+.fin-count { margin-left: auto; font: 700 11.5px var(--font-mono); color: var(--d-ink-3); }
+
+/* Payslip rows: one bar per month, gross behind and net in front. */
+.fin-slips { list-style: none; margin: 0; padding: 0; }
+.fin-slips li { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+.fin-slips li + li { border-top: 1px solid var(--d-line); }
+.fin-slip-m { font: 700 11px var(--font-mono); color: var(--d-ink-2); width: 56px; flex: none; }
+.fin-slip-bar { position: relative; flex: 1; height: 16px; min-width: 60px; }
+.fin-slip-bar i { position: absolute; top: 3px; height: 10px; border-radius: 3px; }
+.fin-slip-bar i.gross { background: color-mix(in srgb, var(--d-accent) 24%, transparent); }
+.fin-slip-bar i.net { background: var(--d-accent); }
+.fin-slip-n { font: 700 12.5px var(--font-mono); flex: none; width: 82px; text-align: right; }
+.fin-slip-h { font-size: 11.5px; color: var(--d-ink-3); flex: none; width: 52px; text-align: right; }
+.fin-slip-r { font: 600 11.5px var(--font-mono); color: var(--d-ink-2); flex: none; width: 76px; text-align: right; }
+.fin-legend { margin: 12px 0 0; font-size: 11.5px; color: var(--d-ink-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fin-legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.fin-legend .sw.gross { background: color-mix(in srgb, var(--d-accent) 24%, transparent); }
+.fin-legend .sw.net { background: var(--d-accent); }
+
+.fin-ledger, .fin-files { list-style: none; margin: 0; padding: 0; }
+.fin-ledger li, .fin-files li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; }
+.fin-ledger li + li, .fin-files li + li { border-top: 1px solid var(--d-line); }
+.fin-l-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-l-cad { font-size: 11px; color: var(--d-ink-3); flex: none; }
+.fin-l-amt { font: 700 12.5px var(--font-mono); flex: none; }
+.fin-file-ext {
+  font: 700 9.5px var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--d-line-2); color: var(--d-ink-2); border-radius: 5px; padding: 2px 6px; flex: none;
+}
+.fin-files a { flex: 1; min-width: 0; font-size: 13px; color: var(--d-ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-files a:hover { color: var(--d-accent); text-decoration: underline; }
+.fin-file-size { font: 600 11px var(--font-mono); color: var(--d-ink-3); flex: none; }
+
+.fin-empty { padding: 6px 0 2px; }
+.fin-empty p { margin: 0 0 6px; font-size: 13px; color: var(--d-ink-2); }
+.fin-empty-line { margin: 0; padding: 6px 0; font-size: 13px; color: var(--d-ink-3); }
+.fin-hint { font-size: 12px; line-height: 1.55; color: var(--d-ink-3); }
+.fin-hint code { font: 600 11.5px var(--font-mono); background: var(--d-line-2); border-radius: 5px; padding: 1px 5px; }
+
+/* Committed vs discretionary: one bar, two segments — the ratio is the point,
+   not the individual merchants. */
+.fin-split { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+.fin-split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--d-line); }
+.fin-split-bar i { display: block; height: 100%; }
+.fin-split-bar i.fixed { background: var(--d-accent); }
+.fin-split-bar i.variable { background: color-mix(in srgb, var(--d-accent) 22%, transparent); }
+.fin-split-lbl { font-size: 12px; color: var(--d-ink-3); }
+.fin-split-lbl b { font-weight: 700; color: var(--d-ink-2); }
+
+/* Monthly stack: rectangles only, no chart library. Rounded corners are left
+   off deliberately — at these widths they eat the thin segments. */
+/* The card's anchor figure. Large, quiet label beneath — the number is the
+   thing being said, the words only qualify it. */
+.fin-head-num { display: flex; align-items: baseline; gap: 12px; margin: 2px 0 2px; }
+.fin-head-num b { font-size: 32px; font-weight: 800; letter-spacing: -0.025em; color: var(--d-ink); }
+.fin-head-num > span { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; color: var(--d-ink-2); }
+.fin-head-num em { font-style: normal; font: 600 11.5px var(--font-mono); }
+.fin-head-num em.over { color: var(--d-danger); }
+.fin-head-num em.under { color: var(--d-ok); }
+
+.fin-chart { display: block; width: 100%; height: 210px; margin: 6px 0 18px; overflow: visible; }
+/* Month names, not "01" — a bare number makes you count on your fingers. */
+.fin-chart-lbl { fill: var(--d-ink-2); font: 600 10.5px var(--font-ui); letter-spacing: 0.01em; }
+.fin-chart-axis { fill: var(--d-ink-3); font: 600 10px var(--font-mono); }
+.fin-axis { stroke: var(--d-line); stroke-width: 1; }
+/* The typical month, so a column means something on its own. */
+.fin-typical { stroke: var(--d-ink-3); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.5; }
+.fin-col { transition: opacity 0.12s ease; }
+
+.fin-cats { list-style: none; margin: 0; padding: 0; }
+.fin-cat { border-top: 1px solid var(--d-line); transition: background 0.12s ease, opacity 0.12s ease; }
+.fin-cat:first-child { border-top: none; }
+/* Hovering a row lights it and its band in the chart, and fades the rest. The
+   tint is the category's own colour so the link between the two is obvious. */
+.fin-cat.hot { background: color-mix(in srgb, var(--c) 8%, transparent); }
+.fin-cat.cool { opacity: 0.45; }
+.fin-cat.open { background: color-mix(in srgb, var(--c) 6%, transparent); }
+.fin-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fin-cat-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  flex: none;
+  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
+  color: var(--fin-tile-ink, var(--c));
+}
+.fin-cat-ic svg { width: 15px; height: 15px; }
+.fin-cat-name {
+  width: 132px;
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.fin-cat-name em { font-style: normal; font-weight: 500; font-size: 11px; color: var(--d-ink-2); }
+/* The range track: where a category has actually landed month to month. */
+.fin-cat-range { position: relative; flex: 1; min-width: 60px; height: 16px; }
+.fin-cat-range::before {
+  content: "";
+  position: absolute;
+  inset: 7px 0 auto 0;
+  height: 2px;
+  background: var(--d-line);
+  border-radius: 1px;
+}
+.fin-cat-range i { position: absolute; }
+/* The span is neutral: ten rows each with a coloured bar was a second rainbow
+   under the chart. The icon tile carries the category; the span only says
+   "between here and here", and the two markers pick up the hue. */
+.fin-cat-range i.span { top: 6px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--d-ink) 14%, transparent); }
+.fin-cat-range i.mark { top: 3px; width: 2px; height: 10px; border-radius: 1px; background: var(--c); }
+/* Last month as a hollow marker, so it reads against the median, not as it. */
+.fin-cat-range i.lastmark {
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: var(--surface);
+}
+.fin-cat-typ { font: 700 13px var(--font-mono); flex: none; width: 78px; text-align: right; }
+.fin-cat-last {
+  font: 600 11.5px var(--font-mono);
+  color: var(--d-ink-3);
+  flex: none;
+  width: 92px;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.fin-cat-last.over, .fin-cat-last.under { color: inherit; }
+.fin-cat-last.over > :first-child,
+.fin-cat-last.under > :first-child { padding: 2px 8px; border-radius: 999px; }
+.fin-cat-last em { font-style: normal; font-size: 10px; font-weight: 500; color: var(--d-ink-2); }
+.fin-cat-last.over { color: var(--d-danger); }
+.fin-cat-last.under { color: var(--d-ok); }
+.fin-cat-chev { font: 600 14px var(--font-mono); color: var(--d-ink-3); flex: none; width: 14px; text-align: center; }
+.fin-cat:hover .fin-cat-chev { color: var(--d-ink-2); }
+
+/* Merchants behind a category, revealed on click. */
+.fin-merchants { list-style: none; margin: 0; padding: 2px 10px 12px 48px; }
+.fin-merchants li { position: relative; display: flex; align-items: center; gap: 10px; padding: 5px 8px; font-size: 12px; }
+.fin-merch-bar {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.fin-merch-name { position: relative; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-merch-n { position: relative; font: 600 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; }
+.fin-merch-amt { position: relative; font: 700 11.5px var(--font-mono); flex: none; width: 74px; text-align: right; }
+.fin-merch-empty { color: var(--d-ink-3); }
+
+/* Chart segments respond to the pointer the same way the rows do. */
+.fin-seg { transition: opacity 0.12s ease; cursor: pointer; }
+.fin-chart-total { fill: var(--d-ink-2); font: 700 10px var(--font-mono); opacity: 0; transition: opacity 0.12s ease; }
+.fin-chart .fin-col:hover .fin-chart-total { opacity: 1; }
+
+/* Category detail page */
+.fin-detail-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.fin-back {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  border-radius: 9px;
+  padding: 6px 11px;
+  font: 650 12px var(--font-ui);
+  cursor: pointer;
+  flex: none;
+}
+.fin-back:hover { color: var(--text); border-color: var(--border-strong); }
+.fin-detail-ic {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: none;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+.fin-detail-ic svg { width: 20px; height: 20px; }
+.fin-line { display: block; width: 100%; height: 240px; overflow: visible; }
+/* Values appear on the point you are pointing at, not on all twelve. */
+.fin-pt .fin-chart-total { opacity: 0; }
+.fin-pt:hover .fin-chart-total { opacity: 1; }
+.fin-merchants-flat { padding: 2px 0 4px; }
+.fin-merchants-flat li { padding: 6px 8px; }
+
+/* Months the data has not reached: still labelled, visibly not measured. */
+.fin-chart-lbl.ahead { fill: var(--d-line-2); }
+
+/* ---- Finance overview: a dashboard, not a table --------------------------
+   One number dominates and everything else is sized by how much it matters.
+   Cards are buttons: each is the door to the page that explains it. */
+.fin-hero-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 14px; margin-bottom: 14px; align-items: stretch; }
+@media (max-width: 980px) { .fin-hero-grid { grid-template-columns: 1fr; } }
+
+.fin-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.12s ease;
+}
+/* A flat tint, not a gradient: the flat design language rules gradients out of
+   chrome. They stay allowed under a chart line, which is data, not decoration. */
+.fin-hero { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.fin-hero:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.fin-hero-lbl { display: flex; align-items: baseline; gap: 8px; font: 700 10.5px var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--d-ink-3); }
+.fin-hero-lbl em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.fin-hero-num { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; color: var(--d-ink); }
+.fin-hero-pace { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 8px; }
+.fin-hero-pace .track { position: relative; display: block; height: 8px; border-radius: 4px; background: var(--d-line); overflow: hidden; }
+.fin-hero-pace .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+/* Where a typical month sits on that track, so the fill has a meaning. */
+/* `left` is set inline from the same ceiling the fill is scaled by. */
+.fin-hero-pace .typical { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--d-ink-3); opacity: 0.55; }
+.fin-hero-pace em { font-style: normal; font-size: 12.5px; color: var(--d-ink-2); }
+.fin-hero-split { display: flex; gap: 3px; width: 100%; height: 6px; margin-top: 10px; }
+.fin-hero-split i { display: block; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--d-ink) calc(var(--a, 0.5) * 100%), transparent); }
+.fin-hero-go { margin-top: 12px; font: 600 12px var(--font-ui); color: var(--d-accent); }
+
+.fin-side { display: flex; flex-direction: column; gap: 14px; }
+.fin-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  justify-content: center;
+}
+.fin-mini b { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--fin-pos); }
+.fin-mini b.down { color: var(--fin-neg); }
+
+/* The three that matter. */
+.fin-tops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 12px; align-items: stretch; }
+@media (max-width: 820px) { .fin-tops { grid-template-columns: 1fr; } }
+/* Colour lives in the surface, not in a 3px line at the top. A wash of the
+   category's own hue plus a matching border is enough to identify the card
+   across the page without shouting — and it is what the flat language does
+   elsewhere (see .dh-chip), rather than a new idea. */
+/* Surfaces stay neutral and colour concentrates into a small SOLID tile.
+   The same amount of pigment spread as a 7% wash over a whole card reads as
+   washed-out; in a 34px square at full strength it reads as vivid. Every
+   fintech dashboard worth copying does this — neutral cards, saturated tiles. */
+.fin-top-cat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 18px 20px 20px;
+  transition: border-color 0.14s ease, transform 0.14s ease;
+}
+.fin-top-cat:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--c) 50%, var(--border));
+}
+.fin-top-head { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; color: var(--d-ink-2); margin-bottom: 6px; }
+.fin-top-head i {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
+  color: var(--fin-tile-ink, var(--c));
+}
+.fin-top-head svg { width: 17px; height: 17px; }
+.fin-top-cat b { font-size: 28px; font-weight: 800; letter-spacing: -0.025em; color: var(--d-ink); }
+.fin-top-sub { font-size: 11.5px; color: var(--d-ink-3); }
+/* Deltas as pills, not bare text — a tinted capsule is what makes a change
+   read as a badge rather than as part of the sentence. */
+.fin-top-delta {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 700 11px var(--font-mono);
+}
+.fin-top-delta.over { color: var(--fin-neg); background: color-mix(in srgb, var(--fin-neg) 15%, transparent); }
+.fin-top-delta.under { color: var(--fin-pos); background: color-mix(in srgb, var(--fin-pos) 15%, transparent); }
+
+/* Everything else: footnotes, one line, still clickable. */
+.fin-rest { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.fin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 5px 14px 5px 5px;
+  font: 600 12px var(--font-ui);
+  color: var(--d-ink-2);
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.fin-chip:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--border)); color: var(--d-ink); }
+.fin-chip i {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
+  color: var(--fin-tile-ink, var(--c));
+}
+.fin-chip svg { width: 12px; height: 12px; }
+.fin-chip b { font: 700 11.5px var(--font-mono); color: var(--d-ink); }
+
+.fin-two { display: flex; gap: 22px; }
+.fin-two span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fin-two b { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.fin-two em { font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
+
+/* Merchant rows are doors now, so the whole row is the button. */
+.fin-merchants-flat li { padding: 0; }
+.fin-merch-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.fin-merch-row:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
+.fin-merch-chev { position: relative; font: 600 13px var(--font-mono); color: var(--d-ink-3); flex: none; width: 12px; text-align: center; }
+.fin-merch-row:hover .fin-merch-chev { color: var(--c); }
+
+/* Transactions, grouped by month.
+   The month is a BAND — its own surface, its own rhythm — and the transactions
+   are plainly nested under it. Previously both were flat rows of similar weight
+   separated by identical hairlines, which made a long list read as one mush. */
+.fin-txns { list-style: none; margin: 0; padding: 0; }
+.fin-txns > li + li { margin-top: 20px; }
+.fin-txn-month {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 14px 11px;
+  border-radius: 10px;
+  background: var(--fin-band);
+  overflow: hidden;
+}
+.fin-txn-month .m { font: 800 12px var(--font-ui); letter-spacing: 0.02em; color: var(--d-ink); flex: none; }
+.fin-txn-month .n { font-size: 11px; color: var(--d-ink-3); }
+.fin-txn-month b { margin-left: auto; font: 800 14px var(--font-mono); color: var(--d-ink); }
+/* The month's share of the biggest month, as a rule along the band's foot. */
+.fin-txn-month .share {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+}
+.fin-txn-rows { list-style: none; margin: 0; padding: 0 4px; }
+.fin-txn-rows li { display: flex; align-items: center; gap: 14px; padding: 10px 10px; font-size: 12.5px; }
+.fin-txn-rows li + li { border-top: 1px solid var(--d-line); }
+/* `:not(.fin-day)` matters: a month page reuses .fin-txn-rows for its day
+   groups, and each group is itself an <li>. Without the guard, pointing at one
+   transaction lit up the whole day it belonged to. */
+.fin-txn-rows > li:not(.fin-day):hover { background: var(--fin-row-hover); border-radius: 8px; }
+/* Day of the month over its weekday: a date block, so the eye lands on a
+   number rather than on "Sun 5" competing with the amount. */
+.fin-txn-day { display: flex; flex-direction: column; align-items: center; flex: none; width: 34px; line-height: 1.1; }
+.fin-txn-day b { font: 800 15px var(--font-ui); color: var(--d-ink); }
+.fin-txn-day em { font-style: normal; font: 600 9.5px var(--font-mono); text-transform: uppercase; color: var(--d-ink-3); }
+.fin-txn-type {
+  flex: none;
+  font: 600 10px var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--d-ink-3);
+  background: var(--fin-band);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.fin-txn-amt { margin-left: auto; font: 700 13.5px var(--font-mono); flex: none; text-align: right; }
+/* Money coming back is the one thing in this list that is not a cost. */
+.fin-txn-rows li.refund .fin-txn-amt { color: var(--fin-pos); }
+.fin-txn-bal { font: 500 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; width: 132px; text-align: right; }
+
+.fin-cat-last .fin-pill { display: inline-block; }
+.fin-cat-last.over .fin-pill { color: var(--fin-neg); background: color-mix(in srgb, var(--fin-neg) 15%, transparent); }
+.fin-cat-last.under .fin-pill { color: var(--fin-pos); background: color-mix(in srgb, var(--fin-pos) 15%, transparent); }
+/* Chart fills stay gradient — that is data, not chrome. */
+.fin-line path[fill^="url"] { opacity: 1; }
+
+/* ============================================================
+   FINANCE — a deliberate exception to the flat design language.
+   ============================================================
+   Everything in `.fin` is allowed elevation, gradient surfaces and larger
+   radii, which the rest of Basalt forbids (see "Design rules": no blur, no
+   gradients, no glow, separation by 1px border alone).
+
+   This is not drift and it is not an oversight. Jules asked for the fintech
+   dashboard look here specifically, after we compared the flat version against
+   four reference dashboards and agreed the flat language was fighting the
+   material — a money view lives on depth and layering in a way a notes app
+   does not. It is scoped to this one area on purpose.
+
+   So: do NOT "fix" these to match the rest of the app, and do NOT copy them
+   outward into other views. If the exception is ever revisited, the whole
+   block goes at once rather than being flattened piecemeal.
+   ============================================================ */
+.fin {
+  /* Icon tiles, the mockup way: the category's ink on a pale tint of itself.
+     The tint is mixed from the ink AT THE TILE (see .fin-cat-ic), because a
+     custom property is resolved where it is declared — declaring
+     color-mix(var(--c)) here, where no --c exists, yields an invalid value
+     that every tile then inherits. Only the knobs live here. */
+  --fin-tile-pct: 13%;
+  --fin-shadow: 0 1px 2px rgba(17, 18, 22, 0.04), 0 10px 28px -14px rgba(17, 18, 22, 0.16);
+  --fin-shadow-lift: 0 2px 4px rgba(17, 18, 22, 0.05), 0 18px 40px -18px rgba(17, 18, 22, 0.28);
+  --fin-band: color-mix(in srgb, var(--d-ink) 4%, transparent);
+  --fin-row-hover: color-mix(in srgb, var(--d-ink) 3%, transparent);
+}
+[data-theme="command"] .fin {
+  /* On navy the tiles go solid with a white glyph — Revolut's move. */
+  --fin-tile-pct: 100%;
+  --fin-tile-ink: var(--on-vivid);
+  --fin-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -14px rgba(0, 0, 0, 0.7);
+  --fin-shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.55), 0 22px 48px -18px rgba(0, 0, 0, 0.85);
+  --fin-band: color-mix(in srgb, var(--d-ink) 7%, transparent);
+  --fin-row-hover: color-mix(in srgb, var(--d-ink) 5%, transparent);
+}
+
+.fin .fin-card,
+.fin .fin-kpi {
+  background: var(--fin-surface);
+  box-shadow: var(--fin-shadow);
+  border-color: color-mix(in srgb, var(--border) 55%, transparent);
+}
+.fin .fin-top-cat:hover,
+.fin .fin-hero:hover { box-shadow: var(--fin-shadow-lift); }
+
+/* The hero is the one surface that goes fully coloured — the "total balance"
+   card every one of the references leads with. */
+.fin .fin-hero {
+  /* One purple, gently lightened along the diagonal. Two stops, not three:
+     a third hue is what put a visible seam down the middle of the card. */
+  background: linear-gradient(135deg, var(--fin-hero-a) 0%, var(--fin-hero-b) 100%);
+  border-color: transparent;
+  color: #fff;
+  /* Tinted from the card, not from a violet literal — the literal stayed purple
+     under a repainted hero, which read as a bruise under an orange one. */
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--fin-hero-a) 30%, transparent),
+    0 22px 44px -20px color-mix(in srgb, var(--fin-hero-a) 62%, transparent);
+}
+.fin .fin-hero .fin-hero-lbl,
+.fin .fin-hero .fin-hero-pace em { color: rgba(255, 255, 255, 0.72); }
+.fin .fin-hero .fin-hero-num { color: #fff; }
+.fin .fin-hero .fin-hero-go { color: #fff; font-weight: 700; }
+.fin .fin-hero .fin-hero-pace .track { background: rgba(255, 255, 255, 0.22); }
+.fin .fin-hero .fin-hero-pace .fill { background: #fff; }
+.fin .fin-hero .fin-hero-pace .typical { background: rgba(255, 255, 255, 0.75); opacity: 1; }
+/* The category split is tonal on the coloured card: white, stepped by share.
+   Category hues stay off this surface — see the note in Finance.tsx. */
+.fin .fin-hero .fin-hero-split i { background: rgba(255, 255, 255, var(--a, 0.5)); }
+
+/* ---- Finance: charts on the page, not in a white box ---------------------
+   A chart is data, and data reads better on the page's own ground than inside
+   another raised surface. The card around it keeps its padding and heading and
+   loses its fill, border and shadow, so the plot sits directly on the
+   background — which is also what makes the gridlines legible. */
+.fin .fin-card.fin-plot {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+/* The axis is a real line now, and the value gridlines sit behind everything. */
+.fin-grid-line { stroke: var(--d-line); stroke-width: 1; opacity: 0.55; }
+.fin-axis { stroke: var(--d-ink-3); stroke-width: 1; opacity: 0.45; }
+/* Every column and every point is a door. */
+.fin-hit { fill: transparent; cursor: pointer; }
+.fin-hit:hover { fill: color-mix(in srgb, var(--d-ink) 4%, transparent); }
+
+/* ---- month navigation ---------------------------------------------------- */
+.fin-monthnav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.fin-monthnav button {
+  border: 1px solid var(--border);
+  background: var(--fin-surface);
+  color: var(--d-ink-2);
+  border-radius: 8px;
+  min-width: 28px;
+  padding: 4px 9px;
+  font: 650 12px var(--font-ui);
+  cursor: pointer;
+}
+.fin-monthnav button:hover:not(:disabled) { color: var(--d-ink); border-color: var(--border-strong); }
+.fin-monthnav button:disabled { opacity: 0.35; cursor: default; }
+.fin-h1-of { font-weight: 600; color: var(--d-ink-3); }
+
+/* ---- a ledger as a calendar ---------------------------------------------- */
+.fin-cal { margin-top: 6px; }
+.fin-cal-head, .fin-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.fin-cal-head {
+  margin-bottom: 6px;
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--d-ink-3);
+}
+.fin-cal-head span { padding-left: 2px; }
+.fin-cal-day {
+  position: relative;
+  overflow: hidden;
+  min-height: 76px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 7px;
+  background: var(--fin-surface);
+}
+.fin-cal-day.empty { border-color: transparent; background: none; }
+.fin-cal-day.on { border-color: color-mix(in srgb, var(--c) 40%, var(--border)); }
+/* The wash is the day's share of the busiest day — heavy dates read first. */
+.fin-cal-wash { position: absolute; inset: 0; background: var(--c); pointer-events: none; }
+.fin-cal-n { position: relative; font: 700 12px var(--font-mono); color: var(--d-ink-3); }
+.fin-cal-day.on .fin-cal-n { color: var(--d-ink); }
+.fin-cal-sum { position: relative; display: block; font: 800 12.5px var(--font-mono); color: var(--c); margin-top: 1px; }
+.fin-cal-items { position: relative; list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.fin-cal-items button {
+  display: block;
+  width: 100%;
+  border: none;
+  background: color-mix(in srgb, var(--c) 16%, transparent);
+  color: var(--d-ink);
+  border-radius: 5px;
+  padding: 2px 5px;
+  font: 600 10.5px var(--font-ui);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.fin-cal-items button:hover { background: color-mix(in srgb, var(--c) 30%, transparent); }
+.fin-cal-items .more { font: 600 10px var(--font-mono); color: var(--d-ink-3); padding-left: 5px; }
+@media (max-width: 880px) { .fin-cal-day { min-height: 60px; } .fin-cal-items { display: none; } }
+
+/* ---- one card per subscription ------------------------------------------- */
+.fin-subs { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; margin-top: 14px; }
+.fin-sub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: stretch;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 16px 18px 18px;
+  transition: border-color 0.14s ease, transform 0.14s ease;
+}
+.fin-sub-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 50%, var(--border)); }
+.fin-sub-top { display: flex; align-items: baseline; gap: 10px; }
+.fin-sub-top b { font-size: 14.5px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-sub-top em { font-style: normal; font: 800 15px var(--font-mono); color: var(--c); flex: none; }
+.fin-sub-cad { font-size: 11.5px; color: var(--d-ink-3); text-transform: capitalize; }
+/* One tick per month it actually charged. A short run and a long one are
+   different decisions, and the shape says which before the number does. */
+.fin-sub-run { display: flex; gap: 2px; margin: 7px 0 3px; height: 14px; align-items: flex-end; }
+.fin-sub-run i { flex: 1; min-width: 2px; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--c) 55%, transparent); }
+.fin-sub-meta { font-size: 12px; color: var(--d-ink-2); }
+.fin-sub-meta b { font: 800 13px var(--font-mono); color: var(--d-ink); }
+.fin-sub-meta.muted { color: var(--d-ink-3); font-style: italic; }
+.fin-sub-since, .fin-sub-next { font: 600 11px var(--font-mono); color: var(--d-ink-3); }
+.fin-sub-note { font-size: 11.5px; color: var(--d-ink-3); line-height: 1.45; }
+
+/* ---- documents ----------------------------------------------------------- */
+.fin-docs { list-style: none; margin: 0; padding: 0; }
+.fin-docs > li + li { margin-top: 20px; }
+.fin-doc-rows { list-style: none; margin: 0; padding: 0 4px; }
+.fin-doc-rows li + li { border-top: 1px solid var(--d-line); }
+.fin-doc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.fin-doc-row:hover { background: var(--fin-row-hover); }
+.fin-doc-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-doc-date { font: 600 11px var(--font-mono); color: var(--d-ink-3); flex: none; }
+/* The overview's strip: enough to recognise the pile, not a second list. */
+.fin-doc-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.fin-doc-strip i {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--d-ink-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 9px 3px 4px;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.fin-doc-strip em {
+  font-style: normal;
+  font: 700 9px var(--font-mono);
+  text-transform: uppercase;
+  background: var(--d-line-2);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+/* ---- cards that are doors ------------------------------------------------ */
+.fin-jump {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: stretch;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.14s ease, transform 0.14s ease;
+}
+.fin-jump:hover { transform: translateY(-2px); }
+.fin-jump > b { font-size: 27px; font-weight: 800; letter-spacing: -0.025em; margin-top: 2px; }
+.fin-jump-sub { font-size: 11.5px; color: var(--d-ink-3); }
+.fin-jump .fin-hero-go { margin-top: auto; padding-top: 10px; }
+.fin-jump .fin-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+.fin-jump .fin-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+
+.fin-nextup { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
+.fin-nextup i {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--d-ink-2);
+}
+.fin-nextup em { font-style: normal; font: 700 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; width: 46px; }
+.fin-nextup i > b { margin-left: auto; font: 700 11.5px var(--font-mono); color: var(--d-ink); }
+
+/* ---- saving -------------------------------------------------------------- */
+.fin-save-bar { display: flex; gap: 3px; height: 8px; margin: 10px 0 6px; }
+.fin-save-bar i { display: block; height: 100%; border-radius: 4px; }
+.fin-save-bar .surplus { background: var(--fin-pos); }
+.fin-save-bar .trim { background: color-mix(in srgb, var(--fin-pos) 32%, transparent); }
+.fin-save-key { display: flex; flex-direction: column; gap: 2px; }
+.fin-save-key i { display: flex; align-items: center; gap: 7px; font-style: normal; font-size: 11.5px; color: var(--d-ink-2); }
+.fin-save-key em { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.fin-save-key .surplus { background: var(--fin-pos); }
+.fin-save-key .trim { background: color-mix(in srgb, var(--fin-pos) 32%, transparent); }
+
+/* The plan, as arithmetic you can argue with rather than a number to believe. */
+.fin-maths { list-style: none; margin: 14px 0 0; padding: 0; }
+.fin-maths li { display: flex; align-items: baseline; gap: 12px; padding: 9px 2px; border-top: 1px solid var(--d-line); }
+.fin-maths li:first-child { border-top: none; }
+.fin-maths li > span { flex: none; width: 170px; font-size: 13px; font-weight: 600; }
+.fin-maths li > b { font: 800 15px var(--font-mono); min-width: 96px; text-align: right; }
+.fin-maths li > b.neg { color: var(--fin-neg); }
+.fin-maths li > b.pos { color: var(--fin-pos); }
+.fin-maths li > em { font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
+.fin-maths li.sum, .fin-maths li.total { border-top-color: var(--border-strong); }
+.fin-maths li.total > span, .fin-maths li.total > b { font-size: 16px; font-weight: 800; }
+.fin-maths li.total > b { color: var(--fin-pos); }
+
+.fin-head-rows { list-style: none; margin: 0; padding: 0; }
+.fin-head-rows li + li { border-top: 1px solid var(--d-line); }
+.fin-head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.fin-head-row:hover { background: var(--fin-row-hover); }
+.fin-head-name { flex: none; width: 120px; font-size: 13px; font-weight: 600; }
+/* The bar is the typical month; the notch is a good one. The distance between
+   them is the saving, drawn rather than asserted. */
+.fin-head-bar { position: relative; flex: 1; min-width: 60px; height: 12px; }
+.fin-head-bar .typ { position: absolute; top: 3px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fin-pos) 28%, transparent); }
+.fin-head-bar .good { position: absolute; top: 0; width: 2px; height: 12px; border-radius: 1px; background: var(--fin-pos); }
+.fin-head-nums { flex: none; width: 132px; text-align: right; display: flex; flex-direction: column; gap: 1px; }
+.fin-head-nums b { font: 800 13px var(--font-mono); color: var(--fin-pos); }
+.fin-head-nums em { font-style: normal; font: 600 10.5px var(--font-mono); color: var(--d-ink-3); }
+
+.fin-goals { list-style: none; margin: 0; padding: 0; }
+.fin-goals li { display: flex; align-items: baseline; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--d-line); }
+.fin-goals li:first-child { border-top: none; }
+.fin-goals li > span { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+.fin-goals li > b { font: 800 15px var(--font-mono); flex: none; }
+.fin-goals li > em { font-style: normal; font-size: 11px; color: var(--d-ink-3); flex: none; width: 150px; text-align: right; }
+.fin-ytd { margin-top: 12px; }
+
+/* ---- payslips: the real rate against the contract rate ------------------- */
+.fin-rate-rows { list-style: none; margin: 12px 0 0; padding: 0; }
+.fin-rate-rows li { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.fin-rate-rows .m { flex: none; width: 52px; font: 700 11px var(--font-mono); color: var(--d-ink-2); }
+.fin-rate-rows .track { position: relative; flex: 1; min-width: 50px; height: 12px; background: var(--d-line); border-radius: 6px; }
+.fin-rate-rows .track i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--cat-azure); }
+/* The contract rate as a notch: the gap to the bar's end is the whole point. */
+.fin-rate-rows .track em { position: absolute; top: -2px; width: 2px; height: 16px; background: var(--d-ink); border-radius: 1px; opacity: 0.65; }
+.fin-rate-rows li > b { flex: none; width: 62px; text-align: right; font: 700 12.5px var(--font-mono); }
+.fin-rate-rows .h { flex: none; width: 42px; text-align: right; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
+
+/* ---- one month in full --------------------------------------------------- */
+.fin-monthsplit { list-style: none; margin: 14px 0 0; padding: 0; }
+.fin-monthsplit li + li { border-top: 1px solid var(--d-line); }
+.fin-monthsplit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.fin-monthsplit-row:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
+.fin-monthsplit-row .tile {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  flex: none;
+  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
+  color: var(--fin-tile-ink, var(--c));
+}
+.fin-monthsplit-row .tile svg { width: 13px; height: 13px; }
+.fin-monthsplit-row .nm { flex: none; width: 120px; font-size: 13px; font-weight: 600; }
+.fin-monthsplit-row .bar { flex: 1; min-width: 40px; height: 6px; background: var(--d-line); border-radius: 3px; overflow: hidden; }
+.fin-monthsplit-row .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+.fin-monthsplit-row > b { flex: none; width: 82px; text-align: right; font: 700 13px var(--font-mono); }
+.fin-monthsplit-row > em { flex: none; width: 108px; text-align: right; font-style: normal; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
+
+/* Transactions grouped under a date block rather than repeating the date. */
+.fin-day-rows { list-style: none; margin: 0; padding: 0; }
+.fin-day { display: flex; gap: 14px; padding: 8px 0; align-items: flex-start; }
+.fin-day + .fin-day { border-top: 1px solid var(--d-line); }
+.fin-day-txns { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+.fin-day-txns li.refund .fin-txn-amt { color: var(--fin-pos); }
+.fin-day-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.fin-day .fin-merch-row { gap: 12px; }
+.fin-day .fin-txn-type { margin-left: 0; }
+.fin-day .fin-txn-amt { margin-left: auto; }
+
+/* A month band that is also a button (merchant page). */
+.fin-txn-month.as-button {
+  width: 100%;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fin-txn-month.as-button:hover { background: color-mix(in srgb, var(--d-ink) 7%, transparent); }
+.fin-txn-month.as-button .fin-merch-chev { margin-left: 10px; }
+
+
+/* ---- Finance: readability passes -----------------------------------------
+   A long day-by-day list needs a rhythm. Every other day group takes a slightly
+   darker ground than the card — enough to separate the groups, not enough to
+   read as a highlight. */
+.fin-day.alt { background: var(--fin-band); border-radius: 10px; }
+.fin-day { padding: 8px 10px; }
+.fin-day + .fin-day { border-top: none; }
+.fin-day-txns li.moved { opacity: 0.72; }
+.fin-day-txns li.moved .fin-txn-amt { color: var(--d-ink-3); }
+
+/* Money that moved without being spent, stated beside the headline. */
+.fin-aside { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0 0; font-size: 12px; color: var(--d-ink-3); }
+.fin-aside em { font-style: normal; font: 700 12.5px var(--font-mono); color: var(--d-ink-2); }
+
+/* Take-home per month: one hue, the named month picked out. */
+.fin-pay-rows .track i { background: color-mix(in srgb, var(--cat-azure) 45%, transparent); }
+.fin-pay-rows li.on .track i { background: var(--cat-azure); }
+.fin-pay-rows li.on .m, .fin-pay-rows li.on > b { color: var(--d-ink); font-weight: 800; }
+
+
+/* One transaction highlights, and nothing around it. The day band underneath
+   keeps its alternating tint so the hover reads as a change, not as the stripe. */
+.fin-day-txns > li { border-radius: 8px; }
+.fin-day-txns > li:hover { background: color-mix(in srgb, var(--d-ink) 6%, transparent); }
+.fin-day-txns > li:hover .fin-merch-chev { color: var(--d-ink-2); }
+.fin-day .fin-merch-row:hover { background: none; }
+
+/* Payslip rows are doors to their own PDF. The whole row is the button, so the
+   month, the bar and the figure all point at the same document. */
+.fin-pay-rows li { padding: 0; }
+.fin-pay-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.fin-pay-row:hover:not(:disabled) { background: color-mix(in srgb, var(--d-ink) 6%, transparent); }
+.fin-pay-row:hover:not(:disabled) .fin-merch-chev { color: var(--d-ink-2); }
+.fin-pay-row:disabled { cursor: default; }
+.fin-pay-row:disabled .fin-merch-chev { visibility: hidden; }
+.fin-pay-row .fin-merch-chev { flex: none; width: 12px; }
+
+/* ---- the overlay switch ---------------------------------------------------
+   Both ledgers on one grid, without merging them. A real checkbox underneath,
+   so it is keyboard-reachable and announces itself; the track is decoration. */
+/* No auto margin: it sits where its container puts it — beside the month name
+   on the calendar header, with the month nav taking the auto margin instead. */
+.fin-switch { display: inline-flex; align-items: center; gap: 9px; margin-left: 6px; cursor: pointer; user-select: none; }
+.fin-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.fin-switch .track {
+  position: relative;
+  display: block;
+  width: 34px;
+  height: 20px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--d-line-2);
+  transition: background 0.16s ease;
+}
+.fin-switch .track i {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--fin-surface);
+  box-shadow: 0 1px 2px rgba(17, 18, 22, 0.25);
+  transition: transform 0.16s ease;
+}
+.fin-switch input:checked + .track { background: var(--c, var(--accent)); }
+.fin-switch input:checked ~ .lbl { color: var(--d-ink); font-weight: 700; }
+.fin-switch input:checked + .track i { transform: translateX(14px); }
+.fin-switch input:focus-visible + .track { outline: 2px solid var(--focus); outline-offset: 2px; }
+.fin-switch .lbl { font: 600 12.5px var(--font-ui); color: var(--d-ink-2); }
+.fin-switch:hover .lbl { color: var(--d-ink); }
+
+/* Two subtotals in one day cell: money in and money out keep their own line. */
+.fin-cal-sums { position: relative; display: flex; flex-direction: column; gap: 0; margin-top: 1px; }
+.fin-cal-sums em { font-style: normal; font: 800 12px var(--font-mono); }
+@media (max-width: 1100px) { .fin-cal-sums em { font-size: 11px; } }
+
+/* ---- charges the ledger has not caught up with ---------------------------- */
+.fin-found { margin-top: 14px; }
+.fin-found .fin-hint { margin: 0 0 6px; }
+.fin-found code { font: 600 11.5px var(--font-mono); background: var(--d-line-2); border-radius: 5px; padding: 1px 5px; }
+.fin-found-rows { list-style: none; margin: 0; padding: 0; }
+.fin-found-rows li + li { border-top: 1px solid var(--d-line); }
+.fin-found-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.fin-found-row:hover { background: var(--fin-row-hover); }
+.fin-found-row .nm { flex: none; width: 230px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-found-row .cad { flex: 1; min-width: 0; font: 600 11.5px var(--font-mono); color: var(--d-ink-3); }
+.fin-found-row .stopped {
+  flex: none;
+  font: 700 10px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fin-neg);
+  background: color-mix(in srgb, var(--fin-neg) 14%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.fin-found-row > b { flex: none; width: 84px; text-align: right; font: 800 13px var(--font-mono); }
+.fin-found-row > em { flex: none; width: 104px; text-align: right; font-style: normal; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
+@media (max-width: 900px) { .fin-found-row .nm { width: 150px; } .fin-found-row .cad { display: none; } }
+
+/* A commitment the statement has never seen has nowhere to lead. It keeps the
+   card's shape and loses the affordances, rather than being a button that
+   silently does nothing. */
+.fin-sub-card.inert { cursor: default; }
+.fin-sub-card.inert:hover { transform: none; border-color: var(--border); }
+.fin-cal-items button:disabled { cursor: default; opacity: 0.75; }
+
+/* What arrived against what was expected. Named, never averaged into the
+   headline — a catch-up payment is not a raise. */
+.fin-sub-extra { font-size: 11.5px; line-height: 1.45; }
+.fin-sub-extra.over { color: var(--fin-pos); }
+.fin-sub-extra.under { color: var(--fin-neg); }
+
+/* ---- Dashboard: the Finance card leads with the real month ---------------- */
+.dh-spend {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.dh-spend:hover .dh-net-num { color: var(--accent); }
+.dh-pace { display: block; margin: 8px 0 2px; }
+.dh-pace .track { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
+.dh-pace .fill { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.dh-pace em { display: block; margin-top: 5px; font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
+.dh-spend-foot { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; font-size: 11.5px; color: var(--d-ink-3); }
+.dh-spend-foot b { font: 700 12px var(--font-mono); color: var(--d-ink-2); }
+.dh-spend-foot .save b { color: var(--ok); }
+
+/* ---- Dashboard finance cards --------------------------------------------- */
+.dh-net-num.up { color: var(--ok); }
+/* Where a typical month sits on the bar, so the fill means something. */
+.dh-pace .typical { position: absolute; top: -2px; bottom: -2px; left: 100%; width: 2px; background: var(--d-ink-3); opacity: 0.5; }
+.dh-pace .track { position: relative; overflow: visible; }
+.dh-pace .fill { max-width: 100%; }
+
+.dh-save-bar { display: flex; gap: 3px; height: 6px; margin: 9px 0 6px; }
+.dh-save-bar i { display: block; height: 100%; border-radius: 3px; }
+.dh-save-bar .surplus { background: var(--ok); }
+.dh-save-bar .trim { background: color-mix(in srgb, var(--ok) 32%, transparent); }
+
+/* One row per category. The tile carries the colour, the bar the size, and the
+   whole row is the button — same shape as the Finance area's own rows. */
+.dh-cats { list-style: none; margin: 10px 0 0; padding: 0; }
+.dh-cat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.dh-cat:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
+.dh-cat .tile {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex: none;
+  background: color-mix(in srgb, var(--c) 14%, var(--surface));
+  color: var(--c);
+}
+.dh-cat .tile svg { width: 12px; height: 12px; }
+.dh-cat .nm { flex: none; width: 92px; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dh-cat .bar { flex: 1; min-width: 24px; height: 5px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
+.dh-cat .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+.dh-cat > b { flex: none; width: 74px; text-align: right; font: 700 12px var(--font-mono); }
+[data-theme="command"] .dh-cat .tile { background: var(--c); color: var(--on-vivid); }
+
+/* The month still running, reported where it cannot be mistaken for the head. */
+.dh-running {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 6px;
+  border: none;
+  border-top: 1px solid var(--d-line);
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--d-ink-3);
+  text-align: left;
+  cursor: pointer;
+}
+.dh-running:hover { color: var(--d-ink-2); }
+.dh-running b { font: 700 12px var(--font-mono); color: var(--d-ink-2); }
+.dh-running em { margin-left: auto; font-style: normal; }
+
+/* The in/out rows are doors to their calendars now. */
+.dh-flow-row { width: 100%; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.dh-flow-row:hover { background: var(--fin-row-hover, rgba(0,0,0,0.03)); }

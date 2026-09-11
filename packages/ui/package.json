@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./tokens.css": "./src/tokens.css",
+    "./vision.css": "./src/vision.css",
     "./base.css": "./src/base.css"
   }
 }
