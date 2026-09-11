@@ -10,7 +10,8 @@
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "account": "tsx src/account.ts"
+    "account": "tsx src/account.ts",
+    "remove-user": "tsx src/remove-user.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.8",
