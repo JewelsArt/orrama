@@ -1,82 +1,117 @@
 # ⬡ Basalt
 
-**Obsidian you can share with your team without giving up your files.**
+**A personal knowledge and life OS built on plain Markdown files.**
 
-Basalt is a downloadable, open-core team knowledge tool. Notes are plain Markdown
-files in real folders on disk, linked `[[wiki-style]]`. A self-hostable sync server
-keeps every teammate's vault in sync and enforces team permissions — each person
-only ever *receives* the files they're allowed to read. The first screen isn't a
-note: it's a **team dashboard** with real progress bars computed from checkboxes
-inside your notes, and "who's working on what" derived from actual edits.
+Notes are real `.md` files in real folders, linked `[[wiki-style]]`. On top of that
+same vault sit a dashboard, a calendar, project workspaces, contacts, mail and
+finance — every one of them a *view over the files*, not a separate database with
+its own truth. The vault opens fine in Obsidian; Basalt reads and writes the same
+folder live.
 
-> Basalt is obsidian's structural cousin — the rock that forms interlocking
-> columns. Individual columns, stronger together.
+> Obsidian is volcanic glass; basalt is its structural cousin — the rock that forms
+> interlocking columns. Individual columns, stronger together.
 
-## Why Basalt
+## What it does
 
-- **Your files.** Valid CommonMark + front-matter + wiki-links. A Basalt vault
-  opens fine in Obsidian and vice versa. The server stores the vault as a real
-  folder tree you can rsync or `git init`.
-- **Your server.** One `docker compose up`. Basalt-the-company is never in your
-  data path — including for AI, which uses *your* provider key from *your* server.
-- **Team-real permissions.** Folder grants give teams baseline access; two tag
-  overlays refine it per note: `#only/<team>` restricts, `#share/<team>` shares
-  read-only. Unreadable notes never reach a client's disk (partial checkout, not
-  client-side hiding), and every surface — search, graph, backlinks, tasks,
-  dashboards, AI retrieval — is filtered by the same tested ACL function.
-- **Tasks without a second system.** Any `- [ ]` line is a task
-  (`@assignee due:2026-07-10 !p1`). Promote one to a full task object with
-  status/comments when you need structure; the checkbox in the file and the
-  object stay two-way bound, file wins.
-- **A dashboard that can't lie.** Progress = checked/total, computed from the
-  vault. Delete the database, re-index the Markdown, and the dashboard rebuilds.
+| Surface | What it is |
+|---|---|
+| **Dashboard** | The first screen. Everything the vault knows about today — tasks due, project progress, what changed |
+| **Architecture** | The vault itself: file tree, Markdown editor (CodeMirror), backlinks, and a force-directed graph of the link structure |
+| **Planning** | Week and month calendar — dated notes as a band, time-blocks on a grid, events, ICS feeds in and out, auto-scheduling |
+| **Overview** | Project board grouped by life-area, with a Gantt view; drills into a per-project workspace whose goals, decisions and inbox are `##` sections of one note |
+| **Contacts** | People and companies side by side, both derived from `#contact` notes and their front-matter |
+| **Mail** | Gmail over IMAP/SMTP, in-app |
+| **Finance** | Bank statements, payslips, spending categories, subscriptions and savings — parsed in `packages/core`, rules authored as Markdown tables in the vault |
 
-## Monorepo
+Plus a command palette, quick capture, and **Ask** — retrieval over the vault using
+your own AI provider key.
+
+## The idea that holds it together
+
+- **Your files stay files.** Valid CommonMark + YAML front-matter + wiki-links. No
+  lock-in, no proprietary store — `rsync` or `git init` the folder and you're backed up.
+- **The database is disposable.** SQLite holds an index and the CRDT update log.
+  Delete it, re-index the Markdown, and the dashboard rebuilds. Only promoted-task
+  metadata is DB-only.
+- **Tasks without a second system.** Any `- [ ]` line in any note is a task
+  (`@assignee due:2026-07-10 !p1`). Promote one when it needs structure; the checkbox
+  in the file and the task object stay two-way bound, and the file wins.
+- **One engine, three surfaces.** `packages/core` does the parsing and the permission
+  checks, and server, web and desktop all run that same code.
+- **Your keys.** AI is bring-your-own-key against your own server. Anthropic, Google
+  and OpenAI are all supported and loaded on demand.
+
+## Stack
+
+TypeScript end to end, except a deliberately thin Rust shell.
+
+- **Server** — Fastify 5, SQLite (better-sqlite3) via Drizzle ORM, Zod, Yjs for CRDT
+  note merging, chokidar to pick up external edits, argon2 for passwords
+- **Web** — React 19, Vite 6, CodeMirror 6, d3-force, Vercel AI SDK
+- **Desktop** — Tauri 2. Rust is window, filesystem, watcher and tray only; all
+  product logic is the shared TypeScript
+- **Monorepo** — pnpm workspaces + Turborepo, Node ≥22
+- **Tests** — Vitest: **262 cases** across core, sync and server
+
+## Layout
 
 | Path | What |
 |---|---|
-| `packages/core` | Vault engine: parser, link graph, tags, tasks, **ACL** — same code on desktop, web, server |
-| `packages/sync` | Yjs note docs, CRDT merge, partial-checkout manifests |
+| `packages/core` | Vault engine — parser, link graph, tags, tasks, sections, finance, **ACL** |
+| `packages/sync` | Y.Doc helpers, splice diffs, partial-checkout manifests |
 | `packages/schema` | Zod API schemas + Drizzle tables |
-| `packages/ui` | Design tokens: Command Center (dark) + Paper (light) |
-| `apps/server` | Fastify sync server: auth, permission gate, tasks, dashboard, AI proxy |
-| `apps/web` | React + CodeMirror 6 client (dashboard, editor, palette) |
-| `apps/desktop` | Tauri 2 shell (thin; needs a Rust toolchain to build) |
+| `packages/ui` | Design tokens and base styles, shared across surfaces |
+| `apps/server` | Fastify API, vault store, SQLite index, WebSocket bus |
+| `apps/web` | React app, served by the server in production |
+| `apps/desktop` | Tauri shell |
 
-## Quickstart (dev)
+## Running it
 
-```sh
+```bash
 pnpm install
-pnpm --dir apps/server seed   # demo workspace: jules/erin/mara @basalt.dev, pw "basalt-demo"
-pnpm --dir apps/server dev    # API on :4623
-pnpm --dir apps/web dev       # web on :4625
-pnpm test                     # core + sync + server suites (permission tests are release-blocking)
+pnpm dev
 ```
 
-## Self-host
+The server serves both the API and the built web bundle on **:4623**.
+`pnpm --dir apps/web dev` (:4625) is for iterating on the frontend.
 
-```sh
-BASALT_JWT_SECRET=$(openssl rand -hex 32) BASALT_SECRET_KEY=$(openssl rand -hex 16) docker compose up -d
+After changing web code, `pnpm ship` — typecheck, test, build, restart. Editing
+source alone changes nothing in a running instance, because it serves the *built*
+bundle and registers static files at boot.
+
+```bash
+pnpm test        # 262 tests
+pnpm typecheck
 ```
 
-Your vault lives in `./data/vault` as plain Markdown.
+Self-hosting is `docker compose up`; set `BASALT_JWT_SECRET` and `BASALT_SECRET_KEY`
+to real values first.
 
-## AI (optional, bring your own key)
+## Permissions
 
-A workspace owner adds an Anthropic (or OpenAI-compatible) key in Settings; it is
-encrypted at rest and requests go straight from your server to the provider.
-Surfaces: **ask your vault** (cited answers), **team digest**, and **suggested
-links** (local scoring, no API call). Retrieval = lexical top-k ∪ link-graph
-neighbors ∪ same-project notes — the link structure your team built by hand is
-the retrieval signal. ACL runs *before* retrieval, always.
+Basalt has a full team permission model, and it is the most carefully tested part of
+the codebase — folder grants, two tag overlays (`#only/<team>` restricts,
+`#share/<team>` shares read-only), path-based personal vaults, and anti-lockout rules
+the server enforces on every write. Unreadable notes are filtered server-side and
+never reach a client (partial checkout, not client-side hiding), and every surface —
+search, graph, backlinks, tasks, dashboard, AI retrieval — goes through the same
+`packages/core` function.
 
-## Non-goals for v1
+In practice Basalt runs single-user today. The model is infrastructure that works,
+not a feature with a finished onboarding flow around it.
 
-Plugin API, live cursors, public publishing, mobile apps, SSO/SCIM/audit logs
-(v2 `ee/`), whiteboards/canvas, comments-on-text (task comments only).
+## Status
+
+Honest state of things:
+
+- **Single user.** Accounts, teams and grants all exist; there is no invite flow, and
+  first-run setup still seeds demo accounts.
+- **No CI.** The 262 tests pass, but only when run by hand.
+- **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
+- The original build spec (`~/basalt-prompt.md`) planned a team product for 5–50
+  person startups. What got built and used daily is this: a personal tool. The README
+  now describes the latter.
 
 ## License
 
-Apache-2.0. Future enterprise features will live in a clearly separated `ee/`
-directory under a commercial license (GitLab model); `ee/` imports never mix
-into core.
+Apache-2.0.
