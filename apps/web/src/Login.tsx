@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, setToken, type Me } from "./api.js";
+import { api, rememberEmail, setToken, type Me } from "./api.js";
 import { IconMark } from "./icons.js";
 
 export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
@@ -15,6 +15,7 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
     try {
       const res = await api<{ token: string; user: Me }>("POST", "/api/auth/login", { email, password });
       setToken(res.token);
+      rememberEmail(email.toLowerCase());
       onLogin(res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "login failed");
@@ -29,7 +30,7 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
         <div className="wordmark login-wordmark">
           <IconMark size={24} /> basalt
         </div>
-        <p className="login-tagline">Your team's knowledge. Your files. Your server.</p>
+        <p className="login-tagline">Your knowledge. Your files. Your server.</p>
         <label>
           Email
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />
@@ -42,9 +43,6 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
         <button className="primary" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
-        <p className="login-hint">
-          Demo accounts: jules / erin / mara <code>@basalt.dev</code>, password <code>basalt-demo</code>
-        </p>
       </form>
     </div>
   );

@@ -20,7 +20,48 @@ export const users = sqliteTable("users", {
   /** JSON: theme, colour-vision mode and hand-built palettes (appearanceSchema).
    *  On the account rather than in localStorage so a phone inherits the desk. */
   appearance: text("appearance"),
+  /** Argon2 hash of the 4-digit quick-unlock passcode (null = not set up).
+   *  A passcode is a convenience over an existing account, never a replacement
+   *  for the password: four digits is 10k combinations, so what makes it safe
+   *  is the server-side attempt counter below, not the secret itself. */
+  passcodeHash: text("passcode_hash"),
+  /** Consecutive failed unlock attempts. Reset on success or password login. */
+  passcodeFails: integer("passcode_fails").notNull().default(0),
+  /** Epoch ms until which unlock is refused after too many failures. */
+  passcodeLockedUntil: integer("passcode_locked_until"),
   createdAt: integer("created_at").notNull(),
+});
+
+/**
+ * WebAuthn credentials — Touch ID on a Mac, and any other platform
+ * authenticator the browser exposes. One row per enrolled device: the same
+ * account can be unlocked by a laptop's fingerprint reader and a phone.
+ *
+ * Stores only the PUBLIC key. The private key never leaves the secure enclave,
+ * which is the whole point: a stolen database cannot produce a valid assertion.
+ */
+export const webauthnCredentials = sqliteTable("webauthn_credentials", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  /** Base64url credential id as returned by the authenticator. */
+  credentialId: text("credential_id").notNull().unique(),
+  publicKey: text("public_key").notNull(),
+  /** Signature counter, for cloned-authenticator detection. */
+  counter: integer("counter").notNull().default(0),
+  /** JSON array of transports ("internal", "hybrid", ...) to hint the browser. */
+  transports: text("transports"),
+  /** What the user sees in Settings when deciding what to revoke. */
+  label: text("label").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+});
+
+/** Short-lived WebAuthn challenges, keyed by the id handed to the client. */
+export const webauthnChallenges = sqliteTable("webauthn_challenges", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  challenge: text("challenge").notNull(),
+  expiresAt: integer("expires_at").notNull(),
 });
 
 export const workspace = sqliteTable("workspace", {

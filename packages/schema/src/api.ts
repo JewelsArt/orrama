@@ -19,6 +19,18 @@ export const loginSchema = z.object({
   password: z.string(),
 });
 
+/** Exactly four digits. A string, not a number, so "0042" survives the wire. */
+export const passcodeSchema = z.object({
+  passcode: z.string().regex(/^\d{4}$/, "passcode must be exactly 4 digits"),
+});
+
+/** Quick unlock. The email says which account; the passcode is checked
+ *  server-side against an attempt counter, never in the browser. */
+export const unlockSchema = z.object({
+  email: z.string().email(),
+  passcode: z.string().regex(/^\d{4}$/),
+});
+
 /**
  * How the app looks, stored on the account so a second device inherits it.
  *

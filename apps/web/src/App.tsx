@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Admin } from "./Admin.js";
-import { api, clearToken, type Me } from "./api.js";
+import { api, clearToken, lastEmail, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
@@ -9,6 +9,7 @@ import { Finance } from "./Finance.js";
 import { Project } from "./Project.js";
 import { Dashboard } from "./Dashboard.js";
 import { IconArchitecture, IconAsk, IconBack, IconContacts, IconDashboard, IconFinance, IconMail, IconMark, IconMoon, IconOverview, IconPlanning, IconRefresh, IconSearch, IconSun } from "./icons.js";
+import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
 import { Overview } from "./Overview.js";
@@ -17,6 +18,7 @@ import { Planning } from "./Planning.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
+import { Setup } from "./Setup.js";
 import { connectWs, disconnectWs } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
@@ -62,6 +64,10 @@ const HISTORY_DEPTH = 3;
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
+  /** undefined = still asking the server; true = empty install, show Setup. */
+  const [needsSetup, setNeedsSetup] = useState<boolean | undefined>(undefined);
+  /** Set when the user chooses "use password instead", to skip the lock screen. */
+  const [forcePassword, setForcePassword] = useState(false);
   /**
    * View and its back-stack live in ONE state object so `navigate` stays a pure
    * updater. Pushing onto a separate history state from inside the view updater
@@ -135,9 +141,15 @@ export function App() {
   }, [vision, profiles, theme]);
 
   useEffect(() => {
+    // Both answers are needed before anything renders: a stored token might still
+    // be valid (straight into the app), and an empty install must offer Setup
+    // rather than a sign-in form no one can satisfy.
     api<Me>("GET", "/api/me")
       .then(setMe)
       .catch(() => setMe(null));
+    api<{ needsSetup: boolean }>("GET", "/api/auth/status")
+      .then((s) => setNeedsSetup(s.needsSetup))
+      .catch(() => setNeedsSetup(false));
   }, []);
 
   /* ---- appearance follows the account, not the browser --------------------
@@ -293,7 +305,13 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate, goBack]);
 
-  if (me === undefined) return <div className="boot">basalt</div>;
+  if (me === undefined || needsSetup === undefined) return <div className="boot">basalt</div>;
+  if (me === null && needsSetup) return <Setup onDone={setMe} />;
+  // A device that has signed in before gets the quick-unlock screen; it offers
+  // "use password instead", which is also the only way out of a passcode lockout.
+  if (me === null && !forcePassword && lastEmail()) {
+    return <Lock onUnlock={setMe} onUsePassword={() => setForcePassword(true)} />;
+  }
   if (me === null) return <Login onLogin={setMe} />;
 
   const firstTeam = me.teams[0];

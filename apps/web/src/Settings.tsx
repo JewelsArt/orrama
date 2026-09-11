@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { api, type Me } from "./api.js";
+import { useCallback, useEffect, useState } from "react";
+import { api, enrolTouchId, touchIdAvailable, type Me } from "./api.js";
 import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
 import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
@@ -216,6 +216,8 @@ export function Settings({
             onClose={() => setEditing(null)}
           />
         )}
+
+        <Security />
 
         <button className="settings-signout ghost" onClick={onSignOut}>
           <IconSignOut /> Sign out
@@ -636,6 +638,118 @@ function WebhooksSection() {
           </label>
         ))}
       </div>
+    </section>
+  );
+}
+
+
+/**
+ * Quick unlock. Both of these are conveniences over an account that already
+ * exists — the password remains the credential and the only way out of a
+ * passcode lockout, so neither control can lock anyone out of their own vault.
+ */
+function Security() {
+  const [passcode, setPasscode] = useState("");
+  const [status, setStatus] = useState("");
+  const [hasTouchId, setHasTouchId] = useState(false);
+  const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
+
+  const loadDevices = useCallback(async () => {
+    try {
+      setDevices(await api<{ id: string; label: string }[]>("GET", "/api/auth/webauthn/credentials"));
+    } catch {
+      setDevices([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void touchIdAvailable().then(setHasTouchId);
+    void loadDevices();
+  }, [loadDevices]);
+
+  const save = async () => {
+    if (!/^\d{4}$/.test(passcode)) return setStatus("Four digits, please.");
+    try {
+      await api("POST", "/api/auth/passcode", { passcode });
+      setPasscode("");
+      setStatus("Passcode set.");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "could not save");
+    }
+  };
+
+  const remove = async () => {
+    await api("DELETE", "/api/auth/passcode");
+    setStatus("Passcode removed. You will be asked for your password.");
+  };
+
+  const enrol = async () => {
+    setStatus("");
+    try {
+      await enrolTouchId("This Mac");
+      await loadDevices();
+      setStatus("Touch ID enrolled.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      // Cancelling the system prompt is a normal choice, not an error to report.
+      if (!/NotAllowed|abort/i.test(msg)) setStatus("Could not enrol Touch ID on this device.");
+    }
+  };
+
+  const revoke = async (id: string) => {
+    await api("DELETE", `/api/auth/webauthn/credentials/${id}`);
+    await loadDevices();
+  };
+
+  return (
+    <section>
+      <h3>Unlock</h3>
+      <p className="settings-note">
+        A shortcut for this device. Your password still works, and is the only way back in if the
+        passcode is locked out.
+      </p>
+      <div className="settings-row">
+        <label htmlFor="passcode-input">4-digit passcode</label>
+        <input
+          id="passcode-input"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={4}
+          value={passcode}
+          placeholder="••••"
+          onChange={(e) => setPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+        />
+        <button className="ghost" onClick={save} disabled={passcode.length !== 4}>
+          Save
+        </button>
+        <button className="ghost" onClick={remove}>
+          Remove
+        </button>
+      </div>
+
+      {hasTouchId && (
+        <div className="settings-row">
+          <label>Touch ID</label>
+          <button className="ghost" onClick={enrol}>
+            {devices.length ? "Add another device" : "Enable Touch ID"}
+          </button>
+        </div>
+      )}
+      {!hasTouchId && (
+        <p className="settings-meta">
+          This device does not offer Touch ID to the browser, so the passcode is the quick way in.
+        </p>
+      )}
+      {devices.map((d) => (
+        <div className="settings-row" key={d.id}>
+          <label>{d.label}</label>
+          <button className="ghost" onClick={() => void revoke(d.id)}>
+            Remove
+          </button>
+        </div>
+      ))}
+
+      {status && <p className="settings-meta">{status}</p>}
     </section>
   );
 }

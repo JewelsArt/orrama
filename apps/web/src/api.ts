@@ -133,6 +133,111 @@ export function clearToken() {
   localStorage.removeItem("basalt-token");
 }
 
+/**
+ * The last address that signed in on this device. Only a convenience: it decides
+ * whether launch shows the quick-unlock screen or the full sign-in form, and it
+ * pre-fills the field. Never a credential.
+ */
+const LAST_EMAIL_KEY = "basalt-last-email";
+export const lastEmail = () => localStorage.getItem(LAST_EMAIL_KEY) ?? "";
+export const rememberEmail = (email: string) => localStorage.setItem(LAST_EMAIL_KEY, email);
+
+/** Does this device have a biometric/platform authenticator at all? */
+export async function touchIdAvailable(): Promise<boolean> {
+  if (typeof PublicKeyCredential === "undefined") return false;
+  try {
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch {
+    return false;
+  }
+}
+
+// WebAuthn speaks ArrayBuffers; JSON does not. These two convert at the boundary
+// so the rest of the app only ever handles base64url strings.
+const b64urlToBytes = (s: string): Uint8Array =>
+  Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+const bytesToB64url = (b: ArrayBuffer): string =>
+  btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** Enrol this device's authenticator (Touch ID) against the signed-in account. */
+export async function enrolTouchId(label: string): Promise<void> {
+  const { challengeId, options } = await api<{ challengeId: string; options: PublicKeyCredentialCreationOptionsJSON }>(
+    "POST",
+    "/api/auth/webauthn/register/options",
+  );
+  const credential = (await navigator.credentials.create({
+    publicKey: {
+      ...options,
+      challenge: b64urlToBytes(options.challenge),
+      user: { ...options.user, id: b64urlToBytes(options.user.id) },
+      excludeCredentials: (options.excludeCredentials ?? []).map((c) => ({ ...c, id: b64urlToBytes(c.id) })),
+    } as unknown as PublicKeyCredentialCreationOptions,
+  })) as PublicKeyCredential | null;
+  if (!credential) throw new Error("no credential created");
+  const res = credential.response as AuthenticatorAttestationResponse;
+  await api("POST", "/api/auth/webauthn/register/verify", {
+    challengeId,
+    label,
+    response: {
+      id: credential.id,
+      rawId: bytesToB64url(credential.rawId),
+      type: credential.type,
+      clientExtensionResults: credential.getClientExtensionResults(),
+      response: {
+        clientDataJSON: bytesToB64url(res.clientDataJSON),
+        attestationObject: bytesToB64url(res.attestationObject),
+        transports: res.getTransports?.() ?? [],
+      },
+    },
+  });
+}
+
+/** Unlock with Touch ID. Returns the same {token, user} shape as a password login. */
+export async function unlockWithTouchId(email: string): Promise<{ token: string; user: Me }> {
+  const { challengeId, options } = await api<{ challengeId: string; options: PublicKeyCredentialRequestOptionsJSON }>(
+    "POST",
+    "/api/auth/webauthn/login/options",
+    { email },
+  );
+  const credential = (await navigator.credentials.get({
+    publicKey: {
+      ...options,
+      challenge: b64urlToBytes(options.challenge),
+      allowCredentials: (options.allowCredentials ?? []).map((c) => ({ ...c, id: b64urlToBytes(c.id) })),
+    } as unknown as PublicKeyCredentialRequestOptions,
+  })) as PublicKeyCredential | null;
+  if (!credential) throw new Error("no assertion");
+  const res = credential.response as AuthenticatorAssertionResponse;
+  return api("POST", "/api/auth/webauthn/login/verify", {
+    challengeId,
+    response: {
+      id: credential.id,
+      rawId: bytesToB64url(credential.rawId),
+      type: credential.type,
+      clientExtensionResults: credential.getClientExtensionResults(),
+      response: {
+        clientDataJSON: bytesToB64url(res.clientDataJSON),
+        authenticatorData: bytesToB64url(res.authenticatorData),
+        signature: bytesToB64url(res.signature),
+        ...(res.userHandle ? { userHandle: bytesToB64url(res.userHandle) } : {}),
+      },
+    },
+  });
+}
+
+/** Shapes the server sends; the browser types want buffers, so these are the JSON twins. */
+interface PublicKeyCredentialCreationOptionsJSON {
+  challenge: string;
+  user: { id: string; name: string; displayName: string };
+  excludeCredentials?: { id: string; type?: string; transports?: string[] }[];
+  [k: string]: unknown;
+}
+interface PublicKeyCredentialRequestOptionsJSON {
+  challenge: string;
+  allowCredentials?: { id: string; type?: string; transports?: string[] }[];
+  [k: string]: unknown;
+}
+
 export async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,

@@ -6515,3 +6515,90 @@ kbd {
 /* The in/out rows are doors to their calendars now. */
 .dh-flow-row { width: 100%; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
 .dh-flow-row:hover { background: var(--fin-row-hover, rgba(0,0,0,0.03)); }
+
+/* ── Lock screen ────────────────────────────────────────────────────────────
+   Quick unlock for a device that has signed in before. Sized for a thumb on a
+   touch screen and a keypad on a laptop; the keyboard handler in Lock.tsx means
+   the pad is never the only way to enter a code. */
+.lock-card {
+  align-items: center;
+  text-align: center;
+}
+
+.lock-dots {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  margin: 18px 0 22px;
+}
+
+.lock-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.lock-dot.is-filled {
+  background: var(--accent, #5b5bd6);
+  border-color: var(--accent, #5b5bd6);
+  transform: scale(1.1);
+}
+
+.lock-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 12px;
+  justify-content: center;
+}
+
+.lock-key {
+  height: 62px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface, transparent);
+  color: var(--text);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background-color 90ms ease, transform 90ms ease;
+}
+
+.lock-key:hover:not(:disabled) { background: var(--surface-hover, rgba(0, 0, 0, 0.04)); }
+.lock-key:active:not(:disabled) { transform: scale(0.94); }
+.lock-key:disabled { opacity: 0.45; cursor: default; }
+
+.lock-key-soft {
+  border-color: transparent;
+  font-size: 18px;
+  color: var(--text-muted);
+}
+
+.lock-touchid {
+  margin-top: 20px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.lock-touchid:hover:not(:disabled) { background: var(--surface-hover, rgba(0, 0, 0, 0.04)); }
+
+.lock-password-link {
+  margin-top: 14px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lock-dot, .lock-key { transition: none; }
+  .lock-key:active:not(:disabled) { transform: none; }
+}

@@ -9,7 +9,8 @@
     "start": "tsx src/main.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "account": "tsx src/account.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.8",
@@ -23,6 +24,7 @@
     "@fastify/static": "^8.0.0",
     "@fastify/websocket": "^11.2.0",
     "@node-rs/argon2": "^2.0.2",
+    "@simplewebauthn/server": "^14.0.1",
     "ai": "^7.0.15",
     "better-sqlite3": "^12.2.0",
     "chokidar": "^5.0.0",

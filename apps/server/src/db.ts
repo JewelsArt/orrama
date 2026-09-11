@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS task_comments (
   id TEXT PRIMARY KEY, task_id TEXT NOT NULL, author_id TEXT NOT NULL,
   body TEXT NOT NULL, created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL, counter INTEGER NOT NULL DEFAULT 0, transports TEXT,
+  label TEXT NOT NULL, created_at INTEGER NOT NULL, last_used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+  id TEXT PRIMARY KEY, user_id TEXT, challenge TEXT NOT NULL, expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS invites (
   token TEXT PRIMARY KEY, team_ids TEXT NOT NULL, created_by TEXT NOT NULL,
   expires_at INTEGER NOT NULL, used_by TEXT
@@ -144,6 +152,17 @@ export function createDb(file = dbPath()) {
     sqlite.exec(`ALTER TABLE workspace ADD COLUMN ai_base_url TEXT`);
   } catch {
     /* column exists */
+  }
+  for (const sql of [
+    `ALTER TABLE users ADD COLUMN passcode_hash TEXT`,
+    `ALTER TABLE users ADD COLUMN passcode_fails INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE users ADD COLUMN passcode_locked_until INTEGER`,
+  ]) {
+    try {
+      sqlite.exec(sql);
+    } catch {
+      /* column exists */
+    }
   }
   return drizzle(sqlite, { schema: tables });
 }
