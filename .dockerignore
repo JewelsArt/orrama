@@ -1,0 +1,38 @@
+# Keep the build context small and keep private data out of the image.
+#
+# Without this file, `COPY . .` sent a 3.4 GB context and baked two things into
+# the image that must never be in a distributable artifact:
+#   - apps/server/data/  the live SQLite database and vault copy (real notes)
+#   - node_modules/      macOS-native binaries, wrong for a Linux image and able
+#                        to shadow the correct install
+# Most of the remaining bulk is the Rust target/ dir from the Tauri build.
+
+node_modules
+**/node_modules
+
+# Build output — regenerated inside the image.
+dist
+**/dist
+.turbo
+**/.turbo
+static_dist
+
+# The desktop app is not part of the server image, and its Rust build artefacts
+# are by far the largest thing in the repo.
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
+
+# Private: the database, the vault, and anything holding secrets.
+apps/server/data
+*.db
+*.db-*
+.env
+.env.*
+
+.git
+.gitignore
+.github
+.claude
+.vscode
+.DS_Store
+**/.DS_Store
