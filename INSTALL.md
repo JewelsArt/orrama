@@ -202,13 +202,28 @@ repo's `pnpm ship` does typecheck → test → build → restart in one step.
 ### Docker
 
 ```bash
+export BASALT_JWT_SECRET=$(openssl rand -hex 32)
+export BASALT_SECRET_KEY=$(openssl rand -hex 32)
 docker compose up
 ```
 
-Set `BASALT_JWT_SECRET` and `BASALT_SECRET_KEY` first; compose substitutes
-`change-me-please` otherwise, which is on the refused-placeholder list.
+Export both secrets first. Without them compose substitutes `change-me-please`,
+which is on the refused-placeholder list, and the container exits with
+`Refusing to start:` rather than booting on a forgeable session secret.
 
-*Not verified on the machine this guide was written on — no Docker installed.*
+Builds and runs on **arm64 and x64**, so a Raspberry Pi works as well as a VPS.
+The image is ~248 MB, builds in about 80 seconds, boots in about 4, and runs as
+the unprivileged `node` user. `/data` is a volume: your notes and database live
+there and survive `docker restart`, `down` and `up`.
+
+Verified end to end on arm64 (Docker 29, colima): build, placeholder-secret
+refusal, first-run account creation through the API, and data surviving a
+container restart. The image carries no database, no vault and no host-built
+binaries — `.dockerignore` keeps the build context at ~2 MB.
+
+**Port conflict.** Compose publishes `4623:4623`. If you already run Basalt on
+the host (a launchd agent, say), the container cannot take that port. Change the
+host side of the mapping in `docker-compose.yml`, or stop the other one.
 
 ### Desktop app
 
@@ -253,6 +268,10 @@ down an unrelated app before.
 **Notes do not appear after editing them outside Basalt**
 The watcher indexes external edits. If the vault is on a network or cloud-synced
 volume the events may not fire; restart the server to force a re-index.
+
+**Container exits immediately with "Refusing to start"**
+`BASALT_JWT_SECRET` or `BASALT_SECRET_KEY` is still a placeholder. That refusal
+is deliberate — see **Security**. Export real values and bring it up again.
 
 **Starting over**
 The database is disposable — it is an index of the Markdown, not the source of truth:

@@ -91,8 +91,9 @@ pnpm test        # 262 tests
 pnpm typecheck
 ```
 
-Self-hosting is `docker compose up`; set `BASALT_JWT_SECRET` and `BASALT_SECRET_KEY`
-to real values first.
+Self-hosting is `docker compose up`, with `BASALT_JWT_SECRET` and
+`BASALT_SECRET_KEY` exported first — the server refuses to boot on placeholder
+secrets. Builds on arm64 and x64, so a Raspberry Pi works.
 
 ## Permissions
 
