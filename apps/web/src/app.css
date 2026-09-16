@@ -6602,3 +6602,149 @@ kbd {
   .lock-dot, .lock-key { transition: none; }
   .lock-key:active:not(:disabled) { transform: none; }
 }
+
+/* ═══ Phone layout ═══════════════════════════════════════════════════════════
+   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
+   hands rather than pixels: a side rail puts navigation under the far edge of a
+   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
+   costs 16% of a 375px screen to show seven icons.
+
+   Everything here is additive. The desktop rules are untouched; this block only
+   reorders the same markup, so no component knows it is on a phone. */
+@media (max-width: 760px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  /* The bar sits above the content in the stacking order and below it in the
+     flow, so it stays put while the page scrolls under it. */
+  .rail {
+    order: 2;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    /* Anything that does not fit scrolls, so no control is unreachable — the
+       seven views fit a 375px screen, the utilities are one swipe away. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Clear the home indicator on a notched iPhone (needs viewport-fit=cover). */
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-item {
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    /* 44px is Apple's minimum touch target. Before this, 29 of 32 controls on
+       the Overview screen were under it. */
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+
+  /* The brand, the back button, the spacer and the account block are desktop
+     chrome: a phone has a system back gesture, and the account lives in
+     Settings. .rail-nav and .rail-tools are the two groups that remain, laid
+     out in a row. */
+  .rail-brand,
+  .rail-back,
+  .rail-spacer,
+  .account {
+    display: none;
+  }
+  .rail-nav,
+  .rail-tools {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+  }
+
+  /* Content scrolls; the bar does not. */
+  .shell > :not(.rail) {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* Give every interactive control a real touch target — but only the ones
+     whose height is free to grow. A blanket rule stretched the round task
+     checkbox into an ellipse and bloated inline labels, so anything with a
+     fixed shape or an inline role opts out and gets the treatment below. */
+  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj),
+  select,
+  summary,
+  [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Round and inline controls keep their drawn size and gain a centred 44px
+     hit area instead. The overlay is transparent and sits above the control's
+     own box, so the thumb target is square while the circle stays a circle. */
+  .dh-radio,
+  .dh-task-proj {
+    position: relative;
+  }
+  .dh-radio::after,
+  .dh-task-proj::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  input,
+  textarea {
+    /* Under 16px iOS zooms the whole page on focus and never zooms back. */
+    font-size: max(16px, 1em);
+  }
+
+  /* Planning's strip squeezed five tiles into 375px and truncated every label
+     to "UNPLAN…". Two per row, so each gets ~170px and reads in full. */
+  .plan-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .plan-tile {
+    min-width: 0;
+  }
+  .plan-tile-lbl {
+    white-space: normal;
+  }
+  .plan-top {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* The Overview step table is the widest thing on the phone: status pill,
+     step name, note and timeline. Let it scroll inside its own card rather than
+     pushing the whole page sideways. */
+  .ov-steps,
+  .ov-steps-head {
+    overflow-x: auto;
+  }
+  /* The timeline column is the least useful of the four on a 375px screen, and
+     dropping it lets the other three fit without scrolling at all. */
+  .ov-th-timeline {
+    display: none;
+  }
+
+  /* Page headings were sized for a 1400px canvas. */
+  h1 {
+    font-size: clamp(22px, 7vw, 32px);
+  }
+}
