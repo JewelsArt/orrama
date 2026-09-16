@@ -6678,6 +6678,47 @@ kbd {
     overflow-y: auto;
   }
 
+  /* THE root cause of things printing over each other on a phone.
+     Every view root is pinned to the viewport height — 724px here — because on
+     a desktop the whole screen fits and each pane scrolls inside it. Planning
+     and Overview go further and set overflow-y:hidden, so content past the fold
+     is not scrolled to, it is CLIPPED: .planning was 724px tall holding 1742px
+     of content, which is why the backlog printed straight through the footer.
+
+     On a phone the page itself is the scroll surface, so every root grows to
+     its content and the shell above does the scrolling. */
+  .home,
+  .arch,
+  .planning,
+  .overview,
+  .contacts,
+  .mail,
+  .fin {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* Panes that shared the height with a sibling must stop competing for it. */
+  .plan-body,
+  .plan-top,
+  .plan-strip {
+    flex: 0 0 auto;
+  }
+
+  /* Architecture is a 300px sidebar + editor + 280px context grid. None of
+     those fit beside each other at 375px. */
+  .arch,
+  .arch:has(.side) {
+    grid-template-columns: 1fr;
+  }
+  .arch-files {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 45vh;
+  }
+
   /* Give every interactive control a real touch target — but only the ones
      whose height is free to grow. A blanket rule stretched the round task
      checkbox into an ellipse and bloated inline labels, so anything with a
@@ -6730,17 +6771,127 @@ kbd {
     gap: 10px;
   }
 
-  /* The Overview step table is the widest thing on the phone: status pill,
-     step name, note and timeline. Let it scroll inside its own card rather than
-     pushing the whole page sideways. */
-  .ov-steps,
+  /* ---- Overview ----
+     The step row is a rigid `104px 159px` grid. At 375px that leaves ~159px for
+     the step name, so "write ADR for CRDT choice" truncated to "write ADR for
+     CRDT cho…" and the row scrolled sideways inside its card. Scrolling a table
+     to read a task name is not a phone interface, so the row stacks instead:
+     the name first, at full width, and its status control underneath. Taller,
+     but nothing is hidden and the pill is a comfortable target. */
   .ov-steps-head {
+    display: none; /* column headings mean nothing once the row is stacked */
+  }
+  /* Name takes the room that is left and WRAPS; the pill keeps its natural
+     width on the right. Stacking them worked but cost ~92px a row, which turned
+     six steps into a long scroll — this reads the same and costs about half. */
+  .ov-step {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 11px 0;
+    align-items: center;
+  }
+  .ov-step-name {
+    order: 1;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    min-width: 0;
+    line-height: 1.35;
+  }
+  .st-wrap {
+    order: 2;
+    justify-self: end;
+  }
+  .ov-docs {
+    order: 3;
+  }
+  /* The timeline is a wide date band with no room to say anything useful here. */
+  .ov-tl,
+  .ov-th-timeline,
+  .ov-gantt-sw {
+    display: none;
+  }
+
+  /* The life-area filter is a segmented control 393px wide in a 313px card, so
+     its last option was sliced off mid-word. Filters are fine to swipe. */
+  .seg,
+  .ov-life {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .seg::-webkit-scrollbar,
+  .ov-life::-webkit-scrollbar {
+    display: none;
+  }
+  .seg > *,
+  .ov-life > * {
+    flex: 0 0 auto;
+  }
+  .ov-due {
+    min-width: 0;
+  }
+
+  /* ---- Planning ----
+     .plan-body is a flex ROW: backlog beside the week grid. At 375px that left
+     the calendar 61px wide — a sliver showing three hour labels and nothing
+     else. Stack them, so each gets the full width in turn, and let the seven
+     day columns scroll sideways inside the calendar rather than compressing. */
+  .plan-body {
+    flex-direction: column;
+    /* Desktop fixes this row to the viewport height and lets each column scroll
+       inside it. Stacked, that cap made the backlog overrun its own box and the
+       footer text printed straight through it — so the container grows with its
+       children here instead. */
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .plan-body > .backlog,
+  .plan-body > .cal-grid {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 auto;
+  }
+  .cal-grid {
+    overflow-x: auto;
+    min-height: 420px;
+  }
+  .cal-grid-scroll {
     overflow-x: auto;
   }
-  /* The timeline column is the least useful of the four on a 375px screen, and
-     dropping it lets the other three fit without scrolling at all. */
-  .ov-th-timeline {
-    display: none;
+  .cal-marks-cell {
+    min-width: 0;
+  }
+
+  /* ---- Architecture ----
+     The force-graph canvas is sized in JS from the desktop panel width. */
+  .graph-canvas,
+  .graph-backdrop canvas,
+  canvas {
+    max-width: 100%;
+  }
+  .map-hint {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  /* ---- Dashboard ----
+     The source legend is a single non-wrapping row of chips. */
+  .dh-src-legend {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+
+  /* Page headers put the title, a subtitle and a right-hand meta block on one
+     line. At 375px the subtitle ran under the timestamp. Let them stack. */
+  .dh-head,
+  .plan-top,
+  .ov-head,
+  .home-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
 
   /* Page headings were sized for a 1400px canvas. */
