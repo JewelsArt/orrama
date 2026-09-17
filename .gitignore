@@ -8,3 +8,8 @@ apps/server/data/
 target/
 apps/desktop/src-tauri/gen/
 .DS_Store
+
+# Secrets and logs — never in the repo.
+.env
+.env.*
+*.log

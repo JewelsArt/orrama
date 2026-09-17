@@ -1,0 +1,73 @@
+# The 284 tests only protect anything if something other than a person
+# remembering runs them. This is that something.
+#
+# Deliberately NOT `pnpm build`: that fans out to apps/desktop, which is Tauri
+# and needs a Rust toolchain — minutes of compilation to produce a .dmg no CI
+# consumer wants. The server needs no build step at all (it runs TypeScript
+# through tsx), so the only bundle worth building here is apps/web.
+name: CI
+
+on:
+  push:
+    branches: [main, sep-2026-redesign]
+  pull_request:
+  workflow_dispatch:
+
+# A new push makes the previous run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · test · build (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile, so CI fails on a lockfile that disagrees with the
+      # manifests rather than quietly resolving something else than the machine
+      # this was developed on.
+      - run: pnpm install --frozen-lockfile
+
+      # Six packages, apps/mcp among them — its 478 lines were checked by
+      # nothing at all until it was given a typecheck script.
+      - run: pnpm typecheck
+
+      # Covers packages/core, packages/sync and apps/server. Caching is off for
+      # this task in turbo.json — a replayed log is not a test run.
+      - run: pnpm test
+
+      - run: pnpm --dir apps/web build
+
+  # macOS is where Basalt actually runs day to day, and it is the only place the
+  # darwin-arm64 native bindings (better-sqlite3, @node-rs/argon2) get exercised.
+  # It costs 10x the minutes of a Linux runner on private repos, so it guards the
+  # default branch rather than every push.
+  check-macos:
+    name: typecheck · test (macos)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
