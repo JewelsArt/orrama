@@ -12,6 +12,12 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-integr-"));
+// Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
+// falls through to BASALT_VAULT_DIR from the surrounding shell - which INSTALL.md
+// tells people to export - and the suite writes its demo notes into the real
+// Obsidian vault, then id-stamps every note it finds there. Same location the
+// default computes; stated explicitly so the environment cannot redirect it.
+process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret";
 process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "40";
 process.env.TZ = "Europe/Amsterdam";

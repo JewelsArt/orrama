@@ -29,11 +29,14 @@ export function Confirm({ request, onClose }: { request: ConfirmRequest | null; 
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        request.onConfirm();
-        onClose();
       }
+      // No Enter branch, deliberately. This listener is on WINDOW, so it cannot
+      // see which button has focus — it confirmed whatever the dialog asked
+      // regardless, and its preventDefault() suppressed the focused button's own
+      // activation. Tab to "Keep it", press Enter, and the project was deleted.
+      // The confirm button is focused on open (okRef below), so Enter still
+      // confirms by default; now it is the browser activating the focused
+      // button, which is also what makes Tab-then-Enter mean what it says.
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

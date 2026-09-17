@@ -9,6 +9,12 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
+// Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
+// falls through to BASALT_VAULT_DIR from the surrounding shell - which INSTALL.md
+// tells people to export - and the suite writes its demo notes into the real
+// Obsidian vault, then id-stamps every note it finds there. Same location the
+// default computes; stated explicitly so the environment cannot redirect it.
+process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret";
 
 const { buildServer } = await import("../src/main.js");
@@ -916,5 +922,51 @@ describe("production secret guard", () => {
     // env.jwtSecret is "test-secret" here, so only the untouched key trips it.
     expect(() => assertProductionSecrets("production")).toThrow(/BASALT_SECRET_KEY/);
     expect(() => assertProductionSecrets("development")).not.toThrow();
+  });
+});
+
+/**
+ * A note whose YAML does not parse must come out of a full index pass byte for
+ * byte. The id-stamping path rebuilds a note from its PARSED front matter, so
+ * before the guard an unparseable block was rebuilt from an empty object and the
+ * note lost its title, tags, aliases, deadline — and its #only/<team>
+ * restriction, which fails OPEN.
+ */
+describe("malformed front matter is never rewritten", () => {
+  const BAD = [
+    "---",
+    "title: Q3 Review: Ops",      // the unquoted colon: commonest YAML mistake
+    "tags: [only/finance, quarterly]",
+    "deadline: 2026-09-30",
+    "---",
+    "",
+    "# Q3 Review",
+    "",
+  ].join("\n");
+
+  it("survives a re-index with its metadata intact", () => {
+    const abs = path.join(store.vaultRoot, "Q3 Review.md");
+    fs.writeFileSync(abs, BAD);
+
+    store.load();
+
+    const after = fs.readFileSync(abs, "utf8");
+    expect(after).toBe(BAD);
+    expect(after).toContain("only/finance");   // the access restriction
+    expect(after).toContain("deadline: 2026-09-30");
+    expect(after).not.toContain("id: n-");     // no id was stamped over it
+    fs.unlinkSync(abs);
+  });
+
+  it("still stamps an id on a note whose front matter is fine", () => {
+    const abs = path.join(store.vaultRoot, "Fine.md");
+    fs.writeFileSync(abs, "---\ntitle: Fine\n---\n\nBody.\n");
+
+    store.load();
+
+    const after = fs.readFileSync(abs, "utf8");
+    expect(after).toContain("id: n-");
+    expect(after).toContain("title: Fine");
+    fs.unlinkSync(abs);
   });
 });

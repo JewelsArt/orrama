@@ -25,7 +25,16 @@ let currentToken = "";
 export function connectWs(token: string): void {
   currentToken = token;
   clearTimeout(reconnectTimer);
-  socket?.close();
+  // Detach the old socket BEFORE closing it. close() is asynchronous, so its
+  // onclose fires after the replacement already exists — it then read a truthy
+  // currentToken and scheduled a reconnect, which closed the healthy socket and
+  // started again. Steady state was one disconnect every two seconds, forever,
+  // and the trigger was something as ordinary as changing your display name.
+  if (socket) {
+    socket.onclose = null;
+    socket.onmessage = null;
+    socket.close();
+  }
   const proto = location.protocol === "https:" ? "wss" : "ws";
   socket = new WebSocket(`${proto}://${location.host}/api/ws?token=${encodeURIComponent(token)}`);
   socket.onmessage = (e) => {
@@ -44,7 +53,11 @@ export function connectWs(token: string): void {
 export function disconnectWs(): void {
   currentToken = "";
   clearTimeout(reconnectTimer);
-  socket?.close();
+  if (socket) {
+    socket.onclose = null;
+    socket.onmessage = null;
+    socket.close();
+  }
   socket = null;
 }
 

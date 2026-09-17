@@ -17,6 +17,7 @@ import {
   canRead,
   filterReadable,
   generateNoteId,
+  parseFrontmatter,
   parseNote,
   titleFromPath,
   updateFrontmatter,
@@ -106,8 +107,18 @@ export class VaultStore {
       let content = fs.readFileSync(abs, "utf8");
       const parsed = parseNote(content, titleFromPath(rel));
       if (!parsed.id) {
-        content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-        fs.writeFileSync(abs, content);
+        // Stamping an id means rewriting the file from its parsed front matter.
+        // If that front matter did not parse, the rewrite would serialise an
+        // empty object over the user's real metadata — title, tags, aliases,
+        // deadline, and any #only/<team> restriction, which would WIDEN who can
+        // read the note. Index it as it is and say so; a missing id costs
+        // rename-safety for one note, which is recoverable. The metadata is not.
+        if (parseFrontmatter(content).malformed) {
+          console.warn(`[vault] ${rel}: front matter does not parse — indexed without stamping an id. Fix the YAML (an unquoted colon is the usual cause).`);
+        } else {
+          content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+          fs.writeFileSync(abs, content);
+        }
       }
       const mtimeMs = fs.statSync(abs).mtimeMs;
       const note = this.index.upsert({ path: rel, content, mtimeMs });
@@ -156,9 +167,16 @@ export class VaultStore {
 
         const parsed = parseNote(content, titleFromPath(relPath));
         if (!parsed.id) {
-          content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-          this.markWritten(relPath, content);
-          fs.writeFileSync(absPath, content);
+          // Same rule as load(): never rewrite a note whose front matter we
+          // could not read. This path fires on every watcher event, so without
+          // the guard one bad note is re-stamped — and re-flattened — forever.
+          if (parseFrontmatter(content).malformed) {
+            console.warn(`[vault] ${relPath}: front matter does not parse — indexed without stamping an id.`);
+          } else {
+            content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+            this.markWritten(relPath, content);
+            fs.writeFileSync(absPath, content);
+          }
         }
         
         const existing = this.index.getByPath(relPath);

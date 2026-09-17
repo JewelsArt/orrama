@@ -31,7 +31,24 @@ export const env = {
   jwtSecret: process.env.BASALT_JWT_SECRET ?? DEV_JWT_SECRET,
   /** Key used to encrypt the workspace AI key at rest (spec §9). */
   secretKey: process.env.BASALT_SECRET_KEY ?? DEV_SECRET_KEY,
-  corsOrigin: process.env.BASALT_CORS_ORIGIN ?? true,
+  /**
+   * Which origins a browser may call this server from. Defaults to FALSE — no
+   * cross-origin requests at all.
+   *
+   * It used to default to `true`, which tells @fastify/cors to REFLECT whatever
+   * Origin asked. Combined with a token any page could forge, that made every
+   * website the user visited while the agent was running able to read the vault,
+   * the mailbox and the finance data: the page sends a cross-origin request, the
+   * preflight is answered with its own origin, and the body comes back readable.
+   * Binding to 127.0.0.1 does not help, because the request comes from the
+   * user's own browser.
+   *
+   * Nothing legitimate needed it. In production the server serves the web bundle
+   * itself, and in dev vite proxies /api and /ics (ws included) through :4625 —
+   * both same-origin. Set BASALT_CORS_ORIGIN explicitly if a real cross-origin
+   * client ever exists.
+   */
+  corsOrigin: process.env.BASALT_CORS_ORIGIN ?? false,
 };
 
 /**
