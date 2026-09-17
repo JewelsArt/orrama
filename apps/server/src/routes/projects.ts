@@ -52,8 +52,42 @@ const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && /^pro
 /** Sections the workspace owns inside the project note. Headings, not database rows. */
 const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "Inbox", people: "People" } as const;
 
-/** Documents live beside the note: 04-Projects/<slug>/files/. */
-const filesDirFor = (root: string, slug: string) => path.join(root, PROJECTS_DIR, slug, "files");
+/**
+ * A slug is a path segment, so it gets the grammar of one.
+ *
+ * `openProject` resolves a slug by matching any readable note's tag, and
+ * front-matter tags reach `normalizeTag` without passing TAG_RE — so a note
+ * carrying `tags: ["project/../../../../apps/web/dist"]` used to hand that
+ * string straight to path.join. noteWriteSchema's no-`..` rule guards the note's
+ * PATH, not its contents, and `safeName` hardens the filename only. The result
+ * was mkdirSync creating a directory anywhere on disk and an upload landing in
+ * a statically-served folder: arbitrary write, then stored XSS on the app's own
+ * origin. The AI agent's write_note tool takes a model-supplied path, so a
+ * hostile email could start the chain.
+ */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+const assertSlug = (slug: string): string => {
+  if (!SLUG_RE.test(slug)) throw new HttpError(404, "project not found");
+  return slug;
+};
+
+/**
+ * Documents live beside the note: 04-Projects/<slug>/files/.
+ *
+ * Validates, then re-checks the RESOLVED path. The grammar alone would do it,
+ * but the containment assertion is what keeps this correct if the grammar is
+ * ever loosened — the same order VaultStore.resolvePath uses.
+ */
+const filesDirFor = (root: string, slug: string) => {
+  const dir = path.join(root, PROJECTS_DIR, assertSlug(slug), "files");
+  const base = path.resolve(root, PROJECTS_DIR);
+  const resolved = path.resolve(dir);
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    throw new HttpError(404, "project not found");
+  }
+  return dir;
+};
 
 /**
  * A filename is data, not a path. Strip every separator, refuse dotfiles and
@@ -135,6 +169,10 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
 
   /** Resolve <slug> to its registered row + note, ACL-checked (404, never 403). */
   const openProject = (userId: string, slug: string) => {
+    // Before anything is looked up: a slug that cannot be a directory name
+    // cannot be a project either, and 404 rather than 400 keeps this from
+    // reporting which slugs exist (§5.4).
+    assertSlug(slug);
     const user = store.aclUser(userId);
     const row = db.select().from(tables.projects).where(eq(tables.projects.key, `project/${slug}`)).get();
     const grants = store.grants();

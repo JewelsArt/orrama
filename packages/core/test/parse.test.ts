@@ -121,3 +121,38 @@ describe("links Obsidian counts too", () => {
     expect(note.links.find((l) => l.target === "AMSIB Thesis Guide")?.heading).toBe("deadlines");
   });
 });
+
+/**
+ * A front-matter tag becomes a directory name in routes/projects.ts, and unlike
+ * an inline tag it never passes TAG_RE. A tag carrying `..` segments is dropped
+ * rather than indexed, so the string cannot reach path.join at all.
+ */
+describe("front-matter tags that read as path escapes", () => {
+  const withTags = (tags: string) => `---\ntags: [${tags}]\n---\n\n# Note\n`;
+  const tagsOf = (md: string) => parseNote(md, "Note").tags.map((t) => t.tag);
+
+  it("drops a traversal tag", () => {
+    expect(tagsOf(withTags('"project/../../../../apps/web/dist"'))).toEqual([]);
+  });
+
+  it("drops single-dot and trailing-dot segments, and backslashes", () => {
+    expect(tagsOf(withTags('"project/./x"'))).toEqual([]);
+    expect(tagsOf(withTags('"project/.."'))).toEqual([]);
+    expect(tagsOf(withTags('"..\\\\evil"'))).toEqual([]);
+  });
+
+  it("keeps every ordinary tag, including the ACL ones", () => {
+    // Dropping an #only/<team> tag would not fail closed — it would widen who
+    // can read the note — so the filter must be narrow enough to never do it.
+    expect(tagsOf(withTags('"only/finance", "share/eng", "project/atlas", "contact"'))).toEqual([
+      "only/finance",
+      "share/eng",
+      "project/atlas",
+      "contact",
+    ]);
+  });
+
+  it("keeps a tag that merely contains a dot mid-segment", () => {
+    expect(tagsOf(withTags('"v1.2-release"'))).toEqual(["v1.2-release"]);
+  });
+});

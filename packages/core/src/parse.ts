@@ -37,6 +37,21 @@ function normalizeTag(t: string): string {
   return t.replace(/^#/, "").toLowerCase();
 }
 
+/**
+ * A tag that reads as a path escape is not a tag.
+ *
+ * Inline tags cannot produce one — TAG_RE has no `.` in its character class —
+ * but front-matter tags reach normalizeTag unparsed, and a `project/<slug>` tag
+ * becomes a directory name in routes/projects.ts. `routes/projects.ts` validates
+ * the slug itself; this is the other end of the same hole, so a crafted tag
+ * never enters the index in the first place.
+ *
+ * Deliberately narrow: only `.`/`..` segments and backslashes are dropped.
+ * Anything wider risks discarding a legitimate `#only/<team>` tag, and losing
+ * one of those does not fail closed — it makes the note readable by MORE people.
+ */
+const UNSAFE_TAG = /(^|\/)\.\.?(\/|$)|\\/;
+
 function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const m = TASK_RE.exec(raw);
   if (!m) return null;
@@ -95,7 +110,9 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   const headings: Heading[] = [];
 
   for (const t of frontmatterStrings(data["tags"])) {
-    tags.push({ tag: normalizeTag(t), line: 0 });
+    const tag = normalizeTag(t);
+    if (!tag || UNSAFE_TAG.test(tag)) continue;
+    tags.push({ tag, line: 0 });
   }
 
   let inFence = false;

@@ -970,3 +970,93 @@ describe("malformed front matter is never rewritten", () => {
     fs.unlinkSync(abs);
   });
 });
+
+/**
+ * The project slug is a path segment. openProject resolved it by matching any
+ * readable note's tag, and filesDirFor joined it straight into a directory — so
+ * a slug of `../../../../apps/web/dist` created a directory outside the vault
+ * and let an upload land in a statically-served folder.
+ */
+describe("project slug cannot escape the vault", () => {
+  const ESCAPES = [
+    "../../../../apps/web/dist",
+    "..",
+    ".",
+    "../evil",
+    "foo/../../bar",
+    "-leading-dash",
+    "UPPER",
+    "has space",
+    "a".repeat(60),
+  ];
+
+  it("refuses every malformed slug on the workspace route", async () => {
+    for (const slug of ESCAPES) {
+      const r = await api("GET", `/api/projects/${encodeURIComponent(slug)}`, "jules");
+      // 404, never 400: a validation error that is distinguishable from
+      // "no such project" tells a caller which slugs exist (§5.4).
+      expect([404, 400]).toContain(r.status);
+      expect(r.status).not.toBe(200);
+    }
+  });
+
+  it("refuses to list files for one, and writes nothing to disk", async () => {
+    const outside = path.resolve(process.env.BASALT_DATA_DIR!, "vault", "..", "escaped");
+    for (const slug of ESCAPES) {
+      const r = await api("GET", `/api/projects/${encodeURIComponent(slug)}/files`, "jules");
+      expect(r.status).not.toBe(200);
+    }
+    expect(fs.existsSync(outside)).toBe(false);
+  });
+
+  it("refuses even when a note carries the traversal tag (the real chain)", async () => {
+    // The exploit needs the tag to exist: openProject resolves a slug by
+    // matching any readable note's tag, so without this the request 404s for
+    // the ordinary reason and proves nothing. Planting it exercises both
+    // layers — the tag filter in core and the slug guard in the route — and
+    // fails if either is removed.
+    const escape = "../../../../escaped-target";
+    const abs = path.join(store.vaultRoot, "Hostile.md");
+    fs.writeFileSync(abs, `---\ntags: ["project/${escape}"]\n---\n\n# Hostile\n`);
+    store.load();
+
+    // The ROUTE assertions come first, deliberately. They are the security
+    // property; the tag filter below is one of two independent ways it is
+    // upheld. Asserting the implementation detail first would short-circuit the
+    // test and hide whether the route itself still holds. Injected raw rather than
+    // through api(), because a literal `..` in a URL path is normalised away by
+    // the router before it reaches the handler — that request lands on the SPA
+    // fallback and comes back as HTML, which api() then fails to parse. The
+    // percent-encoded form is the one that actually arrives as a path segment,
+    // and it is the one an attacker would send.
+    for (const url of [
+      `/api/projects/${encodeURIComponent(escape)}`,
+      `/api/projects/${encodeURIComponent(escape)}/files`,
+    ]) {
+      const res = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${tokens["jules"]}` } });
+      expect(res.statusCode).not.toBe(200);
+    }
+
+    // And nothing was created anywhere near the vault's parent.
+    expect(fs.existsSync(path.resolve(store.vaultRoot, "..", "escaped-target"))).toBe(false);
+    expect(fs.existsSync(path.resolve(store.vaultRoot, "..", "..", "escaped-target"))).toBe(false);
+
+    // Second layer: the tag never entered the index either, so the string
+    // cannot reach path.join from any other caller.
+    const planted = store.index.all().find((n) => n.path === "Hostile.md");
+    expect(planted).toBeDefined();
+    expect(planted!.tags.map((t) => t.tag)).not.toContain(`project/${escape}`);
+    fs.unlinkSync(abs);
+  });
+
+  it("still opens a well-formed slug", async () => {
+    // The guard must not have closed the door on ordinary projects.
+    const list = await api("GET", "/api/projects", "jules");
+    expect(list.status).toBe(200);
+    const slug = (list.json as { slug: string }[])[0]?.slug;
+    if (slug) {
+      expect(/^[a-z0-9][a-z0-9-]{0,47}$/.test(slug)).toBe(true);
+      expect((await api("GET", `/api/projects/${slug}`, "jules")).status).toBe(200);
+    }
+  });
+});
