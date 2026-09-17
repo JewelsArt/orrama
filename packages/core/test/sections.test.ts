@@ -55,9 +55,9 @@ describe("markdown sections", () => {
   });
 
   it("appends newest last, creating the section when absent", () => {
-    const once = appendToSection(NOTE, "Inbox", "- ask Ruben for the Q3 export");
+    const once = appendToSection(NOTE, "Inbox", "- ask Pieter for the Q3 export");
     const twice = appendToSection(once, "Inbox", "- book defence room");
-    expect(readSectionItems(twice, "Inbox")).toEqual(["ask Ruben for the Q3 export", "book defence room"]);
+    expect(readSectionItems(twice, "Inbox")).toEqual(["ask Pieter for the Q3 export", "book defence room"]);
     expect(readSection(twice, "Goals")).toContain("Ship the research plan");
   });
 });

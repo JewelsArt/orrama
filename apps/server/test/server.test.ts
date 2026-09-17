@@ -518,8 +518,8 @@ describe("graph + plan + profile", () => {
   it("contacts: frontmatter view over #contact notes, personal ones stay private", async () => {
     const list = await api("GET", "/api/contacts", "erin");
     expect(list.status).toBe(200);
-    const freek = list.json.find((c: { name: string }) => c.name === "Pieter Haans");
-    expect(freek).toMatchObject({ sector: "Finance", company: "Scooperz", email: "p.haans@example.com" });
+    const pieter = list.json.find((c: { name: string }) => c.name === "Pieter Haans");
+    expect(pieter).toMatchObject({ sector: "Finance", company: "Scooperz", email: "p.haans@example.com" });
     // mara files a private contact in her personal vault; erin never sees it
     await api("PUT", "/api/vault/note", "mara", {
       path: "Personal/mara/Contacts/Secret Source.md",
@@ -553,8 +553,8 @@ describe("graph + plan + profile", () => {
     expect(after.positions).toEqual(["Data Analyst intern", "BI Intern"]);
 
     // a contact note is not a company note
-    const freek = (await api("GET", "/api/contacts", "erin")).json.find((c: { name: string }) => c.name === "Pieter Haans");
-    expect((await api("PATCH", `/api/companies/${freek.id}`, "erin", { description: "nope" })).status).toBe(400);
+    const pieter = (await api("GET", "/api/contacts", "erin")).json.find((c: { name: string }) => c.name === "Pieter Haans");
+    expect((await api("PATCH", `/api/companies/${pieter.id}`, "erin", { description: "nope" })).status).toBe(400);
 
     // mara's personal company never reaches erin
     await api("PUT", "/api/vault/note", "mara", {
@@ -577,17 +577,17 @@ describe("graph + plan + profile", () => {
 
       await api("PATCH", `/api/projects/${slug}`, "jules", { prompt: "Help with the AMSIB thesis.", status: "on-track", deadline: "2027-01-18" });
       await api("POST", `/api/projects/${slug}/decisions`, "jules", { text: "scope to NL vs FR" });
-      await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "ask Ruben for the Q3 export" });
+      await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "ask Pieter for the Q3 export" });
       await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "book the defence room", task: true });
-      const freek = (await api("GET", "/api/contacts", "jules")).json.find((c: { name: string }) => c.name === "Pieter Haans");
-      expect((await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: freek.id })).status).toBe(200);
+      const pieter = (await api("GET", "/api/contacts", "jules")).json.find((c: { name: string }) => c.name === "Pieter Haans");
+      expect((await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: pieter.id })).status).toBe(200);
 
       const w = await api("GET", `/api/projects/${slug}`, "jules");
       expect(w.status).toBe(200);
       expect(w.json).toMatchObject({ name: "Thesis Forecasting", status: "on-track", deadline: "2027-01-18", domain: "academic" });
       expect(w.json.prompt).toBe("Help with the AMSIB thesis.");
       expect(w.json.decisions[0]).toContain("scope to NL vs FR");
-      expect(w.json.inbox).toContain("ask Ruben for the Q3 export");
+      expect(w.json.inbox).toContain("ask Pieter for the Q3 export");
       expect(w.json.people.map((p: { title: string }) => p.title)).toContain("Pieter Haans");
       // a captured task is a real checkbox in the note, so it joins the board
       expect(w.json.tasks.some((t: { text: string }) => t.text.includes("book the defence room"))).toBe(true);
@@ -600,12 +600,12 @@ describe("graph + plan + profile", () => {
 
     it("detaching a person drops only their link from ## People", async () => {
       const contacts = (await api("GET", "/api/contacts", "jules")).json;
-      const freek = contacts.find((c: { name: string }) => c.name === "Pieter Haans");
-      const esther = contacts.find((c: { name: string }) => c.name === "Marijke Elzinga");
-      await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: esther.id });
+      const pieter = contacts.find((c: { name: string }) => c.name === "Pieter Haans");
+      const marijke = contacts.find((c: { name: string }) => c.name === "Marijke Elzinga");
+      await api("POST", `/api/projects/${slug}/people`, "jules", { noteId: marijke.id });
       expect((await api("GET", `/api/projects/${slug}`, "jules")).json.people).toHaveLength(2);
 
-      expect((await api("DELETE", `/api/projects/${slug}/people/${freek.id}`, "jules")).status).toBe(200);
+      expect((await api("DELETE", `/api/projects/${slug}/people/${pieter.id}`, "jules")).status).toBe(200);
       const after = (await api("GET", `/api/projects/${slug}`, "jules")).json;
       expect(after.people.map((p: { title: string }) => p.title)).toEqual(["Marijke Elzinga"]);
       // the section survives, and so does everything else in the note
