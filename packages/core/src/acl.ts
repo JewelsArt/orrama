@@ -76,9 +76,26 @@ function passesOnlyFilter(user: AclUser, note: AclNote): boolean {
  */
 export const PERSONAL_ROOT = "Personal";
 
+/**
+ * Compared case-INSENSITIVELY, because the thing it is deciding about is a
+ * filesystem path and the filesystems this runs on are case-insensitive.
+ *
+ * APFS and NTFS treat "personal/mara/Inbox.md" and "Personal/mara/Inbox.md" as
+ * the same physical file. With an exact match, the lower-case spelling returned
+ * null, §5.3 was skipped entirely, and folder grants decided instead — so a
+ * teammate with a grant on the vault root could read and overwrite another
+ * user's personal notes by changing one letter. resolvePath canonicalises the
+ * path but deliberately preserves its case, so this is the layer that has to
+ * fold it.
+ *
+ * The username is lower-cased on the way out to match `users.username`, which
+ * registration stores lower-cased.
+ */
 export function personalOwner(folder: string): string | null {
-  if (folder === PERSONAL_ROOT) return "";
-  if (folder.startsWith(PERSONAL_ROOT + "/")) return folder.split("/")[1] ?? "";
+  const lower = folder.toLowerCase();
+  const root = PERSONAL_ROOT.toLowerCase();
+  if (lower === root) return "";
+  if (lower.startsWith(root + "/")) return (folder.split("/")[1] ?? "").toLowerCase();
   return null;
 }
 
