@@ -126,6 +126,9 @@ interface FinanceData {
         last: number | null;
         merchants: { name: string; total: number; count: number }[];
       }[];
+      /** A typical month, from the server's one typicalMonth(). Null under
+       *  three complete months, where no honest figure exists. */
+      typical: number | null;
       completeMonths: number;
       lastComplete: string | null;
     };
@@ -850,7 +853,13 @@ function SpendingPage({
   const catOrder = cats.forecast.map((f) => f.category);
   const chartBands = catOrder.length > CHART_BANDS ? [...catOrder.slice(0, CHART_BANDS), TAIL_LABEL] : catOrder;
   const catMax = Math.max(1, ...cats.forecast.map((f) => f.high));
-  const typicalTotal = cats.forecast.reduce((a, f) => a + f.typical, 0);
+  // A typical month is the server's, not a sum of per-category medians. Those
+  // two answers differed by 14% on the real statement, which is how this page
+  // and the month page it opens came to disagree (audit).
+  const typicalTotal = cats.typical ?? 0;
+  // The category shares are a different quantity and keep their own
+  // denominator: each row's share of what the categories typically add up to.
+  const categoryTypicalTotal = cats.forecast.reduce((a, f) => a + f.typical, 0);
   const lastFull = cats.lastComplete ? cats.months.find((m) => m.month === cats.lastComplete) : undefined;
 
   return (
@@ -896,7 +905,7 @@ function SpendingPage({
           <ul className="fin-cats">
             {cats.forecast.map((f) => {
               const delta = f.last !== null ? f.last - f.typical : null;
-              const share = typicalTotal > 0 ? Math.round((f.typical / typicalTotal) * 100) : 0;
+              const share = categoryTypicalTotal > 0 ? Math.round((f.typical / categoryTypicalTotal) * 100) : 0;
               const c = colourOf(f.category);
               return (
                 <li
@@ -994,7 +1003,7 @@ function FinanceOverview({
 
   const cats = d.spending.categories;
   const colourOf = paletteFor(cats.rules);
-  const typicalTotal = cats.forecast.reduce((a, f) => a + f.typical, 0);
+  const typicalTotal = cats.typical ?? 0;
 
   // This month, which is the question the page should answer first.
   const current = d.spending.months[d.spending.months.length - 1];

@@ -172,7 +172,8 @@ export function monthlyByCategory(rows: StatementRow[], rules: CategoryRule[]): 
   return [...months.values()].sort((a, b) => a.month.localeCompare(b.month));
 }
 
-const median = (xs: number[]): number => {
+/** The middle of a list. `NaN` on an empty one — callers guard first. */
+export const median = (xs: number[]): number => {
   const s = [...xs].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
   return s.length % 2 ? s[mid]! : ((s[mid - 1]! + s[mid]!) / 2);
@@ -226,6 +227,40 @@ export function forecast(months: CategoryMonth[], minMonths = 3): CategoryForeca
   return out.sort((a, b) => b.typical - a.typical || a.category.localeCompare(b.category));
 }
 
+
+/**
+ * What a typical month costs: the MEDIAN OF THE MONTH TOTALS.
+ *
+ * There were three of these and they disagreed (audit). The dashboard and the
+ * Finance tab summed each category's own median — `Σ median(category)` — while
+ * the month page took the median of the whole-month totals. On Jules's real
+ * statement, eight complete months through August 2026, the first says
+ * €1,831.23 and the second €2,128.05: a 14% gap between two headline numbers
+ * computed from one set of rows. Below three months they disagree completely,
+ * because `forecast` withholds a figure it does not have and summing nothing
+ * gives €0 rather than no answer.
+ *
+ * The median of the totals wins for the reason the savings model already gives
+ * for using a lived month over a sum of quantiles: no month ever cost the sum
+ * of every category's median, because the categories do not all sit at their
+ * median together. €2,128 is a month Jules has had. €1,831 is an arithmetic
+ * artefact, and it is biased low, which is the worse direction for a number
+ * people budget against.
+ *
+ * `null` under `minMonths`, never 0: "not enough history" and "spent nothing"
+ * are different claims and the UI already has copy for the first.
+ */
+export function typicalMonth(
+  months: CategoryMonth[],
+  category: string | null = null,
+  minMonths = 3,
+): number | null {
+  if (months.length < minMonths) return null;
+  // Absent from a month means zero spent, not missing — the same rule
+  // `forecast` uses, so a category bought once is not a reliable monthly cost.
+  const totals = months.map((m) => (category === null ? m.total : (m.byCategory[category] ?? 0)));
+  return Math.round(median(totals) * 100) / 100;
+}
 
 export interface CategoryMerchant {
   name: string;

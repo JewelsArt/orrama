@@ -15,6 +15,7 @@ import {
   parseCategoryRules,
   parseSubscriptions,
   savingsPlan,
+  typicalMonth,
   parsePayslipTable,
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
@@ -239,7 +240,12 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         const last = txns[txns.length - 1]!.date;
         const finished = completeMonths(catMonths, last);
         const outlook = forecast(finished);
-        if (finished.length === 0) return null;
+        // One typicalMonth(), shared with the Finance tab (audit). It answers
+        // null under three complete months, which is the same threshold the
+        // card's own empty state already tells the user about — so the card is
+        // withheld rather than leading with "below a typical €0".
+        const typical = typicalMonth(finished);
+        if (typical === null) return null;
 
         const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
         const savings = savingsPlan({
@@ -260,7 +266,6 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         });
 
         const month = finished[finished.length - 1]!;
-        const typical = Math.round(outlook.reduce((a, f) => a + f.typical, 0) * 100) / 100;
         const running = catMonths.find((m) => m.month === last.slice(0, 7));
         const [y, mo, d] = last.split("-").map(Number) as [number, number, number];
         const colourOf = (name: string) => rules.find((r) => r.category === name)?.colour ?? null;

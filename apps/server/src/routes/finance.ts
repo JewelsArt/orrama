@@ -34,6 +34,7 @@ import {
   savingsPlan,
   splitFixed,
   subscriptionTerms,
+  typicalMonth,
   usefulTerms,
 } from "@basalt/core";
 import { extractText, getDocumentProxy } from "unpdf";
@@ -512,6 +513,13 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           rules: rules.map((r) => ({ category: r.category, colour: r.colour })),
           months: catMonths,
           forecast: outlook.map((f) => ({ ...f, merchants: merchants[f.category] ?? [] })),
+          /**
+           * A typical month, computed HERE rather than summed from `forecast`
+           * in the client. The web app used to add up each category's median,
+           * which is not any month that happened and disagreed with the month
+           * page by 14% on the real statement (audit).
+           */
+          typical: typicalMonth(finished),
           completeMonths: finished.length,
           /** Last month the statement covers in full — anything after it is a
            *  part-month and must not be compared against the others. */
@@ -669,12 +677,22 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         at.count += 1;
         byCategory.set(cat, at);
       }
-      const median = (xs: number[]) => {
-        if (xs.length === 0) return 0;
-        const t = [...xs].sort((a, b) => a - b);
-        const mid = Math.floor(t.length / 2);
-        return t.length % 2 ? t[mid]! : (t[mid - 1]! + t[mid]!) / 2;
-      };
+      /**
+       * The complete months this one is being compared against — itself
+       * excluded, because a month is not evidence for what is typical of it.
+       * Both comparisons on this page (the header and each category row) read
+       * from here through the one `typicalMonth` in core.
+       *
+       * No three-month floor here, unlike the overview's headline. The two are
+       * different claims: "a typical month costs €X" is an assertion about the
+       * data and wants evidence behind it, while "this month against the
+       * others" is a comparison that simply gets weaker with fewer months. The
+       * floor also contradicts a release-blocking test — the category
+       * comparison at finance.test.ts has three complete months, so excluding
+       * the one being read leaves two.
+       */
+      const others = finished.filter((f) => f.month !== month);
+      const typicalOther = (category: string | null) => typicalMonth(others, category, 1) ?? 0;
 
       const categories = [...byCategory]
         .map(([category, v]) => ({
@@ -686,7 +704,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           // Shopping a different colour on this page than on the chart it was
           // opened from, which reads as two different categories.
           colour: rules.find((r) => r.category === category)?.colour ?? null,
-          typical: r2(median(finished.filter((f) => f.month !== month).map((f) => f.byCategory[category] ?? 0))),
+          typical: typicalOther(category),
         }))
         .sort((a, b) => b.total - a.total);
 
@@ -696,13 +714,6 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const movedOut = r2(inMonth.filter((r) => isMoved(r) && r.amount < 0).reduce((a, r) => a + -r.amount, 0));
       const movedIn = r2(inMonth.filter((r) => isMoved(r) && r.amount > 0).reduce((a, r) => a + r.amount, 0));
       const refunded = r2(inMonth.filter((r) => r.flow === "refund" && r.amount > 0).reduce((a, r) => a + r.amount, 0));
-      // The header's comparison has to be like for like: filtered to a
-      // category, "a typical month" means a typical month OF THAT CATEGORY.
-      // Comparing one category's month against the whole month's median is how
-      // €250 of shopping ends up reading as €740 under a typical €1,000.
-      const monthTotals = finished
-        .filter((f) => f.month !== month)
-        .map((f) => (wanted ? (f.byCategory[wanted] ?? 0) : f.total));
       const complete = finished.some((f) => f.month === month);
       const months = catMonths.map((m) => m.month);
 
@@ -717,8 +728,14 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         refunded,
         count: inMonth.filter((r) => cost(r) > 0).length,
         transferCount: inMonth.filter(isMoved).length,
-        /** A typical complete month, for the header comparison. */
-        typical: r2(median(monthTotals)),
+        /**
+         * A typical complete month, for the header comparison — like for like:
+         * filtered to a category, "a typical month" means a typical month OF
+         * THAT CATEGORY. Comparing one category's month against the whole
+         * month's median is how €250 of shopping reads as €740 under a typical
+         * €1,000.
+         */
+        typical: typicalOther(wanted),
         categories,
         /** Neighbours, so the page can step month to month without going back. */
         prev: months.filter((m) => m < month).pop() ?? null,
