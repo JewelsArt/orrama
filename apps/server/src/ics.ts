@@ -11,6 +11,13 @@
 
 const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const MAX_OCCURRENCES = 3000;
+/**
+ * How many steps the generator may take before giving up. Separate from
+ * MAX_OCCURRENCES, which caps what is KEPT: a daily event that started in 2012
+ * has to be walked past before the current week is reached, and capping the
+ * walk at the same 3,000 made every such event invisible (audit).
+ */
+const MAX_STEPS = 40_000;
 
 /** Wall-clock time in a named timezone (how ICS thinks about recurring times). */
 interface Wall {
@@ -251,7 +258,7 @@ function nthWeekday(y: number, mo: number, dow: number, nth: number): number | n
  * Generate occurrence start Walls for one master event, honoring COUNT/UNTIL.
  * Generation always starts at DTSTART (COUNT semantics), the window only filters.
  */
-function generateStarts(ev: VEvent, windowEndDay: number): Wall[] {
+function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number): Wall[] {
   const rule = ev.rrule;
   if (!rule) return [ev.start];
   const freq = rule["FREQ"];
@@ -263,20 +270,29 @@ function generateStarts(ev: VEvent, windowEndDay: number): Wall[] {
     if (w) untilMs = w.allDay ? wallToUtc({ ...w, h: 23, mi: 59 }) : wallToUtc(w);
   }
   const startDay = wallDayNumber(ev.start);
+  // Occurrences are COUNTED from DTSTART and KEPT from the window. Keeping
+  // them all is what made a long-running daily event vanish: the cap filled up
+  // with occurrences from years ago and the loop stopped before today. The
+  // slack is for an all-day event that began before the window and still
+  // covers part of it.
+  const keepFrom = windowStartDay - 2 - Math.ceil(ev.durationMin / 1440);
   const out: Wall[] = [];
+  let emitted = 0;
   const push = (w: Wall): boolean => {
     if (wallDayNumber(w) < startDay) return true; // before DTSTART: not an occurrence
     if (wallToUtc(w) > untilMs) return false;
-    out.push(w);
-    return out.length < Math.min(count, MAX_OCCURRENCES);
+    emitted++;
+    if (emitted > count) return false;
+    if (wallDayNumber(w) >= keepFrom) out.push(w);
+    return out.length < MAX_OCCURRENCES;
   };
 
   if (freq === "DAILY") {
     for (let i = 0; ; i++) {
       const w = addDays(ev.start, i * interval);
-      if (wallDayNumber(w) > windowEndDay && out.length >= Math.min(count, 1)) break;
+      if (wallDayNumber(w) > windowEndDay) break;
       if (!push(w)) break;
-      if (i > MAX_OCCURRENCES) break;
+      if (i > MAX_STEPS) break;
     }
   } else if (freq === "WEEKLY") {
     const bydays = (rule["BYDAY"]?.split(",") ?? [DOW[weekdayOf(ev.start)]!]).map((s) => DOW.indexOf(s.trim())).filter((n) => n >= 0);
@@ -291,28 +307,79 @@ function generateStarts(ev: VEvent, windowEndDay: number): Wall[] {
         const w = addDays(base, (dow + 6) % 7);
         if (!push(w)) break outer;
       }
-      if (week > MAX_OCCURRENCES) break;
+      if (week > MAX_STEPS) break;
     }
   } else if (freq === "MONTHLY") {
-    const bymonthday = rule["BYMONTHDAY"] ? +rule["BYMONTHDAY"] : null;
-    const byday = rule["BYDAY"] ? /^(-?\d+)?([A-Z]{2})$/.exec(rule["BYDAY"]) : null;
+    /**
+     * BYMONTHDAY and BYDAY are comma-separated LISTS, and a BYMONTHDAY may be
+     * negative — counted back from the end of the month. Reading either with a
+     * single `+()` is where three real rules went wrong (audit):
+     *
+     *   BYMONTHDAY=-1   `+"-1"` is -1, used as a day NUMBER. On a timed event
+     *                   that silently became the 30th of the month before; on
+     *                   an all-day one it rendered as the literal "2026-03--1".
+     *   BYMONTHDAY=1,15 `+"1,15"` is NaN, every comparison against it false,
+     *                   so a semi-monthly payday produced nothing at all.
+     *   BYDAY=MO,WE     the single-term regex did not match, so the rule fell
+     *                   through to DTSTART's own day of the month.
+     */
+    const bymonthdays = (rule["BYMONTHDAY"]?.split(",") ?? [])
+      .map((s) => Number.parseInt(s.trim(), 10))
+      .filter((n) => Number.isInteger(n) && n !== 0 && Math.abs(n) <= 31);
+    const bydays = (rule["BYDAY"]?.split(",") ?? [])
+      .map((s) => /^([+-]?\d+)?([A-Z]{2})$/.exec(s.trim().toUpperCase()))
+      .filter((m): m is RegExpExecArray => m !== null && DOW.includes(m[2]!));
+
     outer: for (let i = 0; ; i++) {
       const t = new Date(Date.UTC(ev.start.y, ev.start.mo - 1 + i * interval, 1));
       const y = t.getUTCFullYear();
       const mo = t.getUTCMonth() + 1;
       if (wallDayNumber({ ...ev.start, y, mo, d: 1 }) > windowEndDay) break;
-      let day: number | null;
-      if (byday) day = nthWeekday(y, mo, DOW.indexOf(byday[2]!), +(byday[1] ?? 1));
-      else day = (bymonthday ?? ev.start.d) <= daysInMonth(y, mo) ? (bymonthday ?? ev.start.d) : null;
-      if (day !== null && !push({ ...ev.start, y, mo, d: day })) break outer;
-      if (i > MAX_OCCURRENCES) break;
+      const dim = daysInMonth(y, mo);
+
+      // A negative day counts back from the end: -1 is the last day.
+      const fromMonthday = bymonthdays.map((n) => (n > 0 ? n : dim + 1 + n)).filter((d) => d >= 1 && d <= dim);
+
+      let days: number[];
+      if (bydays.length > 0) {
+        const fromDay: number[] = [];
+        for (const m of bydays) {
+          const dow = DOW.indexOf(m[2]!);
+          if (m[1]) {
+            const d = nthWeekday(y, mo, dow, Number.parseInt(m[1], 10));
+            if (d !== null) fromDay.push(d);
+          } else {
+            // No ordinal: every such weekday in the month (RFC 5545 §3.3.10).
+            for (let nth = 1; nth <= 5; nth++) {
+              const d = nthWeekday(y, mo, dow, nth);
+              if (d !== null) fromDay.push(d);
+            }
+          }
+        }
+        // Both given: BYDAY is limited to the days BYMONTHDAY names.
+        days = fromMonthday.length > 0 ? fromDay.filter((d) => fromMonthday.includes(d)) : fromDay;
+      } else if (bymonthdays.length > 0) {
+        // A BYMONTHDAY the month is too short to hold yields NOTHING for that
+        // month. Testing `fromMonthday.length` here instead sent a 30th
+        // through to the DTSTART fallback and put February on the 15th.
+        days = fromMonthday;
+      } else {
+        // Neither: DTSTART's own day, skipping months too short to hold it
+        // rather than rolling over into the next one.
+        days = ev.start.d <= dim ? [ev.start.d] : [];
+      }
+
+      for (const d of [...new Set(days)].sort((a, b) => a - b)) {
+        if (!push({ ...ev.start, y, mo, d })) break outer;
+      }
+      if (i > MAX_STEPS) break;
     }
   } else if (freq === "YEARLY") {
     for (let i = 0; ; i++) {
       const y = ev.start.y + i * interval;
       if (wallDayNumber({ ...ev.start, y }) > windowEndDay) break;
       if (ev.start.d <= daysInMonth(y, ev.start.mo) && !push({ ...ev.start, y })) break;
-      if (i > MAX_OCCURRENCES) break;
+      if (i > MAX_STEPS) break;
     }
   } else {
     return [ev.start]; // unsupported FREQ: at least show the first instance
@@ -337,6 +404,7 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
   const fromMs = new Date(`${from}T00:00:00`).getTime();
   const toMs = new Date(`${to}T23:59:59`).getTime();
   const windowEndDay = Math.floor(Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10)) / 86_400_000) + 2;
+  const windowStartDay = Math.floor(Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10)) / 86_400_000);
 
   const overrides = new Map<string, VEvent[]>();
   for (const ev of events) {
@@ -372,7 +440,7 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
     }
     if (ev.cancelled) continue;
     const skipped = new Set((overrides.get(ev.uid) ?? []).map((o) => o.recurrenceId));
-    for (const w of generateStarts(ev, windowEndDay)) {
+    for (const w of generateStarts(ev, windowStartDay, windowEndDay)) {
       const ts = wallToUtc(w);
       if (ev.exdates.some((x) => Math.abs(x - ts) < 60_000) || skipped.has(ts)) continue;
       emit(ev, w);
