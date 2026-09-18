@@ -19,8 +19,11 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
   Restart the agent the right way: `lsof -nP -iTCP:4623 -sTCP:LISTEN -t` (the
   bare `lsof -ti :4623` returns client sockets too — killing one of those once
   took down an unrelated app).
-- **Log in as** `jules@basalt.dev` / `basalt-demo` (single user; the team model
-  underneath still exists but has no UI).
+- **Log in as** `you@example.com` (single user; the team model underneath
+  still exists but has no UI). The seeded `jules@basalt.dev` / `basalt-demo`
+  account is what `pnpm --dir apps/server seed` creates and what the tests use —
+  it is NOT the account on the running database, and trying it there is a
+  rejected login, not a broken server.
 - **To pick up a project cold**, ask over MCP: `list_projects`, then
   `get_project <slug>` returns that project's own prompt, goals, tasks,
   decisions, documents and linked people in one call.
