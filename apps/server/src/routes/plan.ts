@@ -6,6 +6,7 @@
  */
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { isoLocal } from "@basalt/core";
 import type { AclUser, VaultTask } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
@@ -142,7 +143,7 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
       const est = estimates.get(`${t.noteId}:${t.line}`)!;
       const finish = addWorkingHours(start, est);
       cursors.set(key, finish.getTime());
-      const finishDay = finish.toISOString().slice(0, 10);
+      const finishDay = isoLocal(finish);
       const obj = t.blockId ? objByKey.get(`${t.noteId}:${t.blockId}`) : undefined;
       const blocks = (obj ? (blocksByObj.get(obj.id) ?? []) : []).map((b) => ({
         id: b.id,
@@ -282,7 +283,11 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const plan = await buildPlan(db, store, user, null);
 
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    // Both from the same clock, in the same timezone. `today` used to be UTC
+    // while `nowMin` was local, so at 01:30 in Amsterdam the scheduler offered
+    // a workday that was already over, and at 20:00 in New York it dropped
+    // tomorrow (audit).
+    const today = isoLocal(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
     // Busy: my blocks, my events, and every subscribed-calendar occurrence.

@@ -1,7 +1,7 @@
 {
   "name": "@basalt/web",
   "version": "0.1.0",
-  "description": "Basalt web client — the same workspace in the browser (spec §2).",
+  "description": "Basalt web client \u2014 the same workspace in the browser (spec \u00a72).",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.16",
+    "@basalt/core": "workspace:*",
     "@basalt/ui": "workspace:*",
     "@codemirror/autocomplete": "^6.18.0",
     "@codemirror/commands": "^6.8.0",

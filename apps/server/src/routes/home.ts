@@ -16,6 +16,7 @@ import {
   parseSubscriptions,
   savingsPlan,
   typicalMonth,
+  isoLocal,
   parsePayslipTable,
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
@@ -23,7 +24,8 @@ import type { VaultStore } from "../vaultStore.js";
 import { balanceSpan, buildRules, financeNote, loadTxns } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** The wall-calendar date, in the timezone the server is standing in. */
+const iso = isoLocal;
 
 /**
  * Claude Code drops a transcript per session into `Claude Sessions/` — 550 of

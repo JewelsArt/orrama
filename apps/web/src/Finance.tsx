@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isoLocal, monthKey, shiftMonth } from "@basalt/core/dates";
 import type { FinancePage } from "./App.js";
 import { api } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
@@ -1468,12 +1469,6 @@ function chargeDays(month: string, next: string | null, cadence: string): number
   return days;
 }
 
-const monthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-const shiftMonth = (month: string, by: number) => {
-  const d = new Date(`${month}-01T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + by);
-  return monthKey(d);
-};
 const monthLong = (m: string) =>
   new Date(`${m}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
@@ -1848,7 +1843,9 @@ function DocumentsPage({ onBack }: { onBack: () => void }) {
 
   const groups = new Map<string, typeof d.files>();
   for (const f of d.files) {
-    const key = new Date(f.mtimeMs).toISOString().slice(0, 7);
+    // The month the file arrived in, read off the local clock: in UTC an
+    // upload at 00:30 on the 1st was filed under the previous month (audit).
+    const key = monthKey(new Date(f.mtimeMs));
     groups.set(key, [...(groups.get(key) ?? []), f]);
   }
   const total = d.files.reduce((a, f) => a + f.size, 0);
@@ -1886,7 +1883,7 @@ function DocumentsPage({ onBack }: { onBack: () => void }) {
                     <button className="fin-doc-row" onClick={() => setReading(f.name)}>
                       <span className="fin-file-ext">{f.ext.replace(".", "") || "file"}</span>
                       <span className="fin-doc-name">{f.name}</span>
-                      <span className="fin-doc-date">{fullDate(new Date(f.mtimeMs).toISOString().slice(0, 10))}</span>
+                      <span className="fin-doc-date">{fullDate(isoLocal(new Date(f.mtimeMs)))}</span>
                       <span className="fin-file-size">{kb(f.size)}</span>
                       <span className="fin-merch-chev" aria-hidden>›</span>
                     </button>

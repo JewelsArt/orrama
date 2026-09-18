@@ -24,6 +24,7 @@ import {
   categoryOf as categoryOfRow,
   costOf,
   findRecurring,
+  isoLocal,
   unclaimedRecurring,
   merchantsByCategory,
   monthlyByCategory,
@@ -265,7 +266,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
   /** Everything the Finance tab shows, in one call. */
   app.get("/api/finance", auth, async (req) => {
     const user = store.aclUser(req.userId);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = isoLocal();
 
     const subsNote = financeNote(store, user, "subscriptions");
     const incomeNote = financeNote(store, user, "income");
@@ -547,7 +548,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     auth,
     async (req) => {
       const user = store.aclUser(req.userId);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoLocal();
       const wanted = decodeURIComponent(req.params.name);
 
       const subsNote = financeNote(store, user, "subscriptions");
@@ -626,7 +627,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     auth,
     async (req) => {
       const user = store.aclUser(req.userId);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = isoLocal();
       const month = req.params.month;
       if (!/^\d{4}-\d{2}$/.test(month)) throw new HttpError(400, "month must be YYYY-MM");
 

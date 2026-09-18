@@ -1,4 +1,5 @@
 import type { TreeNote } from "./api.js";
+import { daysTo as coreDaysTo, isoLocal } from "@basalt/core/dates";
 
 /**
  * Semantic categories over the PARA vault, each with a colour. This one module
@@ -67,9 +68,9 @@ export const DOMAIN_COLOR: Record<string, string> = {
  *  both sides, so a DST boundary never rounds a 7-day gap down to 6. */
 export function daysTo(date: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  return Math.round((new Date(`${date}T00:00:00`).getTime() - today) / 86_400_000);
+  // Through the one local-date module: today off the local clock, the span
+  // counted between UTC midnights so a 23-hour DST day still counts as one.
+  return coreDaysTo(isoLocal(), date);
 }
 
 /** "3d late" / "today" / "in 2w" — a date rendered as distance from now. */

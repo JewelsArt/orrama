@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { advance, nextCharge, parseSubscriptions, promoteTaskLine } from "@basalt/core";
+import { advance, isoLocal, nextCharge, parseSubscriptions, promoteTaskLine } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
@@ -243,7 +243,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const { from, to } = req.query;
     if (!from || !to || !DAY_RE.test(from) || !DAY_RE.test(to)) throw new HttpError(400, "from/to required (YYYY-MM-DD)");
     const user = store.aclUser(req.userId);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = isoLocal();
     const inRange = (d: string) => d >= from && d <= to;
     const out: DayMarker[] = [];
 

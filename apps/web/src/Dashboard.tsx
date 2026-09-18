@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { isoLocal } from "@basalt/core/dates";
 import { api, type Me, type TreeNote } from "./api.js";
 import type { FinancePage } from "./App.js";
 import { CATEGORIES, DOMAIN_COLOR, categoryOf, daysTo, isProjectActive, isSessionLog, relDay } from "./categories.js";
@@ -439,7 +440,10 @@ interface Ledger {
   count: number;
 }
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** The wall-calendar date, from @basalt/core — the one local-date module.
+ *  This was `toISOString().slice(0, 10)`, which pre-filled the date picker
+ *  with yesterday for the first hour or two of every day (audit). */
+const iso = isoLocal;
 const fmtTime = (m: number) => {
   const h = Math.floor(m / 60);
   const mm = m % 60;

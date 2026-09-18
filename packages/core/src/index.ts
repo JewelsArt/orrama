@@ -1,5 +1,6 @@
 export * from "./types.js";
 export * from "./money.js";
+export * from "./dates.js";
 export * from "./frontmatter.js";
 export * from "./parse.js";
 export * from "./sections.js";

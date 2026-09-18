@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, readSection, readSectionItems, updateFrontmatter, writeSection } from "@basalt/core";
+import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -125,7 +125,8 @@ const MAX_SHEETS = 12;
 const MAX_ROWS = 500;
 const MAX_COLS = 40;
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** The wall-calendar date, in the timezone the server is standing in. */
+const iso = isoLocal;
 
 export async function projectRoutes(app: FastifyInstance, store: VaultStore, db: Db) {
   const auth = { preHandler: [app.authenticate] };
@@ -339,7 +340,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
   app.post<{ Params: { slug: string } }>("/api/projects/:slug/decisions", auth, async (req) => {
     const text = String((req.body as { text?: string })?.text ?? "").trim().replace(/\n/g, " ");
     if (!text) throw new HttpError(400, "text required");
-    const today = new Date().toISOString().slice(0, 10);
+    // A decision is logged under the day it was made HERE, not in UTC —
+    // one written at 00:30 used to carry yesterday's date.
+    const today = isoLocal();
     appendLine(req.params.slug, req.userId, SEC.decisions, `- **${today}** — ${text}`);
     return { ok: true };
   });

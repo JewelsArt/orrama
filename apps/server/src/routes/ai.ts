@@ -3,7 +3,7 @@ import { convertToModelMessages, generateText, stepCountIs, streamText, tool, ty
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import crypto from "node:crypto";
-import { appendLine, promoteTaskLine, setTaskDates, suggestRelated, type IndexedNote } from "@basalt/core";
+import { appendLine, isoLocal, promoteTaskLine, setTaskDates, suggestRelated, type IndexedNote } from "@basalt/core";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
 import { applyTaskStatus } from "./tasks.js";
 import { eq } from "drizzle-orm";
@@ -53,7 +53,7 @@ async function resolveModel(c: { provider: string; apiKey: string; model: string
 /** Effective system prompt = today's date + built-in guide + the vault's CLAUDE.md + the owner's instructions. */
 function buildSystemPrompt(store: VaultStore, instructions: string | null): string {
   const now = new Date();
-  const today = `Today is ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${now.toISOString().slice(0, 10)}), local time ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}. Resolve relative dates like "today", "tomorrow", "next Friday", "this week" against this, and always write dates as YYYY-MM-DD.`;
+  const today = `Today is ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} (${isoLocal(now)}), local time ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}. Resolve relative dates like "today", "tomorrow", "next Friday", "this week" against this, and always write dates as YYYY-MM-DD.`;
   const guide = store.vaultGuide();
   return [
     BUILTIN_GUIDE,
@@ -314,7 +314,9 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     if (!c) throw new HttpError(400, "AI is not configured");
     const user = store.aclUser(req.userId);
     if (!user.isOwner && !user.teams.includes(req.params.teamSlug)) throw new HttpError(404, "team not found");
-    const day = new Date().toISOString().slice(0, 10);
+    // Keyed on the local day, so the digest turns over at local midnight
+    // rather than an hour or two either side of it.
+    const day = isoLocal();
     const cacheKey = `${req.params.teamSlug}:${req.userId}`;
     const hit = digestCache.get(cacheKey);
     if (hit && hit.day === day) return { digest: hit.digest, cached: true };

@@ -10,6 +10,7 @@
  *  - tables render as tables, `---` as a rule, fenced code gets a slab
  */
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
+import { isoLocal } from "@basalt/core/dates";
 import {
   Decoration,
   EditorView,
@@ -278,7 +279,9 @@ export function livePreview(opts: Options): Extension {
           }
           for (const m of text.matchAll(DUE_RE)) {
             const start = line.from + m.index! + m[1]!.length;
-            const overdue = m[3]! < new Date().toISOString().slice(0, 10);
+            // Local, not UTC: for the first hour or two of a day in Amsterdam the
+            // UTC date is still yesterday, and a task due today read as overdue.
+            const overdue = m[3]! < isoLocal();
             if (!active) {
               decos.push({ from: start, to: start + 4, deco: Decoration.replace({}) }); // hide "due:"
             }
