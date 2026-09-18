@@ -20,6 +20,8 @@
  * left.
  */
 
+import { parseMoney } from "./money.js";
+
 /** What a row means for the money, as opposed to what the bank calls it. */
 export type Flow =
   | "spend" // card, ATM, and every fee — actual consumption
@@ -130,11 +132,6 @@ function flowOf(type: string): Flow {
   return "other";
 }
 
-const money = (v: string): number => {
-  const n = Number.parseFloat(v.replace(/[^\d.,-]/g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-};
-
 export function parseStatement(csv: string): Statement {
   const table = parseCsv(csv);
   const empty: Statement = { rows: [], months: [], openingBalance: null, openingDate: null, balance: null, balanceDate: null, currency: "EUR", skipped: 0 };
@@ -166,16 +163,30 @@ export function parseStatement(csv: string): Statement {
       skipped++;
       continue;
     }
+    // An amount we cannot read is not a free transaction. Skipping it counts
+    // it where a wrong figure would hide it: the old parser returned 0 here,
+    // so a garbled cell looked exactly like a €0.00 row (audit B4).
+    const amount = parseMoney(get(raw, "amount"));
+    if (amount === null) {
+      skipped++;
+      continue;
+    }
+    const feeRaw = get(raw, "fee");
+    const fee = feeRaw ? parseMoney(feeRaw) : 0;
+    if (fee === null) {
+      skipped++;
+      continue;
+    }
     const type = get(raw, "type");
     const balanceRaw = get(raw, "balance");
     rows.push({
       date,
       type,
       description: get(raw, "description"),
-      amount: money(get(raw, "amount")),
-      fee: money(get(raw, "fee")),
+      amount,
+      fee,
       currency: get(raw, "currency") || "EUR",
-      balance: balanceRaw ? money(balanceRaw) : null,
+      balance: balanceRaw ? parseMoney(balanceRaw) : null,
       flow: flowOf(type),
     });
   }

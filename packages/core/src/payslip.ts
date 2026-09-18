@@ -14,6 +14,7 @@
  * is far worse than admitting the layout was unfamiliar.
  */
 
+import { parseMoney } from "./money.js";
 import { appendRow, cells, isRule, mapHeader } from "./table.js";
 
 export interface Payslip {
@@ -33,11 +34,12 @@ export interface Payslip {
   ytd: { gross: number | null; net: number | null; hours: number | null };
 }
 
-/** `1.057,06` / `-75,17` / `15,0000` → number. Dot groups thousands, comma decimals. */
-function dutch(raw: string): number | null {
-  const n = Number.parseFloat(raw.replace(/\./g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-}
+/**
+ * `1.057,06` / `-75,17` / `15,0000` → number. Every string NUMBER can match
+ * carries a comma decimal, so the shared "last separator wins" rule reads them
+ * identically to the hand-rolled Dutch one this replaced — one parser, not two.
+ */
+const dutch = parseMoney;
 
 const NUMBER = /-?\d{1,3}(?:\.\d{3})*,\d+|-?\d+,\d+/g;
 
@@ -138,11 +140,12 @@ export interface PayslipRow {
   effectiveNet: number | null;
 }
 
-/** Plain decimal, as written into the table (never Dutch-formatted). */
-const plain = (v: string): number | null => {
-  const n = Number.parseFloat(v.replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-};
+/**
+ * A figure out of the ledger table. This used to strip commas outright — which
+ * is right for the plain decimals the app writes and turns a hand-edited Dutch
+ * `900,50` into 90050 (audit B4). The shared parser reads both.
+ */
+const plain = parseMoney;
 
 /** Read the payslips table, oldest first, skipping rows with no month. */
 export function parsePayslipTable(content: string): PayslipRow[] {

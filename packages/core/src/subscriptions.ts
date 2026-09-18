@@ -16,9 +16,10 @@
  * the dashboard, which is worse than a missing one.
  */
 
-/** How often a charge repeats. `custom` carries an explicit day count. */
+import { parseMoneyWithCurrency } from "./money.js";
 import { appendRow, cells, isRule, mapHeader } from "./table.js";
 
+/** How often a charge repeats. `custom` carries an explicit day count. */
 export type Cadence = "weekly" | "monthly" | "quarterly" | "yearly";
 
 export interface Subscription {
@@ -78,29 +79,13 @@ const PER_MONTH: Record<Cadence, number> = {
   yearly: 1 / 12,
 };
 
-const SYMBOL: Record<string, string> = { "€": "EUR", "$": "USD", "£": "GBP" };
-
-/** "€10,99" / "10.99 EUR" / "$12" → { amount, currency }. Null if there is no number. */
-function parseAmount(raw: string): { amount: number; currency: string } | null {
-  const text = raw.trim();
-  if (!text) return null;
-  let currency = "";
-  for (const [sym, code] of Object.entries(SYMBOL)) if (text.includes(sym)) currency = code;
-  const code = text.match(/\b(EUR|USD|GBP|CHF|SEK|NOK|DKK|PLN|CAD|AUD)\b/i);
-  if (code) currency = code[1]!.toUpperCase();
-  // Strip everything but digits and separators, then read "1.234,56" and
-  // "1,234.56" alike: whichever separator comes last is the decimal point.
-  const digits = text.replace(/[^\d.,]/g, "");
-  if (!/\d/.test(digits)) return null;
-  const lastComma = digits.lastIndexOf(",");
-  const lastDot = digits.lastIndexOf(".");
-  let normalised: string;
-  if (lastComma > lastDot) normalised = digits.replace(/\./g, "").replace(",", ".");
-  else normalised = digits.replace(/,/g, "");
-  const amount = Number.parseFloat(normalised);
-  if (!Number.isFinite(amount)) return null;
-  return { amount, currency: currency || "EUR" };
-}
+/**
+ * `"€10,99"` / `"10.99 EUR"` / `"$12"` → `{ amount, currency }`.
+ *
+ * This module's own parser was the correct one of the three; it now lives in
+ * `money.ts` so `statement.ts` and `payslip.ts` share it (audit B4).
+ */
+const parseAmount = parseMoneyWithCurrency;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
