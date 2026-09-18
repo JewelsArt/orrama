@@ -89,21 +89,36 @@ const parseAmount = parseMoneyWithCurrency;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Step a YYYY-MM-DD forward by one period, in UTC so no DST shifts the day. */
-export function advance(date: string, cadence: Cadence): string {
+const MONTHS_PER: Record<Cadence, number> = { weekly: 0, monthly: 1, quarterly: 3, yearly: 12 };
+
+/**
+ * Step a YYYY-MM-DD forward by `n` periods FROM THE ANCHOR, in UTC so no DST
+ * shifts the day.
+ *
+ * Taking n in one go is the whole point. The clamp — a charge on the 31st
+ * lands on the 30th in a 30-day month rather than rolling into the next one —
+ * is correct for a single step and destroys the anchor when chained: rent due
+ * on the 31st becomes the 28th from February onward and never comes back
+ * (audit). The day of the month is always measured from `date`, so February
+ * borrows nothing from March.
+ */
+export function advanceBy(date: string, cadence: Cadence, n: number): string {
   const d = new Date(`${date}T00:00:00Z`);
-  if (cadence === "weekly") d.setUTCDate(d.getUTCDate() + 7);
-  else {
-    const months = cadence === "monthly" ? 1 : cadence === "quarterly" ? 3 : 12;
+  if (cadence === "weekly") {
+    d.setUTCDate(d.getUTCDate() + 7 * n);
+  } else {
     const day = d.getUTCDate();
     d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + months);
-    // Clamp: a charge on the 31st lands on the 30th in a 30-day month rather
-    // than rolling over into the next one.
+    d.setUTCMonth(d.getUTCMonth() + MONTHS_PER[cadence] * n);
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
     d.setUTCDate(Math.min(day, last));
   }
   return d.toISOString().slice(0, 10);
+}
+
+/** Step a YYYY-MM-DD forward by one period. */
+export function advance(date: string, cadence: Cadence): string {
+  return advanceBy(date, cadence, 1);
 }
 
 /**
@@ -113,9 +128,25 @@ export function advance(date: string, cadence: Cadence): string {
  * overdue payment on the dashboard.
  */
 export function nextCharge(from: string, cadence: Cadence, today: string): string {
-  let d = from;
-  // Bounded: weekly over a decade is ~520 steps, so 800 cannot spin.
-  for (let i = 0; i < 800 && d < today; i++) d = advance(d, cadence);
+  if (from >= today) return from;
+  // Jump straight to roughly the right period rather than stepping one at a
+  // time. The old loop did both things wrong: chaining `advance` lost the
+  // anchor after any short month, and its 800-step cap — about fifteen years
+  // of weeklies — could return a date in the PAST, which the agenda then drew
+  // as a phantom overdue charge.
+  const days = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+  let n =
+    cadence === "weekly"
+      ? Math.floor(days / 7)
+      : Math.floor(
+          ((+today.slice(0, 4) - +from.slice(0, 4)) * 12 + (+today.slice(5, 7) - +from.slice(5, 7))) /
+            MONTHS_PER[cadence],
+        );
+  n = Math.max(0, n);
+  let d = advanceBy(from, cadence, n);
+  // The estimate lands within a period either way; a couple of corrections is
+  // all it can ever need, and the bound is there so a bad input cannot spin.
+  for (let i = 0; i < 8 && d < today; i++) d = advanceBy(from, cadence, ++n);
   return d;
 }
 

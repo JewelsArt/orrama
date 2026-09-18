@@ -152,6 +152,12 @@ export function categoryOf(description: string, rules: CategoryRule[]): string {
  * Money coming IN is never spending, whatever it matches.
  */
 export const costOf = (r: StatementRow, rules: CategoryRule[] = []): number => {
+  // A refund is money back on something already counted, so it comes off the
+  // category it was bought in. Returning 0 here left a EUR 799 laptop in
+  // Shopping after it went back, and that figure then entered the median
+  // defining a typical Shopping month for the next year (audit). The fee is
+  // not refunded and stays.
+  if (r.flow === "refund" && r.amount > 0) return r.fee - r.amount;
   if (r.amount >= 0) return r.fee;
   const counts = r.flow === "spend" || (r.flow === "moved" && categoryOf(r.description, rules) !== UNCATEGORISED);
   return (counts ? -r.amount : 0) + r.fee;
@@ -161,7 +167,9 @@ export function monthlyByCategory(rows: StatementRow[], rules: CategoryRule[]): 
   const months = new Map<string, CategoryMonth>();
   for (const r of rows) {
     const cost = costOf(r, rules);
-    if (cost <= 0) continue;
+    // Not `<= 0`: a refund carries a NEGATIVE cost and has to reach its
+    // category to net against the purchase.
+    if (cost === 0) continue;
     const key = r.date.slice(0, 7);
     const m = months.get(key) ?? { month: key, byCategory: {}, total: 0 };
     const cat = categoryOf(r.description, rules);
@@ -304,7 +312,7 @@ export function merchantsByCategory(
   const per = new Map<string, Map<string, CategoryMerchant>>();
   for (const r of rows) {
     const cost = costOf(r, rules);
-    if (cost <= 0) continue;
+    if (cost === 0) continue;
     const cat = categoryOf(r.description, rules);
     const name = r.description.trim().replace(/\s+/g, " ").toUpperCase();
     const bucket = per.get(cat) ?? new Map<string, CategoryMerchant>();

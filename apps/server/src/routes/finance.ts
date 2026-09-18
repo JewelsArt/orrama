@@ -331,7 +331,12 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const haveBalance = effectiveBalance !== null;
     // Only a NEGATIVE net burns a balance down; with money coming in there is
     // no runway to speak of, and dividing by a positive would print nonsense.
-    const recentSpend = months.slice(-3);
+    // COMPLETE months only. `completeMonths` was applied to the category
+    // series and never to this one, so the part-month the statement stops
+    // inside was averaged in — an export taken on the 3rd understated the
+    // average by about a third (audit).
+    const completeKeys = new Set(finished.map((m) => m.month));
+    const recentSpend = months.filter((m) => completeKeys.has(m.month)).slice(-3);
     const avgSpend = recentSpend.length ? recentSpend.reduce((a, m) => a + m.spend, 0) / recentSpend.length : 0;
 
     /**

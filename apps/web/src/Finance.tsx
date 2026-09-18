@@ -2186,9 +2186,13 @@ function MonthPage({
             )}
           </span>
         </div>
-        {/* Transfers and refunds are money moving, but they are not spending.
-            Stated beside the headline rather than folded into it — folding them
-            in is what made this page disagree with the chart that opened it. */}
+        {/* A transfer is money moving, not spending, and is stated beside the
+            headline rather than folded into it — folding it in is what made
+            this page disagree with the chart that opened it. A REFUND is a
+            different thing: it is money back on something already counted, so
+            it comes off the total (audit) and is restated here for what it
+            is. Both figures still come from the one shared costOf, so the
+            page and the chart cannot disagree. */}
         {(d.movedOut > 0 || d.refunded > 0) && (
           <p className="fin-aside">
             {d.movedOut > 0 && (
@@ -2198,7 +2202,7 @@ function MonthPage({
             )}
             {d.refunded > 0 && (
               <span>
-                <em>{eur(d.refunded)}</em> refunded
+                <em>{eur(d.refunded)}</em> refunded, already off the total
               </span>
             )}
           </p>
