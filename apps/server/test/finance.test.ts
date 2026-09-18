@@ -114,9 +114,13 @@ describe("savings plan", () => {
   it("takes money in from the balance trend, not from payslips", async () => {
     const { savings, summary } = (await api("GET", "/api/finance", token)).json();
     expect(savings.incomeSource).toBe("balance");
-    // The identity the model rests on: what came in is what went out plus the
-    // change in balance.
-    expect(savings.incomeMonthly).toBeCloseTo(savings.spendMonthly + summary.drift, 1);
+    // The identity the model rests on: what came in is what went OUT plus the
+    // change in balance. Out means every debit, not just what counts as spend
+    // — this fixture has a EUR 900 transfer to a counterparty that spend does
+    // not see, and reading income off spend understated it by exactly that
+    // much (audit).
+    expect(savings.outflowMonthly).toBeGreaterThan(savings.spendMonthly);
+    expect(savings.incomeMonthly).toBeCloseTo(savings.outflowMonthly + summary.drift, 1);
     expect(savings.surplus).toBeCloseTo(savings.observed, 2);
   });
 

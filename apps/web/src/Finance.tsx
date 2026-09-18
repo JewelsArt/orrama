@@ -68,10 +68,15 @@ interface Savings {
   incomeMonthly: number;
   incomeSource: "balance" | "payslips" | "ledger" | "none";
   spendMonthly: number;
+  /** Everything that left the account, transfers included. */
+  outflowMonthly: number;
   surplus: number;
   committedMonthly: number;
   discretionaryMonthly: number;
   trimmable: number;
+  /** The two real months the headroom is measured between. */
+  typicalMonth: string | null;
+  goodMonth: string | null;
   target: number;
   targetRate: number | null;
   observed: number | null;
@@ -1965,9 +1970,16 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
                 </em>
               </li>
               <li>
+                {/* Money OUT, not money spent. The two differ by every transfer
+                    the rules note never claimed, and this row has to be the
+                    one the surplus above is actually computed from or the
+                    three figures stop adding up. */}
                 <span>Typical month out</span>
-                <b className="neg">−{eur(s.spendMonthly)}</b>
-                <em>median of {s.basedOn} months</em>
+                <b className="neg">−{eur(s.outflowMonthly)}</b>
+                <em>
+                  everything that left, across {s.basedOn} months
+                  {s.outflowMonthly > s.spendMonthly && ` · ${eur(s.spendMonthly)} of it spent`}
+                </em>
               </li>
               <li className="sum">
                 <span>Left over</span>
@@ -1977,7 +1989,11 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
               <li>
                 <span>Proven headroom</span>
                 <b className="pos">+{eur(s.trimmable)}</b>
-                <em>typical month minus a good month, per category</em>
+                <em>
+                  {s.typicalMonth && s.goodMonth
+                    ? `${monthName(s.typicalMonth)} against ${monthName(s.goodMonth)}, per category`
+                    : "a typical month against a good one, per category"}
+                </em>
               </li>
               <li className="total">
                 <span>Target</span>
@@ -2001,6 +2017,13 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
                 <h2>Where the headroom is</h2>
                 <span className="fin-count">{eur(s.trimmable)}</span>
               </div>
+              {s.typicalMonth && s.goodMonth && (
+                <p className="fin-hint">
+                  {monthName(s.typicalMonth)} against {monthName(s.goodMonth)} — two months you have had, so the
+                  rows below add up to the total rather than to a sum of quantiles from months that never
+                  coincided. A negative row is a category the good month spent MORE on.
+                </p>
+              )}
               {s.headroom.length > 0 ? (
                 <ul className="fin-head-rows">
                   {s.headroom.map((h) => (

@@ -11,6 +11,7 @@ import {
   completeMonths,
   forecast,
   monthlyByCategory,
+  outflowByMonth,
   monthlyTotals,
   parseCategoryRules,
   parseSubscriptions,
@@ -256,7 +257,14 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
             totals: finished.map((m) => m.byCategory[f.category] ?? 0),
             committed: rules.some((r) => r.pinned && r.category === f.category),
           })),
+          months: finished.map((m) => m.month),
           spendMonths: finished.map((m) => m.total),
+          // Everything that LEFT, transfers included — read the same way the
+          // Finance tab reads it, or the two quote different targets.
+          outflowMonths: (() => {
+            const outflow = new Map(outflowByMonth(txns).map((o) => [o.month, o.outflow]));
+            return finished.map((m) => outflow.get(m.month) ?? m.total);
+          })(),
           payslipNet: (slipNote ? parsePayslipTable(slipNote.content) : [])
             .map((r) => r.net)
             .filter((n): n is number => n !== null),

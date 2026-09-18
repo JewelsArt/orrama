@@ -28,6 +28,7 @@ import {
   unclaimedRecurring,
   merchantsByCategory,
   monthlyByCategory,
+  outflowByMonth,
   parseCategoryRules,
   parseStatement,
   parseSubscriptions,
@@ -444,13 +445,18 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      * from a rule of thumb.
      */
     const committed = committedCategories(rules);
+    const outflow = new Map(outflowByMonth(txns).map((o) => [o.month, o.outflow]));
     const savings = savingsPlan({
       categories: outlook.map((f) => ({
         category: f.category,
         totals: totalsFor(f.category, finished),
         committed: committed.has(f.category),
       })),
+      months: finished.map((m) => m.month),
       spendMonths: finished.map((m) => m.total),
+      // Everything that LEFT, transfers included — the identity money-in is
+      // derived from. Spend alone understates it by every standing transfer.
+      outflowMonths: finished.map((m) => outflow.get(m.month) ?? m.total),
       payslipNet: payslips.map((r) => r.net).filter((n): n is number => n !== null),
       ledgerIncome: inPerMonth,
       drift,

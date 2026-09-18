@@ -6,12 +6,17 @@
  * is derived from Jules's own statement, and the whole model is two numbers:
  *
  *   surplus   = typical money in  −  typical money out
- *   trimmable = Σ over discretionary categories of (typical month − good month)
+ *   trimmable = a typical month's discretionary spending − a good month's
  *
  * `surplus` comes from the BANK, not from a payslip. Where the statement
  * carries balances, the slope between the first and last of them says what the
  * account is really doing, and money in is then an identity rather than a
- * guess: whatever was spent, plus whatever the balance grew by. Payslips are a
+ * guess: whatever went OUT, plus whatever the balance grew by.
+ *
+ * Out means out — every debit, not just what `costOf` calls spending. An
+ * unclaimed transfer is money that left the account, and leaving it out of the
+ * identity understates income by exactly that much: a €600 standing transfer
+ * to savings reported €1,400 of income against a real €2,000 (audit). Payslips are a
  * poor proxy for it — they cover one employer, and everything else that lands
  * (student finance, transfers, a second job) is invisible to them. On Jules's
  * own file the payslip median said €500 a month while the balance was climbing
@@ -19,11 +24,19 @@
  * €500 deficit for an account that was visibly growing. Payslips and the income
  * note are kept as fallbacks for when there is no balance to slope.
  *
- * `trimmable` is the honest half. For each category we already know what a
- * typical month costs and what a GOOD month cost — the 25th percentile of the
- * months on record. The gap between them is not aspiration: it is a month he
- * has already lived through at that number. Summing those gaps gives a saving
- * target he has demonstrably hit before, category by category.
+ * `trimmable` is the honest half, and it is measured between TWO REAL MONTHS.
+ * Take the discretionary total of every complete month; the typical month is
+ * the one nearest the median of that series and the good month the one nearest
+ * its 25th percentile. The gap between them is not aspiration — it is two
+ * months he has lived through, and the per-category rows are literally what
+ * each category cost in each of them, so they add up to the total exactly.
+ *
+ * This used to be Σ over categories of (that category's median − that
+ * category's p25), which is not any month that happened and is systematically
+ * over-optimistic, because no two categories sit at their own quantile in the
+ * same month. Two categories alternating over four months where EVERY month
+ * cost €500 reported €300 of headroom (audit). It is the same error the
+ * dashboard's old "typical month" made, on the other half of the model.
  *
  * Committed categories are excluded from `trimmable` because they do not
  * respond to intent — a subscription costs what it costs until it is
@@ -48,16 +61,21 @@ export interface SavingsPlan {
   /** Typical money in per month, and where the figure came from. */
   incomeMonthly: number;
   incomeSource: "balance" | "payslips" | "ledger" | "none";
-  /** Typical money out per month, from the statement. */
+  /** Typical money SPENT per month, from the statement. Drives the fund. */
   spendMonthly: number;
-  /** incomeMonthly − spendMonthly. Negative means the account is shrinking. */
+  /** Typical money OUT per month: every debit, transfers included. */
+  outflowMonthly: number;
+  /** incomeMonthly − outflowMonthly. Negative means the account is shrinking. */
   surplus: number;
   /** The part of spending that no in-month decision changes. */
   committedMonthly: number;
   /** The part that does respond to intent. */
   discretionaryMonthly: number;
-  /** Σ (typical − good) over discretionary categories: proven headroom. */
+  /** A typical month's discretionary spending less a good month's. */
   trimmable: number;
+  /** The two real months those figures come from. Null under MIN_MONTHS. */
+  typicalMonth: string | null;
+  goodMonth: string | null;
   /** surplus + trimmable, floored at zero — the realistic monthly target. */
   target: number;
   /** target ÷ incomeMonthly, as a percentage. Null with no income on record. */
@@ -67,7 +85,13 @@ export interface SavingsPlan {
    *  the same fact, and showing them as one number twice is deliberate: it is
    *  what makes the plan checkable against the account. */
   observed: number | null;
-  /** Per-category headroom, biggest first — where the target comes from. */
+  /**
+   * What each discretionary category cost in those two months, biggest gap
+   * first. A category that cost MORE in the good month keeps its negative
+   * figure rather than being dropped: the rows have to add up to `trimmable`,
+   * and hiding the ones that argue against the total is how the old version
+   * came to over-promise.
+   */
   headroom: { category: string; typical: number; good: number; save: number }[];
   /** Three months of spending: the usual first goal. */
   emergencyFund: number;
@@ -108,6 +132,15 @@ export function savingsPlan(input: {
   categories: CategoryMonths[];
   /** Total spend per complete month. */
   spendMonths: number[];
+  /**
+   * Total money OUT per complete month — every debit, fees and transfers
+   * included. Index-aligned with `spendMonths`. Omitted, income falls back to
+   * spend, which is the understatement this input exists to fix.
+   */
+  outflowMonths?: number[];
+  /** Those months' own labels, index-aligned. Lets the plan name the two it
+   *  compared, so "a good month" is checkable rather than a claim. */
+  months?: string[];
   /** Net take-home per payslip month, if any are filed. */
   payslipNet: number[];
   /** Monthly total from the income ledger, used when no payslips exist. */
@@ -118,6 +151,8 @@ export function savingsPlan(input: {
   const basedOn = input.spendMonths.length;
 
   const spendMonthly = quantile(input.spendMonths, 0.5);
+  const outflowMonths = input.outflowMonths?.length ? input.outflowMonths : input.spendMonths;
+  const outflowMonthly = quantile(outflowMonths, 0.5);
 
   // The bank first. `spend + drift` is what must have come in for the balance
   // to move the way it did, so it needs no source beyond the statement itself.
@@ -131,33 +166,68 @@ export function savingsPlan(input: {
           : "none";
   const incomeMonthly =
     incomeSource === "balance"
-      ? spendMonthly + input.drift!
+      ? outflowMonthly + input.drift!
       : incomeSource === "payslips"
         ? quantile(input.payslipNet, 0.5)
         : incomeSource === "ledger"
           ? input.ledgerIncome
           : 0;
 
-  const surplus = incomeMonthly - spendMonthly;
+  // Out means every debit. With a balance to slope this is an identity and
+  // `surplus` comes back out as the drift itself, which is the property that
+  // makes the plan checkable against the account.
+  const surplus = incomeMonthly - outflowMonthly;
 
   // Committed vs discretionary, from the categories themselves.
   const typicalOf = (c: CategoryMonths) => quantile(c.totals, 0.5);
   const committedMonthly = input.categories.filter((c) => c.committed).reduce((a, c) => a + typicalOf(c), 0);
   const discretionaryMonthly = input.categories.filter((c) => !c.committed).reduce((a, c) => a + typicalOf(c), 0);
 
-  // The headroom, category by category. A category with too few months on
-  // record contributes nothing rather than a quantile drawn from two samples.
-  const headroom = input.categories
-    .filter((c) => !c.committed && c.totals.length >= MIN_MONTHS)
-    .map((c) => {
-      const typical = typicalOf(c);
-      const good = quantile(c.totals, 0.25);
-      return { category: c.category, typical: r2(typical), good: r2(good), save: r2(Math.max(0, typical - good)) };
-    })
-    .filter((h) => h.save > 0)
-    .sort((a, b) => b.save - a.save);
+  /**
+   * The headroom, between two months that actually happened.
+   *
+   * Discretionary spending is totalled per month across the categories (their
+   * `totals` arrays are index-aligned by construction — every caller maps over
+   * the same list of complete months). The typical month is the one whose
+   * discretionary total sits nearest the median of that series, the good month
+   * the one nearest its 25th percentile: real months, picked by rank, so the
+   * per-category rows below are simply what each cost in each of them.
+   *
+   * Nearest-to-quantile rather than the quantile itself, because the point is
+   * to name a month. The cheapest month on record is usually an artefact — a
+   * holiday, a half-covered month — so p25 rather than the minimum.
+   */
+  const discretionary = input.categories.filter(
+    (c) => !c.committed && c.totals.length >= input.spendMonths.length,
+  );
+  const discTotals = input.spendMonths.map((_, i) => discretionary.reduce((a, c) => a + (c.totals[i] ?? 0), 0));
 
-  const trimmable = headroom.reduce((a, h) => a + h.save, 0);
+  /**
+   * The month at a given rank, not at a given value. Interpolating a quantile
+   * gives a number no month ever cost; ranking the months and taking one of
+   * them gives a month. It also guarantees good <= typical, which a
+   * nearest-to-value search does not — on a four-month series with a tie it
+   * picked the same month twice and reported no headroom at all.
+   */
+  const byTotal = discTotals.map((total, i) => ({ total, i })).sort((a, b) => a.total - b.total);
+  const rank = (p: number): number => byTotal[Math.round((byTotal.length - 1) * p)]!.i;
+
+  const enough = basedOn >= MIN_MONTHS && discTotals.length > 0;
+  const typicalIdx = enough ? rank(0.5) : -1;
+  const goodIdx = enough ? rank(0.25) : -1;
+
+  const headroom = enough
+    ? discretionary
+        .map((c) => {
+          const typical = c.totals[typicalIdx] ?? 0;
+          const good = c.totals[goodIdx] ?? 0;
+          return { category: c.category, typical: r2(typical), good: r2(good), save: r2(typical - good) };
+        })
+        .filter((h) => h.typical !== 0 || h.good !== 0)
+        .sort((a, b) => b.save - a.save)
+    : [];
+
+  const trimmable = Math.max(0, r2(headroom.reduce((a, h) => a + h.save, 0)));
   const target = Math.max(0, surplus + trimmable);
   const emergencyFund = spendMonthly * 3;
 
@@ -165,10 +235,13 @@ export function savingsPlan(input: {
     incomeMonthly: r2(incomeMonthly),
     incomeSource,
     spendMonthly: r2(spendMonthly),
+    outflowMonthly: r2(outflowMonthly),
     surplus: r2(surplus),
     committedMonthly: r2(committedMonthly),
     discretionaryMonthly: r2(discretionaryMonthly),
     trimmable: r2(trimmable),
+    typicalMonth: enough ? (input.months?.[typicalIdx] ?? null) : null,
+    goodMonth: enough ? (input.months?.[goodIdx] ?? null) : null,
     target: r2(target),
     targetRate: incomeMonthly > 0 ? Math.round((target / incomeMonthly) * 1000) / 10 : null,
     observed: input.drift === null ? null : r2(input.drift),

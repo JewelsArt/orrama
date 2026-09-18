@@ -34,11 +34,15 @@ describe("savingsPlan", () => {
     expect(plan.incomeMonthly).toBe(1500);
     expect(plan.spendMonthly).toBe(1000);
     expect(plan.surplus).toBe(500);
-    // Groceries: typical 400, good (p25) 375 -> 25 of headroom.
-    expect(plan.headroom).toEqual([{ category: "Groceries", typical: 400, good: 375, save: 25 }]);
-    expect(plan.trimmable).toBe(25);
-    expect(plan.target).toBe(525);
-    expect(plan.targetRate).toBe(35);
+    // Headroom is now between two REAL months (audit). Groceries ran
+    // 400/300/500/400; ranked, the typical month is a 400 and the 25th-
+    // percentile month is the other 400, so there is no proven headroom here.
+    // The old answer, 25, came from interpolating a p25 of 375 — a figure no
+    // month ever cost.
+    expect(plan.headroom).toEqual([{ category: "Groceries", typical: 400, good: 400, save: 0 }]);
+    expect(plan.trimmable).toBe(0);
+    expect(plan.target).toBe(500);
+    expect(plan.targetRate).toBe(33.3);
   });
 
   it("never counts a committed category as trimmable", () => {

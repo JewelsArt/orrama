@@ -187,6 +187,26 @@ export const median = (xs: number[]): number => {
  * in drags every category's expectation down by a third or more. A month counts
  * only if the data runs past its end.
  */
+/**
+ * Total money OUT per month: every debit plus every fee, transfers included.
+ *
+ * Not the same question as `monthlyByCategory`, which answers "what did I
+ * SPEND" and deliberately leaves an unclaimed transfer out of it. The savings
+ * model needs the other number, because money in is an identity over
+ * everything that left — and using spend there understated income by every
+ * euro standing-ordered to a savings account (audit).
+ */
+export function outflowByMonth(rows: StatementRow[]): { month: string; outflow: number }[] {
+  const months = new Map<string, number>();
+  for (const r of rows) {
+    const out = (r.amount < 0 ? -r.amount : 0) + r.fee;
+    if (out <= 0) continue;
+    const key = r.date.slice(0, 7);
+    months.set(key, Math.round(((months.get(key) ?? 0) + out) * 100) / 100);
+  }
+  return [...months].map(([month, outflow]) => ({ month, outflow })).sort((a, b) => a.month.localeCompare(b.month));
+}
+
 export function completeMonths(months: CategoryMonth[], lastDate: string): CategoryMonth[] {
   const cutoff = lastDate.slice(0, 7);
   const dayOfMonth = Number.parseInt(lastDate.slice(8, 10), 10);
