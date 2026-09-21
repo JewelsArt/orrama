@@ -28,6 +28,9 @@ process.env.TZ = "Europe/Amsterdam";
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dates-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret";
+// The startup guard refuses placeholder secrets everywhere now, not just
+// under NODE_ENV=production, so the suite has to carry a real-shaped one too.
+process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 /** 00:30 on 1 March, Amsterdam. In UTC it is still 23:30 on 28 February. */
 const LOCAL_MIDNIGHT_ISH = new Date("2026-02-28T23:30:00Z");

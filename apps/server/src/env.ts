@@ -52,14 +52,29 @@ export const env = {
 };
 
 /**
- * Refuse to boot a production server on shipped secrets. The JWT secret signs
- * every session token, so a known value means anyone can mint a workspace-owner
- * session; the secret key decrypts stored AI and mail credentials. Both are
- * silent failures — nothing about the running app looks wrong — so the only
- * useful place to catch them is startup.
+ * Refuse to boot on shipped secrets, ANYWHERE, unless the operator has said
+ * out loud that this is a scratch install.
+ *
+ * The JWT secret signs every session token, so a known value means anyone who
+ * reaches the port can mint a workspace-owner session; the secret key decrypts
+ * the stored mail password and AI key, so a copy of basalt.db decrypts both
+ * offline. Both are silent failures — nothing about the running app looks
+ * wrong — so startup is the only useful place to catch them.
+ *
+ * This used to be gated on `NODE_ENV === "production"`, which made the guard
+ * depend on the one variable the operator is just as likely to forget as the
+ * secrets themselves. It did exactly that: the launchd agent serving the real
+ * vault set neither, so the guard returned immediately for months while the
+ * server signed sessions with a string published on GitHub (audit B2).
+ *
+ * The default is now "refuse". Opting out takes `BASALT_ALLOW_DEV_SECRETS=1`,
+ * which is a thing you have to type and can grep for, unlike a variable whose
+ * ABSENCE was the unsafe state.
  */
-export function assertProductionSecrets(nodeEnv = process.env.NODE_ENV): void {
-  if (nodeEnv !== "production") return;
+export function assertProductionSecrets(
+  allowDevSecrets = process.env.BASALT_ALLOW_DEV_SECRETS === "1",
+): void {
+  if (allowDevSecrets) return;
   const bad = [
     PLACEHOLDER_SECRETS.has(env.jwtSecret) ? "BASALT_JWT_SECRET" : null,
     PLACEHOLDER_SECRETS.has(env.secretKey) ? "BASALT_SECRET_KEY" : null,
@@ -67,7 +82,10 @@ export function assertProductionSecrets(nodeEnv = process.env.NODE_ENV): void {
   if (bad.length === 0) return;
   throw new Error(
     `Refusing to start: ${bad.join(" and ")} still ${bad.length > 1 ? "hold" : "holds"} a placeholder value. ` +
-      `Generate real secrets (e.g. \`openssl rand -hex 32\`) and set them in the environment before deploying.`,
+      `Generate real secrets (e.g. \`openssl rand -hex 32\`) and set them in the environment. ` +
+      `For a throwaway install you do not mind anyone reading, set BASALT_ALLOW_DEV_SECRETS=1 instead. ` +
+      `Rotating BASALT_SECRET_KEY on an existing database needs \`pnpm --dir apps/server rotate-secret-key\` ` +
+      `first, or the stored mail and AI credentials become undecryptable.`,
   );
 }
 

@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
@@ -16,6 +16,9 @@ process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test
 // default computes; stated explicitly so the environment cannot redirect it.
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret";
+// The startup guard refuses placeholder secrets everywhere now, not just
+// under NODE_ENV=production, so the suite has to carry a real-shaped one too.
+process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
@@ -916,12 +919,87 @@ describe("vault path canonicalisation (§5)", () => {
   });
 });
 
-describe("production secret guard", () => {
-  it("refuses to boot in production on a shipped placeholder", async () => {
-    const { assertProductionSecrets } = await import("../src/env.js");
-    // env.jwtSecret is "test-secret" here, so only the untouched key trips it.
-    expect(() => assertProductionSecrets("production")).toThrow(/BASALT_SECRET_KEY/);
-    expect(() => assertProductionSecrets("development")).not.toThrow();
+describe("the startup secret guard", () => {
+  /**
+   * The guard used to return immediately unless NODE_ENV was "production" —
+   * which made it depend on the one variable an operator is exactly as likely
+   * to forget as the secrets themselves. It did: the launchd agent serving the
+   * real vault set neither, so for months the server signed sessions with a
+   * string published on GitHub (audit B2). Refusing is now the default and
+   * opting out is something you have to type.
+   *
+   * `env` captures process.env at import, so this re-imports it under a
+   * stripped environment rather than passing the answer in.
+   */
+  const withEnv = async (
+    vars: Record<string, string | undefined>,
+    assert: (fresh: typeof import("../src/env.js")) => void,
+  ) => {
+    const saved = { ...process.env };
+    for (const [k, v] of Object.entries(vars)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    vi.resetModules();
+    try {
+      // The assertion runs INSIDE the stubbed environment. Restoring it first
+      // and asserting after passes every "throws" case for the wrong reason
+      // and fails the opt-out case, because BASALT_ALLOW_DEV_SECRETS is read
+      // live in the default parameter while env.secretKey was captured at
+      // import. Found exactly that way.
+      assert(await import("../src/env.js"));
+    } finally {
+      process.env = saved;
+      vi.resetModules();
+    }
+  };
+
+  it("refuses placeholder secrets with NODE_ENV unset, which is how it shipped", async () => {
+    await withEnv({
+      BASALT_JWT_SECRET: undefined,
+      BASALT_SECRET_KEY: undefined,
+      BASALT_ALLOW_DEV_SECRETS: undefined,
+      NODE_ENV: undefined,
+    }, (fresh) => {
+      expect(() => fresh.assertProductionSecrets()).toThrow(/BASALT_JWT_SECRET and BASALT_SECRET_KEY/);
+    });
+  });
+
+  it("still refuses when only one of the two is real", async () => {
+    await withEnv({
+      BASALT_JWT_SECRET: "a-real-looking-jwt-secret",
+      BASALT_SECRET_KEY: undefined,
+      BASALT_ALLOW_DEV_SECRETS: undefined,
+      NODE_ENV: undefined,
+    }, (fresh) => {
+      expect(() => fresh.assertProductionSecrets()).toThrow(/BASALT_SECRET_KEY/);
+    });
+  });
+
+  it("names the rotation script, because changing the key orphans stored credentials", async () => {
+    await withEnv({ BASALT_SECRET_KEY: undefined, BASALT_ALLOW_DEV_SECRETS: undefined }, (fresh) => {
+      expect(() => fresh.assertProductionSecrets()).toThrow(/rotate-secret-key/);
+    });
+  });
+
+  it("lets a throwaway install opt out, out loud", async () => {
+    await withEnv({
+      BASALT_JWT_SECRET: undefined,
+      BASALT_SECRET_KEY: undefined,
+      BASALT_ALLOW_DEV_SECRETS: "1",
+    }, (fresh) => {
+      expect(() => fresh.assertProductionSecrets()).not.toThrow();
+    });
+  });
+
+  it("passes on real secrets", async () => {
+    await withEnv({
+      BASALT_JWT_SECRET: "6f1c0b9a4d2e8f37a1b5c9d0e4f8a2b6",
+      BASALT_SECRET_KEY: "9e3a7c1f5b0d2846ea9c3f7b1d5084a2",
+      BASALT_ALLOW_DEV_SECRETS: undefined,
+    }, (fresh) => {
+      expect(() => fresh.assertProductionSecrets()).not.toThrow();
+    });
   });
 });
 

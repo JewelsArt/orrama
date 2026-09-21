@@ -5,13 +5,14 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "BASALT_ALLOW_DEV_SECRETS=1 tsx watch src/main.ts",
     "start": "tsx src/main.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "account": "tsx src/account.ts",
-    "remove-user": "tsx src/remove-user.ts"
+    "remove-user": "tsx src/remove-user.ts",
+    "rotate-secret-key": "tsx src/rotate-secret-key.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.8",

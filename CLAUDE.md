@@ -19,6 +19,12 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
   Restart the agent the right way: `lsof -nP -iTCP:4623 -sTCP:LISTEN -t` (the
   bare `lsof -ti :4623` returns client sockets too — killing one of those once
   took down an unrelated app).
+- **The launchd agent carries the real secrets** (`BASALT_JWT_SECRET`,
+  `BASALT_SECRET_KEY`) in its plist, which is `chmod 600`. The server refuses to
+  boot on the shipped placeholders regardless of `NODE_ENV`; `pnpm --dir
+  apps/server dev` opts out with `BASALT_ALLOW_DEV_SECRETS=1`. Changing
+  `BASALT_SECRET_KEY` orphans the stored mail password and AI key — run
+  `pnpm --dir apps/server rotate-secret-key` with the server stopped.
 - **Log in as** `you@example.com` (single user; the team model underneath
   still exists but has no UI). The seeded `jules@basalt.dev` / `basalt-demo`
   account is what `pnpm --dir apps/server seed` creates and what the tests use —
@@ -122,6 +128,10 @@ table.
 `list_projects` / `get_project` / `log_decision` hand the same payload — prompt
 included — to Claude Code, which is what makes "check the Thesis project" work
 from a cold session.
+
+## Projects are bound by tag, not by folder
+
+A note joins a project through a `project/<key>` tag in its frontmatter. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`). Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals.
 
 ## One shared vault with Obsidian
 

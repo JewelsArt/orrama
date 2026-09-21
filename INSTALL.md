@@ -163,24 +163,44 @@ All optional. Set them in the environment before starting the server.
 | `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it on your network |
 | `BASALT_DATA_DIR` | `./data` | Database and default vault location |
 | `BASALT_VAULT_DIR` | `<dataDir>/vault` | Point at an existing vault (above) |
-| `BASALT_JWT_SECRET` | dev placeholder | Signs session tokens |
-| `BASALT_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest |
-| `BASALT_CORS_ORIGIN` | permissive | Restrict browser origins |
+| `BASALT_JWT_SECRET` | dev placeholder | Signs session tokens — **must be set**, see Security |
+| `BASALT_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest — **must be set** |
+| `BASALT_CORS_ORIGIN` | `false` | Allow specific cross-origin browsers |
+| `BASALT_ALLOW_DEV_SECRETS` | unset | `1` boots on placeholder secrets anyway |
 
 ### Security
 
-The two secrets ship with placeholder values so local development works with zero
-config. They are genuinely unsafe for anything reachable by other people: the JWT
-secret signs every session, so a known value lets anyone mint a workspace-owner
-session, and the secret key decrypts stored credentials.
+The two secrets ship with placeholder values that are published in this repo.
+They are unsafe for anything reachable by anyone else: the JWT secret signs
+every session, so a known value lets anyone who reaches the port mint a
+workspace-owner session, and the secret key decrypts the stored mail password
+and AI key, so a copy of `basalt.db` decrypts both offline.
 
-Basalt refuses to boot with `NODE_ENV=production` while either still holds a
-placeholder. Generate real ones:
+**Basalt refuses to boot while either holds a placeholder.** Generate real ones:
 
 ```bash
 export BASALT_JWT_SECRET=$(openssl rand -hex 32)
 export BASALT_SECRET_KEY=$(openssl rand -hex 32)
 ```
+
+The refusal does not depend on `NODE_ENV`. It used to, and that was worse than
+useless: an operator who forgets to set secrets is exactly the operator who
+forgets to set `NODE_ENV`, so the guard stayed silent on the installs that
+needed it. For a throwaway install nobody else can reach, opt out explicitly
+with `BASALT_ALLOW_DEV_SECRETS=1` — `pnpm --dir apps/server dev` already does.
+
+**Rotating `BASALT_SECRET_KEY` on a database that already holds credentials**
+does not re-encrypt them; it makes them undecryptable, and the symptom is mail
+that quietly stops connecting. Migrate first, with the server stopped:
+
+```bash
+BASALT_OLD_SECRET_KEY=<old> BASALT_SECRET_KEY=<new> pnpm --dir apps/server rotate-secret-key --apply
+```
+
+Without `--apply` it reports what it would do and writes nothing, which is how
+you confirm the old key is the right one. And note what rotation cannot undo: a
+credential that was protected by a published key was readable by anyone holding
+the database. Rotate the credential itself at the provider too.
 
 And change the demo passwords, or delete the demo accounts once you have made your
 own via `POST /api/auth/register`.
@@ -269,9 +289,15 @@ down an unrelated app before.
 The watcher indexes external edits. If the vault is on a network or cloud-synced
 volume the events may not fire; restart the server to force a re-index.
 
-**Container exits immediately with "Refusing to start"**
+**Exits immediately with "Refusing to start"**
 `BASALT_JWT_SECRET` or `BASALT_SECRET_KEY` is still a placeholder. That refusal
-is deliberate — see **Security**. Export real values and bring it up again.
+is deliberate and no longer depends on `NODE_ENV` — see **Security**. Export
+real values and bring it up again, or set `BASALT_ALLOW_DEV_SECRETS=1` if this
+is a scratch install nobody else can reach.
+
+**Mail stopped connecting after changing `BASALT_SECRET_KEY`**
+The stored password is still encrypted under the old key. Restore it, or run
+`rotate-secret-key` with both keys — see **Security**.
 
 **Starting over**
 The database is disposable — it is an index of the Markdown, not the source of truth:

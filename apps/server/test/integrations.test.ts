@@ -19,6 +19,9 @@ process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-inte
 // default computes; stated explicitly so the environment cannot redirect it.
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret";
+// The startup guard refuses placeholder secrets everywhere now, not just
+// under NODE_ENV=production, so the suite has to carry a real-shaped one too.
+process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "40";
 process.env.TZ = "Europe/Amsterdam";
 
