@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection } from "@basalt/core";
+import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -48,6 +48,19 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain)
 }
 
 const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && /^project\/[a-z0-9]/i.test(t.tag);
+
+/**
+ * The note that *is* the project, as opposed to a note that merely belongs to
+ * it. Conventional path first, tag second, and the order matters: once a project
+ * has working notes carrying its tag, a tag-first lookup can land on a chapter
+ * draft and read the project's status, deadline and id off the wrong note.
+ * Every surface that needs the project note must use this, or the board, the
+ * dashboard and the workspace will disagree about which note that is.
+ */
+export const projectNoteFor = (notes: IndexedNote[], key: string): IndexedNote | undefined => {
+  const slug = key.startsWith("project/") ? key.slice("project/".length) : key;
+  return notes.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`) ?? notes.find((n) => n.tags.some((t) => t.tag === key));
+};
 
 /** Sections the workspace owns inside the project note. Headings, not database rows. */
 const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "Inbox", people: "People" } as const;
@@ -213,10 +226,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return rows
       .map((p) => {
         const slug = p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key;
-        // The note may live anywhere (a personal project note is still a project),
-        // so match on the tag and fall back to the conventional path.
-        const note =
-          readable.find((n) => n.tags.some((t) => t.tag === p.key)) ?? readable.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`);
+        // The note may live anywhere (a personal project note is still a project).
+        const note = projectNoteFor(readable, p.key);
         const prog = progress.get(p.name);
         const dates = openByProject.get(p.name);
         const fm = (note?.frontmatter ?? {}) as Record<string, unknown>;
@@ -275,6 +286,23 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       });
     }
 
+    // The project's own notes. `projectOf` already decides membership (nearest
+    // project folder, else the first `project/` tag), so this is a view over the
+    // same rule the task counts use — a note sitting in 04-Projects/<slug>/ that
+    // carries no project tag deliberately does not appear here.
+    const notes = store
+      .readable(user)
+      .filter((n) => n.id !== note.id && store.index.projectOf(n, defs) === row?.name)
+      .map((n) => ({
+        id: n.id,
+        title: n.title,
+        path: n.path,
+        mtimeMs: n.mtimeMs ?? 0,
+        tasks: n.tasks.length,
+        done: n.tasks.filter((t) => t.checked).length,
+      }))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+
     const dir = filesDirFor(store.vaultRoot, req.params.slug);
     const files = fs.existsSync(dir)
       ? fs
@@ -302,6 +330,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       decisions: readSectionItems(note.content, SEC.decisions),
       inbox: readSectionItems(note.content, SEC.inbox),
       people: [...linked.values()],
+      notes,
       files,
       content: note.content,
       canEdit: canEdit(user, note, grants),

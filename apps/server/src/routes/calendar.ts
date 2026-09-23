@@ -14,6 +14,7 @@ import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { projectNoteFor } from "./projects.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SNAP = 30;
@@ -269,7 +270,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const readable = store.readable(user);
     for (const p of db.select().from(tables.projects).all()) {
       if (p.hidden) continue;
-      const note = readable.find((n) => n.tags.some((t) => t.tag === p.key));
+      const note = projectNoteFor(readable, p.key);
       if (!note) continue;
       const fm = note.frontmatter as Record<string, unknown>;
       const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");

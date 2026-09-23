@@ -5096,6 +5096,13 @@ kbd {
 .proj-del:hover { color:var(--danger); }
 .proj-del svg { width:13px; height:13px; }
 
+.proj-notes { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px; }
+.proj-notes li { display:flex; }
+.proj-note-link { flex:1; min-width:0; display:flex; align-items:center; gap:8px; border:none; background:none; cursor:pointer; color:var(--text); padding:6px 4px; border-radius:8px; text-align:left; }
+.proj-note-link:hover { background:var(--bg-raised); }
+.proj-note-title { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.proj-note-tasks { flex:none; font:600 10.5px var(--font-mono); color:var(--text-faint); }
+
 .proj-people { margin:0 0 10px; padding:0; list-style:none; display:flex; flex-direction:column; gap:2px; }
 .proj-people li { display:flex; align-items:center; gap:6px; }
 .proj-person { flex:1; min-width:0; display:flex; align-items:center; gap:9px; border:none; background:none; cursor:pointer; color:var(--text); padding:6px 4px; border-radius:8px; text-align:left; }

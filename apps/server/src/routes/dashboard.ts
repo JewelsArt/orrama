@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { canRead } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { projectNoteFor } from "./projects.js";
 
 /**
  * The team command center (spec §6). Every number here is a view over the vault,
@@ -30,7 +31,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const readable = store.readable(user);
     const statusByName = new Map(
       teamProjects.map((p) => {
-        const note = readable.find((n) => n.tags.some((t) => t.tag === p.key));
+        const note = projectNoteFor(readable, p.key);
         const raw = note?.frontmatter["status"];
         return [p.name, typeof raw === "string" ? raw.trim().toLowerCase() : ""];
       }),

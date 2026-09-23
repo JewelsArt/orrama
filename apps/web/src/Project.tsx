@@ -26,6 +26,15 @@ export interface ProjectPerson {
   path: string;
 }
 
+export interface ProjectNote {
+  id: string;
+  title: string;
+  path: string;
+  mtimeMs: number;
+  tasks: number;
+  done: number;
+}
+
 export interface ProjectWorkspace {
   slug: string;
   key: string;
@@ -41,6 +50,7 @@ export interface ProjectWorkspace {
   decisions: string[];
   inbox: string[];
   people: ProjectPerson[];
+  notes: ProjectNote[];
   files: ProjectFile[];
   content: string;
   canEdit: boolean;
@@ -190,6 +200,7 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
         </div>
 
         <div className="proj-col side">
+          <Notes w={w} onOpenNote={onOpenNote} />
           <Files w={w} onChanged={load} />
           <People w={w} onChanged={load} onOpenNote={onOpenNote} />
           <Prompt w={w} onSave={(text) => patch({ prompt: text })} />
@@ -333,6 +344,39 @@ function Tasks({ w, onChanged }: { w: ProjectWorkspace; onChanged: () => Promise
               <span className="proj-task-text">{t.text}</span>
               {t.due && <span className="badge due">{t.due}</span>}
               {t.assignee && <span className="badge">@{t.assignee}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Notes belonging to this project. Membership is the same rule the task counts
+ * use (`projectOf` on the server): nearest project folder, else the first
+ * `project/` tag. Folder alone is not enough, which is the thing that is easy to
+ * forget when a note is created by hand.
+ */
+function Notes({ w, onOpenNote }: { w: ProjectWorkspace; onOpenNote: (id: string) => void }) {
+  return (
+    <Card title="Notes" count={w.notes.length}>
+      {w.notes.length === 0 ? (
+        <p className="empty">
+          No notes yet. A note joins this project by carrying <code>{w.key}</code> in its front-matter tags.
+        </p>
+      ) : (
+        <ul className="proj-notes">
+          {w.notes.map((n) => (
+            <li key={n.id}>
+              <button className="proj-note-link" onClick={() => onOpenNote(n.id)} title={n.path}>
+                <span className="proj-note-title">{n.title}</span>
+                {n.tasks > 0 && (
+                  <span className="proj-note-tasks">
+                    {n.done}/{n.tasks}
+                  </span>
+                )}
+              </button>
             </li>
           ))}
         </ul>
@@ -772,8 +816,8 @@ function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNo
   }, []);
 
   const completions = useMemo(
-    () => ({ titles: w.people.map((p) => p.title), users: [me.username], tags: [] as string[] }),
-    [w.people, me.username],
+    () => ({ titles: [...w.people.map((p) => p.title), ...w.notes.map((n) => n.title)], users: [me.username], tags: [] as string[] }),
+    [w.people, w.notes, me.username],
   );
 
   return (
@@ -795,8 +839,15 @@ function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNo
             completions={completions}
             onChange={save}
             onFollowLink={(title) => {
-              const person = w.people.find((p) => p.title.toLowerCase() === title.toLowerCase());
-              if (person) onOpenNote(person.id);
+              const key = title.toLowerCase();
+              const person = w.people.find((p) => p.title.toLowerCase() === key);
+              if (person) return onOpenNote(person.id);
+              // A [[chapter-2]] in the project note should open the chapter, not
+              // silently do nothing because it is not a contact.
+              const note = w.notes.find(
+                (n) => n.title.toLowerCase() === key || n.path.replace(/^.*\//, "").replace(/\.md$/i, "").toLowerCase() === key,
+              );
+              if (note) onOpenNote(note.id);
             }}
           />
         </div>

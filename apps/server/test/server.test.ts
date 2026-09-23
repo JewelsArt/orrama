@@ -601,6 +601,28 @@ describe("graph + plan + profile", () => {
       expect((await api("GET", "/api/projects", "jules")).json.some((p: { slug: string }) => p.slug === slug)).toBe(true);
     });
 
+    it("lists the project's own notes, and only those carrying its tag", async () => {
+      const key = `project/${slug}`;
+      await api("PUT", "/api/vault/note", "jules", {
+        path: `04-Projects/${slug}/chapter-2.md`,
+        content: `---\ntitle: Chapter 2\ntags:\n  - ${key}\n  - draft\n---\n# Chapter 2\n\n- [x] outline\n- [ ] draft 2.3\n`,
+      });
+      // same folder, no project tag: folder alone must not be enough
+      await api("PUT", "/api/vault/note", "jules", {
+        path: `04-Projects/${slug}/scratch.md`,
+        content: "---\ntitle: Scratch\ntags:\n  - draft\n---\n# Scratch\n",
+      });
+
+      const w = (await api("GET", `/api/projects/${slug}`, "jules")).json;
+      const titles = w.notes.map((n: { title: string }) => n.title);
+      expect(titles).toContain("Chapter 2");
+      expect(titles).not.toContain("Scratch");
+      // the project note does not list itself
+      expect(titles).not.toContain("Thesis Forecasting");
+      const ch2 = w.notes.find((n: { title: string }) => n.title === "Chapter 2");
+      expect(ch2).toMatchObject({ tasks: 2, done: 1 });
+    });
+
     it("detaching a person drops only their link from ## People", async () => {
       const contacts = (await api("GET", "/api/contacts", "jules")).json;
       const pieter = contacts.find((c: { name: string }) => c.name === "Pieter Haans");
