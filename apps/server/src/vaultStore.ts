@@ -366,7 +366,7 @@ export class VaultStore {
   }
 
   /** Create or update a note. Returns the updated note. */
-  write(user: AclUser, inputPath: string, content: string, baseHash?: string): IndexedNote {
+  write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string): IndexedNote {
     const { rel: relPath, abs } = this.resolvePath(inputPath);
     const grants = this.grants();
     let existing = this.index.getByPath(relPath);
@@ -379,19 +379,30 @@ export class VaultStore {
     // event, which no-oped. So look first. An edit found there is recorded
     // exactly as the watcher would record it, and the caller's change is merged
     // on top, against the text the caller actually started from.
-    if (existing && fs.existsSync(abs)) {
-      const onDisk = fs.readFileSync(abs, "utf8");
-      if (onDisk !== existing.content) {
-        const base = existing.content;
-        this.ingest(relPath, abs, onDisk);
-        existing = this.index.getByPath(relPath);
-        // Only when the caller's base IS the pre-ingest text — every server
-        // route, and an editor whose hash matches. A stale editor hash still
-        // takes the old splice path below; see B5.
-        if (existing && (!baseHash || baseHash === hash(base))) {
-          content = mergeText(base, content, existing.content);
+    if (existing) {
+      const before = existing.content;
+      if (fs.existsSync(abs)) {
+        const onDisk = fs.readFileSync(abs, "utf8");
+        if (onDisk !== before) {
+          this.ingest(relPath, abs, onDisk);
+          existing = this.index.getByPath(relPath);
         }
       }
+      // Which text did the caller start from? Merge against THAT, so its edit
+      // and everyone else's since both survive (packages/sync/src/merge.ts).
+      //   - baseContent sent: the editor says so outright (NoteSync does).
+      //   - no hash, or the hash of what we held before looking at the disk:
+      //     every server route, and an editor that was up to date.
+      //   - a stale hash and no text: an older client. Nothing to merge
+      //     against, so it keeps the old splice below. See B5.
+      let base: string | null = null;
+      if (baseContent !== undefined) {
+        if (baseHash !== undefined && hash(baseContent) !== baseHash) throw new HttpError(400, "baseContent does not match baseHash");
+        base = baseContent;
+      } else if (baseHash === undefined || baseHash === hash(before)) {
+        base = before;
+      }
+      if (existing && base !== null && base !== existing.content) content = mergeText(base, content, existing.content);
     }
     const after = parseNote(content, titleFromPath(relPath));
     const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
@@ -418,11 +429,8 @@ export class VaultStore {
 
     if (existing) {
       const doc = this.doc(existing.id);
-      // CRDT rebase: if the client edited from a stale base, splice against the live
-      // doc so concurrent edits outside the changed region survive (spec §10).
-      if (baseHash && baseHash !== hash(existing.content)) {
-        // Client base is stale; the splice against current text is the merge.
-      }
+      // By here `content` already carries everyone's edits whenever the base was
+      // known (above), so one splice onto the live doc records it faithfully.
       const update = updateDocContent(doc, finalContent, user.id);
       if (update) this.logUpdate(existing.id, update, user.id);
       finalContent = docContent(doc);

@@ -68,8 +68,14 @@ export const noteWriteSchema = z.object({
     .max(512)
     .regex(/^(?!\/)(?!.*\.\.)[^\0]+\.md$/, "vault-relative .md path, no traversal"),
   content: z.string().max(2_000_000),
-  /** Base revision hash the client edited from; server merges via CRDT when stale. */
+  /** Hash of the text the client's buffer started from (as the server reported it). */
   baseHash: z.string().optional(),
+  /**
+   * That text itself. With it the server can merge a stale save instead of
+   * guessing: base → content is the client's edit, base → current is everyone
+   * else's, and both survive. Must hash to `baseHash` when both are sent.
+   */
+  baseContent: z.string().max(2_000_000).optional(),
 });
 
 export const noteMoveSchema = z.object({

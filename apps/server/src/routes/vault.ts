@@ -53,7 +53,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.put("/api/vault/note", auth, async (req) => {
     const body = noteWriteSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = store.write(user, body.path, body.content, body.baseHash);
+    const note = store.write(user, body.path, body.content, body.baseHash, body.baseContent);
     return { id: note.id, path: note.path, hash: hash(note.content), content: note.content };
   });
 

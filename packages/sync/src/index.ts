@@ -100,3 +100,4 @@ export function computeManifest(user: AclUser, notes: ManifestNote[], grants: Fo
 }
 
 export { mergeText, lineHunks } from "./merge.js";
+export { NoteSync, type NoteSyncHooks, type NoteSyncTransport, type SaveState, type SyncedNote } from "./client.js";

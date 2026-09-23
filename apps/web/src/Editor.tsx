@@ -3,9 +3,11 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { Annotation, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
+import { lineHunks } from "@basalt/sync/merge";
+import type { NoteSync } from "@basalt/sync/client";
 import { useEffect, useRef } from "react";
 import { livePreview } from "./livePreview.js";
 
@@ -25,6 +27,9 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.processingInstruction, color: "var(--text-faint)" },
 ]);
 
+/** Marks a change that came from someone else, so it is not reported as typing. */
+const remoteEdit = Annotation.define<boolean>();
+
 export interface EditorProps {
   noteId: string;
   content: string;
@@ -34,9 +39,16 @@ export interface EditorProps {
   onChange: (content: string) => void;
   /** Called when the user cmd+clicks a [[wiki link]] in the preview. */
   onFollowLink?: (title: string) => void;
+  /**
+   * The note's sync. With it, other people's edits arrive through the sync
+   * and are applied even while you type, and `content` is only the text to
+   * open with. Without it, `content` is re-applied whenever the editor is not
+   * focused — the old behaviour, which kept a focused editor's text stale.
+   */
+  sync?: NoteSync | null;
 }
 
-export function Editor({ noteId, content, readOnly, completions, onChange, onFollowLink }: EditorProps) {
+export function Editor({ noteId, content, readOnly, completions, onChange, onFollowLink, sync }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const completionsRef = useRef(completions);
@@ -99,7 +111,7 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
           EditorView.lineWrapping,
           EditorState.readOnly.of(readOnly),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+            if (u.docChanged && !u.transactions.some((t) => t.annotation(remoteEdit))) onChangeRef.current(u.state.doc.toString());
           }),
           EditorView.theme({
             "&": { height: "100%", fontSize: "15.5px" },
@@ -122,22 +134,36 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
     viewRef.current = view;
     const onLink = (e: Event) => onFollowLinkRef.current?.((e as CustomEvent<string>).detail);
     view.dom.addEventListener("basalt-open-link", onLink);
+
+    // Someone else's edit, merged by the sync into what you are typing. Applied
+    // as the changed lines only, so the caret and selection map through it,
+    // and kept out of undo history: cmd+z undoes your typing, not their edit.
+    const detach = sync?.attach((next) => {
+      const current = view.state.doc.toString();
+      if (current === next) return;
+      view.dispatch({
+        changes: lineHunks(current, next).map((h) => ({ from: h.start, to: h.end, insert: h.insert })),
+        annotations: [remoteEdit.of(true), Transaction.addToHistory.of(false)],
+      });
+    });
     return () => {
+      detach?.();
       view.dom.removeEventListener("basalt-open-link", onLink);
       view.destroy();
     };
     // Recreate the editor per note (content prop is initial-only after that).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteId, readOnly]);
+  }, [noteId, readOnly, sync]);
 
   // External content updates (e.g. checkbox toggled from the note panel) — only
   // apply when the doc actually differs to avoid clobbering the caret.
   useEffect(() => {
     const view = viewRef.current;
+    if (sync) return; // the sync owns the text
     if (view && view.state.doc.toString() !== content && !view.hasFocus) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: content } });
     }
-  }, [content]);
+  }, [content, sync]);
 
   return <div className="editor-host" ref={host} />;
 }

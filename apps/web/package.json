@@ -12,6 +12,7 @@
   "dependencies": {
     "@ai-sdk/react": "^4.0.16",
     "@basalt/core": "workspace:*",
+    "@basalt/sync": "workspace:*",
     "@basalt/ui": "workspace:*",
     "@codemirror/autocomplete": "^6.18.0",
     "@codemirror/commands": "^6.8.0",

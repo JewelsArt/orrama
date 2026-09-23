@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
+import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
 import { GraphCanvas, type GraphData } from "./GraphCanvas.js";
 import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
+import { openNoteSync, retire } from "./noteSync.js";
 import { onWs, sendEditing } from "./ws.js";
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
@@ -19,14 +21,26 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
   const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const openRef = useRef<NoteDetail | null>(null);
   openRef.current = open;
+  // The open note's TEXT lives here, not in `open` (which is its header, tasks
+  // and backlinks). See packages/sync/src/client.ts.
+  const [sync, setSync] = useState<NoteSync | null>(null);
+  const syncRef = useRef<{ id: string; sync: NoteSync | null } | null>(null);
 
   const loadTree = useCallback(async () => {
     setTree(await api<TreeNote[]>("GET", "/api/vault/tree"));
     setGraph(await api<GraphData>("GET", "/api/vault/graph"));
   }, []);
+
+  /** Close the open note, saving anything still pending first. */
+  const closeNote = useCallback(() => {
+    retire(syncRef.current?.sync ?? null);
+    syncRef.current = null;
+    setSync(null);
+    setOpen(null);
+  }, []);
+  useEffect(() => () => retire(syncRef.current?.sync ?? null), []);
 
   // Remembered after the note closes so the map can stay anchored on it — that
   // is what makes the local graph useful: read a note, step back, see its web.
@@ -41,19 +55,33 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       if (e.key !== "Escape") return;
       const el = document.activeElement;
       const typing = el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA)$/.test(el.tagName) || !!el.closest(".cm-editor"));
-      if (!typing) setOpen(null);
+      if (!typing) closeNote();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [closeNote]);
 
-  const openNote = useCallback(async (id: string) => {
-    const note = await api<NoteDetail>("GET", `/api/vault/note/${id}`);
-    setOpen(note);
-    setLastOpenId(note.id);
-    setStatus("saved");
-    api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`).then(setRelated);
-  }, []);
+  const openNote = useCallback(
+    async (id: string) => {
+      const note = await api<NoteDetail>("GET", `/api/vault/note/${id}`);
+      if (syncRef.current?.id === id) {
+        // The same note again (a toggle, a live-sync event): refresh the header
+        // and let the sync merge the text into whatever is being typed.
+        setOpen(note);
+        void syncRef.current.sync?.refresh();
+        return;
+      }
+      retire(syncRef.current?.sync ?? null);
+      const next = note.canEdit ? openNoteSync(note, { status: setStatus, saved: () => void loadTree() }) : null;
+      syncRef.current = { id, sync: next };
+      setSync(next);
+      setOpen(note);
+      setLastOpenId(note.id);
+      setStatus("saved");
+      api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`).then(setRelated);
+    },
+    [loadTree],
+  );
 
   useEffect(() => {
     void loadTree();
@@ -68,7 +96,13 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       if (msg.type === "note-changed") {
         void loadTree();
         const current = openRef.current;
-        if (current && msg.noteId === current.id && msg.authorId !== me.id) void openNote(current.id);
+        if (current && msg.noteId === current.id) {
+          // Someone else: refresh the header too. You (another tab, the phone,
+          // a toggle on this page): the text is all that can have moved, and a
+          // refresh after your own save is a no-op.
+          if (msg.authorId !== me.id) void openNote(current.id);
+          else void syncRef.current?.sync?.refresh();
+        }
       } else if (msg.type === "presence") {
         const current = openRef.current;
         if (current && msg.noteId === current.id) setEditingBy({ username: msg.username, at: msg.at });
@@ -81,27 +115,11 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     };
   }, [loadTree, openNote, me.id]);
 
-  const save = useCallback(
-    (content: string) => {
-      const note = openRef.current;
-      if (!note || content === note.content) return;
-      sendEditing(note.id);
-      setStatus("saving");
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(async () => {
-        try {
-          const res = await api<{ id: string }>("PUT", "/api/vault/note", { path: note.path, content, baseHash: note.hash });
-          const fresh = await api<NoteDetail>("GET", `/api/vault/note/${res.id}`);
-          setOpen(fresh);
-          setStatus("saved");
-          void loadTree();
-        } catch {
-          setStatus("error");
-        }
-      }, 600);
-    },
-    [loadTree],
-  );
+  const onEdit = useCallback((content: string) => {
+    const note = openRef.current;
+    if (note) sendEditing(note.id);
+    syncRef.current?.sync?.edit(content);
+  }, []);
 
   const createNote = async () => {
     const name = prompt("Note path:", "");
@@ -210,7 +228,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
         </div>
         <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} onSpotlight={setSpotlight} />
         {open && (
-          <button className="ft-map ghost" onClick={() => setOpen(null)}>
+          <button className="ft-map ghost" onClick={closeNote}>
             ← Back to the map
           </button>
         )}
@@ -225,7 +243,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                 <span className="editor-path">{open.path}</span>
               </div>
               <span className="editor-presence">
-                <button className="editor-close" onClick={() => setOpen(null)} title="Close note (Esc)" aria-label="Close note">
+                <button className="editor-close" onClick={closeNote} title="Close note (Esc)" aria-label="Close note">
                   ✕
                 </button>
                 {open.canEdit && !isProject && (
@@ -242,10 +260,11 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             </header>
             <Editor
               noteId={open.id}
-              content={open.content}
+              content={sync?.content ?? open.content}
               readOnly={!open.canEdit}
               completions={completions}
-              onChange={save}
+              onChange={onEdit}
+              sync={sync}
               onFollowLink={(title) => {
                 const target = tree.find((n) => n.title.toLowerCase() === title.toLowerCase());
                 if (target) void openNote(target.id);

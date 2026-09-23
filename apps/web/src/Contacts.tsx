@@ -71,7 +71,9 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
         }
       }
 
-      await api("PUT", "/api/vault/note", { path: note.path, content: newContent, baseHash: note.hash });
+      // baseContent: an Obsidian edit landing between this read and the write is
+      // merged in rather than overwritten (packages/sync/src/merge.ts).
+      await api("PUT", "/api/vault/note", { path: note.path, content: newContent, baseHash: note.hash, baseContent: note.content });
       
       const updatedContact = { ...selectedContact, sector: newSector };
       setSelectedContact(updatedContact);
