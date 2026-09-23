@@ -79,6 +79,8 @@ Vault layout:
   }
 
   const app = Fastify({ logger: { level: "info" } });
+  // Stop the vault watcher with the app, so a closed server stops reacting to files.
+  app.addHook("onClose", async () => store.close());
   await app.register(cors, { origin: env.corsOrigin });
   await app.register(jwt, { secret: env.jwtSecret });
   await app.register(websocket);

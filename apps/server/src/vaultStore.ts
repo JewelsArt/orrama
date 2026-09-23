@@ -8,8 +8,8 @@ import crypto from "node:crypto";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
-import chokidar from "chokidar";
-import { and, desc, eq } from "drizzle-orm";
+import chokidar, { type FSWatcher } from "chokidar";
+import { and, desc, eq, ne } from "drizzle-orm";
 import * as Y from "yjs";
 import {
   VaultIndex,
@@ -76,6 +76,7 @@ export class VaultStore {
    */
   private inFlightWrites = new Map<string, string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+  private watcher: FSWatcher | null = null;
 
   /** Cheap content fingerprint for the echo check above. */
   private static digest(content: string): string {
@@ -94,8 +95,18 @@ export class VaultStore {
   /** Scan the vault folder, assign missing front-matter ids, hydrate index + notes table. */
   load(): void {
     fs.mkdirSync(this.root, { recursive: true });
+    const entries = (dir: string): fs.Dirent[] => {
+      try {
+        return fs.readdirSync(dir, { withFileTypes: true });
+      } catch (err) {
+        // Same reason as the per-file guard below: a folder we cannot read
+        // must cost that folder, not the whole boot.
+        console.error(`[vault] ${path.relative(this.root, dir) || "."}: folder skipped at boot — ${err instanceof Error ? err.message : String(err)}`);
+        return [];
+      }
+    };
     const walk = (dir: string): string[] =>
-      fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      entries(dir).flatMap((e) => {
         if (e.name.startsWith(".")) return [];
         if (dir === this.root && e.name === "CLAUDE.md") return [];
         const full = path.join(dir, e.name);
@@ -104,29 +115,18 @@ export class VaultStore {
       });
     for (const abs of walk(this.root)) {
       const rel = path.relative(this.root, abs).split(path.sep).join("/");
-      let content = fs.readFileSync(abs, "utf8");
-      const parsed = parseNote(content, titleFromPath(rel));
-      if (!parsed.id) {
-        // Stamping an id means rewriting the file from its parsed front matter.
-        // If that front matter did not parse, the rewrite would serialise an
-        // empty object over the user's real metadata — title, tags, aliases,
-        // deadline, and any #only/<team> restriction, which would WIDEN who can
-        // read the note. Index it as it is and say so; a missing id costs
-        // rename-safety for one note, which is recoverable. The metadata is not.
-        if (parseFrontmatter(content).malformed) {
-          console.warn(`[vault] ${rel}: front matter does not parse — indexed without stamping an id. Fix the YAML (an unquoted colon is the usual cause).`);
-        } else {
-          content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-          fs.writeFileSync(abs, content);
-        }
+      // One file must not be able to stop the server booting. Under launchd's
+      // KeepAlive a throw here is not an error page, it is a crash loop: the
+      // agent restarts, meets the same file, and the whole app is down until
+      // someone edits the database by hand. Skip it, loudly, and boot.
+      try {
+        this.loadOne(abs, rel);
+      } catch (err) {
+        console.error(`[vault] ${rel}: skipped at boot — ${err instanceof Error ? err.message : String(err)}`);
       }
-      const mtimeMs = fs.statSync(abs).mtimeMs;
-      const note = this.index.upsert({ path: rel, content, mtimeMs });
-      this.syncNoteRow(note);
-      this.syncProjectRow(note);
     }
-    
-    chokidar.watch(this.root, {
+
+    this.watcher = chokidar.watch(this.root, {
       ignored: (filePath: string, stats?: fs.Stats) => {
         const basename = path.basename(filePath);
         if (basename.startsWith(".")) return true;
@@ -148,6 +148,38 @@ export class VaultStore {
         this.handleExternalChange(event, relPath, absPath);
       }, 300));
     });
+  }
+
+  /** Index one file at boot, stamping an id if it has none. */
+  private loadOne(abs: string, rel: string): void {
+    let content = fs.readFileSync(abs, "utf8");
+    const parsed = parseNote(content, titleFromPath(rel));
+    if (!parsed.id) {
+      // Stamping an id means rewriting the file from its parsed front matter.
+      // If that front matter did not parse, the rewrite would serialise an
+      // empty object over the user's real metadata — title, tags, aliases,
+      // deadline, and any #only/<team> restriction, which would WIDEN who can
+      // read the note. Index it as it is and say so; a missing id costs
+      // rename-safety for one note, which is recoverable. The metadata is not.
+      if (parseFrontmatter(content).malformed) {
+        console.warn(`[vault] ${rel}: front matter does not parse — indexed without stamping an id. Fix the YAML (an unquoted colon is the usual cause).`);
+      } else {
+        content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+        fs.writeFileSync(abs, content);
+      }
+    }
+    const mtimeMs = fs.statSync(abs).mtimeMs;
+    const note = this.index.upsert({ path: rel, content, mtimeMs });
+    this.syncNoteRow(note);
+    this.syncProjectRow(note);
+  }
+
+  /** Stop watching the vault. Called when the app closes. */
+  async close(): Promise<void> {
+    for (const t of this.watchTimeouts.values()) clearTimeout(t);
+    this.watchTimeouts.clear();
+    await this.watcher?.close();
+    this.watcher = null;
   }
 
   private handleExternalChange(event: string, relPath: string, absPath: string) {
@@ -221,7 +253,22 @@ export class VaultStore {
     this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: null } satisfies NoteChangedEvent);
   }
 
+  /**
+   * Mirror an indexed note into the `notes` table (nothing reads it back; it
+   * is a record of the vault, keyed by note id, with `path` unique).
+   *
+   * The index is the truth about which note lives at a path, so a row holding
+   * this path under ANOTHER id gives way first. Without that, deleting a note
+   * in Obsidian (the row is kept, flagged deleted) and making a new one with
+   * the same name hit the unique path: the watcher logged an error, and the
+   * next boot threw out of load() — which launchd's KeepAlive turned into a
+   * crash loop. The same happened after a note was renamed over another.
+   */
   private syncNoteRow(note: IndexedNote): void {
+    this.db
+      .delete(tables.notes)
+      .where(and(eq(tables.notes.path, note.path), ne(tables.notes.id, note.id)))
+      .run();
     this.db
       .insert(tables.notes)
       .values({
@@ -464,6 +511,14 @@ export class VaultStore {
     const { rel: toPath, abs: absTo } = this.resolvePath(inputTo);
     const note = this.index.getByPath(fromPath);
     if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
+    // fs.renameSync REPLACES an existing destination. Moving onto a note that
+    // exists destroyed it on disk and then failed half-way (500), leaving the
+    // index and the notes table disagreeing about the path — which stopped the
+    // next boot. Checked on disk as well as in the index: the file may not
+    // have been indexed yet, or may not be a note we can see.
+    if (toPath !== fromPath && (this.index.getByPath(toPath) || fs.existsSync(absTo))) {
+      throw new HttpError(409, "a note already exists at that path");
+    }
     const toFolder = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : "";
     if (
       !canEdit(user, note, this.grants()) ||
