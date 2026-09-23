@@ -230,6 +230,25 @@ describe("editor sync against the server", () => {
     sync.close();
   });
 
+  // The project page's note card loaded its note once and never again, while
+  // the Decisions, Inbox and Goals cards write into that same note through the
+  // server. Here no refresh reaches the card at all — the save alone must keep
+  // the decision.
+  it("a decision logged while the project note card is open survives the card's next save", async () => {
+    const w = await call("GET", "/api/projects/atlas");
+    const { sync, initial } = await open({ id: w.noteId, rel: w.path });
+    await call("POST", "/api/projects/atlas/decisions", { text: "Ship the beta in October" });
+
+    sync.edit(initial + "typed in the card\n");
+    await sync.flush();
+
+    const disk = fs.readFileSync(path.join(VAULT, w.path), "utf8");
+    expect(disk).toContain("Ship the beta in October");
+    expect(disk).toContain("typed in the card");
+    expect(sync.content).toBe(disk);
+    sync.close();
+  });
+
   it("a failed save keeps the typing and retries on the next flush", async () => {
     const note = await create("Engineering/Sync Error.md", lines(5));
     const initial = (await call("GET", `/api/vault/note/${note.id}`)) as SyncedNote;
@@ -263,6 +282,25 @@ describe("editor sync against the server", () => {
 });
 
 describe("PUT /api/vault/note with baseContent", () => {
+  // What every editor used to send. Written anyway, it erased the edit made in
+  // between; there is no base text to merge against, so it is refused.
+  it("refuses a stale hash that comes without its base text, and leaves the file alone", async () => {
+    const note = await create("Engineering/Sync Stale.md", lines(5));
+    const opened = await call("GET", `/api/vault/note/${note.id}`);
+    await call("PUT", "/api/vault/note", { path: note.rel, content: opened.content + "someone else\n" });
+    const before = fs.readFileSync(note.abs, "utf8");
+
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/vault/note",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { path: note.rel, content: opened.content.replace("line 1\n", "line 1 stale\n"), baseHash: opened.hash },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(fs.readFileSync(note.abs, "utf8")).toBe(before);
+    expect(before).toContain("someone else\n");
+  });
+
   it("rejects a base that does not match its hash", async () => {
     const note = await create("Engineering/Sync Mismatch.md", "a\n");
     const current = await call("GET", `/api/vault/note/${note.id}`);

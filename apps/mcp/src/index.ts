@@ -315,7 +315,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         
         let noteId = idOrPath;
         let path = idOrPath;
-        let baseHash = undefined;
+        let baseHash: string | undefined = undefined;
+        let baseContent: string | undefined = undefined;
 
         if (idOrPath.includes("/") || idOrPath.endsWith(".md")) {
           const tree = await fetchBasalt(`/api/vault/tree`);
@@ -331,11 +332,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const note = await fetchBasalt(`/api/vault/note/${encodeURIComponent(noteId)}`);
           path = note.path;
           baseHash = note.hash;
+          baseContent = note.content;
         } catch {
           // Creating a new note, no baseHash
         }
 
-        const saved = await fetchBasalt(`/api/vault/note`, "PUT", { path, content, baseHash });
+        // edit_note REPLACES the note, so its base is the text just read: a
+        // change landing between that read and this write is merged, not lost
+        // (and, since the server refuses a stale hash that comes without its
+        // text, not refused either).
+        const saved = await fetchBasalt(`/api/vault/note`, "PUT", { path, content, baseHash, baseContent });
         return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
       }
 
@@ -353,7 +359,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const note = await fetchBasalt(`/api/vault/note/${encodeURIComponent(noteId)}`);
         const newContent = note.content + (note.content.endsWith("\n") ? "" : "\n") + line;
         
-        const saved = await fetchBasalt(`/api/vault/note`, "PUT", { path: note.path, content: newContent, baseHash: note.hash });
+        const saved = await fetchBasalt(`/api/vault/note`, "PUT", { path: note.path, content: newContent, baseHash: note.hash, baseContent: note.content });
         return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
       }
 

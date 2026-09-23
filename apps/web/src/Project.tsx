@@ -4,9 +4,11 @@ import { ContactSheet, initials as sheetInitials, type CompanyRecord, type Conta
 import { DOMAIN_COLOR, daysTo } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DocViewer } from "./DocViewer.js";
+import type { NoteSync, SaveState } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
 import { Gantt } from "./Gantt.js";
 import { IconPlus, IconSearch, IconX } from "./icons.js";
+import { openNoteSync, retire } from "./noteSync.js";
 import { onWs } from "./ws.js";
 
 export interface ProjectFile {
@@ -794,26 +796,32 @@ function Log({
 /** The project note itself, editable in place — same editor as Architecture. */
 function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNote: (id: string) => void }) {
   const [note, setNote] = useState<NoteDetail | null>(null);
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const noteRef = useRef<NoteDetail | null>(null);
-  noteRef.current = note;
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [state, setState] = useState<SaveState | "idle">("idle");
+  // The card's text goes through a NoteSync (packages/sync/src/client.ts). It
+  // used to load the note once and never again, while the Decisions, Inbox and
+  // Goals cards on this same page write into this same note on the server — so
+  // the next keystroke here saved the stale text over the entry just added.
+  const [sync, setSync] = useState<NoteSync | null>(null);
 
   useEffect(() => {
-    void (async () => setNote(await api<NoteDetail>("GET", `/api/vault/note/${w.noteId}`)))();
+    let live = true;
+    let s: NoteSync | null = null;
+    void (async () => {
+      const n = await api<NoteDetail>("GET", `/api/vault/note/${w.noteId}`);
+      if (!live) return;
+      s = n.canEdit ? openNoteSync(n, { status: setState }, 700) : null;
+      setNote(n);
+      setSync(s);
+    })();
+    const off = onWs((msg) => {
+      if (msg.type === "note-changed" && msg.noteId === w.noteId) void s?.refresh();
+    });
+    return () => {
+      live = false;
+      off();
+      retire(s);
+    };
   }, [w.noteId]);
-
-  const save = useCallback((content: string) => {
-    const current = noteRef.current;
-    if (!current || content === current.content) return;
-    setState("saving");
-    clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const res = await api<{ id: string }>("PUT", "/api/vault/note", { path: current.path, content, baseHash: current.hash });
-      setNote(await api<NoteDetail>("GET", `/api/vault/note/${res.id}`));
-      setState("saved");
-    }, 700);
-  }, []);
 
   const completions = useMemo(
     () => ({ titles: [...w.people.map((p) => p.title), ...w.notes.map((n) => n.title)], users: [me.username], tags: [] as string[] }),
@@ -826,7 +834,7 @@ function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNo
       action={
         <span className="proj-note-meta">
           <code>{w.path}</code>
-          {state !== "idle" && <em>{state === "saving" ? "saving…" : "saved"}</em>}
+          {state !== "idle" && <em>{state === "saving" ? "saving…" : state === "error" ? "save failed" : "saved"}</em>}
         </span>
       }
     >
@@ -834,10 +842,11 @@ function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNo
         <div className="proj-editor">
           <Editor
             noteId={note.id}
-            content={note.content}
+            content={sync?.content ?? note.content}
             readOnly={!note.canEdit}
             completions={completions}
-            onChange={save}
+            onChange={(content) => sync?.edit(content)}
+            sync={sync}
             onFollowLink={(title) => {
               const key = title.toLowerCase();
               const person = w.people.find((p) => p.title.toLowerCase() === key);

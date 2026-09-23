@@ -393,16 +393,20 @@ export class VaultStore {
       //   - baseContent sent: the editor says so outright (NoteSync does).
       //   - no hash, or the hash of what we held before looking at the disk:
       //     every server route, and an editor that was up to date.
-      //   - a stale hash and no text: an older client. Nothing to merge
-      //     against, so it keeps the old splice below. See B5.
-      let base: string | null = null;
+      //   - a stale hash and no text: nothing to merge against. Writing it
+      //     anyway is how a stale editor erased other people's edits (audit
+      //     B5), so refuse; every current client sends its base text. What
+      //     is left sending this is a page loaded before that change.
+      let base: string;
       if (baseContent !== undefined) {
         if (baseHash !== undefined && hash(baseContent) !== baseHash) throw new HttpError(400, "baseContent does not match baseHash");
         base = baseContent;
       } else if (baseHash === undefined || baseHash === hash(before)) {
         base = before;
+      } else {
+        throw new HttpError(409, "This note changed since it was opened. Reload it to keep editing.");
       }
-      if (existing && base !== null && base !== existing.content) content = mergeText(base, content, existing.content);
+      if (existing && base !== existing.content) content = mergeText(base, content, existing.content);
     }
     const after = parseNote(content, titleFromPath(relPath));
     const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
@@ -429,8 +433,8 @@ export class VaultStore {
 
     if (existing) {
       const doc = this.doc(existing.id);
-      // By here `content` already carries everyone's edits whenever the base was
-      // known (above), so one splice onto the live doc records it faithfully.
+      // By here `content` already carries everyone's edits (merged above), so
+      // one splice onto the live doc records it faithfully.
       const update = updateDocContent(doc, finalContent, user.id);
       if (update) this.logUpdate(existing.id, update, user.id);
       finalContent = docContent(doc);
