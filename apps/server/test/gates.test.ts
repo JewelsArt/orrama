@@ -6,7 +6,7 @@
  * that holds and a route that forgets to consult it look identical in a unit
  * test and opposite in production. These five had zero test references:
  * /api/admin/grants, /api/admin/teams(/:id/members), /api/vault/move,
- * /api/vault/tags and /api/ws.
+ * /api/vault/tags and /api/ws (the socket now in log-secrets.test.ts).
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -141,15 +141,7 @@ describe("GET /api/vault/tags is ACL-filtered", () => {
   });
 });
 
-/** The live-sync socket is the one surface where auth is not a preHandler. */
-describe("/api/ws refuses an unauthenticated upgrade", () => {
-  it("rejects a plain GET without a token", async () => {
-    const res = await app.inject({ method: "GET", url: "/api/ws" });
-    expect(res.statusCode).not.toBe(200);
-  });
-
-  it("rejects a bad token", async () => {
-    const res = await app.inject({ method: "GET", url: "/api/ws?token=not-a-jwt" });
-    expect(res.statusCode).not.toBe(200);
-  });
-});
+// /api/ws is tested in log-secrets.test.ts, over a real WebSocket handshake.
+// The two tests that stood here sent a plain GET, which a websocket route
+// refuses whatever the token says: with socket auth removed entirely they
+// still passed.

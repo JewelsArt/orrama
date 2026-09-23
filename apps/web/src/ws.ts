@@ -36,7 +36,11 @@ export function connectWs(token: string): void {
     socket.close();
   }
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  socket = new WebSocket(`${proto}://${location.host}/api/ws?token=${encodeURIComponent(token)}`);
+  // The token goes in the first frame, not the URL: a URL is written to the
+  // server's request log (audit B7). See apps/server/src/routes/ws.ts.
+  const s = new WebSocket(`${proto}://${location.host}/api/ws`);
+  s.onopen = () => s.send(JSON.stringify({ type: "auth", token }));
+  socket = s;
   socket.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data) as WsMsg;

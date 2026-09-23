@@ -28,6 +28,7 @@ import { mailRoutes } from "./routes/mail.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { initWebhooks } from "./webhooks.js";
 import { eq } from "drizzle-orm";
+import { privateLogFiles, reqSerializer } from "./logging.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -40,7 +41,8 @@ declare module "fastify" {
   }
 }
 
-export async function buildServer() {
+/** `logStream` lets a test read exactly what the real app logs. */
+export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = {}) {
   assertProductionSecrets();
   const db = createDb();
   // Single-workspace server (spec §3): one company, one vault, one container.
@@ -78,7 +80,10 @@ Vault layout:
 `);
   }
 
-  const app = Fastify({ logger: { level: "info" } });
+  // URLs in the log are redacted: no query strings, no /ics/<token> (logging.ts).
+  const app = Fastify({
+    logger: { level: "info", serializers: { req: reqSerializer }, ...(opts.logStream ? { stream: opts.logStream } : {}) },
+  });
   // Stop the vault watcher with the app, so a closed server stops reacting to files.
   app.addHook("onClose", async () => store.close());
   await app.register(cors, { origin: env.corsOrigin });
@@ -180,6 +185,9 @@ Vault layout:
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]).includes("main.ts");
 if (isMain) {
+  // Under launchd stdout/stderr are a plain log file, created world-readable.
+  const tightened = privateLogFiles();
   const { app } = await buildServer();
+  if (tightened.length) app.log.info(`log file made owner-only (fd ${tightened.join(", ")})`);
   await app.listen({ port: env.port, host: env.host });
 }
