@@ -83,25 +83,41 @@ export function financeNote(store: VaultStore, user: Parameters<VaultStore["read
 /**
  * Every statement CSV in the finance folder, merged and de-duplicated.
  *
- * Exports overlap at their edges, so a transaction is keyed on date + amount +
- * fee + description and counted once however many files mention it. Four
- * endpoints need this list; they read it through here rather than each keeping
- * their own copy, because three copies of a de-duplication rule is three
- * chances for two pages to disagree about what a month cost.
+ * Exports overlap at their edges, so the same transaction can sit in two
+ * files and must count once — while two identical-looking purchases in ONE
+ * file (two coffees, same shop, same day, same price) are two transactions and
+ * must count twice. Keying on date + amount + fee + description could not tell
+ * those apart and merged real repeats: on the real statement, 36 transactions
+ * and EUR 599.50 simply vanished from every total.
+ *
+ * So each row carries a `key` from everything the export says (StatementRow.key
+ * — timestamps to the second and the running balance included), and files are
+ * merged as multisets: a key appearing N times in one export is N
+ * transactions, and the merge keeps the most copies any SINGLE export holds.
+ * That stays right for a bank whose export has no times and no balance, where
+ * two identical rows in one file are all there is to go on.
+ *
+ * Four endpoints need this list; they read it through here rather than each
+ * keeping their own copy, because three copies of a de-duplication rule is
+ * three chances for two pages to disagree about what a month cost.
  */
 export function loadTxns(root: string): ReturnType<typeof parseStatement>["rows"] {
   const dirPath = filesDir(root);
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   if (!fs.existsSync(dirPath)) return rows;
-  const seen = new Set<string>();
+  const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
   for (const csv of fs.readdirSync(dirPath).filter((n) => n.toLowerCase().endsWith(".csv")).sort()) {
+    const inFile = new Map<string, typeof rows>();
     for (const r of parseStatement(fs.readFileSync(path.join(dirPath, csv), "utf8")).rows) {
-      const key = `${r.date}|${r.amount}|${r.fee}|${r.description}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push(r);
+      const same = inFile.get(r.key);
+      if (same) same.push(r);
+      else inFile.set(r.key, [r]);
+    }
+    for (const [key, copies] of inFile) {
+      if (copies.length > (merged.get(key)?.length ?? 0)) merged.set(key, copies);
     }
   }
+  for (const copies of merged.values()) rows.push(...copies);
   rows.sort((a, b) => a.date.localeCompare(b.date));
   return rows;
 }

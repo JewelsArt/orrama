@@ -10,7 +10,9 @@ const RULES = parseCategoryRules(`
 | Transport | ovpay, uber               |         |
 `);
 
+let seq = 0;
 const row = (date: string, description: string, amount: number, fee = 0): StatementRow => ({
+  key: `row-${++seq}`, // each helper row is its own transaction
   date,
   type: "Card Payment",
   description,

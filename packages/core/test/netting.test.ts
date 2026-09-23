@@ -8,7 +8,9 @@ import type { StatementRow } from "../src/statement.js";
 
 const RULES: CategoryRule[] = [{ category: "Shopping", matches: ["mediamarkt"], pinned: false, colour: null }];
 
+let seq = 0;
 const row = (over: Partial<StatementRow>): StatementRow => ({
+  key: `row-${++seq}`, // each helper row is its own transaction
   date: "2026-01-10",
   type: "Card Payment",
   description: "MEDIAMARKT",

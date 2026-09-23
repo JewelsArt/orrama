@@ -40,6 +40,15 @@ export interface StatementRow {
   currency: string;
   balance: number | null;
   flow: Flow;
+  /**
+   * Which transaction this is, from everything the export says about it:
+   * both timestamps to the second, type, product, description, amount, fee,
+   * currency and the running balance. Two real transactions do not share a
+   * running balance to the second; the same transaction in two overlapping
+   * exports always does. `date` alone cannot tell them apart — keying on it
+   * merged two coffees bought the same day into one.
+   */
+  key: string;
 }
 
 export interface MonthSummary {
@@ -179,15 +188,21 @@ export function parseStatement(csv: string): Statement {
     }
     const type = get(raw, "type");
     const balanceRaw = get(raw, "balance");
+    const balance = balanceRaw ? parseMoney(balanceRaw) : null;
+    const description = get(raw, "description");
+    const currency = get(raw, "currency") || "EUR";
     rows.push({
       date,
       type,
-      description: get(raw, "description"),
+      description,
       amount,
       fee,
-      currency: get(raw, "currency") || "EUR",
-      balance: balanceRaw ? parseMoney(balanceRaw) : null,
+      currency,
+      balance,
       flow: flowOf(type),
+      // Parsed numbers, not the cells as written, so one transaction matches
+      // itself across exports that format money differently.
+      key: [get(raw, "started"), completed, type, get(raw, "product"), description, amount, fee, currency, balance ?? ""].join("\u0001"),
     });
   }
 
