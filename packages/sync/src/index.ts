@@ -98,3 +98,5 @@ export function computeManifest(user: AclUser, notes: ManifestNote[], grants: Fo
     .map(({ id, path, contentHash }) => ({ id, path, contentHash }))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
+
+export { mergeText, lineHunks } from "./merge.js";

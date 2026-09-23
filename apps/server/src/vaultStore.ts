@@ -28,7 +28,7 @@ import {
   type IndexedNote,
   type ProjectDef,
 } from "@basalt/core";
-import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, updateDocContent } from "@basalt/sync";
+import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, updateDocContent } from "@basalt/sync";
 import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 
@@ -154,7 +154,7 @@ export class VaultStore {
     if (event === "add" || event === "change") {
       try {
         if (!fs.existsSync(absPath)) return;
-        let content = fs.readFileSync(absPath, "utf8");
+        const content = fs.readFileSync(absPath, "utf8");
 
         // Our own write coming back round: the file still holds exactly what we
         // put there, so there is nothing to learn from it. Anything else is a
@@ -165,38 +165,7 @@ export class VaultStore {
           return;
         }
 
-        const parsed = parseNote(content, titleFromPath(relPath));
-        if (!parsed.id) {
-          // Same rule as load(): never rewrite a note whose front matter we
-          // could not read. This path fires on every watcher event, so without
-          // the guard one bad note is re-stamped — and re-flattened — forever.
-          if (parseFrontmatter(content).malformed) {
-            console.warn(`[vault] ${relPath}: front matter does not parse — indexed without stamping an id.`);
-          } else {
-            content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-            this.markWritten(relPath, content);
-            fs.writeFileSync(absPath, content);
-          }
-        }
-        
-        const existing = this.index.getByPath(relPath);
-        const mtimeMs = fs.statSync(absPath).mtimeMs;
-        const note = this.index.upsert({ path: relPath, content, mtimeMs });
-        
-        if (existing) {
-          const doc = this.doc(existing.id);
-          const update = updateDocContent(doc, content);
-          if (update) this.logUpdate(existing.id, update, null);
-        } else {
-          const doc = createNoteDoc(content);
-          this.docs.set(note.id, doc);
-          this.logUpdate(note.id, encodeStateB64(doc), null);
-        }
-        
-        this.syncNoteRow(note);
-        this.syncProjectRow(note);
-        this.reconcileTaskObjects(note);
-        this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: null } satisfies NoteChangedEvent);
+        this.ingest(relPath, absPath, content);
       } catch (err) {
         console.error("Error handling external change", err);
       }
@@ -208,6 +177,48 @@ export class VaultStore {
         this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
       }
     }
+  }
+
+  /**
+   * Take a file's current bytes into the index, the note's Y.Doc and its
+   * history, as an edit by nobody in particular (Obsidian, an editor, a
+   * script). The watcher calls this once its 300ms debounce settles; `write()`
+   * calls it too when it finds the disk ahead of the index, so an edit is
+   * recorded the same way whichever of the two notices it first.
+   */
+  private ingest(relPath: string, absPath: string, content: string): void {
+    const parsed = parseNote(content, titleFromPath(relPath));
+    if (!parsed.id) {
+      // Same rule as load(): never rewrite a note whose front matter we
+      // could not read. This path fires on every watcher event, so without
+      // the guard one bad note is re-stamped — and re-flattened — forever.
+      if (parseFrontmatter(content).malformed) {
+        console.warn(`[vault] ${relPath}: front matter does not parse — indexed without stamping an id.`);
+      } else {
+        content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+        this.markWritten(relPath, content);
+        fs.writeFileSync(absPath, content);
+      }
+    }
+    
+    const existing = this.index.getByPath(relPath);
+    const mtimeMs = fs.statSync(absPath).mtimeMs;
+    const note = this.index.upsert({ path: relPath, content, mtimeMs });
+    
+    if (existing) {
+      const doc = this.doc(existing.id);
+      const update = updateDocContent(doc, content);
+      if (update) this.logUpdate(existing.id, update, null);
+    } else {
+      const doc = createNoteDoc(content);
+      this.docs.set(note.id, doc);
+      this.logUpdate(note.id, encodeStateB64(doc), null);
+    }
+    
+    this.syncNoteRow(note);
+    this.syncProjectRow(note);
+    this.reconcileTaskObjects(note);
+    this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: null } satisfies NoteChangedEvent);
   }
 
   private syncNoteRow(note: IndexedNote): void {
@@ -358,7 +369,30 @@ export class VaultStore {
   write(user: AclUser, inputPath: string, content: string, baseHash?: string): IndexedNote {
     const { rel: relPath, abs } = this.resolvePath(inputPath);
     const grants = this.grants();
-    const existing = this.index.getByPath(relPath);
+    let existing = this.index.getByPath(relPath);
+
+    // The disk can be AHEAD of the index. The watcher waits 300ms for a burst of
+    // saves to settle, and every route that edits a note — a checkbox toggle, a
+    // decision logged, a project status — builds its new text from the index.
+    // Writing that over the file erased whatever Obsidian had saved in the
+    // meantime, and for good: our own write then matched the watcher's pending
+    // event, which no-oped. So look first. An edit found there is recorded
+    // exactly as the watcher would record it, and the caller's change is merged
+    // on top, against the text the caller actually started from.
+    if (existing && fs.existsSync(abs)) {
+      const onDisk = fs.readFileSync(abs, "utf8");
+      if (onDisk !== existing.content) {
+        const base = existing.content;
+        this.ingest(relPath, abs, onDisk);
+        existing = this.index.getByPath(relPath);
+        // Only when the caller's base IS the pre-ingest text — every server
+        // route, and an editor whose hash matches. A stale editor hash still
+        // takes the old splice path below; see B5.
+        if (existing && (!baseHash || baseHash === hash(base))) {
+          content = mergeText(base, content, existing.content);
+        }
+      }
+    }
     const after = parseNote(content, titleFromPath(relPath));
     const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
     const afterAcl = { folder, onlyTeams: after.onlyTeams, shareTeams: after.shareTeams };
