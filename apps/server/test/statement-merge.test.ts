@@ -84,6 +84,27 @@ describe("loadTxns", () => {
     expect(loadTxns(vaultWith({ "may.csv": lines, "may (1).csv": lines }))).toHaveLength(3);
   });
 
+  // What every finance page reads, so the refund rule must already be applied
+  // here: a refund for something bought before the statement starts is money
+  // back, and one for a purchase in range cancels it in the purchase's month.
+  it("hands every page refunds already settled against their purchases", async () => {
+    const { costOf } = await import("@basalt/core");
+    const root = vaultWith({
+      "statement.csv": [
+        HEADER,
+        "Card Refund,Current,2026-01-07 10:00:00,2026-01-07 10:00:00,Rakuten,583.30,0.00,EUR,COMPLETED,1583.30",
+        card("2026-03-10 12:00:00", "Coolblue", "-79.00", "1504.30"),
+        "Card Refund,Current,2026-04-02 09:00:00,2026-04-02 09:00:00,Coolblue,79.00,0.00,EUR,COMPLETED,1583.30",
+      ],
+    });
+    const rows = loadTxns(root);
+    const by = (d: string) => rows.find((r) => r.date === d)!;
+    expect(costOf(by("2026-01-07"))).toBe(0); // no purchase in range: not negative spending
+    expect(by("2026-03-10").refunded).toBe(79);
+    expect(costOf(by("2026-03-10"))).toBe(0); //  cancelled in March, the purchase's month
+    expect(costOf(by("2026-04-02"))).toBe(0);
+  });
+
   it("recognises one transaction across exports that write the amount differently", () => {
     const en = `Card Payment,Current,2026-04-01 09:00:00,2026-04-01 09:00:00,LAPTOP SHOP,-1207.52,0.00,EUR,COMPLETED,2000.00`;
     const nl = `Card Payment,Current,2026-04-01 09:00:00,2026-04-01 09:00:00,LAPTOP SHOP,"-1.207,52","0,00",EUR,COMPLETED,"2.000,00"`;

@@ -38,6 +38,7 @@ import {
   subscriptionTerms,
   typicalMonth,
   usefulTerms,
+  settleRefunds,
 } from "@basalt/core";
 import { extractText, getDocumentProxy } from "unpdf";
 import type { FastifyInstance } from "fastify";
@@ -119,7 +120,9 @@ export function loadTxns(root: string): ReturnType<typeof parseStatement>["rows"
   }
   for (const copies of merged.values()) rows.push(...copies);
   rows.sort((a, b) => a.date.localeCompare(b.date));
-  return rows;
+  // Each refund comes off the purchase it refunds, in that purchase's month,
+  // or — bought before these statements begin — off nothing (spending.ts).
+  return settleRefunds(rows);
 }
 
 /**

@@ -152,24 +152,67 @@ export function categoryOf(description: string, rules: CategoryRule[]): string {
  * Money coming IN is never spending, whatever it matches.
  */
 export const costOf = (r: StatementRow, rules: CategoryRule[] = []): number => {
-  // A refund is money back on something already counted, so it comes off the
-  // category it was bought in. Returning 0 here left a EUR 799 laptop in
-  // Shopping after it went back, and that figure then entered the median
-  // defining a typical Shopping month for the next year (audit). The fee is
-  // not refunded and stays.
-  if (r.flow === "refund" && r.amount > 0) return r.fee - r.amount;
+  // A refund costs only its fee. Its amount has already come off the purchase
+  // it refunds, in the purchase's month (settleRefunds, below) — or, when that
+  // purchase is not in the data at all, it is money back, not negative
+  // spending. Subtracting it here instead drove January's "Other" to
+  // -EUR 472.34 on a refund for something bought in December.
+  if (r.flow === "refund" && r.amount > 0) return r.fee;
   if (r.amount >= 0) return r.fee;
   const counts = r.flow === "spend" || (r.flow === "moved" && categoryOf(r.description, rules) !== UNCATEGORISED);
-  return (counts ? -r.amount : 0) + r.fee;
+  return (counts ? -r.amount - (r.refunded ?? 0) : 0) + r.fee;
 };
+
+/** How Finance names a merchant: the description, whitespace-collapsed, upper-cased. */
+const merchantOf = (r: StatementRow) => r.description.trim().replace(/\s+/g, " ").toUpperCase();
+
+/**
+ * Take each refund off the purchase it refunds.
+ *
+ * A refund is money back on something bought earlier, so it belongs to that
+ * purchase: a EUR 799 laptop bought in March and returned in April cost
+ * nothing, in March. Netting it where it ARRIVED (the previous rule) left
+ * March inflated and could push April below zero; and a refund for something
+ * bought before the statement starts had nothing to net against at all — a
+ * EUR 583.30 Rakuten refund on 7 January turned January's "Other" into
+ * -EUR 472.34, which then set the category's "lowest month" and dragged its
+ * average.
+ *
+ * So each refund, oldest first, is matched to earlier purchases at the same
+ * merchant: one of exactly the refunded amount if there is one, else the most
+ * recent first. Whatever it cannot match is not spending in either direction.
+ * Purchases come back with `refunded` set; nothing the bank reported changes.
+ * Every cost is then >= 0, so no category month can go negative.
+ */
+export function settleRefunds(rows: StatementRow[]): StatementRow[] {
+  const cents = (n: number) => Math.round(n * 100) / 100;
+  const out = rows.map((r) => (r.flow === "spend" && r.amount < 0 ? { ...r, refunded: 0 } : r));
+  const left = (p: StatementRow) => cents(-p.amount - (p.refunded ?? 0));
+  const refunds = out
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => r.flow === "refund" && r.amount > 0)
+    .sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i);
+  for (const { r } of refunds) {
+    let owed = cents(r.amount);
+    const merchant = merchantOf(r);
+    const candidates = out
+      .filter((p) => p.refunded !== undefined && p.date <= r.date && merchantOf(p) === merchant && left(p) > 0)
+      .sort((a, b) => Number(left(b) === owed) - Number(left(a) === owed) || b.date.localeCompare(a.date));
+    for (const p of candidates) {
+      if (owed <= 0) break;
+      const take = Math.min(owed, left(p));
+      p.refunded = cents((p.refunded ?? 0) + take);
+      owed = cents(owed - take);
+    }
+  }
+  return out;
+}
 
 export function monthlyByCategory(rows: StatementRow[], rules: CategoryRule[]): CategoryMonth[] {
   const months = new Map<string, CategoryMonth>();
   for (const r of rows) {
     const cost = costOf(r, rules);
-    // Not `<= 0`: a refund carries a NEGATIVE cost and has to reach its
-    // category to net against the purchase.
-    if (cost === 0) continue;
+    if (cost === 0) continue; // a fully refunded purchase, a transfer, money in
     const key = r.date.slice(0, 7);
     const m = months.get(key) ?? { month: key, byCategory: {}, total: 0 };
     const cat = categoryOf(r.description, rules);

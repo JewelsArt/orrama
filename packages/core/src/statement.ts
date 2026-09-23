@@ -49,6 +49,13 @@ export interface StatementRow {
    * merged two coffees bought the same day into one.
    */
   key: string;
+  /**
+   * On a purchase: how much of it later refunds gave back, set by
+   * settleRefunds (spending.ts). Absent until then. The bank's `amount` is
+   * never rewritten — this is what the purchase ended up costing, not what
+   * the statement says was charged.
+   */
+  refunded?: number;
 }
 
 export interface MonthSummary {
