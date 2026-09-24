@@ -11,6 +11,7 @@ import {
 } from "@simplewebauthn/server";
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
+import { LoginLimiter } from "../loginLimit.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
@@ -49,12 +50,26 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return reply.send({ token, user: publicUser(db, store, id) });
   });
 
+  // One per server, so each test suite's app starts with a clean count.
+  const logins = new LoginLimiter();
+
   app.post("/api/auth/login", async (req, reply) => {
+    // Checked before the password: while an address is locked out, the right
+    // password must look exactly like a wrong one (loginLimit.ts).
+    const wait = logins.retryAfter(req.ip);
+    if (wait > 0) {
+      return reply
+        .code(429)
+        .header("retry-after", String(Math.ceil(wait / 1000)))
+        .send({ error: `too many failed sign-ins — try again in ${Math.ceil(wait / 60_000)} min` });
+    }
     const body = loginSchema.parse(req.body);
     const user = db.select().from(tables.users).where(eq(tables.users.email, body.email.toLowerCase())).get();
     if (!user || !(await argonVerify(user.passwordHash, body.password))) {
+      logins.fail(req.ip);
       throw new HttpError(401, "invalid email or password");
     }
+    logins.succeed(req.ip);
     db.update(tables.users)
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))

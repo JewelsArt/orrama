@@ -80,12 +80,48 @@ Vault layout:
 `);
   }
 
+  /**
+   * A second line behind the HTML scrubbers (.docx reader, mail): if markup
+   * ever slips through into our origin, it still cannot run script — no inline
+   * script, no `on*` handler, no `javascript:` URL, nothing from another host.
+   *
+   * What the rest allows, and why:
+   * - style 'unsafe-inline': React `style={…}` props are inline styles.
+   * - img/font https: + http:: the mail reader's srcdoc iframe INHERITS this
+   *   policy (the two intersect), so "Show images" needs remote images here.
+   * - blob: the document reader shows PDFs and images from object URLs.
+   * - connect 'self' covers the same-origin WebSocket.
+   * Not on /api: JSON is never rendered as a document, so a CSP there does nothing.
+   */
+  const CSP = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https:",
+    "img-src 'self' data: blob: https: http:",
+    "connect-src 'self'",
+    "frame-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+
   // URLs in the log are redacted: no query strings, no /ics/<token> (logging.ts).
   const app = Fastify({
     logger: { level: "info", serializers: { req: reqSerializer }, ...(opts.logStream ? { stream: opts.logStream } : {}) },
   });
   // Stop the vault watcher with the app, so a closed server stops reacting to files.
   app.addHook("onClose", async () => store.close());
+  app.addHook("onSend", async (req, reply, payload) => {
+    reply.header("x-content-type-options", "nosniff");
+    // Every non-API response, not just text/html: a revalidated index.html
+    // comes back as a bare 304, and the browser keeps the headers it stored
+    // with the 200 — so a shell cached before this header existed would stay
+    // unprotected for as long as the file's ETag does not change.
+    if (!req.url.startsWith("/api/")) reply.header("content-security-policy", CSP);
+    return payload;
+  });
   await app.register(cors, { origin: env.corsOrigin });
   await app.register(jwt, { secret: env.jwtSecret });
   await app.register(websocket);

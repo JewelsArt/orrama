@@ -330,6 +330,17 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
 
 ## Conventions & gotchas
 
+- **Every non-API response carries a Content-Security-Policy** (`CSP` in
+  `main.ts`): scripts from our own origin only, so markup that slips past the
+  .docx/mail scrubbers still cannot run. Adding anything loaded from another
+  host (a font, a CDN script, an API called from the browser) means adding it
+  there, or it is silently blocked in the built app — vite dev (:4625) sends no
+  CSP, so it will look fine while iterating. The mail iframe *inherits* this
+  policy, which is why `img-src`/`font-src` allow https:.
+- **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one
+  address inside 15 minutes → 429 until the oldest ages out, even for the
+  right password. In memory; a restart clears it.
+
 - Team **slugs** (not ids) are the `TeamId` in core ACL and what `#only/#share` match.
 - Note ids live in front-matter (`id: n-…`), assigned on first index; renames are
   metadata ops so links never break. `VaultStore.write` preserves the existing id.
