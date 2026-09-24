@@ -19,6 +19,7 @@ interface PlanTask {
   line: number;
   text: string;
   project: string | null;
+  forYou: boolean;
   assignee: string | null;
   due: string | null;
   priority: number | null;
@@ -210,8 +211,11 @@ export function Planning({
   }, [load]);
 
   const allTasks = useMemo(
-    () => (plan?.assignees ?? []).filter((a) => a.assignee === me.username).flatMap((a) => a.tasks),
-    [plan, me.username],
+    // The server decides whose a task is (forYou): assigned to you, or to
+    // nobody in a note you can edit. Filtering on the @name here hid every
+    // task without one.
+    () => (plan?.assignees ?? []).flatMap((a) => a.tasks).filter((t) => t.forYou),
+    [plan],
   );
   const backlog = useMemo(() => allTasks.filter((t) => t.remainingHours > 0), [allTasks]);
 

@@ -6,7 +6,7 @@
  */
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { isoLocal } from "@basalt/core";
+import { canEdit, isoLocal } from "@basalt/core";
 import type { AclUser, VaultTask } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
@@ -20,6 +20,12 @@ interface PlannedTask {
   text: string;
   project: string | null;
   assignee: string | null;
+  /**
+   * The viewer's to plan: assigned to them, or assigned to nobody in a note
+   * they can edit. The auto-scheduler and the Planning backlog both read this,
+   * so they cannot disagree about whose work a task is.
+   */
+  forYou: boolean;
   due: string | null;
   priority: number | null;
   estimateHours: number;
@@ -76,7 +82,15 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
       .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
     const open = store.index
       .tasks(user, store.grants(), projectDefs)
-      .filter((t) => !t.checked && t.project !== null);
+      // The whole-vault plan (the Planning tab) takes every open task; a team
+      // plan keeps to that team's projects. Requiring a project everywhere hid
+      // 53 of Jules's 173 open tasks - his deadlines note among them.
+      .filter((t) => !t.checked && (t.project !== null || team === null));
+    const grants = store.grants();
+    const editable = (noteId: string) => {
+      const note = store.index.get(noteId);
+      return note !== undefined && canEdit(user, note, grants);
+    };
 
     // Estimates: heuristic first, AI refinement when configured.
     const estimates = new Map<string, number>();
@@ -159,6 +173,7 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
         text: t.text,
         project: t.project,
         assignee: t.assignee ?? null,
+        forYou: t.assignee ? t.assignee === user.username : editable(t.noteId),
         due: t.due ?? null,
         priority: t.priority ?? null,
         estimateHours: est,
@@ -336,7 +351,10 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
 
     // Most urgent first: what is already late, then what is heading that way,
     // then by deadline and priority. Anything undated waits its turn at the end.
-    const mine = (plan.assignees.find((a) => a.assignee === user.username)?.tasks ?? []).filter((t) => t.remainingHours > 0);
+    // Assigned to you, or to nobody in a note you can edit (PlannedTask.forYou).
+    // Keyed on the assignee name alone, every task without an @mention -
+    // 61 of 173 on the real vault - was invisible to the scheduler.
+    const mine = plan.assignees.flatMap((a) => a.tasks).filter((t) => t.forYou && t.remainingHours > 0);
     const urgency = (t: (typeof mine)[number]) => (t.due && t.due < today ? 0 : t.atRisk ? 1 : t.due ? 2 : 3);
     const queue = [...mine].sort(
       (a, b) => urgency(a) - urgency(b) || (a.due ?? "9999").localeCompare(b.due ?? "9999") || (a.priority ?? 4) - (b.priority ?? 4),
