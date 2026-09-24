@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
+import { sanitizeDocHtml } from "../docHtml.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 export const PROJECTS_DIR = "04-Projects";
@@ -456,8 +457,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
    * A .docx as readable HTML, converted here rather than in the browser:
    * mammoth's browser build never settles under our bundler, and Node has the
    * APIs it actually wants. Output is mammoth's own restricted element set
-   * (headings, lists, tables, emphasis, embedded images) — scrubbed of scripts
-   * and event handlers before it is handed to a `dangerouslySetInnerHTML`.
+   * (headings, lists, tables, emphasis, embedded images) — rebuilt from an
+   * allowlist (docHtml.ts) before it is handed to a `dangerouslySetInnerHTML`.
    */
   app.get<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name/html", auth, async (req) => {
     openProject(req.userId, req.params.slug); // readable project = readable documents
@@ -468,11 +469,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
     const { convertToHtml } = await import("mammoth");
     const res = await convertToHtml({ path: abs });
-    const html = res.value
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-      .replace(/\son\w+\s*=\s*'[^']*'/gi, "");
-    return { html, messages: res.messages.length };
+    // An allowlist rebuild, not a scrub: a link keeps its target only for
+    // http(s), mailto, tel and #anchors (see docHtml.ts).
+    return { html: sanitizeDocHtml(res.value), messages: res.messages.length };
   });
 
   /**
