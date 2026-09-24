@@ -22,7 +22,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { balanceSpan, buildRules, financeNote, loadTxns } from "./finance.js";
+import { balanceSpan, buildRules, financeNote, loadTxns, savingsCategories } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -252,11 +252,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
 
         const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
         const savings = savingsPlan({
-          categories: outlook.map((f) => ({
-            category: f.category,
-            totals: finished.map((m) => m.byCategory[f.category] ?? 0),
-            committed: rules.some((r) => r.pinned && r.category === f.category),
-          })),
+          categories: savingsCategories(outlook.map((f) => f.category), finished),
           months: finished.map((m) => m.month),
           spendMonths: finished.map((m) => m.total),
           // Everything that LEFT, transfers included — read the same way the

@@ -209,8 +209,12 @@ export function buildRules(
       colour: written.find((r) => r.category.toLowerCase() === category.toLowerCase())?.colour ?? "purple",
       pinned: true,
     }));
-  const claimed = new Set(pinned.map((r) => r.category.toLowerCase()));
-  return [...written.filter((r) => !claimed.has(r.category.toLowerCase())), ...pinned];
+  // Written rules are KEPT alongside the pinned ones, even for a category the
+  // ledger also names. Dropping them threw away the merchants Jules wrote for
+  // that category: the ledger's Bouldering membership replaced the written
+  // Bouldering rule, so every gym visit fell into "Other". Pinned terms still
+  // win their own transactions (score + 1000 in ruleFor).
+  return [...written, ...pinned];
 }
 
 /**
@@ -238,19 +242,29 @@ const TRANSFER_CATEGORY = "Transfer";
 const COMMITTED_CATEGORY = "Subscriptions";
 
 /**
- * Categories no in-month decision changes: every category the subscriptions
- * ledger produces. Rent, tuition and Adobe are all "you pay this until you
- * cancel it", so none of them belongs in the savings plan's trimmable
- * headroom — telling someone to spend less on rent this month is noise.
+ * The savings plan's categories, each split by what the transactions in it are.
+ *
+ * Only what a ledger (pinned) rule caught is committed — rent, tuition, Adobe,
+ * the bouldering membership: "you pay this until you cancel it", so none of it
+ * belongs in the plan's trimmable headroom. Everything else in the same
+ * category is discretionary. It used to be decided per CATEGORY — any category
+ * the ledger named was committed wholesale — which is only safe while the
+ * ledger's category holds nothing but the ledger's own payments.
+ *
+ * Shared by the Finance tab and the Dashboard, so the two cannot quote
+ * different savings targets from the same data.
  */
-function committedCategories(rules: { category: string; pinned?: boolean }[]): Set<string> {
-  return new Set(rules.filter((r) => r.pinned).map((r) => r.category));
+export function savingsCategories(names: string[], finished: CategoryMonthOf[]): { category: string; totals: number[]; committed: boolean }[] {
+  const out: { category: string; totals: number[]; committed: boolean }[] = [];
+  for (const category of names) {
+    const fixed = finished.map((m) => m.committed?.[category] ?? 0);
+    const free = finished.map((m, i) => Math.round(((m.byCategory[category] ?? 0) - fixed[i]!) * 100) / 100);
+    if (fixed.some((v) => v !== 0)) out.push({ category, totals: fixed, committed: true });
+    if (free.some((v) => v !== 0) || !fixed.some((v) => v !== 0)) out.push({ category, totals: free, committed: false });
+  }
+  return out;
 }
-
-/** What a category costs in each complete month, as a plain list. */
-function totalsFor(category: string, months: { byCategory: Record<string, number> }[]): number[] {
-  return months.map((m) => m.byCategory[category] ?? 0);
-}
+type CategoryMonthOf = ReturnType<typeof monthlyByCategory>[number];
 
 const rowSchema = z.object({
   // Trimmed and length-capped: these land in a Markdown table a human reads.
@@ -468,14 +482,9 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      * model — it is deliberately derived from Jules's own months rather than
      * from a rule of thumb.
      */
-    const committed = committedCategories(rules);
     const outflow = new Map(outflowByMonth(txns).map((o) => [o.month, o.outflow]));
     const savings = savingsPlan({
-      categories: outlook.map((f) => ({
-        category: f.category,
-        totals: totalsFor(f.category, finished),
-        committed: committed.has(f.category),
-      })),
+      categories: savingsCategories(outlook.map((f) => f.category), finished),
       months: finished.map((m) => m.month),
       spendMonths: finished.map((m) => m.total),
       // Everything that LEFT, transfers included — the identity money-in is

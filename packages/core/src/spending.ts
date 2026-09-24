@@ -30,6 +30,13 @@ export interface CategoryMonth {
   month: string;
   /** Category → euros spent that month. */
   byCategory: Record<string, number>;
+  /**
+   * Category → the part of byCategory that a pinned (ledger) rule caught: the
+   * membership, the rent, the licence — what no in-month decision changes.
+   * The rest of the category is discretionary, even when the ledger names the
+   * same category: the bouldering membership is committed, a visit is not.
+   */
+  committed?: Record<string, number>;
   total: number;
 }
 
@@ -111,8 +118,13 @@ const MIN_SUBSTRING = 3;
  * statement as a substring.
  */
 export function categoryOf(description: string, rules: CategoryRule[]): string {
+  return ruleFor(description, rules)?.category ?? UNCATEGORISED;
+}
+
+/** The rule a description falls under — categoryOf, but saying which rule won. */
+export function ruleFor(description: string, rules: CategoryRule[]): CategoryRule | null {
   const hay = fold(description).trim();
-  let best = "";
+  let best: CategoryRule | null = null;
   let bestLen = 0;
   for (const rule of rules) {
     for (const raw of rule.matches) {
@@ -125,12 +137,12 @@ export function categoryOf(description: string, rules: CategoryRule[]): string {
       const score = (exact ? m.length + 100 : m.length) + (rule.pinned ? 1000 : 0);
       if (score <= bestLen) continue;
       if (exact ? hay === m : m.length >= MIN_SUBSTRING && hay.includes(m)) {
-        best = rule.category;
+        best = rule;
         bestLen = score;
       }
     }
   }
-  return best || UNCATEGORISED;
+  return best;
 }
 
 /**
@@ -214,9 +226,11 @@ export function monthlyByCategory(rows: StatementRow[], rules: CategoryRule[]): 
     const cost = costOf(r, rules);
     if (cost === 0) continue; // a fully refunded purchase, a transfer, money in
     const key = r.date.slice(0, 7);
-    const m = months.get(key) ?? { month: key, byCategory: {}, total: 0 };
-    const cat = categoryOf(r.description, rules);
+    const m = months.get(key) ?? { month: key, byCategory: {}, committed: {}, total: 0 };
+    const rule = ruleFor(r.description, rules);
+    const cat = rule?.category ?? UNCATEGORISED;
     m.byCategory[cat] = Math.round(((m.byCategory[cat] ?? 0) + cost) * 100) / 100;
+    if (rule?.pinned) m.committed![cat] = Math.round(((m.committed![cat] ?? 0) + cost) * 100) / 100;
     m.total = Math.round((m.total + cost) * 100) / 100;
     months.set(key, m);
   }
