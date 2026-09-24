@@ -5468,6 +5468,10 @@ kbd {
 .fin-year:hover { color: var(--d-ink); }
 .fin-year.on { background: var(--solid); border-color: var(--solid); color: var(--bg); }
 .fin-years + .fin-link { margin-left: 10px; }
+/* Month | Year, and the year tabs, above a spending chart. */
+.fin-chart-controls { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
+.fin-grain { margin-left: 0; }
+.fin-card-head .fin-grain { margin-left: auto; }
 
 .fin-link { margin-left: auto; border: none; background: none; color: var(--d-accent); font: 600 12px var(--font-ui); cursor: pointer; }
 .fin-count { margin-left: auto; font: 700 11.5px var(--font-mono); color: var(--d-ink-3); }

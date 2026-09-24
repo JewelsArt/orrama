@@ -662,6 +662,23 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         };
       });
 
+      // Every year the statements reach, for the chart's "Year" view: a year
+      // with none of this category reads as zero, not as missing, and a year
+      // the statements only partly cover says so.
+      const firstTxn = txns.length ? txns[0]!.date : "";
+      const yearly: { year: string; total: number; count: number; partial: boolean }[] = [];
+      if (firstTxn && lastTxn) {
+        for (let y = Number(firstTxn.slice(0, 4)); y <= Number(lastTxn.slice(0, 4)); y++) {
+          const rows = mine.filter((r) => r.date.startsWith(`${y}-`));
+          yearly.push({
+            year: String(y),
+            total: Math.round(rows.reduce((a, r) => a + costOf(r, rules), 0) * 100) / 100,
+            count: rows.length,
+            partial: firstTxn > `${y}-01-01` || lastTxn < `${y}-12-31`,
+          });
+        }
+      }
+
       const merchants = merchantsByCategory(inYear, rules, 20)[wanted] ?? [];
       // Stats over whole months only: a part-month would understate the low.
       const spent = series.filter((m) => m.hasData && !m.partial).map((m) => m.total);
@@ -673,6 +690,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         years,
         year: year ?? null,
         series,
+        yearly,
         merchants,
         stats: {
           total: Math.round(inYear.reduce((a, r) => a + costOf(r, rules), 0) * 100) / 100,

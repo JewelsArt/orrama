@@ -272,6 +272,43 @@ export function outflowByMonth(rows: StatementRow[]): { month: string; outflow: 
   return [...months].map(([month, outflow]) => ({ month, outflow })).sort((a, b) => a.month.localeCompare(b.month));
 }
 
+/** One calendar year of spending, rolled up from its months. */
+export interface YearTotal {
+  year: string;
+  byCategory: Record<string, number>;
+  total: number;
+  /** The statements do not cover all of it: they start after January or stop before a complete December. */
+  partial: boolean;
+}
+
+/**
+ * Months rolled up into calendar years, oldest first — the chart's "Year" view.
+ * `firstMonth` is the earliest month the statements cover and `lastComplete`
+ * the latest complete one; a year either side of them is partial, and says
+ * so, rather than looking like a cheap year.
+ */
+export function rollUpYears(
+  months: { month: string; byCategory: Record<string, number>; total: number }[],
+  firstMonth: string | null,
+  lastComplete: string | null,
+): YearTotal[] {
+  const cents = (n: number) => Math.round(n * 100) / 100;
+  const byYear = new Map<string, YearTotal>();
+  for (const m of months) {
+    const year = m.month.slice(0, 4);
+    const y = byYear.get(year) ?? {
+      year,
+      byCategory: {},
+      total: 0,
+      partial: (firstMonth !== null && firstMonth > `${year}-01`) || lastComplete === null || lastComplete < `${year}-12`,
+    };
+    for (const [cat, v] of Object.entries(m.byCategory)) y.byCategory[cat] = cents((y.byCategory[cat] ?? 0) + v);
+    y.total = cents(y.total + m.total);
+    byYear.set(year, y);
+  }
+  return [...byYear.values()].sort((a, b) => a.year.localeCompare(b.year));
+}
+
 /**
  * How many complete months "typical" is measured over. Enough to hold a year's
  * seasons, recent enough to be the life being lived now: with five years of

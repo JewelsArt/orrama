@@ -1,3 +1,4 @@
+import { rollUpYears } from "@basalt/core/spending";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isoLocal, monthKey, shiftMonth } from "@basalt/core/dates";
 import type { FinancePage } from "./App.js";
@@ -266,6 +267,8 @@ function StackedMonths({
   lastComplete,
   typical,
   onPick,
+  period = "month",
+  partialYears = [],
 }: {
   months: { month: string; byCategory: Record<string, number>; total: number }[];
   bands: string[];
@@ -274,10 +277,18 @@ function StackedMonths({
   onHover: (name: string | null) => void;
   lastComplete: string | null;
   typical: number;
-  /** Every column is a door to that month. */
+  /** Every column is a door to that month (or, by year, to that year's months). */
   onPick: (month: string) => void;
+  /** "year": each column is a calendar year, keyed "2025". */
+  period?: "month" | "year";
+  /** Years the statements only partly cover (period "year"). */
+  partialYears?: string[];
 }) {
   if (months.length === 0) return null;
+  const byYear = period === "year";
+  const fullName = (k: string) => (byYear ? k : monthName(k));
+  const shortName = (k: string) => (byYear ? k : monthName(k).split(" ")[0]);
+  const isPartial = (k: string) => (byYear ? partialYears.includes(k) : lastComplete !== null && k > lastComplete);
   const W = 760;
   const H = 210;
   const pad = { t: 16, b: 30, r: 46 };
@@ -289,7 +300,7 @@ function StackedMonths({
   const typicalY = y0 - (typical / max) * plot;
 
   return (
-    <svg className="fin-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Monthly spending by category">
+    <svg className="fin-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={byYear ? "Yearly spending by category" : "Monthly spending by category"}>
       <defs>
         {months.map((m, i) => {
           const h = (m.total / max) * plot;
@@ -335,7 +346,7 @@ function StackedMonths({
 
       {months.map((m, i) => {
         const x = i * slot + (slot - barW) / 2;
-        const partial = lastComplete !== null && m.month > lastComplete;
+        const partial = isPartial(m.month);
         let y = y0;
         return (
           <g key={m.month} className="fin-col" opacity={partial ? 0.42 : 1}>
@@ -361,16 +372,16 @@ function StackedMonths({
                     onMouseEnter={() => onHover(cat)}
                     onMouseLeave={() => onHover(null)}
                   >
-                    <title>{`${cat} · ${monthName(m.month)} · €${v.toFixed(2)}`}</title>
+                    <title>{`${cat} · ${fullName(m.month)} · €${v.toFixed(2)}`}</title>
                   </rect>
                 );
               })}
             </g>
             <text x={x + barW / 2} y={H - 10} textAnchor="middle" className="fin-chart-lbl">
-              {monthName(m.month).split(" ")[0]}
+              {shortName(m.month)}
             </text>
             <text x={x + barW / 2} y={y - 7} textAnchor="middle" className="fin-chart-total">
-              {partial ? "part month" : `€${Math.round(m.total)}`}
+              {partial ? (byYear ? `€${Math.round(m.total)} · part year` : "part month") : `€${Math.round(m.total)}`}
             </text>
             {/* The hit area spans the whole slot, not just the drawn bar: a
                 thin month must not be harder to open than a fat one. */}
@@ -382,12 +393,47 @@ function StackedMonths({
               height={plot}
               onClick={() => onPick(m.month)}
             >
-              <title>{`Open ${monthName(m.month)}`}</title>
+              <title>{byYear ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`}</title>
             </rect>
           </g>
         );
       })}
     </svg>
+  );
+}
+
+type Grain = "month" | "year";
+const GRAIN_KEY = "basalt-fin-grain";
+/** Month or Year, remembered per viewer. Storage can be unavailable; the default still works. */
+function useGrain(): [Grain, (g: Grain) => void] {
+  const [grain, setGrain] = useState<Grain>(() => {
+    try {
+      return localStorage.getItem(GRAIN_KEY) === "year" ? "year" : "month";
+    } catch {
+      return "month";
+    }
+  });
+  const set = (g: Grain) => {
+    setGrain(g);
+    try {
+      localStorage.setItem(GRAIN_KEY, g);
+    } catch {
+      /* not remembered, still switched */
+    }
+  };
+  return [grain, set];
+}
+
+/** The Month | Year switch shared by the spending charts. */
+function GrainToggle({ grain, onChange }: { grain: Grain; onChange: (g: Grain) => void }) {
+  return (
+    <div className="fin-years fin-grain" role="tablist" aria-label="Show by">
+      {(["month", "year"] as const).map((g) => (
+        <button key={g} role="tab" aria-selected={grain === g} className={`fin-year ${grain === g ? "on" : ""}`} onClick={() => onChange(g)}>
+          {g === "month" ? "Month" : "Year"}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -397,6 +443,8 @@ interface CategoryDetail {
   years: string[];
   year: string | null;
   series: { month: string; total: number; count: number; hasData: boolean; future: boolean; partial: boolean }[];
+  /** Every year the statements reach, for the "Year" view. */
+  yearly: { year: string; total: number; count: number; partial: boolean }[];
   merchants: { name: string; total: number; count: number }[];
   stats: { total: number; count: number; activeMonths: number; high: number; low: number };
 }
@@ -620,6 +668,7 @@ function CategoryPage({
 }) {
   const [d, setD] = useState<CategoryDetail | null>(null);
   const [year, setYear] = useState<string | null>(null);
+  const [grain, setGrain] = useGrain();
 
   useEffect(() => {
     const q = year ? `?year=${encodeURIComponent(year)}` : "";
@@ -688,9 +737,26 @@ function CategoryPage({
       <div className="fin-grid">
         <section className="fin-card fin-span fin-plot">
           <div className="fin-card-head">
-            <h2>Per month, {d.year}</h2>
+            <h2>{grain === "year" ? "Per year" : `Per month, ${d.year}`}</h2>
+            <GrainToggle grain={grain} onChange={setGrain} />
           </div>
-          <LineMonths series={d.series} colour={colour} average={avg} onPick={(m) => onOpenMonth(m, name)} />
+          {grain === "year" ? (
+            <LineMonths
+              period="year"
+              series={d.yearly.map((y) => ({ month: y.year, total: y.total, hasData: y.count > 0, future: false, partial: y.partial }))}
+              colour={colour}
+              average={(() => {
+                const whole = d.yearly.filter((y) => !y.partial && y.count > 0);
+                return whole.length ? whole.reduce((a, y) => a + y.total, 0) / whole.length : 0;
+              })()}
+              onPick={(y) => {
+                setYear(y);
+                setGrain("month");
+              }}
+            />
+          ) : (
+            <LineMonths series={d.series} colour={colour} average={avg} onPick={(m) => onOpenMonth(m, name)} />
+          )}
         </section>
 
         <section className="fin-card fin-span">
@@ -727,7 +793,10 @@ function LineMonths({
   colour,
   average,
   onPick,
+  period = "month",
 }: {
+  /** "year": each point is a calendar year, keyed "2025". */
+  period?: "month" | "year";
   series: { month: string; total: number; hasData: boolean; future: boolean; partial: boolean }[];
   colour: string;
   average: number;
@@ -764,7 +833,7 @@ function LineMonths({
     .join("");
 
   return (
-    <svg className="fin-line" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Spending per month">
+    <svg className="fin-line" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={period === "year" ? "Spending per year" : "Spending per month"}>
       <defs>
         <linearGradient id="finFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={colour} stopOpacity="0.22" />
@@ -804,12 +873,12 @@ function LineMonths({
                 strokeWidth="2"
               />
               <text x={x(i)} y={y(m.total) - 10} textAnchor="middle" className="fin-chart-total">
-                {m.partial ? "so far" : `€${Math.round(m.total)}`}
+                {m.partial ? (period === "year" ? `€${Math.round(m.total)} · part year` : "so far") : `€${Math.round(m.total)}`}
               </text>
             </>
           )}
           <text x={x(i)} y={H - 10} textAnchor="middle" className={`fin-chart-lbl ${m.future ? "ahead" : ""}`}>
-            {monthName(m.month).split(" ")[0]}
+            {period === "year" ? m.month : monthName(m.month).split(" ")[0]}
           </text>
           <rect
             className={m.future ? "" : "fin-hit"}
@@ -820,7 +889,7 @@ function LineMonths({
             fill="transparent"
             onClick={() => !m.future && onPick(m.month)}
           >
-            {!m.future && <title>{`Open ${monthName(m.month)}`}</title>}
+            {!m.future && <title>{period === "year" ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`}</title>}
           </rect>
         </g>
       ))}
@@ -849,6 +918,8 @@ function SpendingPage({
 }) {
   const [d, setD] = useState<FinanceData | null>(null);
   const [hot, setHot] = useState<string | null>(null);
+  const [grain, setGrain] = useGrain();
+  const [year, setYear] = useState<string | null>(null);
   useEffect(() => {
     void api<FinanceData>("GET", "/api/finance").then(setD);
   }, []);
@@ -867,6 +938,11 @@ function SpendingPage({
   // denominator: each row's share of what the categories typically add up to.
   const categoryTypicalTotal = cats.forecast.reduce((a, f) => a + f.typical, 0);
   const lastFull = cats.lastComplete ? cats.months.find((m) => m.month === cats.lastComplete) : undefined;
+  // Years of statements are too many columns for one chart: by month it shows
+  // one year at a time (latest first), by year one column per calendar year.
+  const years = [...new Set(cats.months.map((m) => m.month.slice(0, 4)))].sort().reverse();
+  const shownYear = year && years.includes(year) ? year : (years[0] ?? null);
+  const yearRows = rollUpYears(cats.months, cats.months[0]?.month ?? null, cats.lastComplete);
 
   return (
     <div className="fin">
@@ -898,16 +974,46 @@ function SpendingPage({
               )}
             </span>
           </div>
-          <StackedMonths
-            months={cats.months}
-            bands={chartBands}
-            colour={colourOf}
-            active={hot}
-            onHover={setHot}
-            lastComplete={cats.lastComplete}
-            typical={typicalTotal}
-            onPick={(m) => onOpenMonth(m)}
-          />
+          <div className="fin-chart-controls">
+            <GrainToggle grain={grain} onChange={setGrain} />
+            {grain === "month" && years.length > 1 && (
+              <div className="fin-years" role="tablist" aria-label="Year">
+                {years.map((y) => (
+                  <button key={y} role="tab" aria-selected={y === shownYear} className={`fin-year ${y === shownYear ? "on" : ""}`} onClick={() => setYear(y)}>
+                    {y}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {grain === "month" ? (
+            <StackedMonths
+              months={cats.months.filter((m) => shownYear !== null && m.month.startsWith(shownYear))}
+              bands={chartBands}
+              colour={colourOf}
+              active={hot}
+              onHover={setHot}
+              lastComplete={cats.lastComplete}
+              typical={typicalTotal}
+              onPick={(m) => onOpenMonth(m)}
+            />
+          ) : (
+            <StackedMonths
+              period="year"
+              months={yearRows.map((y) => ({ month: y.year, byCategory: y.byCategory, total: y.total }))}
+              partialYears={yearRows.filter((y) => y.partial).map((y) => y.year)}
+              bands={chartBands}
+              colour={colourOf}
+              active={hot}
+              onHover={setHot}
+              lastComplete={cats.lastComplete}
+              typical={typicalTotal * 12}
+              onPick={(y) => {
+                setYear(y);
+                setGrain("month");
+              }}
+            />
+          )}
           <ul className="fin-cats">
             {cats.forecast.map((f) => {
               const delta = f.last !== null ? f.last - f.typical : null;
@@ -946,8 +1052,9 @@ function SpendingPage({
             })}
           </ul>
           <p className="fin-legend">
-            Typical is the median of {cats.completeMonths} complete months, so one large purchase does not become next
+            Typical is the median of the last {cats.completeMonths} complete months, so one large purchase does not become next
             month&apos;s expectation. The bar spans the lowest and highest month.
+            {grain === "year" && " By year, the dashed line is twelve typical months, and a faded column is a year the statements only partly cover."}
           </p>
         </section>
       </div>

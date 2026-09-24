@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./dates": "./src/dates.ts",
-    "./money": "./src/money.ts"
+    "./money": "./src/money.ts",
+    "./spending": "./src/spending.ts"
   },
   "scripts": {
     "test": "vitest run",

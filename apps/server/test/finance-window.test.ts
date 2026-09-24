@@ -101,6 +101,15 @@ describe("GET /api/finance with years of history", () => {
     expect(Number(target)).toBe(f.savings.target);
   });
 
+  it("gives a category's totals for every year the statements reach, marking the part ones", async () => {
+    const c = await get("/api/finance/category/Home");
+    expect(c.yearly.map((y: { year: string }) => y.year)).toEqual(["2021", "2022", "2023", "2024", "2025"]);
+    const by = Object.fromEntries(c.yearly.map((y: { year: string; total: number; partial: boolean }) => [y.year, y]));
+    expect(by["2022"]).toMatchObject({ total: 0, partial: false }); // no rent yet: zero, not missing
+    expect(by["2024"]).toMatchObject({ total: 2400, partial: false }); // Sep-Dec at 600
+    expect(by["2025"]).toMatchObject({ total: 4800, partial: true }); //  Jan-Aug, statements stop in August
+  });
+
   it("compares an old month with its own time, not with today", async () => {
     const then = await get("/api/finance/month/2022-06");
     expect(then.typical).toBe(100); // the months around mid-2022, not 2025's 700
