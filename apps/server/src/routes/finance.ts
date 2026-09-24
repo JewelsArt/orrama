@@ -39,6 +39,8 @@ import {
   typicalMonth,
   usefulTerms,
   settleRefunds,
+  monthsAround,
+  recentMonths,
 } from "@basalt/core";
 import { extractText, getDocumentProxy } from "unpdf";
 import type { FastifyInstance } from "fastify";
@@ -184,6 +186,32 @@ export function balanceSpan(root: string): {
   return { balance, balanceDate, opening, openingDate, spanMonths, drift, skipped };
 }
 
+/**
+ * What the account's balance did across a run of complete months: the balance
+ * the bank printed just before the first of them, the one after the last, and
+ * the monthly slope between. Money-in, burn and runway are read off this, so
+ * it covers the SAME months as the typical figures — a slope from a 2020
+ * balance set against this year's spending made income minus outflow stop
+ * matching the account.
+ */
+export function balanceTrend(
+  txns: ReturnType<typeof parseStatement>["rows"],
+  months: string[],
+): { opening: number | null; openingDate: string | null; drift: number | null; spanMonths: number } {
+  const none = { opening: null, openingDate: null, drift: null, spanMonths: 0 };
+  if (months.length === 0) return none;
+  const start = months[0]!;
+  const end = months[months.length - 1]!;
+  const priced = txns.filter((r) => r.balance !== null);
+  const before = priced.filter((r) => r.date.slice(0, 7) < start).at(-1);
+  const first = priced.find((r) => r.date.slice(0, 7) >= start);
+  // Balance after a row = balance before + amount - fee, so before = after - amount + fee.
+  const opening = before ? before.balance! : first ? Math.round((first.balance! - first.amount + first.fee) * 100) / 100 : null;
+  const closing = priced.filter((r) => r.date.slice(0, 7) <= end).at(-1)?.balance ?? null;
+  if (opening === null || closing === null) return none;
+  return { opening, openingDate: `${start}-01`, drift: (closing - opening) / months.length, spanMonths: months.length };
+}
+
 export function buildRules(
   written: ReturnType<typeof parseCategoryRules>,
   subs: ReturnType<typeof parseSubscriptions>,
@@ -319,7 +347,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
     const txns = loadTxns(store.vaultRoot);
-    const { balance, balanceDate, opening, openingDate, spanMonths, drift, skipped } = balanceSpan(store.vaultRoot);
+    const { balance, balanceDate, skipped } = balanceSpan(store.vaultRoot);
 
     // One month's worth of rows, re-aggregated over the merged set.
     const monthsMap = new Map<string, { month: string; spend: number; fees: number; refunds: number; movedIn: number; movedOut: number }>();
@@ -349,9 +377,13 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // Forecast from finished months only — the export stops mid-month and that
     // partial month would drag every category's expectation down.
     const lastDate = txns.length ? txns[txns.length - 1]!.date : "";
-    const finished = lastDate ? completeMonths(catMonths, lastDate) : [];
+    // …and from the last TYPICAL_WINDOW of them: "typical" means now, not a
+    // median across every year on record.
+    const finished = lastDate ? recentMonths(completeMonths(catMonths, lastDate)) : [];
     const outlook = forecast(finished);
-    const merchants = merchantsByCategory(txns, rules);
+    const windowed = new Set(finished.map((m) => m.month));
+    const merchants = merchantsByCategory(txns.filter((r) => windowed.has(r.date.slice(0, 7))), rules);
+    const { opening, openingDate, spanMonths, drift } = balanceTrend(txns, finished.map((m) => m.month));
 
     // Runway needs a balance, and nothing in the vault knows one unless it is
     // written down — so it is read from the finance note's front-matter and
@@ -731,7 +763,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
        * comparison at finance.test.ts has three complete months, so excluding
        * the one being read leaves two.
        */
-      const others = finished.filter((f) => f.month !== month);
+      // The months around this one, not every month on record (see monthsAround).
+      const others = monthsAround(finished, month);
       const typicalOther = (category: string | null) => typicalMonth(others, category, 1) ?? 0;
 
       const categories = [...byCategory]

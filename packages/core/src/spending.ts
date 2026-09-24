@@ -272,6 +272,31 @@ export function outflowByMonth(rows: StatementRow[]): { month: string; outflow: 
   return [...months].map(([month, outflow]) => ({ month, outflow })).sort((a, b) => a.month.localeCompare(b.month));
 }
 
+/**
+ * How many complete months "typical" is measured over. Enough to hold a year's
+ * seasons, recent enough to be the life being lived now: with five years of
+ * statements the median month was a student's, rent read EUR 0 and the
+ * typical month halved.
+ */
+export const TYPICAL_WINDOW = 12;
+
+/** The most recent `n` of a list of complete months (oldest first). */
+export function recentMonths<T extends { month: string }>(months: T[], n = TYPICAL_WINDOW): T[] {
+  return months.slice(-n);
+}
+
+/**
+ * The `n` complete months nearest `month`, excluding it: earlier ones first,
+ * topped up with later ones only when there are not enough before it. For a
+ * recent month that is exactly the last twelve; a month in 2022 is compared
+ * with 2021-22, not with today.
+ */
+export function monthsAround<T extends { month: string }>(months: T[], month: string, n = TYPICAL_WINDOW): T[] {
+  const before = months.filter((m) => m.month < month).slice(-n);
+  if (before.length >= n) return before;
+  return [...before, ...months.filter((m) => m.month > month).slice(0, n - before.length)];
+}
+
 export function completeMonths(months: CategoryMonth[], lastDate: string): CategoryMonth[] {
   const cutoff = lastDate.slice(0, 7);
   const dayOfMonth = Number.parseInt(lastDate.slice(8, 10), 10);

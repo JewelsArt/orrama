@@ -9,6 +9,7 @@ import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import {
   completeMonths,
+  recentMonths,
   forecast,
   monthlyByCategory,
   outflowByMonth,
@@ -22,7 +23,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { balanceSpan, buildRules, financeNote, loadTxns, savingsCategories } from "./finance.js";
+import { balanceTrend, buildRules, financeNote, loadTxns, savingsCategories } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -241,7 +242,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
         const catMonths = monthlyByCategory(txns, rules);
         const last = txns[txns.length - 1]!.date;
-        const finished = completeMonths(catMonths, last);
+        const finished = recentMonths(completeMonths(catMonths, last)); // the same window as the Finance tab
         const outlook = forecast(finished);
         // One typicalMonth(), shared with the Finance tab (audit). It answers
         // null under three complete months, which is the same threshold the
@@ -268,7 +269,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
           // Read from the same helper the Finance tab uses. Passing null here
           // sent the plan down the payslip fallback and produced a different
           // savings target on the two screens, from one set of numbers.
-          drift: balanceSpan(store.vaultRoot).drift,
+          drift: balanceTrend(txns, finished.map((m) => m.month)).drift,
         });
 
         const month = finished[finished.length - 1]!;
