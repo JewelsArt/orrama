@@ -56,6 +56,13 @@ export interface StatementRow {
    * the statement says was charged.
    */
   refunded?: number;
+  /**
+   * Set by markOwnAccounts (ownAccounts.ts): the own account — a broker, a
+   * savings pot — this row moves money to or from. Never spending.
+   */
+  own?: string;
+  /** On money back from an own account: the part above what was put in. */
+  gain?: number;
 }
 
 export interface MonthSummary {

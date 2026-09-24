@@ -163,8 +163,19 @@ old copy into the Obsidian vault (newest-wins per file, carrying ids across).
 (`statement.ts`, `spending.ts`, `subscriptions.ts`, `payslip.ts`, `savings.ts`).
 Same rule as everywhere else: **nothing lives only in the database.** The
 ledgers are Markdown tables in notes found by tag (`#income`,
-`#subscriptions`, `#payslips`, `#spending-categories`), and statements and
-payslips are real files in `02-Areas/finance/files/`.
+`#subscriptions`, `#payslips`, `#spending-categories`, `#own-accounts`), and
+statements and payslips are real files in `02-Areas/finance/files/`.
+
+**Own accounts** (`packages/core/src/ownAccounts.ts`) are Jules's money held
+elsewhere — Capital.com, a savings pot. A statement row matching the
+`| Account | Matches |` table is a move whatever the bank calls it: the broker
+deposits arrive as *Card Payments* and counted as spending until this existed.
+Out, it is never spending (even if a category rule names it too) and the
+savings plan counts it as saved — `savingsDrift` adds it back onto the balance
+slope, because a €500 deposit lowers the bank balance and is not lost. Back in,
+it is principal until everything deposited has returned and a gain (income)
+above that, tracked over the whole history. The Balance card keeps the raw
+slope; that is what the account itself did.
 
 **One route, several pages**, narrowing at each step and all reachable from each
 other — overview → all spending → one category → one month of it → one merchant
@@ -188,7 +199,8 @@ was visibly growing). And **committed categories are never "trimmable"** —
 telling someone to spend less on a subscription this month is noise; only a
 cancellation moves it.
 
-`loadTxns` and `buildRules` are shared by all four endpoints on purpose: three
+`loadTxns` (reached through `txnsFor`, which applies the reader's own-accounts
+list) and `buildRules` are shared by all four endpoints and the Dashboard on purpose: three
 copies of a de-duplication rule is three chances for two pages to disagree about
 what a month cost. When a month view is filtered to a category, its "typical"
 must be that category's median, not the whole month's — comparing €250 of

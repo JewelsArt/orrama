@@ -23,7 +23,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { balanceTrend, buildRules, financeNote, loadTxns, savingsCategories } from "./finance.js";
+import { buildRules, financeNote, savingsCategories, savingsDrift, txnsFor } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -236,7 +236,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        * reported, underneath, where it cannot be mistaken for the headline.
        */
       spending: (() => {
-        const txns = loadTxns(store.vaultRoot);
+        const txns = txnsFor(store, user);
         if (txns.length === 0) return null;
         const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
@@ -269,7 +269,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
           // Read from the same helper the Finance tab uses. Passing null here
           // sent the plan down the payslip fallback and produced a different
           // savings target on the two screens, from one set of numbers.
-          drift: balanceTrend(txns, finished.map((m) => m.month)).drift,
+          drift: savingsDrift(txns, finished.map((m) => m.month)),
         });
 
         const month = finished[finished.length - 1]!;

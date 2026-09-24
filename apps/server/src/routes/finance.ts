@@ -40,6 +40,10 @@ import {
   usefulTerms,
   settleRefunds,
   monthsAround,
+  markOwnAccounts,
+  ownSavedByMonth,
+  parseOwnAccounts,
+  type OwnAccount,
   recentMonths,
 } from "@basalt/core";
 import { extractText, getDocumentProxy } from "unpdf";
@@ -104,7 +108,7 @@ export function financeNote(store: VaultStore, user: Parameters<VaultStore["read
  * keeping their own copy, because three copies of a de-duplication rule is
  * three chances for two pages to disagree about what a month cost.
  */
-export function loadTxns(root: string): ReturnType<typeof parseStatement>["rows"] {
+export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeof parseStatement>["rows"] {
   const dirPath = filesDir(root);
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   if (!fs.existsSync(dirPath)) return rows;
@@ -122,9 +126,34 @@ export function loadTxns(root: string): ReturnType<typeof parseStatement>["rows"
   }
   for (const copies of merged.values()) rows.push(...copies);
   rows.sort((a, b) => a.date.localeCompare(b.date));
+  // Own accounts first, so a withdrawal filed as a Card Refund is a move, not
+  // a refund to net off the deposit (ownAccounts.ts).
   // Each refund comes off the purchase it refunds, in that purchase's month,
   // or — bought before these statements begin — off nothing (spending.ts).
-  return settleRefunds(rows);
+  return settleRefunds(markOwnAccounts(rows, own));
+}
+
+/** The own-accounts list — a broker, a savings pot — from the note tagged #own-accounts. */
+export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["readable"]>[0]): OwnAccount[] {
+  const note = store.readable(user).find((n) => n.tags.some((t) => t.tag === "own-accounts"));
+  return note ? parseOwnAccounts(note.content) : [];
+}
+
+/** loadTxns with the reader's own-accounts list applied — what every endpoint wants. */
+export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
+  loadTxns(store.vaultRoot, ownAccountsFor(store, user));
+
+/**
+ * The drift the savings plan reads: the balance's slope PLUS what went into own
+ * accounts (less principal taken back) over the same months. A €500 deposit at
+ * the broker lowers the bank balance by €500, and it is saved, not lost. The
+ * Balance card keeps the raw slope — that is what the account itself did.
+ */
+export function savingsDrift(txns: ReturnType<typeof parseStatement>["rows"], months: string[]): number | null {
+  const { drift } = balanceTrend(txns, months);
+  if (drift === null || months.length === 0) return drift;
+  const saved = ownSavedByMonth(txns);
+  return drift + months.reduce((a, m) => a + (saved.get(m) ?? 0), 0) / months.length;
 }
 
 /**
@@ -346,7 +375,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
-    const txns = loadTxns(store.vaultRoot);
+    const txns = txnsFor(store, user);
     const { balance, balanceDate, skipped } = balanceSpan(store.vaultRoot);
 
     // One month's worth of rows, re-aggregated over the merged set.
@@ -524,7 +553,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       outflowMonths: finished.map((m) => outflow.get(m.month) ?? m.total),
       payslipNet: payslips.map((r) => r.net).filter((n): n is number => n !== null),
       ledgerIncome: inPerMonth,
-      drift,
+      drift: savingsDrift(txns, finished.map((m) => m.month)),
     });
 
     let files: { name: string; size: number; mtimeMs: number; ext: string }[] = [];
@@ -627,7 +656,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
       const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
-      const txns = loadTxns(store.vaultRoot);
+      const txns = txnsFor(store, user);
 
       const rules = buildRules(writtenRules, subscriptions, txns);
 
@@ -723,9 +752,9 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
-      const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, loadTxns(store.vaultRoot));
+      const txns = txnsFor(store, user);
+      const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
 
-      const txns = loadTxns(store.vaultRoot);
       const catMonths = monthlyByCategory(txns, rules);
       const lastDate = txns.length ? txns[txns.length - 1]!.date : "";
       const finished = lastDate ? completeMonths(catMonths, lastDate) : [];
@@ -856,10 +885,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     "/api/finance/merchant/:name",
     auth,
     async (req) => {
-      store.aclUser(req.userId);
+      const user = store.aclUser(req.userId);
       const wanted = decodeURIComponent(req.params.name).trim().toUpperCase();
 
-      const txns = loadTxns(store.vaultRoot);
+      const txns = txnsFor(store, user);
 
       // Matched on the same normalisation the merchant lists are built with, so
       // what you clicked is exactly what comes back.

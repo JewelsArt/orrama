@@ -171,6 +171,9 @@ export const costOf = (r: StatementRow, rules: CategoryRule[] = []): number => {
   // -EUR 472.34 on a refund for something bought in December.
   if (r.flow === "refund" && r.amount > 0) return r.fee;
   if (r.amount >= 0) return r.fee;
+  // Money into an own account is saved, not spent — even when a category rule
+  // also matches it (see ownAccounts.ts).
+  if (r.own) return r.fee;
   const counts = r.flow === "spend" || (r.flow === "moved" && categoryOf(r.description, rules) !== UNCATEGORISED);
   return (counts ? -r.amount - (r.refunded ?? 0) : 0) + r.fee;
 };
@@ -264,7 +267,9 @@ export const median = (xs: number[]): number => {
 export function outflowByMonth(rows: StatementRow[]): { month: string; outflow: number }[] {
   const months = new Map<string, number>();
   for (const r of rows) {
-    const out = (r.amount < 0 ? -r.amount : 0) + r.fee;
+    // Own-account deposits are not money gone; the savings plan counts them
+    // as saved (ownSavedByMonth) instead.
+    const out = (r.amount < 0 && !r.own ? -r.amount : 0) + r.fee;
     if (out <= 0) continue;
     const key = r.date.slice(0, 7);
     months.set(key, Math.round(((months.get(key) ?? 0) + out) * 100) / 100);
