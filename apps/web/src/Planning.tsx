@@ -73,6 +73,8 @@ interface DayMarker {
   currency: string | null;
   overdue: boolean;
   priority: number | null;
+  /** A `#deadline` task: a solid red chip, first in its day. */
+  key: boolean;
 }
 
 /** One block the auto-scheduler suggests. Nothing is written until "Book". */
@@ -674,7 +676,8 @@ function WeekGrid({
 
   const marksFor = (date: string) => ({
     allDay: events.filter((e) => e.allDay && e.date === date),
-    marks: markers.filter((m) => m.date === date),
+    // Key deadlines first: a crowded day shows two chips before "all".
+    marks: markers.filter((m) => m.date === date).sort((a, b) => Number(b.key) - Number(a.key)),
   });
   const crowded = dayKeys.some((d) => {
     const { allDay, marks } = marksFor(d);
@@ -724,7 +727,7 @@ function WeekGrid({
               key: m.id,
               cls:
                 m.kind === "due"
-                  ? `due ${m.overdue ? "overdue" : ""}`
+                  ? `due ${m.overdue ? "overdue" : ""} ${m.key ? "key" : ""}`
                   : m.kind === "milestone"
                     ? "milestone"
                     : `money ${m.kind === "income" ? "in" : ""}`,
@@ -1114,8 +1117,9 @@ function MonthGrid({
 
   /** Everything worth a line in a 90px cell, most consequential first. */
   const cellItems = (day: string) => [
+    ...markers.filter((m) => m.date === day && m.kind === "due" && m.key).map((m) => ({ key: m.id, cls: `due key ${m.overdue ? "overdue" : ""}`, label: m.title, marker: m })),
     ...markers.filter((m) => m.date === day && m.kind === "milestone").map((m) => ({ key: m.id, cls: "milestone", label: m.title, marker: m })),
-    ...markers.filter((m) => m.date === day && m.kind === "due").map((m) => ({ key: m.id, cls: `due ${m.overdue ? "overdue" : ""}`, label: m.title, marker: m })),
+    ...markers.filter((m) => m.date === day && m.kind === "due" && !m.key).map((m) => ({ key: m.id, cls: `due ${m.overdue ? "overdue" : ""}`, label: m.title, marker: m })),
     ...events.filter((e) => e.date === day).map((e) => ({ key: e.id, cls: e.source === "ics" ? "ics" : "event", label: e.allDay ? e.title : `${fmtMin(e.startMin)} ${e.title}`, marker: null })),
     ...markers
       .filter((m) => m.date === day && (m.kind === "charge" || m.kind === "income"))

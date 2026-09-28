@@ -3353,6 +3353,18 @@ kbd {
   border-left-color: var(--danger);
   color: var(--danger);
 }
+/* A #deadline task: the one chip that must not be missed. Solid, not a
+   left rule — every other chip is a rule, so this reads first at a glance. */
+.cal-mark.due.key,
+.cal-mark.due.key.overdue {
+  background: var(--danger);
+  border-left-color: var(--danger);
+  color: var(--on-vivid);
+  font-weight: 650;
+}
+.cal-mark.due.key:hover:not(:disabled) {
+  color: var(--on-vivid);
+}
 .cal-mark.milestone {
   border-left-color: var(--accent);
   background: var(--accent-soft);
@@ -4572,6 +4584,9 @@ kbd {
 .dh-ag.event { border-left-color: var(--d-accent); }
 .dh-ag.task { border-left-color: var(--d-warn); }
 .dh-ag.due { border-left-color: var(--d-danger); }
+.dh-ag.key .dh-ag-title,
+.dh-task.key .dh-task-text { color: var(--d-danger); font-weight: 650; }
+.dh-task.key .dh-radio { border-color: var(--d-danger); }
 /* Money out is pink like a deadline; money in is the only green spine. */
 .dh-ag.charge { border-left-color: var(--d-danger); }
 .dh-ag.income { border-left-color: var(--d-ok); }

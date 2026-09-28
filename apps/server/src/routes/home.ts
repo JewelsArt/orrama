@@ -125,9 +125,11 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
       source: string | null;
       amount: number | null;
       currency: string | null;
+      /** A `#deadline` task: drawn on its own and first in its day. */
+      key: boolean;
     };
     const row = (r: Partial<AgendaRow> & Pick<AgendaRow, "kind" | "date" | "title">): AgendaRow => ({
-      startMin: null, durationMin: null, noteId: null, line: null, source: null, amount: null, currency: null, ...r,
+      startMin: null, durationMin: null, noteId: null, line: null, source: null, amount: null, currency: null, key: false, ...r,
     });
 
     const agenda: AgendaRow[] = [
@@ -144,7 +146,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
       // lands this week — and today they do not overlap at all.
       ...open
         .filter((t) => t.due && t.due >= todayKey && t.due <= weekEndKey)
-        .map((t) => row({ kind: "due", date: t.due!, title: t.text, noteId: t.noteId, line: t.line, source: t.project })),
+        .map((t) => row({ kind: "due", date: t.due!, title: t.text, noteId: t.noteId, line: t.line, source: t.project, key: !!t.key })),
       ...subscriptions
         .filter((sub) => sub.next && sub.next >= todayKey && sub.next <= weekEndKey)
         .map((sub) => row({ kind: "charge", date: sub.next!, title: sub.service, noteId: subsNoteId, amount: -sub.amount, currency: sub.currency })),
@@ -154,6 +156,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     ].sort(
       (a, b) =>
         a.date.localeCompare(b.date) ||
+        Number(b.key) - Number(a.key) ||
         (a.startMin ?? -1) - (b.startMin ?? -1) ||
         a.title.localeCompare(b.title),
     );
@@ -165,9 +168,17 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     // the priority-ordered `focus` list below is for.
     const todayStr = iso(today);
     const DAY = 86_400_000;
+    // Key deadlines still ahead go first: the card shows six rows, and on a
+    // vault with forty late tasks an upcoming #deadline would never reach them.
+    const upcomingKey = (t: (typeof open)[number]) => !!t.key && t.due! >= todayStr;
     const deadlines = open
       .filter((t) => t.due)
-      .sort((a, b) => a.due!.localeCompare(b.due!) || a.noteTitle.localeCompare(b.noteTitle))
+      .sort(
+        (a, b) =>
+          Number(upcomingKey(b)) - Number(upcomingKey(a)) ||
+          a.due!.localeCompare(b.due!) ||
+          a.noteTitle.localeCompare(b.noteTitle),
+      )
       .slice(0, 24)
       .map((t) => ({
         noteId: t.noteId,
@@ -177,6 +188,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         project: t.project,
         due: t.due!,
         priority: t.priority ?? null,
+        key: !!t.key,
         overdue: t.due! < todayStr,
         // Signed whole days from today; negative is late. Both dates are parsed
         // as UTC midnight so DST never turns a 7-day gap into 6.96.

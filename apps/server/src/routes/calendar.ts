@@ -42,6 +42,8 @@ export interface DayMarker {
   currency: string | null;
   overdue: boolean;
   priority: number | null;
+  /** A `#deadline` task (ParsedTask.key); false for everything else. */
+  key: boolean;
 }
 
 export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
@@ -268,6 +270,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
         currency: null,
         overdue: t.due < today,
         priority: t.priority ?? null,
+        key: !!t.key,
       });
     }
 
@@ -295,6 +298,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
           currency: null,
           overdue: field === "deadline" && date < today,
           priority: null,
+          key: false,
         });
       }
     }
@@ -320,6 +324,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
             currency: row.currency,
             overdue: false,
             priority: null,
+          key: false,
           });
         }
       }

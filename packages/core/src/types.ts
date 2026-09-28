@@ -52,6 +52,12 @@ export interface ParsedTask {
   start?: string; // ISO date — bar start on the Gantt view
   due?: string; // ISO date
   priority?: TaskPriority;
+  /**
+   * A key deadline: the line carries `#deadline`. Priority cannot say this —
+   * a thesis block marks nearly every task !p1 — so the calendar and the
+   * dashboard draw these on their own, and first.
+   */
+  key?: boolean;
   /** Stable block id if promoted, without '^', e.g. "t-a1b2c3". */
   blockId?: string;
   indent: number;

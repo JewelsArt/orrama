@@ -181,3 +181,17 @@ describe("task titles are plain text", () => {
     expect(stripInlineMarkdown("an unclosed **bold")).toBe("an unclosed **bold");
   });
 });
+
+describe("key deadlines", () => {
+  it("flags a #deadline task, keeps the tag indexed, and leaves it out of the title", () => {
+    const n = parseNote("- [ ] Submit Research Plan on OnStage, 09:00 #deadline @jules !p1 due:2026-10-19");
+    expect(n.tasks[0]).toMatchObject({ key: true, text: "Submit Research Plan on OnStage, 09:00", due: "2026-10-19" });
+    expect(n.tags.map((t) => t.tag)).toContain("deadline");
+  });
+
+  it("does not flag near-misses", () => {
+    for (const line of ["- [ ] plan #deadlines", "- [ ] plan #deadline/soft", "- [ ] plan a#deadline", "- [ ] plan"]) {
+      expect(parseNote(line).tasks[0]!.key).toBeUndefined();
+    }
+  });
+});

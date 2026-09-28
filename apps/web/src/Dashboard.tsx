@@ -367,6 +367,8 @@ interface AgendaItem {
   source: string | null;
   amount: number | null;
   currency: string | null;
+  /** A `#deadline` task. */
+  key: boolean;
 }
 interface FocusItem {
   noteId: string;
@@ -387,6 +389,8 @@ interface DeadlineItem {
   project: string | null;
   due: string;
   priority: number | null;
+  /** A `#deadline` task; the server sorts upcoming ones to the top. */
+  key: boolean;
   overdue: boolean;
   days: number;
 }
@@ -802,7 +806,7 @@ export function Dashboard({
                     {d.rows.map((a, i) => (
                       <li
                         key={i}
-                        className={`dh-ag ${a.kind}`}
+                        className={`dh-ag ${a.kind} ${a.key ? "key" : ""}`}
                         onClick={() => (a.noteId ? onOpenNote(a.noteId) : undefined)}
                         style={{ cursor: a.noteId ? "pointer" : "default" }}
                       >
@@ -1022,7 +1026,7 @@ export function Dashboard({
           </div>
           <ul className="dh-tasks">
             {home?.deadlines.slice(0, 6).map((d) => (
-              <li key={`${d.noteId}:${d.line}`} className="dh-task">
+              <li key={`${d.noteId}:${d.line}`} className={`dh-task ${d.key ? "key" : ""}`}>
                 <button className="dh-radio" aria-label={`Complete ${d.text}`} onClick={(e) => { e.stopPropagation(); void check(d.noteId, d.line); }} />
                 <div className="dh-task-body">
                   <span className="dh-task-text" onClick={() => onOpenNote(d.noteId)}>{d.text}</span>

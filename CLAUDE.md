@@ -244,6 +244,13 @@ toggle: it says which hours you are looking at, and clicking it forces the full
 24h (`localStorage`, `basalt-plan-fullday`). Do not "fix" this back to a fixed
 0–24 grid: two thirds of it is a picture of when nothing happens.
 
+**Key deadlines are a tag, not a priority.** A task line carrying `#deadline`
+(`ParsedTask.key`) is drawn as a solid `--danger` chip, first in its day, in
+both Planning views, and in red on the Dashboard, whose Deadlines card also
+lifts upcoming ones above older overdue work. Priority could not carry this:
+the thesis marks nearly every task `!p1`. The tag is dropped from the title and
+still indexed like any other.
+
 **"Plan my week" proposes; it never writes** (`POST /api/plan/auto`). Most
 urgent first — overdue, then at-risk, then by deadline and priority — into the
 gaps that are actually free, 09:00–18:00 on weekdays, at most 2h a sitting and

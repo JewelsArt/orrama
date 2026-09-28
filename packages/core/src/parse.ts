@@ -25,6 +25,8 @@ const MD_LINK_RE = /(!?)\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;
 const TAG_RE = /(^|[\s(])#([A-Za-z][\w-]*(?:\/[\w-]+)*)/g;
 
 const TASK_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
+/** `#deadline` on a task line: a key deadline (see ParsedTask.key). Still indexed as a tag. */
+const KEY_DEADLINE_RE = /(^|\s)#deadline(?![\w/-])/i;
 const HEADING_RE = /^(#{1,6}) (.+)$/;
 const ASSIGNEE_RE = /(^|\s)@([\w.-]+)/;
 const DUE_RE = /(^|\s)due:(\d{4}-\d{2}-\d{2})/;
@@ -108,7 +110,9 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const pm = PRIORITY_RE.exec(text);
   if (pm) priority = Number(pm[2]) as TaskPriority;
 
+  const key = KEY_DEADLINE_RE.test(text);
   const clean = stripInlineMarkdown(text)
+    .replace(new RegExp(KEY_DEADLINE_RE, "gi"), "$1")
     .replace(new RegExp(ASSIGNEE_RE, "g"), "$1")
     .replace(new RegExp(DUE_RE, "g"), "$1")
     .replace(new RegExp(START_RE, "g"), "$1")
@@ -116,7 +120,7 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
     .replace(/\s+/g, " ")
     .trim();
 
-  return { line, checked, text: clean, raw, assignee, start, due, priority, blockId, indent };
+  return { line, checked, text: clean, raw, assignee, start, due, priority, blockId, indent, ...(key ? { key } : {}) };
 }
 
 function frontmatterStrings(value: unknown): string[] {
