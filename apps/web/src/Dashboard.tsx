@@ -459,6 +459,25 @@ const dayLabel = (date: string): string => {
   return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 };
 
+/** Rows the "Next 7 days" card shows before "N more this week". */
+const WEEK_ROWS = 8;
+/**
+ * The first `limit` rows of the week, soonest first, keeping each day's own
+ * order; a day cut part-way shows the rows that fit. `hidden` is what is left.
+ */
+function capDays<T>(days: { date: string; rows: T[] }[], limit: number) {
+  const out: { date: string; rows: T[] }[] = [];
+  let left = limit;
+  let hidden = 0;
+  for (const d of days) {
+    const take = Math.max(0, Math.min(d.rows.length, left));
+    if (take > 0) out.push({ date: d.date, rows: d.rows.slice(0, take) });
+    hidden += d.rows.length - take;
+    left -= take;
+  }
+  return { days: out, hidden };
+}
+
 /**
  * Money always carries the currency's own decimals — €10.00, never €10. The
  * table is hand-written, so "10" and "19.99" sit side by side in it; trimming
@@ -641,6 +660,11 @@ export function Dashboard({
     }
     return [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([date, rows]) => ({ date, rows }));
   }, [home]);
+  /** The week card shows WEEK_ROWS rows, soonest first, until asked for the
+   *  rest — a thesis with twenty dated questions otherwise turns the card into
+   *  the longest thing on the page. Not persisted: it opens short every time. */
+  const [weekAll, setWeekAll] = useState(false);
+  const week = useMemo(() => capDays(days, weekAll ? Infinity : WEEK_ROWS), [days, weekAll]);
 
   return (
     <div className="home">
@@ -769,8 +793,9 @@ export function Dashboard({
             <button className="dh-link" onClick={onOpenPlanning}>Planning</button>
           </div>
           {days.length > 0 ? (
+            <>
             <ul className="dh-week">
-              {days.map((d) => (
+              {week.days.map((d) => (
                 <li key={d.date} className="dh-day">
                   <span className="dh-day-label">{dayLabel(d.date)}</span>
                   <ul className="dh-day-rows">
@@ -794,6 +819,14 @@ export function Dashboard({
                 </li>
               ))}
             </ul>
+            {(week.hidden > 0 || weekAll) && (
+              <div className="dh-task-foot">
+                <button className="dh-link" onClick={() => setWeekAll((v) => !v)} aria-expanded={weekAll}>
+                  {weekAll ? "Show less" : `${week.hidden} more this week →`}
+                </button>
+              </div>
+            )}
+            </>
           ) : (
             <div className="dh-empty-block">
               <p>Nothing in the next seven days.</p>
