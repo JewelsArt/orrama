@@ -67,7 +67,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     if (!body.date || !DAY_RE.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
     if (body.startMin === undefined) throw new HttpError(400, "startMin required");
     const user = store.aclUser(req.userId);
-    const note = store.requireReadable(user, body.noteId);
+    const note = store.requireEditable(user, body.noteId);
 
     let taskBlockId = body.blockId;
     if (!taskBlockId) {
@@ -127,7 +127,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.id, block.taskObjectId)).get();
     if (!obj) throw new HttpError(404, "task not found");
     const user = store.aclUser(req.userId);
-    store.requireReadable(user, obj.noteId);
+    store.requireEditable(user, obj.noteId);
     if (body.date && !DAY_RE.test(body.date)) throw new HttpError(400, "bad date");
     const { start, duration } = clampSlot(body.startMin ?? block.startMin, body.durationMin ?? block.durationMin);
     db.update(tables.taskBlocks)
@@ -143,7 +143,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     if (!block) throw new HttpError(404, "block not found");
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.id, block.taskObjectId)).get();
     const user = store.aclUser(req.userId);
-    if (obj) store.requireReadable(user, obj.noteId);
+    if (obj) store.requireEditable(user, obj.noteId);
     db.delete(tables.taskBlocks).where(eq(tables.taskBlocks.id, block.id)).run();
     if (obj) touch(obj.noteId, user.id);
     return { ok: true };
@@ -196,7 +196,13 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     return { ok: true };
   });
 
-  /** Events in a date range, with owner usernames for lane filtering. */
+  /**
+   * Your events in a date range. Only yours: an event has no note and no team,
+   * so nothing in the ACL could say who else may see it, and this used to hand
+   * every account every other account's calendar (audit). The dashboard, the
+   * planner and the ICS feed already filtered by owner; this was the one that
+   * did not. `mine` stays for the client, and is now always true.
+   */
   app.get<{ Querystring: { from?: string; to?: string } }>("/api/events", auth, async (req) => {
     const { from, to } = req.query;
     if (!from || !to || !DAY_RE.test(from) || !DAY_RE.test(to)) throw new HttpError(400, "from/to required (YYYY-MM-DD)");
@@ -212,7 +218,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       })
       .from(tables.events)
       .innerJoin(tables.users, eq(tables.events.ownerId, tables.users.id))
-      .where(and(gte(tables.events.date, from), lte(tables.events.date, to)))
+      .where(and(eq(tables.events.ownerId, req.userId), gte(tables.events.date, from), lte(tables.events.date, to)))
       .all();
     const own = rows.map((r) => ({ ...r, mine: r.ownerId === req.userId }));
     // Subscribed external calendars (Google/Outlook/uni ICS): read-only layer,

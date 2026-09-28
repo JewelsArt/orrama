@@ -390,6 +390,19 @@ export class VaultStore {
     return note;
   }
 
+  /**
+   * For changes that live only in the DB — task status, assignee, dates, time
+   * blocks. The file path already goes through `write()`, which checks edit;
+   * these never touch the file, so read was all they asked for, and a `#share`
+   * viewer (read-only by design) could reassign tasks and delete other people's
+   * blocks (audit, high). 404 when unreadable, 403 when read-only.
+   */
+  requireEditable(user: AclUser, noteId: string): IndexedNote {
+    const note = this.requireReadable(user, noteId);
+    if (!canEdit(user, note, this.grants())) throw new HttpError(403, "no edit access to this note");
+    return note;
+  }
+
   // ---- Mutations (all server-enforced per §5.3) ---------------------------
 
   /**

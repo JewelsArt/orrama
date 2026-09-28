@@ -337,6 +337,15 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   there, or it is silently blocked in the built app — vite dev (:4625) sends no
   CSP, so it will look fine while iterating. The mail iframe *inherits* this
   policy, which is why `img-src`/`font-src` allow https:.
+- **Touch ID trusts only known origins.** Set `BASALT_PUBLIC_ORIGINS` (comma-
+  separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
+  launchd plist; unset, the `Origin` must equal the address the request was
+  sent to, which blocks cross-site use but is the weaker of the two.
+- **DB-only task changes need edit** (`store.requireEditable`): status, dates,
+  assignee and time blocks never pass through `write()`, so they check edit
+  themselves. Comments stay at read.
+- **Finance files follow the folder ACL** of `02-Areas/finance/files`, like the
+  notes beside them (`canReadFinanceFiles`); uploads need edit.
 - **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one
   address inside 15 minutes → 429 until the oldest ages out, even for the
   right password. In memory; a restart clears it.

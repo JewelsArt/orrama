@@ -12,7 +12,7 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  * in-progress/blocked are DB-only and auto-promote the line.
  */
 export function applyTaskStatus(db: Db, store: VaultStore, user: AclUser, body: SetTaskStatus) {
-  const note = store.requireReadable(user, body.noteId);
+  const note = store.requireEditable(user, body.noteId);
   const parsed = store.index.get(note.id)?.tasks.find((t) => (body.blockId ? t.blockId === body.blockId : t.line === body.line));
   const line = body.line ?? parsed?.line;
   if (line === undefined) throw new HttpError(409, "task line no longer exists");
@@ -89,7 +89,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.post("/api/tasks/check", auth, async (req) => {
     const body = checkTaskSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = store.requireReadable(user, body.noteId);
+    const note = store.requireEditable(user, body.noteId);
     const updated = setTaskChecked(note.content, { line: body.line, blockId: body.blockId }, body.checked);
     if (updated === null) throw new HttpError(409, "task line no longer exists");
     const saved = store.write(user, note.path, updated);
@@ -124,7 +124,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.post("/api/tasks/dates", auth, async (req) => {
     const body = taskDatesSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = store.requireReadable(user, body.noteId);
+    const note = store.requireEditable(user, body.noteId);
     const updated = setTaskDates(note.content, { line: body.line, blockId: body.blockId }, { start: body.start, due: body.due });
     if (updated === null) throw new HttpError(409, "task line no longer exists");
     const saved = store.write(user, note.path, updated);
@@ -140,7 +140,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.post("/api/tasks/promote", auth, async (req) => {
     const body = promoteTaskSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = store.requireReadable(user, body.noteId);
+    const note = store.requireEditable(user, body.noteId);
     const res = promoteTaskLine(note.content, body.line);
     if (!res) throw new HttpError(409, "line is not a task");
     if (res.content !== note.content) store.write(user, note.path, res.content);
@@ -179,7 +179,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     if (!body.noteId || (body.line === undefined && !body.blockId)) throw new HttpError(400, "noteId and line or blockId required");
     if (body.date && !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
     const user = store.aclUser(req.userId);
-    const note = store.requireReadable(user, body.noteId);
+    const note = store.requireEditable(user, body.noteId);
 
     let blockId = body.blockId;
     if (!blockId) {
@@ -226,7 +226,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const user = store.aclUser(req.userId);
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.id, req.params.id)).get();
     if (!obj) throw new HttpError(404, "task not found");
-    const note = store.requireReadable(user, obj.noteId);
+    const note = store.requireEditable(user, obj.noteId);
 
     if (body.status && body.status !== obj.status && (body.status === "done" || obj.status === "done")) {
       const updated = setTaskChecked(note.content, { blockId: obj.blockId }, body.status === "done");

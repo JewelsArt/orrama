@@ -506,14 +506,15 @@ describe("graph + plan + profile", () => {
     expect((await api("DELETE", `/api/blocks/${b2.json.id}`, "erin")).status).toBe(200);
   });
 
-  it("events: owner-only edit, range query marks mine", async () => {
+  it("events: owner-only edit, and a range query returns only your own", async () => {
     const e = await api("POST", "/api/events", "mara", { title: "Acme kickoff call", date: "2026-07-07", startMin: 10 * 60, durationMin: 45 });
     expect(e.status).toBe(200);
     expect(e.json.durationMin).toBe(60); // snapped to 30-min grid, min 30 → 45→60? (rounded)
-    const list = await api("GET", "/api/events?from=2026-07-06&to=2026-07-12", "erin");
-    const found = list.json.find((x: { id: string }) => x.id === e.json.id);
-    expect(found.username).toBe("mara");
-    expect(found.mine).toBe(false);
+    // erin used to receive mara's calendar here (audit); now only mara does.
+    const range = "/api/events?from=2026-07-06&to=2026-07-12";
+    expect((await api("GET", range, "erin")).json.find((x: { id: string }) => x.id === e.json.id)).toBeUndefined();
+    const found = (await api("GET", range, "mara")).json.find((x: { id: string }) => x.id === e.json.id);
+    expect(found).toMatchObject({ username: "mara", mine: true });
     expect((await api("PATCH", `/api/events/${e.json.id}`, "erin", { title: "hijack" })).status).toBe(403);
     expect((await api("DELETE", `/api/events/${e.json.id}`, "mara")).status).toBe(200);
   });

@@ -12,6 +12,7 @@ import {
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
+import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
@@ -195,20 +196,10 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   });
 
   // ── WebAuthn (Touch ID) ──────────────────────────────────────────────────────
-  // rpID and origin are derived from the request rather than configured, because
-  // a self-hosted Basalt is reached at localhost, 127.0.0.1 or a real domain and
-  // WebAuthn treats those as different relying parties. A credential enrolled on
-  // one simply will not verify on another, which is the spec working correctly.
-  const rp = (req: { headers: Record<string, unknown> }) => {
-    const origin = String(req.headers["origin"] ?? "");
-    let host = "localhost";
-    try {
-      host = new URL(origin).hostname;
-    } catch {
-      /* no Origin header: fall through to the default */
-    }
-    return { rpID: host, origin };
-  };
+  // A self-hosted Basalt is reached at localhost, 127.0.0.1 or a real domain, and
+  // WebAuthn treats those as different relying parties: a credential enrolled on
+  // one will not verify on another, which is the spec working correctly.
+  const rp = (req: { headers: Record<string, unknown> }) => webauthnOrigin(req.headers, env.publicOrigins);
 
   const putChallenge = (userId: string | null, challenge: string) => {
     const id = `wc-${crypto.randomUUID()}`;
@@ -374,4 +365,34 @@ function safeAppearance(raw: string | null) {
   } catch {
     return null; // not JSON at all
   }
+}
+
+/**
+ * The relying party a WebAuthn ceremony is for, and the origin it must come from.
+ *
+ * This used to be whatever the request's `Origin` header said, fed straight into
+ * `expectedOrigin`/`expectedRPID` — the value the check exists to verify, taken
+ * from the party being checked (audit, high). Now:
+ *
+ *   - with `BASALT_PUBLIC_ORIGINS` set, the origin must be one of them;
+ *   - unset, it must be the address the request was actually sent to (`Host`),
+ *     which a page on another site cannot satisfy from a browser.
+ *
+ * The first is the real fix; the second keeps an unconfigured install (and a
+ * phone reaching it over Tailscale) working without trusting a cross-site origin.
+ */
+export function webauthnOrigin(
+  headers: Record<string, unknown>,
+  allowed: string[],
+): { rpID: string; origin: string } {
+  const origin = String(headers["origin"] ?? "").replace(/\/+$/, "");
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    throw new HttpError(400, "Touch ID needs the request's Origin");
+  }
+  const ok = allowed.length > 0 ? allowed.includes(url.origin) : url.host === String(headers["host"] ?? "");
+  if (!ok) throw new HttpError(400, "Touch ID is not available from this address");
+  return { rpID: url.hostname, origin: url.origin };
 }

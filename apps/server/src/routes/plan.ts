@@ -4,6 +4,7 @@
  * workspace key is configured the estimates are refined by the model. ACL as
  * everywhere: planned tasks come from the requester's readable notes only.
  */
+import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { canEdit, isoLocal } from "@basalt/core";
@@ -12,6 +13,44 @@ import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+
+/**
+ * The AI estimate call used to run on every Planning page load, with every open
+ * task's text and no timeout — on a server with no request timeout, so one hung
+ * TLS connection hung the page (audit, high). Now it gives up after
+ * AI_TIMEOUT_MS and falls back to the heuristic like any other failure, and the
+ * answer is kept for AI_CACHE_MS per (model, task list): reopening the tab with
+ * the same open tasks sends nothing.
+ */
+const AI_TIMEOUT_MS = Number(process.env.BASALT_PLAN_AI_TIMEOUT_MS ?? 8000);
+const AI_CACHE_MS = 6 * 60 * 60 * 1000;
+const aiCache = new Map<string, { at: number; hours: number[] }>();
+
+/** Focused-hour estimates for a numbered task listing: cached, and bounded in time. */
+async function estimatesFor(apiKey: string, model: string, listing: string): Promise<number[]> {
+  const key = crypto.createHash("sha256").update(`${model}\n${listing}`).digest("hex");
+  const hit = aiCache.get(key);
+  if (hit && Date.now() - hit.at < AI_CACHE_MS) return hit.hours;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1000,
+      system:
+        "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
+      messages: [{ role: "user", content: listing }],
+    }),
+  });
+  if (!res.ok) throw new Error(`estimates: HTTP ${res.status}`);
+  const data = (await res.json()) as { content: { type: string; text?: string }[] };
+  const text = data.content.find((b) => b.type === "text")?.text ?? "";
+  const hours = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as number[];
+  if (!Array.isArray(hours)) throw new Error("estimates: not an array");
+  aiCache.set(key, { at: Date.now(), hours });
+  return hours;
+}
 
 interface PlannedTask {
   noteId: string;
@@ -103,32 +142,13 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
         const listing = open
           .map((t, i) => `${i}. [${t.priority ? "p" + t.priority : "p?"}] ${t.text} (project: ${t.project})`)
           .join("\n");
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": decryptSecret(ws.aiKeyEncrypted),
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: ws.aiModel,
-            max_tokens: 1000,
-            system:
-              "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
-            messages: [{ role: "user", content: listing }],
-          }),
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { content: { type: string; text?: string }[] };
-          const text = data.content.find((b) => b.type === "text")?.text ?? "";
-          const arr = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as number[];
-          if (Array.isArray(arr) && arr.length === open.length) {
-            open.forEach((t, i) => {
-              const h = Number(arr[i]);
-              if (Number.isFinite(h) && h > 0 && h <= 40) estimates.set(`${t.noteId}:${t.line}`, Math.round(h * 2) / 2);
-            });
-            source = "ai";
-          }
+        const hours = await estimatesFor(decryptSecret(ws.aiKeyEncrypted), ws.aiModel, listing);
+        if (hours.length === open.length) {
+          open.forEach((t, i) => {
+            const h = Number(hours[i]);
+            if (Number.isFinite(h) && h > 0 && h <= 40) estimates.set(`${t.noteId}:${t.line}`, Math.round(h * 2) / 2);
+          });
+          source = "ai";
         }
       } catch {
         // fall back silently to heuristics — planning must never break without AI

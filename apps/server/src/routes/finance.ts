@@ -40,6 +40,9 @@ import {
   usefulTerms,
   settleRefunds,
   monthsAround,
+  canEdit,
+  canRead,
+  type AclNote,
   markOwnAccounts,
   ownSavedByMonth,
   parseOwnAccounts,
@@ -59,6 +62,22 @@ export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } 
  *  the arrangement project documents use. */
 export const FINANCE_DIR = "02-Areas/finance";
 const filesDir = (root: string) => path.join(root, FINANCE_DIR, "files");
+
+/**
+ * Statements and payslips are files with no note of their own, so they are
+ * judged as the folder they sit in — the rule every note beside them already
+ * follows. Before this, any signed-in account could read the owner's bank
+ * statements: the routes resolved the user and checked nothing (audit, high).
+ */
+const FILES_ACL: AclNote = { folder: `${FINANCE_DIR}/files`, onlyTeams: [], shareTeams: [] };
+type Reader = Parameters<VaultStore["readable"]>[0];
+export const canReadFinanceFiles = (store: VaultStore, user: Reader) => canRead(user, FILES_ACL, store.grants());
+const canEditFinanceFiles = (store: VaultStore, user: Reader) => canEdit(user, FILES_ACL, store.grants());
+/** 404 rather than 403 when the folder is invisible: no existence confirmation (§5.4). */
+function requireFinanceFiles(store: VaultStore, user: Reader, edit = false): void {
+  if (!canReadFinanceFiles(store, user)) throw new HttpError(404, "not found");
+  if (edit && !canEditFinanceFiles(store, user)) throw new HttpError(403, "no edit access to the finance files");
+}
 
 const MAX_UPLOAD = 15 * 1024 * 1024;
 /** Caps for reading an .xlsx back out; the same numbers project documents use. */
@@ -141,7 +160,7 @@ export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["r
 
 /** loadTxns with the reader's own-accounts list applied — what every endpoint wants. */
 export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
-  loadTxns(store.vaultRoot, ownAccountsFor(store, user));
+  canReadFinanceFiles(store, user) ? loadTxns(store.vaultRoot, ownAccountsFor(store, user)) : [];
 
 /**
  * The drift the savings plan reads: the balance's slope PLUS what went into own
@@ -376,7 +395,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
     const txns = txnsFor(store, user);
-    const { balance, balanceDate, skipped } = balanceSpan(store.vaultRoot);
+    const filesReadable = canReadFinanceFiles(store, user);
+    const { balance, balanceDate, skipped } = filesReadable
+      ? balanceSpan(store.vaultRoot)
+      : { balance: null, balanceDate: null, skipped: 0 };
 
     // One month's worth of rows, re-aggregated over the merged set.
     const monthsMap = new Map<string, { month: string; spend: number; fees: number; refunds: number; movedIn: number; movedOut: number }>();
@@ -558,7 +580,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
     let files: { name: string; size: number; mtimeMs: number; ext: string }[] = [];
     const dir = filesDir(store.vaultRoot);
-    if (fs.existsSync(dir)) {
+    if (filesReadable && fs.existsSync(dir)) {
       files = fs
         .readdirSync(dir, { withFileTypes: true })
         .filter((e) => e.isFile() && !e.name.startsWith("."))
@@ -972,6 +994,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
    */
   app.post("/api/finance/payslip", { ...auth, bodyLimit: MAX_UPLOAD + 2 * 1024 * 1024 }, async (req) => {
     const user = store.aclUser(req.userId);
+    requireFinanceFiles(store, user, true);
     const body = (req.body ?? {}) as { name?: string; dataBase64?: string };
     const name = safeUploadName(body.name);
     const data = Buffer.from(String(body.dataBase64 ?? ""), "base64");
@@ -1015,7 +1038,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
    * (and the same caps) already governs /api/projects/:slug/files/:name/sheet.
    */
   app.get<{ Params: { name: string } }>("/api/finance/files/:name/sheet", auth, async (req) => {
-    store.aclUser(req.userId);
+    requireFinanceFiles(store, store.aclUser(req.userId));
     const name = safeUploadName(req.params.name);
     if (!/\.xlsx$/i.test(name)) throw new HttpError(400, "only .xlsx converts to rows");
     const dir = filesDir(store.vaultRoot);
@@ -1067,7 +1090,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
   /** Serve a stored document. Never inline: a downloaded attachment only. */
   app.get<{ Params: { name: string } }>("/api/finance/files/:name", auth, async (req, reply) => {
-    store.aclUser(req.userId);
+    requireFinanceFiles(store, store.aclUser(req.userId));
     const name = safeUploadName(req.params.name);
     const abs = path.join(filesDir(store.vaultRoot), name);
     if (path.dirname(abs) !== filesDir(store.vaultRoot) || !fs.existsSync(abs)) throw new HttpError(404, "not found");

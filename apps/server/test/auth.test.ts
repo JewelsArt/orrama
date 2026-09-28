@@ -35,7 +35,9 @@ const api = async (method: string, url: string, body?: unknown, auth?: string) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: auth ? { authorization: `Bearer ${auth}` } : {},
+    // What a browser on the served page sends: Touch ID refuses a request whose
+    // Origin is missing or is not the address it was sent to (routes/auth.ts).
+    headers: { origin: "http://localhost:4623", host: "localhost:4623", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   return { status: res.statusCode, json: res.json() };

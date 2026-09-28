@@ -49,6 +49,16 @@ export const env = {
    * client ever exists.
    */
   corsOrigin: process.env.BASALT_CORS_ORIGIN ?? false,
+  /**
+   * The exact origins Basalt is reached at (comma-separated), e.g.
+   * `http://localhost:4623,https://mac.tailnet-name.ts.net`. Touch ID trusts
+   * only these. Unset, it falls back to "the Origin must be the address the
+   * request was sent to" — see `webauthnOrigin` in routes/auth.ts.
+   */
+  publicOrigins: (process.env.BASALT_PUBLIC_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim().replace(/\/+$/, ""))
+    .filter(Boolean),
 };
 
 /**
