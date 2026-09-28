@@ -90,6 +90,11 @@ Vault layout:
    * - img/font https: + http:: the mail reader's srcdoc iframe INHERITS this
    *   policy (the two intersect), so "Show images" needs remote images here.
    * - blob: the document reader shows PDFs and images from object URLs.
+   * - frame-ancestors 'self', not 'none': a blob: document INHERITS this
+   *   policy, so with 'none' the PDF refused to be framed by Basalt itself and
+   *   every PDF and payslip in the desktop app (WebKit) went blank from 25 Sep.
+   *   'self' still stops any other site framing Basalt. Found by bisecting the
+   *   policy in a WKWebView; Chrome showed nothing wrong.
    * - connect 'self' covers the same-origin WebSocket.
    * Not on /api: JSON is never rendered as a document, so a CSP there does nothing.
    */
@@ -104,7 +109,7 @@ Vault layout:
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    "frame-ancestors 'self'",
   ].join("; ");
 
   // URLs in the log are redacted: no query strings, no /ics/<token> (logging.ts).

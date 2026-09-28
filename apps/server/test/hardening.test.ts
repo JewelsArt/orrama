@@ -82,6 +82,11 @@ describe("security headers", () => {
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).not.toMatch(/script-src[^;]*unsafe/);
+    // Not 'none': the document reader shows PDFs as blob: frames, which INHERIT
+    // this policy, and with 'none' WebKit refused to let Basalt frame its own
+    // PDFs — every PDF and payslip in the desktop app went blank (25-28 Sep).
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).toContain("frame-src 'self' blob:");
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
   });
 

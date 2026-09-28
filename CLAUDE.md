@@ -343,7 +343,12 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   host (a font, a CDN script, an API called from the browser) means adding it
   there, or it is silently blocked in the built app — vite dev (:4625) sends no
   CSP, so it will look fine while iterating. The mail iframe *inherits* this
-  policy, which is why `img-src`/`font-src` allow https:.
+  policy, which is why `img-src`/`font-src` allow https:. So do the document
+  reader's blob: PDFs — which is why `frame-ancestors` is `'self'`, not
+  `'none'`: with `'none'` the desktop app (WebKit) refused to frame its own
+  PDFs and every document went blank for three days while Chrome looked fine.
+  **Check policy changes in WebKit**, not only Chrome: a WKWebView snapshot
+  (`scripts/webkit-snap.swift`) is what found it.
 - **Touch ID trusts only known origins.** Set `BASALT_PUBLIC_ORIGINS` (comma-
   separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
   launchd plist; unset, the `Origin` must equal the address the request was
