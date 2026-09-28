@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseNote, titleFromPath, parseFrontmatter, updateFrontmatter } from "../src/index.js";
+import { parseNote, titleFromPath, parseFrontmatter, updateFrontmatter, stripInlineMarkdown } from "../src/index.js";
 
 describe("frontmatter", () => {
   it("parses yaml frontmatter and body start", () => {
@@ -154,5 +154,30 @@ describe("front-matter tags that read as path escapes", () => {
 
   it("keeps a tag that merely contains a dot mid-segment", () => {
     expect(tagsOf(withTags('"v1.2-release"'))).toEqual(["v1.2-release"]);
+  });
+});
+
+describe("task titles are plain text", () => {
+  it("drops inline Markdown from the title and keeps the source line in raw", () => {
+    const raw = "- [ ] **Does the Paris office sell?** Ask ==Ruben== about `pipeline` in [[thesis|the thesis]] @jules !p1 due:2026-10-02";
+    const [t] = parseNote(raw).tasks;
+    expect(t).toMatchObject({
+      text: "Does the Paris office sell? Ask Ruben about pipeline in the thesis",
+      assignee: "jules",
+      priority: 1,
+      due: "2026-10-02",
+      raw,
+    });
+  });
+
+  it("unwraps each kind of inline markup", () => {
+    expect(stripInlineMarkdown("__bold__ *em* _em_ ~~gone~~")).toBe("bold em em gone");
+    expect(stripInlineMarkdown("see [[Atlas Roadmap]] and [the docs](https://x.y/z)")).toBe("see Atlas Roadmap and the docs");
+  });
+
+  it("leaves text that only looks like markup alone", () => {
+    expect(stripInlineMarkdown("rename snake_case_name in file_v2_final.pdf")).toBe("rename snake_case_name in file_v2_final.pdf");
+    expect(stripInlineMarkdown("2 * 3 * 4 = 24")).toBe("2 * 3 * 4 = 24");
+    expect(stripInlineMarkdown("an unclosed **bold")).toBe("an unclosed **bold");
   });
 });

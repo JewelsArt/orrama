@@ -52,6 +52,32 @@ function normalizeTag(t: string): string {
  */
 const UNSAFE_TAG = /(^|\/)\.\.?(\/|$)|\\/;
 
+/**
+ * Inline Markdown off a task's display text: `**bold**`, `*em*`, `_em_`,
+ * `~~struck~~`, `==highlight==`, `` `code` `` keep their words, `[[Note|alias]]`
+ * becomes the alias (or the note name), `[text](url)` becomes the text.
+ *
+ * `text` is what every surface prints — Dashboard, Planning, Overview, the AI
+ * plan — and none of them renders Markdown, so a thesis question written as
+ * `**Does the Paris office…**` showed up with its asterisks. The source line is
+ * untouched in `raw`; nothing writes `text` back to a file.
+ *
+ * Underscores only count as emphasis at word edges, so `snake_case_name` and a
+ * `file_v2_final.pdf` survive.
+ */
+export function stripInlineMarkdown(s: string): string {
+  return s
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, "$2")
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, "$1")
+    .replace(/==(?=\S)(.+?)(?<=\S)==/g, "$1")
+    .replace(/(^|[^\w*])\*(?=\S)([^*]+?)(?<=\S)\*(?![\w*])/g, "$1$2")
+    .replace(/(^|[^\w_])_(?=\S)([^_]+?)(?<=\S)_(?![\w_])/g, "$1$2");
+}
+
 function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const m = TASK_RE.exec(raw);
   if (!m) return null;
@@ -82,7 +108,7 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const pm = PRIORITY_RE.exec(text);
   if (pm) priority = Number(pm[2]) as TaskPriority;
 
-  const clean = text
+  const clean = stripInlineMarkdown(text)
     .replace(new RegExp(ASSIGNEE_RE, "g"), "$1")
     .replace(new RegExp(DUE_RE, "g"), "$1")
     .replace(new RegExp(START_RE, "g"), "$1")
