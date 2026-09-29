@@ -117,7 +117,7 @@ describe("a write while the disk is ahead of the index", () => {
     expect(changed).toHaveLength(2);
     expect(changed[0]).toBeNull();
     expect(changed[1]).not.toBeNull();
-    const history = (await api("GET", `/api/vault/note/${id}/history`)).json as { authorId: string | null; content: string }[];
+    const history = (await api("GET", `/api/vault/note/${id}/history?content=1&limit=100`)).json.revisions as { authorId: string | null; content: string }[];
     const outside = history.filter((h) => h.content.includes("two\n") && !h.content.includes("three\n"));
     expect(outside).toHaveLength(1);
     expect(outside[0]!.authorId).toBeNull();

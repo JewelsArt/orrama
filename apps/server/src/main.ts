@@ -12,6 +12,7 @@ import { assertProductionSecrets, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
+import { compactAll } from "./history.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
@@ -60,6 +61,15 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   // then keep each one current as it changes.
   calendar.rebuildAll();
   calendar.listen();
+  // The Yjs log only ever grew. Merge old runs now and once a day (history.ts).
+  const compact = () => {
+    try {
+      const removed = compactAll(db);
+      if (removed) app.log.info(`history: compacted ${removed} old updates`);
+    } catch (err) {
+      app.log.error(err, "history compaction failed");
+    }
+  };
 
   const vaultRoot = vaultDir();
   const mcpPath = path.join(vaultRoot, ".mcp.json");
@@ -127,6 +137,10 @@ Vault layout:
   });
   // Stop the vault watcher with the app, so a closed server stops reacting to files.
   app.addHook("onClose", async () => store.close());
+  compact();
+  const compactTimer = setInterval(compact, 24 * 3_600_000);
+  compactTimer.unref();
+  app.addHook("onClose", async () => clearInterval(compactTimer));
   app.addHook("onSend", async (req, reply, payload) => {
     reply.header("x-content-type-options", "nosniff");
     // Every non-API response, not just text/html: a revalidated index.html

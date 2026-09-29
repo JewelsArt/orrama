@@ -829,12 +829,12 @@ describe("history (§10)", () => {
   it("keeps per-note versions from the update log", async () => {
     const jules = await api("GET", "/api/vault/tree", "jules");
     const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
-    const h = await api("GET", `/api/vault/note/${shared.id}/history`, "jules");
+    const h = await api("GET", `/api/vault/note/${shared.id}/history?content=1&limit=100`, "jules");
     expect(h.status).toBe(200);
     // initial + check + uncheck from the round-trip above = ≥3 versions,
-    // with the checked state visible in a middle version only
-    expect(h.json.length).toBeGreaterThanOrEqual(3);
-    const contents = h.json.map((v: { content: string }) => v.content);
+    // with the checked state visible in a middle version only (newest first, so reverse)
+    expect(h.json.revisions.length).toBeGreaterThanOrEqual(3);
+    const contents = h.json.revisions.map((v: { content: string }) => v.content).reverse();
     expect(contents.some((c: string) => c.includes("- [x] schedule next sync"))).toBe(true);
     expect(contents[0]).toContain("- [ ] schedule next sync");
     expect(contents[contents.length - 1]).toContain("- [ ] schedule next sync");

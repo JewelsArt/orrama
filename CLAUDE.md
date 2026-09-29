@@ -418,6 +418,15 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   never confirm existence (§5.4).
 - Web saves send full content + `baseHash`; server rebases as a splice against the
   live Y.Doc. Desktop clients will exchange raw Y updates instead.
+- **History** (`GET /api/vault/note/:id/history`, `apps/server/src/history.ts`)
+  replays the Yjs log ONCE per request and pages newest first (`?limit=`,
+  `?before=<seq>`, `?content=1` for text); one revision is
+  `…/history/:seq`, which must belong to that note — seqs are global, so
+  looking one up by id alone would serve another note's text. The log is
+  compacted at boot and daily: updates older than a day merge per hour, older
+  than 30 days per day, with `Y.mergeUpdates` over contiguous runs, so the note
+  and every kept revision's text are unchanged (on the live DB in Sep 2026:
+  417 rows → 161).
 - DB bootstraps from plain SQL in `apps/server/src/db.ts` (no drizzle-kit). Keep the
   Drizzle table defs in `packages/schema/src/db.ts` in lockstep with it.
 - Task objects are keyed `(noteId, blockId)`; file wins on conflict; deleted lines

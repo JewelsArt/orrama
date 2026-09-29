@@ -1,11 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@basalt/sync";
-import { docFromUpdates, docContent } from "@basalt/sync";
 import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
 import { appendLine, canEdit, parseFrontmatter, suggestRelated } from "@basalt/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
-import { hash, type VaultStore } from "../vaultStore.js";
+import { replay } from "../history.js";
+import { hash, HttpError, type VaultStore } from "../vaultStore.js";
 
 export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
@@ -84,15 +84,40 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     return suggestRelated(note, candidates, (t) => store.index.resolveLink(t));
   });
 
-  /** Per-note version history from the Y.Doc update log (§10). */
-  app.get<{ Params: { id: string } }>("/api/vault/note/:id/history", auth, async (req) => {
+  /**
+   * Per-note version history from the Y.Doc update log (§10), newest first, a
+   * page at a time: `?limit=` (≤ 100, default 50) and `?before=<seq>` for the
+   * next page. Each revision carries its length; `?content=1` adds its text.
+   * The log is replayed once per request (history.ts), not once per row.
+   */
+  app.get<{ Params: { id: string }; Querystring: { limit?: string; before?: string; content?: string } }>("/api/vault/note/:id/history", auth, async (req) => {
     const user = store.aclUser(req.userId);
     const note = store.requireReadable(user, req.params.id);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+    const before = req.query.before !== undefined ? Number(req.query.before) : Infinity;
+    if (Number.isNaN(before)) throw new HttpError(400, "before must be a revision seq");
+    const withText = req.query.content === "1";
     const log = db.select().from(tables.ydocUpdates).where(eq(tables.ydocUpdates.noteId, note.id)).orderBy(tables.ydocUpdates.id).all();
-    return log.map((row, i) => {
-      const doc = docFromUpdates(log.slice(0, i + 1).map((r) => r.update));
-      return { seq: row.id, at: row.createdAt, authorId: row.authorId, content: docContent(doc) };
+    const all: { seq: number; at: number; authorId: string | null; length: number; content?: string }[] = [];
+    replay(log, (row, text) => {
+      if (row.id < before) all.push({ seq: row.id, at: row.createdAt, authorId: row.authorId, length: text.length, ...(withText ? { content: text } : {}) });
     });
+    const page = all.reverse().slice(0, limit);
+    return { revisions: page, nextBefore: all.length > limit ? page[page.length - 1]!.seq : null, total: log.length };
+  });
+
+  /** One revision's text. The seq must belong to THIS note — seqs are global. */
+  app.get<{ Params: { id: string; seq: string } }>("/api/vault/note/:id/history/:seq", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    const note = store.requireReadable(user, req.params.id);
+    const seq = Number(req.params.seq);
+    const log = db.select().from(tables.ydocUpdates).where(eq(tables.ydocUpdates.noteId, note.id)).orderBy(tables.ydocUpdates.id).all();
+    const upTo = log.filter((r) => r.id <= seq);
+    if (!Number.isInteger(seq) || upTo[upTo.length - 1]?.id !== seq) throw new HttpError(404, "revision not found");
+    let content = "";
+    replay(upTo, (_row, text) => (content = text));
+    const row = upTo[upTo.length - 1]!;
+    return { seq, at: row.createdAt, authorId: row.authorId, content };
   });
 
   /**
