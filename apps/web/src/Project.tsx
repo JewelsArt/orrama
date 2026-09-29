@@ -6,7 +6,7 @@ import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DocViewer } from "./DocViewer.js";
 import type { NoteSync, SaveState } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
-import { Gantt } from "./Gantt.js";
+import { ProjectBoard, ProjectTimeline, ProjectTodo } from "./ProjectViews.js";
 import { IconPlus, IconSearch, IconX } from "./icons.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { onWs } from "./ws.js";
@@ -58,7 +58,41 @@ export interface ProjectWorkspace {
   canEdit: boolean;
   total: number;
   done: number;
-  tasks: DashboardTask[];
+  /** Each step carries the `##` section of the project note it sits under (or its own note's title). */
+  tasks: (DashboardTask & { section: string })[];
+}
+
+type View = "overview" | "timeline" | "documents" | "todo";
+const VIEWS: { id: View; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "timeline", label: "Timeline" },
+  { id: "documents", label: "Documents" },
+  { id: "todo", label: "To-do" },
+];
+const readView = (): View => {
+  try {
+    const v = localStorage.getItem("basalt-proj-view");
+    return VIEWS.some((x) => x.id === v) ? (v as View) : "overview";
+  } catch {
+    return "overview";
+  }
+};
+
+/** Upload files into 04-Projects/<slug>/files/ — used by the Documents board. */
+async function uploadProjectFiles(slug: string, files: FileList | File[], onError: (msg: string) => void) {
+  for (const file of Array.from(files)) {
+    try {
+      const dataBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(",")[1] ?? "");
+        reader.onerror = () => reject(new Error("could not read file"));
+        reader.readAsDataURL(file);
+      });
+      await api("POST", `/api/projects/${encodeURIComponent(slug)}/files`, { name: file.name, dataBase64 });
+    } catch (e) {
+      onError(`${file.name}: ${e instanceof Error ? e.message : "upload failed"}`);
+    }
+  }
 }
 
 const STATUSES = ["planning", "on-track", "at-risk", "blocked", "sleeping", "cancelled", "done"] as const;
@@ -76,6 +110,17 @@ const kb = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round
 export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string; onBack: () => void; onOpenNote: (id: string) => void }) {
   const [w, setW] = useState<ProjectWorkspace | null>(null);
   const [error, setError] = useState("");
+  const [view, setView] = useState<View>(readView);
+  const [uploadErr, setUploadErr] = useState("");
+  const boardUpload = useRef<HTMLInputElement>(null);
+  const pickView = (v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem("basalt-proj-view", v);
+    } catch {
+      /* the choice just is not remembered */
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -183,21 +228,45 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
         </div>
       </header>
 
+      <nav className="proj-tabs" role="tablist" aria-label="Project views">
+        {VIEWS.map((v) => (
+          <button key={v.id} role="tab" aria-selected={view === v.id} className={`proj-tab ${view === v.id ? "active" : ""}`} onClick={() => pickView(v.id)}>
+            {v.label}
+            {v.id === "timeline" && <i>{w.tasks.filter((t) => t.due).length}</i>}
+            {v.id === "documents" && <i>{w.files.length}</i>}
+            {v.id === "todo" && <i>{w.tasks.filter((t) => !t.checked).length}</i>}
+          </button>
+        ))}
+      </nav>
+
+      {view === "timeline" && <ProjectTimeline w={w} onChanged={load} onOpenNote={onOpenNote} />}
+      {view === "todo" && <ProjectTodo w={w} onChanged={load} onOpenNote={onOpenNote} />}
+      {view === "documents" && (
+        <>
+          <input
+            ref={boardUpload}
+            type="file"
+            multiple
+            hidden
+            onChange={async (e) => {
+              const files = e.target.files;
+              if (files?.length) {
+                setUploadErr("");
+                await uploadProjectFiles(w.slug, files, setUploadErr);
+                await load();
+              }
+              e.target.value = "";
+            }}
+          />
+          {uploadErr && <p className="form-error">{uploadErr}</p>}
+          <ProjectBoard w={w} onUpload={() => boardUpload.current?.click()} />
+        </>
+      )}
+
+      {view === "overview" && (
       <div className="proj-grid">
         <div className="proj-col">
           <Goals w={w} onSave={(body) => patch({ goals: body })} />
-          <Card title="Timeline" count={w.tasks.filter((t) => t.start || t.due).length}>
-            <Gantt
-              tasks={w.tasks}
-              color={color}
-              onSetDates={async (t, dates) => {
-                await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, ...dates });
-                await load();
-              }}
-              onOpen={onOpenNote}
-            />
-          </Card>
-          <Tasks w={w} onChanged={load} />
           <NoteCard w={w} me={me} onOpenNote={onOpenNote} />
         </div>
 
@@ -231,6 +300,7 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
           />
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -311,48 +381,6 @@ function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => P
   );
 }
 
-const STATUS_OPTS = [
-  { id: "in-progress", label: "Working on it" },
-  { id: "todo", label: "To do" },
-  { id: "blocked", label: "Blocked" },
-  { id: "done", label: "Done" },
-] as const;
-
-function Tasks({ w, onChanged }: { w: ProjectWorkspace; onChanged: () => Promise<void> }) {
-  const setStatus = async (t: DashboardTask, status: string) => {
-    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, status });
-    await onChanged();
-  };
-  return (
-    <Card title="Steps" count={w.tasks.length}>
-      {w.tasks.length === 0 ? (
-        <p className="empty">No steps yet. Add `- [ ]` lines to the note, or capture one in the inbox.</p>
-      ) : (
-        <ul className="proj-tasks">
-          {w.tasks.map((t) => (
-            <li key={`${t.noteId}:${t.blockId ?? t.line}`} className={t.checked ? "done" : ""}>
-              <select
-                value={t.checked ? "done" : (t.object?.status ?? "todo")}
-                disabled={!w.canEdit}
-                onChange={(e) => void setStatus(t, e.target.value)}
-                aria-label={`Status of ${t.text}`}
-              >
-                {STATUS_OPTS.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <span className="proj-task-text">{t.text}</span>
-              {t.due && <span className="badge due">{t.due}</span>}
-              {t.assignee && <span className="badge">@{t.assignee}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
 
 /**
  * Notes belonging to this project. Membership is the same rule the task counts

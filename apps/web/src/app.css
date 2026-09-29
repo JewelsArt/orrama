@@ -5158,6 +5158,124 @@ kbd {
 .proj-editor { border:1px solid var(--border); border-radius:12px; overflow:hidden; max-height:520px; }
 .proj-editor .cm-editor { max-height:520px; }
 
+/* ---- Project views: Timeline · Documents · To-do (ProjectViews.tsx) --------
+   Built from the approved Sep 2026 mock and from Basalt's own parts: the
+   .mail-tab underline, .seg, .proj-mini and .proj-card. Flat like everything
+   else — in-flow cards separate by border alone; only a dragged card floats. */
+.proj-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; }
+.proj-tabs::-webkit-scrollbar { display:none; }
+.proj-tab { flex:none; display:inline-flex; align-items:center; gap:5px; border:none; background:none; color:var(--text-dim); font:650 13px var(--font-ui); padding:9px 12px 10px; border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+.proj-tab:hover { color:var(--text); }
+.proj-tab.active { color:var(--text); border-bottom-color:var(--accent); }
+.proj-tab i { font:700 10px var(--font-mono); font-style:normal; color:var(--accent); }
+.proj-mini.on { color:var(--accent); background:var(--accent-soft); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
+
+.ptl-bar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.ptl-legend { display:flex; flex-wrap:wrap; gap:6px 14px; font:600 11.5px var(--font-ui); color:var(--text-dim); }
+.ptl-legend i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:6px; }
+.ptl-legend i.key { background:var(--danger); }
+.ptl-hint { margin:10px 0 0; font:500 12px var(--font-ui); color:var(--text-faint); }
+.ptl-bar .ptl-hint { margin:0; }
+
+.ptl-rail { display:grid; grid-auto-flow:column; grid-auto-columns:200px; overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius-sm); min-height:300px; }
+.ptl-week { display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border); }
+.ptl-week:last-child { border-right:none; }
+.ptl-week.now { background:var(--accent-soft); }
+.ptl-week.month .ptl-head { box-shadow:inset 2px 0 0 var(--border-strong); }
+.ptl-week.drop { background:var(--accent-soft); box-shadow:inset 0 0 0 2px var(--accent); }
+.ptl-head { display:flex; justify-content:space-between; align-items:baseline; gap:6px; padding:9px 11px 8px; border-bottom:1px solid var(--border); }
+.ptl-head b { font:700 12.5px var(--font-ui); }
+.ptl-head span { font:600 10px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); }
+.ptl-week.now .ptl-head span { color:var(--accent); }
+.ptl-cards { display:grid; gap:7px; padding:9px; align-content:start; }
+.ptl-card { position:relative; display:grid; gap:4px; text-align:left; background:var(--surface); color:var(--text); border:1px solid var(--border); border-left:3px solid var(--phase); border-radius:var(--radius-sm); padding:7px 9px 8px; cursor:pointer; touch-action:none; }
+.ptl-card:hover { border-color:var(--border-strong); border-left-color:var(--phase); }
+.ptl-card.movable { cursor:grab; }
+.ptl-card .t { font:600 12.5px/1.35 var(--font-ui); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.ptl-card .m { font:600 11px var(--font-mono); color:var(--text-faint); }
+.ptl-card.done { opacity:.55; }
+.ptl-card.done .t { text-decoration:line-through; }
+.ptl-card.late { border-color:color-mix(in srgb,var(--danger) 45%,var(--bg)); border-left-color:var(--danger); }
+.ptl-card.late .m { color:var(--danger); }
+.ptl-card.key { background:var(--danger); border-color:var(--danger); color:var(--on-vivid); }
+.ptl-card.key .m { color:inherit; opacity:.9; }
+.ptl-card.lifted { opacity:.35; }
+.ptl-card.ghost { position:fixed; z-index:200; pointer-events:none; box-shadow:var(--shadow-pop); }
+
+.ptd { display:flex; flex-direction:column; gap:12px; }
+.ptd .ptl-bar { margin-bottom:0; }
+.ptd-group { padding:0; overflow:hidden; }
+.ptd-head { display:flex; align-items:center; gap:10px; padding:12px 16px; }
+.ptd-head .dot { width:10px; height:10px; border-radius:3px; background:var(--phase); flex:none; }
+.ptd-head h2 { flex:1; min-width:0; margin:0; font:750 13px var(--font-ui); letter-spacing:.01em; }
+.ptd-prog { width:110px; height:6px; border-radius:99px; background:var(--panel-strong); overflow:hidden; flex:none; }
+.ptd-prog i { display:block; height:100%; background:var(--phase); }
+.ptd-count { font:700 11.5px var(--font-mono); color:var(--text-faint); flex:none; }
+.ptd-rows { list-style:none; margin:0; padding:0 8px 6px; }
+.ptd-row { display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:4px 12px; align-items:start; padding:8px; border-top:1px solid var(--border); }
+.ptd-box { width:18px; height:18px; margin-top:1px; border:1.6px solid var(--border-strong); border-radius:5px; background:none; cursor:pointer; padding:0; }
+.ptd-box:hover:not(:disabled) { border-color:var(--accent); }
+.ptd-row.done .ptd-box { background:var(--ok); border-color:var(--ok); }
+.ptd-text { border:none; background:none; padding:0; text-align:left; color:var(--text); font:500 13.5px/1.45 var(--font-ui); cursor:pointer; max-width:78ch; }
+.ptd-text:hover { color:var(--accent); }
+.ptd-row.done .ptd-text { color:var(--text-faint); text-decoration:line-through; }
+.ptd-chips { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; align-items:center; }
+.ptd-chip { font:700 11px var(--font-mono); padding:3px 8px; border-radius:99px; color:var(--text-dim); background:var(--panel); border:1px solid var(--border); white-space:nowrap; }
+.ptd-chip.late { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 40%,var(--bg)); }
+.ptd-chip.soon { color:var(--warn); border-color:color-mix(in srgb,var(--warn) 40%,var(--bg)); }
+.ptd-chip.key { background:var(--danger); border-color:var(--danger); color:var(--on-vivid); }
+/* The status menu only shows itself when it says something: in progress or
+   blocked. A plain "To do" on every row was noise; it appears on hover/focus. */
+.ptd-status { appearance:none; -webkit-appearance:none; font:650 11px var(--font-ui); padding:3px 8px; border-radius:99px; color:var(--text-faint); background:transparent; border:1px solid transparent; cursor:pointer; }
+.ptd-status:not(.in-progress):not(.blocked) { opacity:0; }
+.ptd-row:hover .ptd-status, .ptd-status:focus-visible { opacity:1; border-color:var(--border); }
+.ptd-status.in-progress { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 35%,transparent); }
+.ptd-status.blocked { color:var(--warn); border-color:color-mix(in srgb,var(--warn) 40%,var(--bg)); }
+.ptd-more { margin:0 16px 12px; border:none; background:none; padding:0; font:600 12px var(--font-ui); color:var(--text-dim); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+
+.pbd .ptl-bar { margin-bottom:12px; }
+.pbd-tools { display:flex; flex-wrap:wrap; gap:8px; align-items:center; min-width:0; }
+.pbd-tools .proj-mini { margin-left:0; }
+.pbd-search { min-width:0; width:220px; border:1px solid var(--border); background:var(--surface); color:var(--text); border-radius:8px; padding:5px 10px; font:500 12.5px var(--font-ui); }
+.pbd-canvas { position:relative; overflow:auto; height:min(72vh,760px); border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); background-image:radial-gradient(color-mix(in srgb,var(--text) 10%,transparent) 1px, transparent 1.2px); background-size:22px 22px; }
+.pbd-plane { position:relative; }
+.pbd-edges, .pbd-labels { position:absolute; inset:0; overflow:visible; }
+.pbd-labels { z-index:3; pointer-events:none; }
+.pbd-edge { cursor:pointer; }
+.pbd-edge .hit { fill:none; stroke:transparent; stroke-width:12; }
+.pbd-edge .line { fill:none; stroke:var(--text-faint); stroke-width:1.4; opacity:.55; transition:opacity .15s, stroke .15s; }
+.pbd-edge circle { fill:var(--text-faint); opacity:.55; }
+.pbd-edge.sugg .line { stroke:var(--accent); stroke-dasharray:4 5; }
+.pbd-edge.sugg circle { fill:var(--accent); }
+.pbd-edge.lit .line, .pbd-edge:hover .line { opacity:1; stroke-width:2.2; stroke:var(--text-dim); }
+.pbd-edge.sugg.lit .line, .pbd-edge.sugg:hover .line { stroke:var(--accent); }
+.pbd-edge.lit circle, .pbd-edge:hover circle { opacity:1; }
+.pbd-edge.faded .line, .pbd-edge.faded circle { opacity:.12; }
+.pbd-labels text { font:600 11px var(--font-ui); fill:var(--text); paint-order:stroke; stroke:var(--surface); stroke-width:5px; opacity:0; transition:opacity .15s; }
+.pbd-labels text.on { opacity:1; }
+.pbd-box { position:absolute; border:1px dashed color-mix(in srgb,var(--zc) 45%,transparent); border-radius:var(--radius-lg); pointer-events:none; }
+.pbd-box-head { position:absolute; top:-12px; left:12px; display:flex; align-items:center; gap:2px; padding:0 4px; background:var(--surface); pointer-events:auto; cursor:move; user-select:none; }
+.pbd-box-label { font:700 10.5px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--zc); padding:2px 4px; }
+.pbd-box-input { font:600 12px var(--font-ui); color:var(--text); background:var(--panel); border:1px solid var(--border-strong); border-radius:6px; padding:2px 6px; width:180px; }
+.pbd-box-btn { border:none; background:none; color:var(--text-faint); width:20px; height:20px; border-radius:5px; font-size:11px; cursor:pointer; opacity:0; }
+.pbd-box:hover .pbd-box-btn, .pbd-box-btn:focus-visible { opacity:1; }
+.pbd-box-btn:hover { background:var(--panel); color:var(--text); }
+.pbd-grip { position:absolute; right:2px; bottom:2px; width:14px; height:14px; pointer-events:auto; cursor:nwse-resize; border-right:2px solid color-mix(in srgb,var(--zc) 60%,transparent); border-bottom:2px solid color-mix(in srgb,var(--zc) 60%,transparent); border-radius:0 0 6px 0; }
+.pbd-card { position:absolute; z-index:2; display:flex; align-items:flex-start; gap:9px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius); padding:10px 11px; cursor:pointer; user-select:none; touch-action:none; }
+.pbd-card.movable { cursor:grab; }
+.pbd-card:hover { border-color:var(--text-faint); }
+.pbd-card b { font:650 12.5px/1.3 var(--font-ui); color:var(--text); overflow-wrap:anywhere; }
+.pbd-card.picked { outline:2px solid var(--accent); outline-offset:2px; }
+.pbd-card.dim { opacity:.25; }
+.pbd-card.hit { outline:2px solid var(--warn); outline-offset:2px; }
+@media (max-width: 640px) {
+  .ptl-rail { grid-auto-columns:170px; }
+  .ptd-row { grid-template-columns:22px minmax(0,1fr); }
+  .ptd-chips { grid-column:2; justify-content:flex-start; }
+  .ptd-prog { display:none; }
+  .pbd-search { width:100%; }
+}
+
 /* ---- Settings: stacked field column (mail connect form) ---- */
 .settings-col { display: flex; flex-direction: column; gap: 8px; }
 .settings-col > input {

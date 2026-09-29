@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
+import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -337,8 +338,73 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       canEdit: canEdit(user, note, grants),
       total: tasks.length,
       done: tasks.filter((t) => t.checked).length,
-      tasks: tasks.map((t) => ({ ...t, object: t.blockId ? (objByKey.get(`${t.noteId}:${t.blockId}`) ?? null) : null })),
+      tasks: tasks.map((t) => ({
+        ...t,
+        section: sectionOf(t),
+        object: t.blockId ? (objByKey.get(`${t.noteId}:${t.blockId}`) ?? null) : null,
+      })),
     };
+
+    /**
+     * What a step belongs to, for the grouped to-do: the nearest `##` heading
+     * above it in the project note ("Research plan — due 19 October"), or, for a
+     * step in one of the project's other notes, that note's title. The note's
+     * own structure is the grouping, so reordering sections regroups the list.
+     */
+    function sectionOf(t: { noteId: string; line: number; noteTitle: string }): string {
+      if (t.noteId !== note.id) return t.noteTitle;
+      const above = note.headings.filter((h) => h.level <= 2 && h.line < t.line).at(-1);
+      return above && above.level === 2 ? above.text : "Steps";
+    }
+  });
+
+  // ---- Documents board ----------------------------------------------------
+
+  /** The files in a project's folder, by name. */
+  const projectFiles = (slug: string): string[] => {
+    const dir = filesDirFor(store.vaultRoot, slug);
+    return fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile() && !e.name.startsWith(".")).map((e) => e.name) : [];
+  };
+  const boardPath = (slug: string) => path.join(path.dirname(filesDirFor(store.vaultRoot, slug)), "documents.canvas");
+
+  /**
+   * The board, as saved — minus cards whose file is gone — plus a card for any
+   * file that has none yet. A project that never had a board gets its files in
+   * one box. Reading never writes: the file changes only when someone edits.
+   */
+  app.get<{ Params: { slug: string } }>("/api/projects/:slug/board", auth, async (req) => {
+    const { user, grants, note } = openProject(req.userId, req.params.slug);
+    const files = projectFiles(req.params.slug);
+    const abs = boardPath(req.params.slug);
+    let board;
+    if (fs.existsSync(abs)) {
+      try {
+        board = placeMissing(normalizeBoard(JSON.parse(fs.readFileSync(abs, "utf8")), req.params.slug, new Set(files)), req.params.slug, files);
+      } catch {
+        // A canvas edited by hand into something unreadable is not a reason to
+        // lose the documents view: start from the default, and say so.
+        board = { ...defaultBoard(req.params.slug, files), unreadable: true };
+      }
+    } else board = defaultBoard(req.params.slug, files);
+    return { ...board, canEdit: canEdit(user, note, grants) };
+  });
+
+  /** Save the board. Editors only; validated like a read, written atomically. */
+  app.put<{ Params: { slug: string } }>("/api/projects/:slug/board", auth, async (req) => {
+    const { user, grants, note } = openProject(req.userId, req.params.slug);
+    if (!canEdit(user, note, grants)) throw new HttpError(403, "you cannot edit this project");
+    let board;
+    try {
+      board = normalizeBoard(req.body, req.params.slug, new Set(projectFiles(req.params.slug)));
+    } catch (err) {
+      throw new HttpError(400, err instanceof Error ? err.message : "invalid board");
+    }
+    const abs = boardPath(req.params.slug);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    const tmp = `${abs}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(board, null, 2) + "\n");
+    fs.renameSync(tmp, abs);
+    return board;
   });
 
   /** Header fields (front-matter) and the agent prompt (a section) in one place. */

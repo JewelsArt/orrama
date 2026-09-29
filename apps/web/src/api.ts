@@ -71,6 +71,8 @@ export interface TaskLine {
   start?: string;
   due?: string;
   priority?: number;
+  /** A `#deadline` task (core ParsedTask.key). */
+  key?: boolean;
   blockId?: string;
   indent: number;
 }

@@ -94,10 +94,30 @@ lives DB-only).
 ## The project workspace is the note
 
 Clicking a project on the Overview board opens `Project.tsx`: header (status,
-start→deadline countdown, % ring), goals, Gantt, steps, the project note in the
-live editor, documents, linked people, the agent prompt, a decision log and a
-quick-capture inbox. **None of it is a database row.** Goals/Prompt/Decisions/
-Inbox are `##` sections of the project note (`packages/core/src/sections.ts`),
+start→deadline countdown, % ring), then four tabs (last one used is remembered,
+`basalt-proj-view`). **Overview** — goals, the project note in the live editor,
+notes, documents list, linked people, the agent prompt, a decision log and a
+quick-capture inbox. **Timeline**, **Documents** and **To-do** live in
+`ProjectViews.tsx` (from the Sep 2026 mock Jules approved):
+
+- *Timeline* — one column per week, a card per dated step coloured by its
+  section, `#deadline` cards solid red. Dragging a card to another week moves
+  `due:` (and `start:`) by whole weeks through `POST /api/tasks/dates`; a click
+  opens the same `TaskCard` Planning uses. (The Overview board keeps `Gantt.tsx`.)
+- *To-do* — steps grouped by the project note's own `##` sections. The server
+  sends each task's `section` (nearest `##` above it, or the note title for a
+  step in another project note), so reordering the note regroups the list.
+- *Documents* — the project's files as cards on a board, in boxes, joined by
+  links. Stored as **JSON Canvas** in `04-Projects/<slug>/documents.canvas`
+  (`GET/PUT /api/projects/:slug/board`, rules in `apps/server/src/board.ts`):
+  files only — notes stay off the board by Jules's choice; a card whose file is
+  gone is dropped, a file with no card gets one below the rest; reading never
+  writes; saving needs edit. Links Claude proposes carry `basaltSuggested: true`
+  and draw dashed until accepted (Shift-click, or "Accept N suggested"). Boxes
+  are JSON Canvas groups: add, rename, move (carrying their cards), resize,
+  delete. Labels show only for the card or line under the pointer.
+
+**None of it is a database row.** Goals/Prompt/Decisions/Inbox are `##` sections of the project note (`packages/core/src/sections.ts`),
 people are real `[[links]]` the picker writes into `## People`, steps are the
 note's checkboxes, and `status`/`start`/`deadline` are front-matter. Delete the
 DB, re-index, and the workspace comes back — same rule as the dashboard.
