@@ -5070,6 +5070,17 @@ kbd {
 .proj-grid { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr); gap:16px; align-items:start; }
 @media (max-width: 1150px) { .proj-grid { grid-template-columns:1fr; } }
 .proj-col { display:flex; flex-direction:column; gap:16px; min-width:0; }
+/* Overview: the header and tabs stay put and each column scrolls on its own,
+   so the documents and notes on the right are reachable without scrolling
+   past the whole project note. Stacked (narrow) layouts scroll as one page. */
+.proj.split { overflow:hidden; }
+.proj.split .proj-grid { flex:1; min-height:0; align-items:stretch; }
+.proj.split .proj-col { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-bottom:16px; }
+@media (max-width: 1150px) {
+  .proj.split { overflow:auto; }
+  .proj.split .proj-grid { flex:none; }
+  .proj.split .proj-col { overflow:visible; padding-bottom:0; }
+}
 
 .proj-card { position:relative; border-radius:var(--radius); background:var(--surface); border:1px solid var(--border); padding:14px 16px 16px; min-width:0; }
 .proj-card.raised { z-index:30; }

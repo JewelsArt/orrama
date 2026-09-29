@@ -161,7 +161,7 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
   const color = DOMAIN_COLOR[w.domain ?? ""] ?? "var(--accent)";
 
   return (
-    <div className="proj">
+    <div className={`proj ${view === "overview" ? "split" : ""}`}>
       <header className="proj-top">
         <div className="proj-top-id">
         <button className="proj-back" onClick={onBack} aria-label="Back to Overview">
