@@ -142,7 +142,13 @@ bundle. The HTML is scrubbed of scripts and `on*` handlers before it reaches
 `dangerouslySetInnerHTML`; the sheet endpoint caps at 12 sheets × 500 rows × 40
 columns and returns **dense** string rows — exceljs's `row.values` is 1-based and
 sparse, and `.map` skips holes, which then serialise as nulls and crash the
-table.
+table. `.pptx` goes through `…/files/:name/slides` (`apps/server/src/slides.ts`):
+slide text, tables, speaker notes and images as **data, not markup** — the
+reader builds its own elements, and an image is sent only when its bytes say
+PNG/JPEG/GIF/WebP (an SVG named `image1.png` is dropped). The zip is read with
+`node:zlib` so every part inflates under `maxOutputLength`; caps are in
+`SLIDE_CAPS`. Decks built from text boxes have no title placeholder, so a
+first box holding one short unbulleted line is taken as the title.
 
 `GET /api/projects/:slug` returns the whole workspace in one call; the MCP tools
 `list_projects` / `get_project` / `log_decision` hand the same payload — prompt

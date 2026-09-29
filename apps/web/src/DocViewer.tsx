@@ -7,14 +7,77 @@ import { api, apiBlob } from "./api.js";
  * PDFs go to the webview's own viewer through a blob URL (the file lives behind
  * a bearer token, so a plain src= would 401). DOCX and XLSX are parsed on the
  * server — mammoth keeps headings, lists, tables and emphasis; exceljs returns
- * capped rows per sheet — so the browser only ever receives text. Anything else
- * offers a download instead of pretending it can render it.
+ * capped rows per sheet — so the browser only ever receives text. PPTX comes
+ * back as slides of plain strings plus sniffed raster images, and is drawn here
+ * with ordinary elements: no markup from the deck is ever injected. Anything
+ * else offers a download instead of pretending it can render it.
  */
 interface Sheet {
   name: string;
   rows: string[][];
   truncated: boolean;
   totalRows: number;
+}
+
+type SlideBlock = { kind: "p"; text: string; level: number } | { kind: "table"; rows: string[][] };
+interface Deck {
+  slides: { n: number; title: string; hidden: boolean; blocks: SlideBlock[]; images: { ref: string; alt: string }[]; notes: string }[];
+  slideCount: number;
+  truncated: boolean;
+  media: Record<string, string>;
+  omittedImages: number;
+}
+
+/** One card per slide, in deck order: title, text, tables, pictures, then the speaker notes. */
+function DeckView({ deck }: { deck: Deck }) {
+  const meta = [
+    `${deck.slideCount} ${deck.slideCount === 1 ? "slide" : "slides"}`,
+    deck.truncated ? `showing the first ${deck.slides.length}` : "",
+    deck.omittedImages ? `${deck.omittedImages} ${deck.omittedImages === 1 ? "picture" : "pictures"} not shown` : "",
+  ].filter(Boolean);
+  return (
+    <div className="doc-deck">
+      <div className="doc-sheet-meta">{meta.join(" · ")}</div>
+      {deck.slides.map((s) => (
+        <section key={s.n} className={`doc-slide ${s.hidden ? "hidden" : ""}`} aria-label={`Slide ${s.n}`}>
+          <header className="doc-slide-head">
+            <span className="doc-slide-n">{s.n}</span>
+            <h3>{s.title || `Slide ${s.n}`}</h3>
+            {s.hidden && <span className="doc-slide-tag">hidden</span>}
+          </header>
+          {s.blocks.map((b, i) =>
+            b.kind === "p" ? (
+              <p key={i} className="doc-slide-p" style={{ paddingLeft: b.level * 18 }}>
+                {b.text}
+              </p>
+            ) : (
+              <table key={i} className="doc-slide-table">
+                <tbody>
+                  {b.rows.map((row, r) => (
+                    <tr key={r}>
+                      {row.map((c, j) => (r === 0 ? <th key={j}>{c}</th> : <td key={j}>{c}</td>))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ),
+          )}
+          {s.images.length > 0 && (
+            <div className="doc-slide-imgs">
+              {s.images.map((im, i) => deck.media[im.ref] && <img key={i} src={deck.media[im.ref]} alt={im.alt} />)}
+            </div>
+          )}
+          {!s.title && s.blocks.length === 0 && s.images.length === 0 && <p className="doc-slide-empty">No text on this slide.</p>}
+          {s.notes && (
+            <div className="doc-slide-notes">
+              <span>Notes</span>
+              <p>{s.notes}</p>
+            </div>
+          )}
+        </section>
+      ))}
+    </div>
+  );
 }
 
 /** First row as the header — the convention every export on disk follows. */
@@ -64,8 +127,8 @@ export function DocViewer({
    * The collection this file lives in, as an API path with no trailing slash —
    * `/api/projects/<slug>/files` or `/api/finance/files`. Passing the prefix
    * rather than a project slug is what lets the Finance area reuse this viewer
-   * unchanged; both collections expose the same three routes (the raw file,
-   * `/html`, `/sheet`).
+   * unchanged; both collections expose the raw file and `/sheet` (projects
+   * add `/html` and `/slides`).
    */
   base: string;
   name: string;
@@ -76,6 +139,7 @@ export function DocViewer({
   const [html, setHtml] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [book, setBook] = useState<Sheet[] | null>(null);
+  const [deck, setDeck] = useState<Deck | null>(null);
   const [tab, setTab] = useState(0);
   const [error, setError] = useState("");
 
@@ -95,6 +159,10 @@ export function DocViewer({
             `${base}/${encodeURIComponent(name)}/sheet`,
           );
           setBook(res.sheets);
+          return;
+        }
+        if (ext === ".pptx") {
+          setDeck(await api<Deck>("GET", `${base}/${encodeURIComponent(name)}/slides`));
           return;
         }
         if (ext === ".docx") {
@@ -133,6 +201,7 @@ export function DocViewer({
   const readable =
     ext === ".pdf" ||
     ext === ".docx" ||
+    ext === ".pptx" ||
     ext === ".xlsx" ||
     ext === ".xlsm" ||
     [".txt", ".md", ".csv", ".json"].includes(ext) ||
@@ -177,10 +246,11 @@ export function DocViewer({
             </div>
           )}
           {book && book.length === 0 && <p className="empty">This workbook has no sheets.</p>}
+          {deck && (deck.slides.length > 0 ? <DeckView deck={deck} /> : <p className="empty">This presentation has no slides.</p>)}
           {text !== null && <pre className="doc-text">{text}</pre>}
           {url && ext === ".pdf" && <iframe className="doc-frame" src={url} title={name} />}
           {url && ext.match(/\.(png|jpe?g|gif|webp)$/) && <img className="doc-img" src={url} alt={name} />}
-          {!error && readable && html === null && text === null && book === null && !url && <p className="empty">Opening…</p>}
+          {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="empty">Opening…</p>}
         </div>
       </div>
     </div>

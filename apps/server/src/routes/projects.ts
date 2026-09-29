@@ -12,6 +12,7 @@ import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionIt
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
+import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 export const PROJECTS_DIR = "04-Projects";
@@ -595,6 +596,26 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       };
     });
     return { sheets, sheetCount: wb.worksheets.length };
+  });
+
+  /**
+   * A .pptx as slides — text, tables, notes and raster images as data, never
+   * markup (slides.ts). Caps live there; a deck that is not a deck is a 422,
+   * not a 500.
+   */
+  app.get<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name/slides", auth, async (req) => {
+    openProject(req.userId, req.params.slug); // readable project = readable documents
+    const name = safeName(req.params.name);
+    if (!name.toLowerCase().endsWith(".pptx")) throw new HttpError(400, "only .pptx converts to slides");
+    const dir = filesDirFor(store.vaultRoot, req.params.slug);
+    const abs = path.join(dir, name);
+    if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
+    if (fs.statSync(abs).size > SLIDE_CAPS.fileBytes) throw new HttpError(413, "presentation too large to preview");
+    try {
+      return readPptx(fs.readFileSync(abs));
+    } catch {
+      throw new HttpError(422, "could not read this presentation");
+    }
   });
 
   app.delete<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name", auth, async (req) => {
