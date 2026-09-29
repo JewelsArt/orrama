@@ -283,3 +283,9 @@ export const projects = sqliteTable("projects", {
   domain: text("domain"), // life-area for the Overview separation: personal | professional | academic
   hidden: integer("hidden"), // 1 = removed from the board; survives re-index (auto-sync respects it)
 });
+
+/** One-shot data migrations that must not run twice, by name (apps/server/src/migrations.ts). */
+export const meta = sqliteTable("meta", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});

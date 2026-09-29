@@ -302,7 +302,17 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               <ul className="side-tasks">
                 {open.tasks.map((t) => (
                   <li key={t.line}>
-                    <input type="checkbox" checked={t.checked} onChange={(e) => checkTask(t.line, e.target.checked)} aria-label={t.text} />
+                    <input
+                      type="checkbox"
+                      checked={t.checked}
+                      // `[/]` / `[b]`: open, but not untouched — a dash, like the editor's half box.
+                      ref={(el) => {
+                        if (el) el.indeterminate = t.status === "in-progress" || t.status === "blocked";
+                      }}
+                      title={t.status === "in-progress" ? "In progress" : t.status === "blocked" ? "Blocked" : undefined}
+                      onChange={(e) => checkTask(t.line, e.target.checked)}
+                      aria-label={t.text}
+                    />
                     <span>{t.text}</span>
                     {t.blockId ? (
                       <span className="promoted-mark" title="Promoted task">

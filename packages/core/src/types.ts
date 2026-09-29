@@ -40,10 +40,19 @@ export interface NoteTag {
 
 export type TaskPriority = 1 | 2 | 3;
 
+/**
+ * Where a task stands, read off its checkbox: `[ ]` todo, `[/]` in progress,
+ * `[b]` blocked, `[x]` done. The file is the only truth — the two middle states
+ * used to live in the database alone and died with it (audit B10).
+ */
+export type TaskState = "todo" | "in-progress" | "blocked" | "done";
+
 export interface ParsedTask {
   /** Line index in the note body (0-based over the full file). */
   line: number;
+  /** True for `[x]` only — `[/]` and `[b]` are open work. */
   checked: boolean;
+  status: TaskState;
   /** Task text with metadata tokens stripped. */
   text: string;
   /** Raw line content. */

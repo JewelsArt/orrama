@@ -46,8 +46,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
 
     // Active work floats up, done sinks to the bottom, so the board reads as
     // "what's left": in-progress → to-do → blocked → done.
-    const statusRank = (t: { checked: boolean; object: { status?: string } | null }) =>
-      t.checked ? 3 : t.object?.status === "in-progress" ? 0 : t.object?.status === "blocked" ? 2 : 1;
+    const statusRank = (t: { status: string }) => (t.status === "done" ? 3 : t.status === "in-progress" ? 0 : t.status === "blocked" ? 2 : 1);
     const byProject = progress.map((p) => ({
       ...p,
       projectId: idByName.get(p.project) ?? null,
@@ -74,10 +73,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const lastEdits = store.lastEdits();
     const members = memberRows.map(({ user: m }) => {
       const open = tasks.filter((t) => !t.checked && t.assignee === m.username);
-      const inProgress = open.filter((t) => {
-        const o = t.blockId ? objByKey.get(`${t.noteId}:${t.blockId}`) : null;
-        return o?.status === "in-progress";
-      });
+      const inProgress = open.filter((t) => t.status === "in-progress");
       const edit = lastEdits.get(m.id);
       let lastNote: { id: string; title: string; at: number } | null = null;
       if (edit) {

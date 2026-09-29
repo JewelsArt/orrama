@@ -111,11 +111,12 @@ describe("DB-only task and block changes need edit", () => {
     expect((await call("erin", "POST", "/api/tasks/status", status)).status).toBe(403);
     expect((await call("erin", "POST", "/api/tasks/dates", { noteId: welcomeId, line: erinLine, due: "2026-12-01" })).status).toBe(403);
     expect((await call("jules", "POST", "/api/tasks/status", status)).status).toBe(200);
-    // That promoted the line; the DB-only routes keyed on it refuse erin too.
+    // Promote it, so the routes keyed on a task object can be tried as erin too.
+    expect((await call("jules", "POST", "/api/tasks/promote", { noteId: welcomeId, line: erinLine })).status).toBe(200);
     const { tables } = await import("../src/db.js");
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.noteId, welcomeId)).get()!;
     expect((await call("erin", "PATCH", `/api/tasks/${obj.id}`, { status: "blocked" })).status).toBe(403);
-    // Now promoted, a status change is DB-only: no file write to catch it.
+    // Keyed by block id instead of line, the same refusal.
     expect((await call("erin", "POST", "/api/tasks/status", { noteId: welcomeId, blockId: obj.blockId, status: "blocked" })).status).toBe(403);
     expect((await call("erin", "POST", "/api/tasks/schedule", { noteId: welcomeId, blockId: obj.blockId, date: "2026-10-03" })).status).toBe(403);
     // These write the file (as does /dates), which write() already guarded; same answer, earlier.

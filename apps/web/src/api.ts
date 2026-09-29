@@ -65,6 +65,8 @@ export interface NoteDetail {
 export interface TaskLine {
   line: number;
   checked: boolean;
+  /** Read off the checkbox: `[ ]` todo, `[/]` in progress, `[b]` blocked, `[x]` done. */
+  status: "todo" | "in-progress" | "blocked" | "done";
   text: string;
   raw: string;
   assignee?: string;

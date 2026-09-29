@@ -119,7 +119,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       if (inFence || line === "" || line.startsWith("#") || line.startsWith(">")) continue;
       if (/^(\||-{3,}|\*{3,})/.test(line)) continue;
       const text = line
-        .replace(/^[-*+]\s+(\[[ xX]\]\s+)?/, "")
+        .replace(/^[-*+]\s+(\[[ xX/b]\]\s+)?/, "")
         .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_m, t: string, a?: string) => a ?? t)
         .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
         .replace(/[*_`]/g, "")

@@ -89,7 +89,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
         id: `task-${crypto.randomUUID().slice(0, 8)}`,
         noteId: note.id,
         blockId: taskBlockId,
-        status: (parsed?.checked ? "done" : "todo") as "done" | "todo",
+        status: parsed?.status ?? "todo",
         assigneeId: assignee?.id ?? null,
         due: parsed?.due ?? null,
         plannedDate: null,

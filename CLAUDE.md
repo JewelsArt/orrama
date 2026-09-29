@@ -379,7 +379,15 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
   launchd plist; unset, the `Origin` must equal the address the request was
   sent to, which blocks cross-site use but is the weaker of the two.
-- **DB-only task changes need edit** (`store.requireEditable`): status, dates,
+- **A task's status is its checkbox**: `[ ]` todo, `[/]` in progress, `[b]`
+  blocked, `[x]` done (`ParsedTask.status`; the Obsidian Tasks convention).
+  Every surface reads `status`, every route writes it with `setTaskStatus`, and
+  `task_objects.status` only mirrors the file (`reconcileTaskObjects`, also run
+  for every note at boot). The two middle states used to be DB-only and died
+  with the database (audit B10); `migrations.ts` moved the old rows into their
+  lines once — a `meta` row records it, because re-running it would overwrite
+  a box cleared in Obsidian while the server was down.
+- **DB-only task changes need edit** (`store.requireEditable`): dates,
   assignee and time blocks never pass through `write()`, so they check edit
   themselves. Comments stay at read.
 - **Finance files follow the folder ACL** of `02-Areas/finance/files`, like the

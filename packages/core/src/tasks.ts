@@ -3,8 +3,10 @@
  * content — the Markdown file is always the source of truth (spec §7): dashboards
  * call these and write the result back through the normal edit path.
  */
+import type { TaskState } from "./types.js";
 
-const TASK_LINE_RE = /^(\s*- \[)( |x|X)(\] .*)$/;
+const TASK_LINE_RE = /^(\s*- \[)( |x|X|\/|b)(\] .*)$/;
+const MARK: Record<TaskState, string> = { todo: " ", "in-progress": "/", blocked: "b", done: "x" };
 
 export interface TaskLineRef {
   /** 0-based line index; used when the task has no block id. */
@@ -27,10 +29,18 @@ function findTaskLine(lines: string[], ref: TaskLineRef): number {
 
 /** Check/uncheck a task. Returns null if the referenced line is gone (caller orphans the task object). */
 export function setTaskChecked(content: string, ref: TaskLineRef, checked: boolean): string | null {
+  return setTaskStatus(content, ref, checked ? "done" : "todo");
+}
+
+/**
+ * Write a task's state into its checkbox: `[ ]`, `[/]`, `[b]` or `[x]`. An `[X]`
+ * asked to be done again is left as it is. Returns null if the line is gone.
+ */
+export function setTaskStatus(content: string, ref: TaskLineRef, status: TaskState): string | null {
   const lines = content.split("\n");
   const idx = findTaskLine(lines, ref);
   if (idx === -1) return null;
-  lines[idx] = lines[idx]!.replace(TASK_LINE_RE, (_, pre, _cur, post) => `${pre}${checked ? "x" : " "}${post}`);
+  lines[idx] = lines[idx]!.replace(TASK_LINE_RE, (_, pre, cur, post) => `${pre}${status === "done" && cur === "X" ? "X" : MARK[status]}${post}`);
   return lines.join("\n");
 }
 
@@ -49,7 +59,7 @@ export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates
   const lines = content.split("\n");
   const idx = findTaskLine(lines, ref);
   if (idx === -1) return null;
-  const m = /^(\s*- \[(?: |x|X)\] )(.*)$/.exec(lines[idx]!)!;
+  const m = /^(\s*- \[(?: |x|X|\/|b)\] )(.*)$/.exec(lines[idx]!)!;
   let body = m[2]!;
   let blockSuffix = "";
   const bm = /\s\^[\w-]+\s*$/.exec(body);

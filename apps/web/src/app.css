@@ -2886,6 +2886,31 @@ button.ov-pname {
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
+/* `[/]` in progress: half filled; `[b]` blocked: a bar. Same colours as the board's .st.work / .st.blocked. */
+.cm-task-box.doing {
+  border-color: var(--warn);
+}
+.cm-task-box.doing::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  background: var(--warn);
+}
+.cm-task-box.blocked {
+  border-color: var(--danger);
+}
+.cm-task-box.blocked::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 5px;
+  height: 2px;
+  background: var(--danger);
+}
 .cm-task-done {
   color: var(--text-faint);
   text-decoration: line-through;

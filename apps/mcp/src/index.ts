@@ -213,7 +213,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "set_task_status",
-        description: "Set a task's status. todo/done tick the checkbox in the note; in-progress/blocked are richer board states. Identify the task by noteId + line (0-indexed) or blockId.",
+        description: "Set a task's status. Written into the note's checkbox: [ ] todo, [/] in-progress, [b] blocked, [x] done. Identify the task by noteId + line (0-indexed) or blockId.",
         inputSchema: {
           type: "object",
           properties: {

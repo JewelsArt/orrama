@@ -2,69 +2,31 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, updateTaskObjectSchema, type SetTaskStatus } from "@basalt/schema";
-import { promoteTaskLine, setTaskChecked, setTaskDates, type AclUser } from "@basalt/core";
+import { promoteTaskLine, setTaskChecked, setTaskDates, setTaskStatus, type AclUser } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 /**
  * Set a task's board status (shared by the /api/tasks/status route and the AI
- * agent's set_task_status tool). done/todo flip the checkbox in the file;
- * in-progress/blocked are DB-only and auto-promote the line.
+ * agent's set_task_status tool). Every status is the checkbox — `[ ]`, `[/]`,
+ * `[b]`, `[x]` — so it is an edit to the file, and a promoted task object
+ * follows it through reconcileTaskObjects. In-progress and blocked used to be
+ * DB-only and were lost with the database (audit B10).
  */
-export function applyTaskStatus(db: Db, store: VaultStore, user: AclUser, body: SetTaskStatus) {
+export function applyTaskStatus(_db: Db, store: VaultStore, user: AclUser, body: SetTaskStatus) {
   const note = store.requireEditable(user, body.noteId);
   const parsed = store.index.get(note.id)?.tasks.find((t) => (body.blockId ? t.blockId === body.blockId : t.line === body.line));
   const line = body.line ?? parsed?.line;
   if (line === undefined) throw new HttpError(409, "task line no longer exists");
-
-  // done / todo → the checkbox is the state; edit the file.
-  if (body.status === "done" || body.status === "todo") {
-    const updated = setTaskChecked(note.content, { line, blockId: body.blockId }, body.status === "done");
-    if (updated === null) throw new HttpError(409, "task line no longer exists");
-    const saved = store.write(user, note.path, updated);
-    const blockId = body.blockId ?? parsed?.blockId;
-    const obj = blockId ? store.taskObjectByBlock(note.id, blockId) : undefined;
-    if (obj) db.update(tables.taskObjects).set({ status: body.status, updatedAt: Date.now() }).where(eq(tables.taskObjects.id, obj.id)).run();
-    if (body.status === "done") {
-      const done = store.index.get(saved.id)?.tasks.find((t) => (blockId ? t.blockId === blockId : t.line === line));
-      store.events.emit("task-completed", { noteId: saved.id, path: note.path, authorId: user.id, blockId: done?.blockId ?? blockId ?? null, text: done?.text ?? "" });
-    }
-    return { status: body.status };
+  const updated = setTaskStatus(note.content, { line, blockId: body.blockId }, body.status);
+  if (updated === null) throw new HttpError(409, "task line no longer exists");
+  const saved = store.write(user, note.path, updated);
+  const blockId = body.blockId ?? parsed?.blockId;
+  if (body.status === "done" && parsed?.status !== "done") {
+    const done = store.index.get(saved.id)?.tasks.find((t) => (blockId ? t.blockId === blockId : t.line === line));
+    store.events.emit("task-completed", { noteId: saved.id, path: note.path, authorId: user.id, blockId: done?.blockId ?? blockId ?? null, text: done?.text ?? "" });
   }
-
-  // in-progress / blocked → DB-only state; uncheck the box, then promote.
-  let content = note.content;
-  if (parsed?.checked) {
-    const un = setTaskChecked(content, { line, blockId: body.blockId }, false);
-    if (un !== null) content = un;
-  }
-  const res = promoteTaskLine(content, line);
-  if (!res) throw new HttpError(409, "line is not a task");
-  if (res.content !== note.content) store.write(user, note.path, res.content);
-  let obj = store.taskObjectByBlock(note.id, res.blockId);
-  const now = Date.now();
-  if (!obj) {
-    const pp = store.index.get(note.id)!.tasks.find((t) => t.blockId === res.blockId);
-    const assignee = pp?.assignee ? db.select().from(tables.users).where(eq(tables.users.username, pp.assignee)).get() : undefined;
-    const fresh = {
-      id: `task-${crypto.randomUUID().slice(0, 8)}`,
-      noteId: note.id,
-      blockId: res.blockId,
-      status: body.status,
-      assigneeId: assignee?.id ?? null,
-      due: pp?.due ?? null,
-      plannedDate: null,
-      description: "",
-      createdAt: now,
-      updatedAt: now,
-    };
-    db.insert(tables.taskObjects).values(fresh).run();
-    obj = fresh;
-  } else {
-    db.update(tables.taskObjects).set({ status: body.status, updatedAt: now }).where(eq(tables.taskObjects.id, obj.id)).run();
-  }
-  store.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id });
-  return { status: body.status, blockId: res.blockId };
+  return { status: body.status, ...(blockId ? { blockId } : {}) };
 }
 
 export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
@@ -103,14 +65,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return { id: saved.id, checked: body.checked };
   });
 
-  /**
-   * Set a task's board status from the Overview dropdown.
-   *   - `done`/`todo` flip the checkbox in the file (Markdown is the truth, like
-   *     /check), and keep any promoted object in lockstep.
-   *   - `in-progress`/`blocked` are richer states a checkbox can't hold, so they
-   *     live on the task object (DB); the line is auto-promoted and its box left
-   *     unchecked.
-   */
+  /** Set a task's board status from the Overview dropdown: a checkbox edit (see applyTaskStatus). */
   app.post("/api/tasks/status", auth, async (req) => {
     const body = setTaskStatusSchema.parse(req.body);
     return applyTaskStatus(db, store, store.aclUser(req.userId), body);
@@ -155,7 +110,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
         id: `task-${crypto.randomUUID().slice(0, 8)}`,
         noteId: note.id,
         blockId: res.blockId,
-        status: (parsed?.checked ? "done" : "todo") as "done" | "todo",
+        status: parsed?.status ?? "todo",
         assigneeId: assignee?.id ?? null,
         due: parsed?.due ?? null,
         plannedDate: null,
@@ -199,7 +154,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
         id: `task-${crypto.randomUUID().slice(0, 8)}`,
         noteId: note.id,
         blockId,
-        status: (parsed?.checked ? "done" : "todo") as "done" | "todo",
+        status: parsed?.status ?? "todo",
         assigneeId: assignee?.id ?? null,
         due: parsed?.due ?? null,
         plannedDate: body.date ?? null,
@@ -220,7 +175,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return obj;
   });
 
-  /** Update a task object; closing it checks the box in the file (two-way binding §7.2). */
+  /** Update a task object. A status change is written into the checkbox (two-way binding §7.2). */
   app.patch<{ Params: { id: string } }>("/api/tasks/:id", auth, async (req) => {
     const body = updateTaskObjectSchema.parse(req.body);
     const user = store.aclUser(req.userId);
@@ -228,8 +183,8 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
     if (!obj) throw new HttpError(404, "task not found");
     const note = store.requireEditable(user, obj.noteId);
 
-    if (body.status && body.status !== obj.status && (body.status === "done" || obj.status === "done")) {
-      const updated = setTaskChecked(note.content, { blockId: obj.blockId }, body.status === "done");
+    if (body.status && body.status !== "orphaned" && body.status !== obj.status) {
+      const updated = setTaskStatus(note.content, { blockId: obj.blockId }, body.status);
       if (updated !== null) store.write(user, note.path, updated); // file edit through CRDT
       if (body.status === "done") {
         const parsed = store.index.get(obj.noteId)?.tasks.find((t) => t.blockId === obj.blockId);

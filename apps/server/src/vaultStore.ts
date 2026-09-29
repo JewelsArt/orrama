@@ -552,6 +552,15 @@ export class VaultStore {
     return moved;
   }
 
+  /**
+   * Bring every task object in line with its file. Boot indexes notes without
+   * reconciling, so an edit made while the server was down (a box ticked in
+   * Obsidian, a `[/]` cleared) would otherwise wait for the note's next change.
+   */
+  reconcileAll(): void {
+    for (const note of this.index.all()) this.reconcileTaskObjects(note);
+  }
+
   /** Keep promoted task objects bound to their lines; orphan them when lines vanish (§7.2). */
   private reconcileTaskObjects(note: IndexedNote): void {
     const objects = this.db.select().from(tables.taskObjects).where(eq(tables.taskObjects.noteId, note.id)).all();
@@ -568,8 +577,9 @@ export class VaultStore {
             .run();
         }
       } else {
-        // Two-way binding, file wins (§7.2): box checked ⇒ done; unchecked resurrects orphans/done.
-        const fileStatus = line.checked ? "done" : obj.status === "done" || obj.status === "orphaned" ? "todo" : obj.status;
+        // Two-way binding, file wins (§7.2): the checkbox IS the status — `[ ]`,
+        // `[/]`, `[b]`, `[x]` — and a line that came back un-orphans its object.
+        const fileStatus = line.status;
         if (fileStatus !== obj.status) {
           this.db
             .update(tables.taskObjects)

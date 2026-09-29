@@ -24,7 +24,8 @@ const MD_LINK_RE = /(!?)\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;
  */
 const TAG_RE = /(^|[\s(])#([A-Za-z][\w-]*(?:\/[\w-]+)*)/g;
 
-const TASK_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
+/** `[/]` = in progress, `[b]` = blocked (the Obsidian Tasks / Minimal convention). */
+const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] (.*)$/;
 /** `#deadline` on a task line: a key deadline (see ParsedTask.key). Still indexed as a tag. */
 const KEY_DEADLINE_RE = /(^|\s)#deadline(?![\w/-])/i;
 const HEADING_RE = /^(#{1,6}) (.+)$/;
@@ -84,7 +85,9 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   const m = TASK_RE.exec(raw);
   if (!m) return null;
   const indent = m[1]!.length;
-  const checked = m[2] !== " ";
+  const mark = m[2]!;
+  const checked = mark === "x" || mark === "X";
+  const status: ParsedTask["status"] = checked ? "done" : mark === "/" ? "in-progress" : mark === "b" ? "blocked" : "todo";
   let text = m[3]!;
 
   let blockId: string | undefined;
@@ -120,7 +123,7 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
     .replace(/\s+/g, " ")
     .trim();
 
-  return { line, checked, text: clean, raw, assignee, start, due, priority, blockId, indent, ...(key ? { key } : {}) };
+  return { line, checked, status, text: clean, raw, assignee, start, due, priority, blockId, indent, ...(key ? { key } : {}) };
 }
 
 function frontmatterStrings(value: unknown): string[] {

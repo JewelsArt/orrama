@@ -288,7 +288,7 @@ export function ProjectTodo({ w, onChanged, onOpenNote }: { w: ProjectWorkspace;
               {rows.slice(0, cap).map((t) => {
                 const late = isLate(t);
                 const days = t.due ? daysTo(today, t.due) : null;
-                const status = t.object?.status;
+                const status = t.status;
                 return (
                   <li key={`${t.noteId}:${t.line}`} className={`ptd-row ${t.checked ? "done" : ""}`}>
                     <button className="ptd-box" disabled={!w.canEdit} aria-label={`${t.checked ? "Reopen" : "Complete"} ${t.text}`} onClick={() => void check(t)} />

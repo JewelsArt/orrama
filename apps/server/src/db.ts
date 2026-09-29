@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,
   created_at INTEGER NOT NULL, last_used_at INTEGER
 );
+-- One-shot data migrations that must not run twice (see migrations.ts).
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS webhooks (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL,
   events TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,

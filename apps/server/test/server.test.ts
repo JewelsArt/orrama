@@ -227,32 +227,39 @@ describe("tasks: file is the source of truth", () => {
     expect(cleared.json.content.split("\n")[line]).toContain("due:2026-07-10");
   });
 
-  it("status dropdown: done checks the box; in-progress is DB-only and auto-promotes", async () => {
+  it("status dropdown: every status is the checkbox — [/] in progress, [b] blocked, [x] done", async () => {
     const jules = await api("GET", "/api/vault/tree", "jules");
     const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
     const notePath = path.join(process.env.BASALT_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md");
     const before = await api("GET", `/api/vault/note/${shared.id}`, "jules");
     const line = before.json.content.split("\n").findIndex((l: string) => l.includes("schedule next sync"));
+    const onDisk = () => fs.readFileSync(notePath, "utf8").split("\n").find((l) => l.includes("schedule next sync"))!;
+    const listed = async () => (await api("GET", "/api/tasks", "jules")).json.find((t: { noteId: string; line: number }) => t.noteId === shared.id && t.line === line);
 
-    // in-progress: a checkbox can't hold it → promote the line, keep the box open,
-    // and carry the status on the task object (DB), not the Markdown.
+    // in-progress lives in the line itself — no promotion, nothing DB-only.
     const wip = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, status: "in-progress" });
     expect(wip.status).toBe(200);
-    expect(wip.json.blockId).toMatch(/^t-/);
-    const wipLine = fs.readFileSync(notePath, "utf8").split("\n").find((l) => l.includes("schedule next sync"))!;
-    expect(wipLine).toContain("- [ ] schedule next sync"); // still open in the file
-    expect(wipLine).toMatch(/\^t-/); // but promoted
-    const tasks = await api("GET", "/api/tasks", "jules");
-    expect(tasks.json.find((t: { blockId?: string }) => t.blockId === wip.json.blockId)?.object?.status).toBe("in-progress");
+    expect(onDisk()).toMatch(/^- \[\/\] schedule next sync/);
+    expect(onDisk()).not.toMatch(/\^t-/);
+    expect((await listed()).status).toBe("in-progress");
+    expect((await listed()).checked).toBe(false);
 
-    // done: crosses into the checkbox, editing the real file on disk.
-    const done = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: wip.json.blockId, status: "done" });
-    expect(done.status).toBe(200);
-    expect(fs.readFileSync(notePath, "utf8")).toMatch(/- \[x\] schedule next sync/);
+    const blocked = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, status: "blocked" });
+    expect(blocked.status).toBe(200);
+    expect(onDisk()).toMatch(/^- \[b\] schedule next sync/);
+    expect((await listed()).status).toBe("blocked");
+
+    // A promoted object follows the file, whichever way the file changed.
+    const promoted = await api("POST", "/api/tasks/promote", "jules", { noteId: shared.id, line });
+    expect(promoted.json.status).toBe("blocked");
+    await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: promoted.json.blockId, status: "done" });
+    expect(onDisk()).toMatch(/^- \[x\] schedule next sync/);
+    expect((await listed()).object.status).toBe("done");
 
     // back to todo → unchecks, leaving the note clean for later tests.
-    await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: wip.json.blockId, status: "todo" });
-    expect(fs.readFileSync(notePath, "utf8")).toMatch(/- \[ \] schedule next sync/);
+    await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: promoted.json.blockId, status: "todo" });
+    expect(onDisk()).toMatch(/^- \[ \] schedule next sync/);
+    expect((await listed()).object.status).toBe("todo");
   });
 });
 

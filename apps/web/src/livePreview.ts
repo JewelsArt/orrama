@@ -22,7 +22,8 @@ import {
 
 const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
 const TAG_RE = /(^|[\s(])#([A-Za-z][\w-]*(?:\/[\w-]+)*)/g;
-const TASK_RE = /^(\s*)- \[( |x|X)\] /;
+/** `[/]` in progress and `[b]` blocked are open tasks too (see core parse.ts). */
+const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] /;
 const HEADING_RE = /^(#{1,6}) /;
 const MENTION_RE = /(^|\s)@([\w.-]+)/g;
 const DUE_RE = /(^|\s)(due:)(\d{4}-\d{2}-\d{2})/g;
@@ -84,20 +85,27 @@ class RuleWidget extends WidgetType {
 
 class CheckboxWidget extends WidgetType {
   constructor(
-    private checked: boolean,
+    /** The character between the brackets: " ", "x", "X", "/" or "b". */
+    private mark: string,
     private pos: number,
     private readOnly: boolean,
   ) {
     super();
   }
+  private get checked() {
+    return this.mark === "x" || this.mark === "X";
+  }
   override eq(other: CheckboxWidget) {
-    return other.checked === this.checked && other.pos === this.pos && other.readOnly === this.readOnly;
+    return other.mark === this.mark && other.pos === this.pos && other.readOnly === this.readOnly;
   }
   toDOM(view: EditorView) {
     const box = document.createElement("span");
-    box.className = `cm-task-box ${this.checked ? "checked" : ""}`;
+    const state = this.checked ? "checked" : this.mark === "/" ? "doing" : this.mark === "b" ? "blocked" : "";
+    box.className = `cm-task-box ${state}`;
     box.setAttribute("role", "checkbox");
-    box.setAttribute("aria-checked", String(this.checked));
+    // In progress / blocked read as "partly there" to a screen reader; a click completes them.
+    box.setAttribute("aria-checked", this.checked ? "true" : state ? "mixed" : "false");
+    if (state === "doing" || state === "blocked") box.title = state === "doing" ? "In progress" : "Blocked";
     if (!this.readOnly) {
       box.addEventListener("mousedown", (e) => {
         e.preventDefault();
@@ -235,13 +243,13 @@ export function livePreview(opts: Options): Extension {
           const tm = TASK_RE.exec(text);
           if (tm) {
             const boxStart = line.from + tm[1]!.length;
-            const checked = tm[2] !== " ";
+            const checked = tm[2] === "x" || tm[2] === "X";
             if (!active) {
               decos.push({
                 from: boxStart,
                 to: boxStart + 6,
                 deco: Decoration.replace({
-                  widget: new CheckboxWidget(checked, boxStart + 3, opts.readOnly),
+                  widget: new CheckboxWidget(tm[2]!, boxStart + 3, opts.readOnly),
                 }),
               });
             }

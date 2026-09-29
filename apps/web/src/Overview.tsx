@@ -31,8 +31,8 @@ const STATUS_OPTS: { id: TaskStatus; label: string; cls: string }[] = [
   { id: "blocked", label: "Blocked", cls: "blocked" },
   { id: "done", label: "Done", cls: "done" },
 ];
-const statusOf = (t: DashboardTask): TaskStatus =>
-  t.checked ? "done" : t.object?.status === "in-progress" ? "in-progress" : t.object?.status === "blocked" ? "blocked" : "todo";
+/** The checkbox is the status (`[ ]`, `[/]`, `[b]`, `[x]`); a line from an older server has none. */
+const statusOf = (t: DashboardTask): TaskStatus => t.status ?? (t.checked ? "done" : "todo");
 
 /** Overview: the project board, split by life-area (Personal / Professional /
  *  Academic). Every step, %, owner is a view over checkboxes in the notes. */
@@ -259,7 +259,7 @@ export function Overview({
           const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
           const open = !collapsed.has(p.project);
           const color = DOMAIN_COLOR[p.domain ?? "personal"] ?? PROJECT_COLORS[pi % PROJECT_COLORS.length] ?? "var(--area-professional)";
-          const inProgress = p.tasks.filter((t) => !t.checked && t.object?.status === "in-progress").length;
+          const inProgress = p.tasks.filter((t) => t.status === "in-progress").length;
           const donePct = p.total ? (p.done / p.total) * 100 : 0;
           const workPct = p.total ? (inProgress / p.total) * 100 : 0;
           const all = showAll.has(p.project);

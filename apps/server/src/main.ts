@@ -10,6 +10,7 @@ import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
 import { assertProductionSecrets, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
+import { runDataMigrations } from "./migrations.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
@@ -51,6 +52,8 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   }
   const store = new VaultStore(db);
   store.load();
+  runDataMigrations(db, store);
+  store.reconcileAll();
 
   const vaultRoot = vaultDir();
   const mcpPath = path.join(vaultRoot, ".mcp.json");

@@ -28,7 +28,7 @@ const BUILTIN_GUIDE = `You are the agent built into Basalt — a team knowledge 
 How Basalt works:
 - A note becomes a PROJECT on the board by carrying a front-matter tag \`project/<slug>\`. Use create_project to make one (it scaffolds the note under 04-Projects/ and puts it on the board, dashboard and planning calendar).
 - TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
-- STATUS: set_task_status with todo | in-progress | blocked | done. done/todo tick the checkbox in the file; in-progress/blocked are richer states.
+- STATUS: set_task_status with todo | in-progress | blocked | done. Every status is the checkbox in the file: \`[ ]\` todo, \`[/]\` in progress, \`[b]\` blocked, \`[x]\` done.
 - DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
 - EMAIL: if the user has connected a mailbox, list_email/read_email survey the inbox and draft_email prepares a message or reply (thread a reply with inReplyTo from read_email). You cannot send mail — every draft waits for the user to press Send — so say "I've drafted it for you to review", never "I've sent it".
 - Always search_vault before answering a question, and cite notes as [[Note Title]]. Make small, concrete edits; confirm anything destructive.
@@ -230,7 +230,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
             let obj = store.taskObjectByBlock(note.id, tbId);
             const now = Date.now();
             if (!obj) {
-              const fresh = { id: `task-${crypto.randomUUID().slice(0, 8)}`, noteId: note.id, blockId: tbId, status: "todo" as const, assigneeId: null, due: null, plannedDate: null, description: "", createdAt: now, updatedAt: now };
+              const fresh = { id: `task-${crypto.randomUUID().slice(0, 8)}`, noteId: note.id, blockId: tbId, status: store.index.get(note.id)?.tasks.find((t) => t.blockId === tbId)?.status ?? "todo", assigneeId: null, due: null, plannedDate: null, description: "", createdAt: now, updatedAt: now };
               db.insert(tables.taskObjects).values(fresh).run();
               obj = fresh;
             }

@@ -63,7 +63,7 @@ export function readSection(content: string, heading: string): string {
 export function readSectionItems(content: string, heading: string): string[] {
   return readSection(content, heading)
     .split("\n")
-    .map((l) => l.replace(/^\s*[-*]\s+(\[[ xX]\]\s+)?/, "").trim())
+    .map((l) => l.replace(/^\s*[-*]\s+(\[[ xX/b]\]\s+)?/, "").trim())
     .filter((l) => l !== "");
 }
 

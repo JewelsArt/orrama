@@ -159,7 +159,7 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
                 if (d.mode !== "resize-r") s = Math.min(s + d.delta, d.mode === "resize-l" ? e : Infinity);
                 if (d.mode !== "resize-l") e = Math.max(e + d.delta, d.mode === "resize-r" ? s : -Infinity);
               }
-              const status = t.checked ? "done" : t.object?.status === "in-progress" ? "work" : "todo";
+              const status = t.checked ? "done" : t.status === "in-progress" ? "work" : "todo";
               const narrow = e - s < 3; // label won't fit — hang it off the right edge
               return (
                 <div key={key} className="gantt-row">
