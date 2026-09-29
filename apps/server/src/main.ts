@@ -13,6 +13,7 @@ import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
 import { compactAll } from "./history.js";
+import { isEntry } from "./entry.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
@@ -247,8 +248,7 @@ Vault layout:
   return { app, db, store };
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]).includes("main.ts");
-if (isMain) {
+if (isEntry(import.meta.url, process.argv[1])) {
   // Under launchd stdout/stderr are a plain log file, created world-readable.
   const tightened = privateLogFiles();
   const { app } = await buildServer();
