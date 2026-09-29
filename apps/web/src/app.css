@@ -5162,7 +5162,10 @@ kbd {
    Built from the approved Sep 2026 mock and from Basalt's own parts: the
    .mail-tab underline, .seg, .proj-mini and .proj-card. Flat like everything
    else — in-flow cards separate by border alone; only a dragged card floats. */
-.proj-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; }
+/* flex:none — .proj is a scrolling flex column, and a child with overflow set
+   may shrink to nothing when the page is taller than the window: on a long
+   Overview the tab bar collapsed to its 1px border and the tabs vanished. */
+.proj-tabs { flex:none; display:flex; gap:0; border-bottom:1px solid var(--border); overflow-x:auto; scrollbar-width:none; }
 .proj-tabs::-webkit-scrollbar { display:none; }
 .proj-tab { flex:none; display:inline-flex; align-items:center; gap:5px; border:none; background:none; color:var(--text-dim); font:650 13px var(--font-ui); padding:9px 12px 10px; border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
 .proj-tab:hover { color:var(--text); }
