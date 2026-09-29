@@ -4,7 +4,7 @@ import { CharacterAvatar } from "./avatars.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { CANCEL_STATES, DOMAIN_COLOR, SLEEP_STATES } from "./categories.js";
 import { Gantt } from "./Gantt.js";
-import { IconChevron } from "./icons.js";
+import { OverviewHead } from "./OverviewHead.js";
 import { onWs } from "./ws.js";
 
 type Domain = "personal" | "professional" | "academic";
@@ -271,114 +271,32 @@ export function Overview({
               className={`ov-project ${parked.has(p.project) ? "parked" : ""}`}
               style={{ ["--pc" as string]: color }}
             >
-              <button className="ov-project-head" onClick={() => setCollapsed((s) => toggleSet(s, p.project))} aria-expanded={open}>
-                <span className="ov-chev" data-open={open}>
-                  <IconChevron open={open} />
-                </span>
-                <span
-                  className="ov-pname link"
-                  role="link"
-                  tabIndex={0}
-                  title="Open the project workspace"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (p.slug) onOpenProject(p.slug);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && p.slug) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onOpenProject(p.slug);
-                    }
-                  }}
-                >
-                  {p.project}
-                </span>
-                <span className="ov-battery" aria-hidden>
-                  <i className="d" style={{ width: `${donePct}%` }} />
-                  <i className="w" style={{ width: `${workPct}%` }} />
-                </span>
-                <span className="ov-pct">{pct}%</span>
-                {parked.has(p.project) ? (
-                  <span className="ov-state">{SLEEP_STATES.has(p.status) ? "sleeping" : "cancelled"}</span>
-                ) : (
-                  <span className="ov-due">{nextDue ? `due ${nextDue.slice(5)}` : "no due date"}</span>
-                )}
-                <span
-                  className={`ov-gantt-sw ${gantt.has(p.project) ? "on" : ""}`}
-                  role="switch"
-                  aria-checked={gantt.has(p.project)}
-                  aria-label="Gantt view"
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleGantt(p.project);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggleGantt(p.project);
-                    }
-                  }}
-                >
-                  <i aria-hidden />
-                  Gantt
-                </span>
-                <span
-                  className="ov-life"
-                  role="group"
-                  aria-label="Project lifecycle"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                  {parked.has(p.project) ? (
-                    <>
-                      <button className="ov-life-btn" title="Put it back on the active board" onClick={() => void setLifecycle(p, "on-track")}>
-                        Wake
-                      </button>
-                      {SLEEP_STATES.has(p.status) && (
-                        <button
-                          className="ov-life-btn danger"
-                          title="Stop the project — the note and its history stay"
-                          onClick={() =>
-                            setConfirm({
-                              title: `Cancel “${p.project}”?`,
-                              body: "It moves to the Cancelled shelf. Everything in the note stays.",
-                              confirmLabel: "Cancel the project",
-                              danger: true,
-                              onConfirm: () => void setLifecycle(p, "cancelled"),
-                            })
-                          }
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <button className="ov-life-btn" title="Not this month's problem — keep it, hide it" onClick={() => void setLifecycle(p, "sleeping")}>
-                        Sleep
-                      </button>
-                      <button
-                        className="ov-life-btn danger"
-                        title="Stop the project — the note and its history stay"
-                        onClick={() =>
-                          setConfirm({
-                            title: `Cancel “${p.project}”?`,
-                            body: "It moves to the Cancelled shelf. The note, its steps, its documents and its history stay exactly as they are — you can bring it back any time.",
-                            confirmLabel: "Cancel the project",
-                            danger: true,
-                            onConfirm: () => void setLifecycle(p, "cancelled"),
-                          })
-                        }
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  )}
-                </span>
-              </button>
+              <OverviewHead
+                name={p.project}
+                open={open}
+                parked={parked.has(p.project)}
+                sleeping={SLEEP_STATES.has(p.status)}
+                pct={pct}
+                donePct={donePct}
+                workPct={workPct}
+                nextDue={nextDue}
+                gantt={gantt.has(p.project)}
+                onToggle={() => setCollapsed((s) => toggleSet(s, p.project))}
+                onOpenProject={p.slug ? () => onOpenProject(p.slug!) : undefined}
+                onToggleGantt={() => toggleGantt(p.project)}
+                onLifecycle={(status) => void setLifecycle(p, status)}
+                onCancel={() =>
+                  setConfirm({
+                    title: `Cancel “${p.project}”?`,
+                    body: parked.has(p.project)
+                      ? "It moves to the Cancelled shelf. Everything in the note stays."
+                      : "It moves to the Cancelled shelf. The note, its steps, its documents and its history stay exactly as they are — you can bring it back any time.",
+                    confirmLabel: "Cancel the project",
+                    danger: true,
+                    onConfirm: () => void setLifecycle(p, "cancelled"),
+                  })
+                }
+              />
 
               {open && gantt.has(p.project) && (
                 <div className="ov-steps ov-steps-gantt">
