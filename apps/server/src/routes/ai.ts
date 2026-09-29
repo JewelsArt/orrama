@@ -6,6 +6,8 @@ import crypto from "node:crypto";
 import { appendLine, isoLocal, promoteTaskLine, setTaskDates, suggestRelated, type IndexedNote } from "@basalt/core";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
 import { applyTaskStatus } from "./tasks.js";
+import { clampSlot } from "./calendar.js";
+import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { decryptSecret } from "../secrets.js";
@@ -65,7 +67,7 @@ function buildSystemPrompt(store: VaultStore, instructions: string | null): stri
     .join("\n\n");
 }
 
-export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
+export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, calendar: CalendarNotes) {
   const auth = { preHandler: [app.authenticate] };
 
   const config = () => {
@@ -218,7 +220,8 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
           inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
           execute: async ({ noteId, line, blockId, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; date: string; startMin?: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
-            const note = store.requireReadable(user, noteId);
+            // Edit, like the route: a block is a change to the task, not a read of it.
+            const note = store.requireEditable(user, noteId);
             let tbId = blockId;
             if (!tbId) {
               if (line === undefined) return { success: false, error: "line or blockId required" };
@@ -227,27 +230,25 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
               if (res.content !== note.content) store.write(user, note.path, res.content);
               tbId = res.blockId;
             }
-            let obj = store.taskObjectByBlock(note.id, tbId);
-            const now = Date.now();
-            if (!obj) {
-              const fresh = { id: `task-${crypto.randomUUID().slice(0, 8)}`, noteId: note.id, blockId: tbId, status: store.index.get(note.id)?.tasks.find((t) => t.blockId === tbId)?.status ?? "todo", assigneeId: null, due: null, plannedDate: null, description: "", createdAt: now, updatedAt: now };
-              db.insert(tables.taskObjects).values(fresh).run();
-              obj = fresh;
-            }
-            const block = { id: `blk-${crypto.randomUUID().slice(0, 8)}`, taskObjectId: obj.id, date, startMin: startMin ?? 540, durationMin: durationMin ?? 120, createdAt: now };
-            db.insert(tables.taskBlocks).values(block).run();
+            const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === tbId);
+            if (!task) return { success: false, error: "task line not found" };
+            store.ensureTaskObject(note.id, tbId);
+            const { start, duration } = clampSlot(startMin ?? 540, durationMin ?? 120);
+            const id = `blk-${crypto.randomUUID().slice(0, 8)}`;
+            calendar.put(user, { id, date, startMin: start, durationMin: duration, title: task.text, task: { notePath: note.path.replace(/\.md$/i, ""), blockId: tbId } });
             store.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id });
-            return { success: true, block };
+            return { success: true, block: db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, id)).get() ?? null };
           }
         }),
         create_event: tool({
           description: "Add a meeting/event to the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (default 60 min).",
-          inputSchema: z.object({ title: z.string(), date: z.string(), startMin: z.number(), durationMin: z.number().optional() }),
+          inputSchema: z.object({ title: z.string().min(1).max(140), date: z.string(), startMin: z.number(), durationMin: z.number().optional() }),
           execute: async ({ title, date, startMin, durationMin }: { title: string; date: string; startMin: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
-            const event = { id: `ev-${crypto.randomUUID().slice(0, 8)}`, ownerId: user.id, title, date, startMin, durationMin: durationMin ?? 60, createdAt: Date.now() };
-            db.insert(tables.events).values(event).run();
-            return { success: true, event };
+            const { start, duration } = clampSlot(startMin, durationMin ?? 60);
+            const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
+            calendar.put(user, { id, title: title.trim(), date, startMin: start, durationMin: duration, task: null });
+            return { success: true, event: db.select().from(tables.events).where(eq(tables.events.id, id)).get() ?? null };
           }
         }),
         list_email: tool({

@@ -164,6 +164,8 @@ export const taskBlocks = sqliteTable("task_blocks", {
   startMin: integer("start_min").notNull(), // minutes from midnight
   durationMin: integer("duration_min").notNull(),
   createdAt: integer("created_at").notNull(),
+  /** The calendar note this row was read from; the note is the truth (apps/server/src/calendarNotes.ts). */
+  calNoteId: text("cal_note_id"),
 });
 
 /** Calendar events (meetings etc.) — personal, created by clicking a slot. */
@@ -175,6 +177,8 @@ export const events = sqliteTable("events", {
   startMin: integer("start_min").notNull(),
   durationMin: integer("duration_min").notNull(),
   createdAt: integer("created_at").notNull(),
+  /** The calendar note this row was read from; the note is the truth. */
+  calNoteId: text("cal_note_id"),
 });
 
 export const invites = sqliteTable("invites", {

@@ -10,6 +10,7 @@ import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { advance, isoLocal, nextCharge, parseSubscriptions, promoteTaskLine } from "@basalt/core";
+import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
@@ -21,7 +22,8 @@ const SNAP = 30;
 export const DEFAULT_BLOCK_MIN = 120;
 
 const snap = (min: number) => Math.round(min / SNAP) * SNAP;
-const clampSlot = (startMin: number, durationMin: number) => {
+/** Snap to the half hour and keep the slot inside the day. */
+export const clampSlot = (startMin: number, durationMin: number) => {
   const start = Math.max(0, Math.min(snap(startMin), 24 * 60 - SNAP));
   const duration = Math.max(SNAP, Math.min(snap(durationMin), 24 * 60 - start));
   return { start, duration };
@@ -46,7 +48,7 @@ export interface DayMarker {
   key: boolean;
 }
 
-export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
+export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultStore, calendar: CalendarNotes) {
   const auth = { preHandler: [app.authenticate] };
 
   const touch = (noteId: string, userId: string) => {
@@ -54,7 +56,19 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     if (note) store.events.emit("note-changed", { noteId, path: note.path, authorId: userId });
   };
 
-  /** Book a block of a task onto the calendar (auto-promoting the checkbox). */
+  /** A finite number of minutes, or a 400 — NaN would otherwise sail through the clamp. */
+  const mins = (v: unknown, name: string): number => {
+    if (typeof v !== "number" || !Number.isFinite(v)) throw new HttpError(400, `${name} must be a number of minutes`);
+    return v;
+  };
+  const optMins = (v: unknown, name: string) => (v === undefined ? undefined : mins(v, name));
+  const taskPath = (notePath: string) => notePath.replace(/\.md$/i, "");
+
+  /**
+   * Book a block of a task onto the calendar (auto-promoting the checkbox). The
+   * block is a row in the booker's calendar note (calendarNotes.ts); writing
+   * that note is what puts it in the table this returns from.
+   */
   app.post("/api/tasks/blocks", auth, async (req) => {
     const body = (req.body ?? {}) as {
       noteId?: string;
@@ -67,7 +81,8 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     };
     if (!body.noteId || (body.line === undefined && !body.blockId)) throw new HttpError(400, "noteId and line or blockId required");
     if (!body.date || !DAY_RE.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
-    if (body.startMin === undefined) throw new HttpError(400, "startMin required");
+    const startMin = mins(body.startMin, "startMin");
+    const durationMin = optMins(body.durationMin, "durationMin");
     const user = store.aclUser(req.userId);
     const note = store.requireEditable(user, body.noteId);
 
@@ -78,46 +93,21 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       if (res.content !== note.content) store.write(user, note.path, res.content);
       taskBlockId = res.blockId;
     }
-    let obj = store.taskObjectByBlock(note.id, taskBlockId);
-    if (!obj) {
-      const parsed = store.index.get(note.id)!.tasks.find((t) => t.blockId === taskBlockId);
-      const assignee = parsed?.assignee
-        ? db.select().from(tables.users).where(eq(tables.users.username, parsed.assignee)).get()
-        : undefined;
-      const now = Date.now();
-      const fresh = {
-        id: `task-${crypto.randomUUID().slice(0, 8)}`,
-        noteId: note.id,
-        blockId: taskBlockId,
-        status: parsed?.status ?? "todo",
-        assigneeId: assignee?.id ?? null,
-        due: parsed?.due ?? null,
-        plannedDate: null,
-        description: "",
-        createdAt: now,
-        updatedAt: now,
-      };
-      db.insert(tables.taskObjects).values(fresh).run();
-      obj = fresh;
-    }
+    const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === taskBlockId);
+    if (!task) throw new HttpError(409, "task line no longer exists");
+    const obj = store.ensureTaskObject(note.id, taskBlockId);
 
     // Default 2h, capped by whatever of the estimate is still unscheduled.
     const existing = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.taskObjectId, obj.id)).all();
     const scheduledMin = existing.reduce((s, b) => s + b.durationMin, 0);
-    const estimateMin = Math.round((body.estimateHours ?? 2) * 60);
+    const estimateMin = Math.round((typeof body.estimateHours === "number" && Number.isFinite(body.estimateHours) ? body.estimateHours : 2) * 60);
     const remaining = Math.max(estimateMin - scheduledMin, SNAP);
-    const requested = body.durationMin ?? Math.min(DEFAULT_BLOCK_MIN, remaining);
-    const { start, duration } = clampSlot(body.startMin, requested);
+    const { start, duration } = clampSlot(startMin, durationMin ?? Math.min(DEFAULT_BLOCK_MIN, remaining));
 
-    const block = {
-      id: `blk-${crypto.randomUUID().slice(0, 8)}`,
-      taskObjectId: obj.id,
-      date: body.date,
-      startMin: start,
-      durationMin: duration,
-      createdAt: Date.now(),
-    };
-    db.insert(tables.taskBlocks).values(block).run();
+    const id = `blk-${crypto.randomUUID().slice(0, 8)}`;
+    calendar.put(user, { id, date: body.date, startMin: start, durationMin: duration, title: task.text, task: { notePath: taskPath(note.path), blockId: taskBlockId } });
+    const block = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, id)).get();
+    if (!block) throw new HttpError(409, "the block could not be put on your calendar");
     touch(note.id, user.id);
     return { ...block, taskObject: obj };
   });
@@ -129,13 +119,11 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.id, block.taskObjectId)).get();
     if (!obj) throw new HttpError(404, "task not found");
     const user = store.aclUser(req.userId);
-    store.requireEditable(user, obj.noteId);
-    if (body.date && !DAY_RE.test(body.date)) throw new HttpError(400, "bad date");
-    const { start, duration } = clampSlot(body.startMin ?? block.startMin, body.durationMin ?? block.durationMin);
-    db.update(tables.taskBlocks)
-      .set({ date: body.date ?? block.date, startMin: start, durationMin: duration })
-      .where(eq(tables.taskBlocks.id, block.id))
-      .run();
+    const note = store.requireEditable(user, obj.noteId);
+    if (body.date !== undefined && !DAY_RE.test(body.date)) throw new HttpError(400, "bad date");
+    const { start, duration } = clampSlot(optMins(body.startMin, "startMin") ?? block.startMin, optMins(body.durationMin, "durationMin") ?? block.durationMin);
+    const text = note.tasks.find((t) => t.blockId === obj.blockId)?.text ?? "";
+    calendar.put(user, { id: block.id, date: body.date ?? block.date, startMin: start, durationMin: duration, title: text, task: { notePath: taskPath(note.path), blockId: obj.blockId } });
     touch(obj.noteId, user.id);
     return db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, block.id)).get();
   });
@@ -146,7 +134,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const obj = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.id, block.taskObjectId)).get();
     const user = store.aclUser(req.userId);
     if (obj) store.requireEditable(user, obj.noteId);
-    db.delete(tables.taskBlocks).where(eq(tables.taskBlocks.id, block.id)).run();
+    calendar.remove(user, block.id);
     if (obj) touch(obj.noteId, user.id);
     return { ok: true };
   });
@@ -155,20 +143,13 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
 
   app.post("/api/events", auth, async (req) => {
     const body = (req.body ?? {}) as { title?: string; date?: string; startMin?: number; durationMin?: number };
-    if (!body.title?.trim() || body.title.length > 140) throw new HttpError(400, "title required (max 140)");
+    if (typeof body.title !== "string" || !body.title.trim() || body.title.length > 140) throw new HttpError(400, "title required (max 140)");
     if (!body.date || !DAY_RE.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
-    if (body.startMin === undefined) throw new HttpError(400, "startMin required");
-    const { start, duration } = clampSlot(body.startMin, body.durationMin ?? 60);
-    const event = {
-      id: `ev-${crypto.randomUUID().slice(0, 8)}`,
-      ownerId: req.userId,
-      title: body.title.trim(),
-      date: body.date,
-      startMin: start,
-      durationMin: duration,
-      createdAt: Date.now(),
-    };
-    db.insert(tables.events).values(event).run();
+    const { start, duration } = clampSlot(mins(body.startMin, "startMin"), optMins(body.durationMin, "durationMin") ?? 60);
+    const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
+    calendar.put(store.aclUser(req.userId), { id, title: body.title.trim(), date: body.date, startMin: start, durationMin: duration, task: null });
+    const event = db.select().from(tables.events).where(eq(tables.events.id, id)).get();
+    if (!event) throw new HttpError(409, "the event could not be put on your calendar");
     return event;
   });
 
@@ -177,16 +158,15 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const event = db.select().from(tables.events).where(eq(tables.events.id, req.params.id)).get();
     if (!event) throw new HttpError(404, "event not found");
     if (event.ownerId !== req.userId) throw new HttpError(403, "only the owner can edit an event");
-    const { start, duration } = clampSlot(body.startMin ?? event.startMin, body.durationMin ?? event.durationMin);
-    db.update(tables.events)
-      .set({
-        title: body.title?.trim() ? body.title.trim() : event.title,
-        date: body.date && DAY_RE.test(body.date) ? body.date : event.date,
-        startMin: start,
-        durationMin: duration,
-      })
-      .where(eq(tables.events.id, event.id))
-      .run();
+    const { start, duration } = clampSlot(optMins(body.startMin, "startMin") ?? event.startMin, optMins(body.durationMin, "durationMin") ?? event.durationMin);
+    calendar.put(store.aclUser(req.userId), {
+      id: event.id,
+      title: typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 140) : event.title,
+      date: body.date && DAY_RE.test(body.date) ? body.date : event.date,
+      startMin: start,
+      durationMin: duration,
+      task: null,
+    });
     return db.select().from(tables.events).where(eq(tables.events.id, event.id)).get();
   });
 
@@ -194,7 +174,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const event = db.select().from(tables.events).where(eq(tables.events.id, req.params.id)).get();
     if (!event) throw new HttpError(404, "event not found");
     if (event.ownerId !== req.userId) throw new HttpError(403, "only the owner can delete an event");
-    db.delete(tables.events).where(eq(tables.events.id, event.id)).run();
+    calendar.remove(store.aclUser(req.userId), event.id);
     return { ok: true };
   });
 

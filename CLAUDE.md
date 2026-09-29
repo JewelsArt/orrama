@@ -46,8 +46,11 @@ for **permissions** — desktop, web, and server all run the same code. The serv
 note is a Yjs `Y.Doc` whose update log lives in SQLite (history + merge). Clients get
 a *partial checkout*: unreadable notes are filtered server-side before transport and
 never reach the wire. The dashboard is a pure view over checkbox tasks in the notes —
-delete the DB, re-index the Markdown, and it rebuilds (only promoted-task metadata
-lives DB-only).
+delete the DB, re-index the Markdown, and it rebuilds: task status is the checkbox,
+time blocks and events are calendar notes (`test/rebuild.test.ts` does exactly
+this). Still DB-only: task comments and descriptions, an assignee set through
+`PATCH /api/tasks/:id` over the line's `@user`, the legacy `planned_date`, a
+project's hidden flag, and accounts/settings.
 
 ## Layout
 
@@ -387,9 +390,21 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   with the database (audit B10); `migrations.ts` moved the old rows into their
   lines once — a `meta` row records it, because re-running it would overwrite
   a box cleared in Obsidian while the server was down.
-- **DB-only task changes need edit** (`store.requireEditable`): dates,
-  assignee and time blocks never pass through `write()`, so they check edit
-  themselves. Comments stay at read.
+- **Time blocks and events are Markdown** — one note per person per month,
+  `01-Me/Calendar/2026-10.md` (`Personal/<u>/Calendar/` for a user who cannot
+  edit 01-Me), a table `| Date | Start | End | What | Task | id |`; a row with a
+  `[[note#^t-id]]` Task is a block, one without is an event
+  (`apps/server/src/calendarNotes.ts`). `task_blocks`/`events` are an index of
+  them: routes edit the note through `write()`, and a `note-changed` listener
+  re-reads its rows (so an Obsidian edit moves the calendar too); boot re-reads
+  them all. Rows count only from a calendar folder, for the user the note's
+  `calendar:` names, who must be able to edit it (and the task's note) — a
+  `calendar: jules` note in a shared folder is ignored. A hand-typed row with no
+  id gets a stable derived one. Moving a row to another month drops it from the
+  old note FIRST (the new note's re-read would otherwise see its id as taken).
+- **DB-only task changes need edit** (`store.requireEditable`): dates, assignee
+  and time blocks check edit on the task's note themselves (a block is also a
+  write to your calendar note). Comments stay at read.
 - **Finance files follow the folder ACL** of `02-Areas/finance/files`, like the
   notes beside them (`canReadFinanceFiles`); uploads need edit.
 - **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one

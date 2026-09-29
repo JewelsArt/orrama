@@ -10,6 +10,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { setTaskStatus, type AclUser } from "@basalt/core";
 import { tables, type Db } from "./db.js";
+import type { CalendarNotes } from "./calendarNotes.js";
 import type { VaultStore } from "./vaultStore.js";
 
 function once(db: Db, key: string, run: () => void): void {
@@ -50,6 +51,11 @@ function taskMarksIntoLines(db: Db, store: VaultStore): void {
   }
 }
 
-export function runDataMigrations(db: Db, store: VaultStore): void {
+export function runDataMigrations(db: Db, store: VaultStore, calendar: CalendarNotes): void {
   once(db, "b10-task-marks", () => taskMarksIntoLines(db, store));
+  // Blocks and events from before they lived in calendar notes (audit B10).
+  once(db, "b10-calendar-notes", () => {
+    const n = calendar.adoptLegacyRows();
+    if (n) console.info(`[migrate] ${n} calendar rows written into calendar notes`);
+  });
 }

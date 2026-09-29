@@ -69,12 +69,14 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 CREATE TABLE IF NOT EXISTS task_blocks (
   id TEXT PRIMARY KEY, task_object_id TEXT NOT NULL, date TEXT NOT NULL,
-  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL
+  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL,
+  cal_note_id TEXT
 );
 CREATE INDEX IF NOT EXISTS task_blocks_date ON task_blocks (date);
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, title TEXT NOT NULL, date TEXT NOT NULL,
-  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL
+  start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL,
+  cal_note_id TEXT
 );
 CREATE INDEX IF NOT EXISTS events_date ON events (date);
 CREATE TABLE IF NOT EXISTS ics_feeds (
@@ -156,6 +158,9 @@ export function createDb(file = dbPath()) {
     /* column exists */
   }
   for (const sql of [
+    // The calendar note a block/event row was read from (calendarNotes.ts).
+    `ALTER TABLE task_blocks ADD COLUMN cal_note_id TEXT`,
+    `ALTER TABLE events ADD COLUMN cal_note_id TEXT`,
     `ALTER TABLE users ADD COLUMN passcode_hash TEXT`,
     `ALTER TABLE users ADD COLUMN passcode_fails INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN passcode_locked_until INTEGER`,

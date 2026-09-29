@@ -11,6 +11,7 @@ import { createDb, tables } from "./db.js";
 import { assertProductionSecrets, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
+import { CalendarNotes } from "./calendarNotes.js";
 import { authRoutes } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
@@ -52,8 +53,13 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   }
   const store = new VaultStore(db);
   store.load();
-  runDataMigrations(db, store);
+  const calendar = new CalendarNotes(db, store);
+  runDataMigrations(db, store, calendar);
   store.reconcileAll();
+  // The block/event tables are an index of the calendar notes: re-read them all,
+  // then keep each one current as it changes.
+  calendar.rebuildAll();
+  calendar.listen();
 
   const vaultRoot = vaultDir();
   const mcpPath = path.join(vaultRoot, ".mcp.json");
@@ -167,10 +173,10 @@ Vault layout:
   await projectRoutes(app, store, db);
   await dashboardRoutes(app, db, store);
   await adminRoutes(app, db, store);
-  await aiRoutes(app, db, store);
+  await aiRoutes(app, db, store, calendar);
   await wsRoutes(app, db, store);
   await planRoutes(app, db, store);
-  await calendarRoutes(app, db, store);
+  await calendarRoutes(app, db, store, calendar);
   await contactRoutes(app, db, store);
   await homeRoutes(app, db, store);
   await financeRoutes(app, db, store);

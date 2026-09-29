@@ -207,6 +207,7 @@ export class VaultStore {
         this.index.remove(relPath);
         this.db.update(tables.notes).set({ deleted: true, mtimeMs: Date.now() }).where(eq(tables.notes.id, existing.id)).run();
         this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
+        this.events.emit("note-removed", { noteId: existing.id, path: relPath });
       }
     }
   }
@@ -589,6 +590,32 @@ export class VaultStore {
         }
       }
     }
+  }
+
+  /**
+   * The task object for a promoted line, created if it has none. Its fields
+   * start from the line itself (status, due, assignee) — the file is the truth.
+   */
+  ensureTaskObject(noteId: string, blockId: string) {
+    const found = this.taskObjectByBlock(noteId, blockId);
+    if (found) return found;
+    const parsed = this.index.get(noteId)?.tasks.find((t) => t.blockId === blockId);
+    const assignee = parsed?.assignee ? this.db.select().from(tables.users).where(eq(tables.users.username, parsed.assignee)).get() : undefined;
+    const now = Date.now();
+    const fresh = {
+      id: `task-${crypto.randomUUID().slice(0, 8)}`,
+      noteId,
+      blockId,
+      status: parsed?.status ?? ("todo" as const),
+      assigneeId: assignee?.id ?? null,
+      due: parsed?.due ?? null,
+      plannedDate: null,
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.db.insert(tables.taskObjects).values(fresh).run();
+    return fresh;
   }
 
   taskObjectByBlock(noteId: string, blockId: string) {
