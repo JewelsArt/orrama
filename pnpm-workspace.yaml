@@ -1,9 +1,11 @@
 packages:
   - "apps/*"
   - "packages/*"
+# Packages whose install scripts may run. Only what is installed and needs a
+# native build: esbuild (its binary) and better-sqlite3 (the SQLite addon).
+# @node-rs/argon2 ships prebuilt binaries. An entry for a package that is not
+# installed is a standing permission for whatever install script it may bring
+# in later; node-pty, workerd and argon2 were such entries.
 allowBuilds:
   esbuild: true
   better-sqlite3: true
-  argon2: true
-  workerd: true
-  node-pty: true
