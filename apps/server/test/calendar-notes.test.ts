@@ -62,6 +62,11 @@ describe("the index follows the notes", () => {
   };
 
   beforeAll(async () => {
+    // The folder exists before the watcher starts: a file created in the same
+    // instant as its new folder can land before chokidar attaches to the
+    // folder — a watcher race, not the calendar's, and it made this flaky
+    // under a loaded full run.
+    fs.mkdirSync(path.join(vault, "01-Me/Calendar"), { recursive: true });
     b = await buildServer();
     julesId = b.db.select().from(tables.users).where(eq(tables.users.username, "jules")).get()!.id;
   });
@@ -72,7 +77,6 @@ describe("the index follows the notes", () => {
 
   it("an edit made outside Basalt (Obsidian) moves the calendar", async () => {
     const file = path.join(vault, "01-Me/Calendar/2026-10.md");
-    fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `---\ncalendar: jules\nmonth: "2026-10"\n---\n${TABLE}| 2026-10-02 | 09:00 | 10:00 | Dentist |  | ev-d1 |\n`);
     await until(() => eventsOf().includes("Dentist"));
     expect(eventsOf()).toEqual(["Dentist"]);
