@@ -48,10 +48,10 @@ TypeScript end to end, except a deliberately thin Rust shell.
 - **Server** — Fastify 5, SQLite (better-sqlite3) via Drizzle ORM, Zod, Yjs for CRDT
   note merging, chokidar to pick up external edits, argon2 for passwords
 - **Web** — React 19, Vite 6, CodeMirror 6, d3-force, Vercel AI SDK
-- **Desktop** — Tauri 2. Rust is window, filesystem, watcher and tray only; all
-  product logic is the shared TypeScript
+- **Desktop** — Tauri 2: a native window on the local server, with no Tauri
+  commands; all product logic is the shared TypeScript
 - **Monorepo** — pnpm workspaces + Turborepo, Node ≥22
-- **Tests** — Vitest: **262 cases** across core, sync and server
+- **Tests** — Vitest across core, sync, server and web; CI runs them on every push
 
 ## Layout
 
@@ -87,7 +87,7 @@ source alone changes nothing in a running instance, because it serves the *built
 bundle and registers static files at boot.
 
 ```bash
-pnpm test        # 262 tests
+pnpm test        # core, sync, server, web, mcp
 pnpm typecheck
 ```
 
@@ -115,7 +115,8 @@ Honest state of things:
 - **Single user.** Accounts, teams and grants all exist, and a fresh install now
   creates a real account rather than handing out demo logins — but there is still
   no invite flow, so a second person cannot be added from the UI.
-- **No CI.** The 262 tests pass, but only when run by hand.
+- **CI** (`.github/workflows/ci.yml`) runs typecheck, the tests and the web build
+  on every push, on Ubuntu and macOS.
 - **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
 - The original build spec (`~/basalt-prompt.md`) planned a team product for 5–50
   person startups. What got built and used daily is this: a personal tool. The README

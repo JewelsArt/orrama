@@ -24,10 +24,6 @@ export function encodeStateB64(doc: Y.Doc): string {
   return Buffer.from(Y.encodeStateAsUpdate(doc)).toString("base64");
 }
 
-export function stateVectorB64(doc: Y.Doc): string {
-  return Buffer.from(Y.encodeStateVector(doc)).toString("base64");
-}
-
 export function applyUpdateB64(doc: Y.Doc, updateB64: string): void {
   Y.applyUpdate(doc, new Uint8Array(Buffer.from(updateB64, "base64")));
 }

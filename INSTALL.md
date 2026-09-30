@@ -148,8 +148,9 @@ Two things to know before you do this:
 - **The index builds on first boot.** A large vault takes a moment to scan; the app is
   usable as soon as the server reports listening.
 
-You still need step 3 to have run at least once to create an account — seeding writes
-demo notes into `data/vault`, which is separate from the vault you point at here.
+Your account comes from the **Create your account** screen on first start (step 4),
+not from seeding — step 3 only writes demo notes into `data/vault`, which is separate
+from the vault you point at here.
 
 ---
 
@@ -348,8 +349,8 @@ Rules that are not obvious from the scripts:
 Full test suite, if you want a signal before starting anything:
 
 ```bash
-pnpm test        # 262 cases: 150 core, 6 sync, 106 server
-pnpm typecheck   # 5 packages
+pnpm test        # every package
+pnpm typecheck
 ```
 
 Both are safe — they use temporary directories and never touch `data/`.
