@@ -53,7 +53,14 @@ export class VaultStore {
   index = new VaultIndex();
   /** Live-sync bus: "note-changed" (NoteChangedEvent) fired on every mutation. */
   readonly events = new EventEmitter();
-  private docs = new Map<string, Y.Doc>(); // noteId → Y.Doc
+  /**
+   * noteId → Y.Doc, least recently used first. It was an unbounded Map: every
+   * note ever opened or written kept its doc in memory for the life of the
+   * process. An evicted doc is rebuilt from its (compacted) log on next use,
+   * reconciled with the file — see doc().
+   */
+  private docs = new Map<string, Y.Doc>();
+  private readonly docCacheSize: number;
   private root = vaultDir();
   /** Where the vault lives on disk. Read-only on purpose: mutations still go
    *  through write/move so the ACL and the index stay in the loop. Project
@@ -90,7 +97,28 @@ export class VaultStore {
     setTimeout(() => this.inFlightWrites.delete(relPath), 5000);
   }
 
-  constructor(private db: Db) {}
+  constructor(
+    private db: Db,
+    opts: { docCacheSize?: number } = {},
+  ) {
+    this.docCacheSize = Math.max(1, opts.docCacheSize ?? (Number(process.env.BASALT_DOC_CACHE) || 256));
+  }
+
+  /** Keep a doc, evicting the least recently used past the cap. */
+  private cacheDoc(noteId: string, doc: Y.Doc): void {
+    this.docs.delete(noteId);
+    this.docs.set(noteId, doc);
+    while (this.docs.size > this.docCacheSize) {
+      const [oldest, old] = this.docs.entries().next().value as [string, Y.Doc];
+      this.docs.delete(oldest);
+      old.destroy();
+    }
+  }
+
+  /** How many docs are held in memory (tests watch the cap). */
+  get cachedDocs(): number {
+    return this.docs.size;
+  }
 
   /** Scan the vault folder, assign missing front-matter ids, hydrate index + notes table. */
   load(): void {
@@ -244,7 +272,7 @@ export class VaultStore {
       if (update) this.logUpdate(existing.id, update, null);
     } else {
       const doc = createNoteDoc(content);
-      this.docs.set(note.id, doc);
+      this.cacheDoc(note.id, doc);
       this.logUpdate(note.id, encodeStateB64(doc), null);
     }
     
@@ -310,7 +338,10 @@ export class VaultStore {
 
   doc(noteId: string): Y.Doc {
     let doc = this.docs.get(noteId);
-    if (doc) return doc;
+    if (doc) {
+      this.cacheDoc(noteId, doc); // most recently used
+      return doc;
+    }
     const log = this.db
       .select()
       .from(tables.ydocUpdates)
@@ -329,7 +360,7 @@ export class VaultStore {
       doc = createNoteDoc(note?.content ?? "");
       this.logUpdate(noteId, encodeStateB64(doc), null);
     }
-    this.docs.set(noteId, doc);
+    this.cacheDoc(noteId, doc);
     return doc;
   }
 
@@ -507,7 +538,7 @@ export class VaultStore {
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
     if (!existing) {
       const doc = createNoteDoc(finalContent);
-      this.docs.set(note.id, doc);
+      this.cacheDoc(note.id, doc);
       this.logUpdate(note.id, encodeStateB64(doc), user.id);
     }
     this.syncNoteRow(note);
