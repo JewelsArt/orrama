@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { mondayOf, shiftMonth } from "./calendarMath.js";
 import { api, type Me } from "./api.js";
 import { IconWand } from "./icons.js";
 import { TaskCard } from "./TaskCard.js";
@@ -113,12 +114,6 @@ const PX_PER_MIN = 52 / 60; // 52px per hour
 const SNAP = 30;
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const mondayOf = (d: Date) => {
-  const x = new Date(d);
-  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
-  x.setHours(12, 0, 0, 0);
-  return x;
-};
 const fmtMin = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 const fmtH = (min: number) => (min % 60 === 0 ? `${min / 60}h` : `${(min / 60).toFixed(1)}h`);
 const hoursLabel = (h: number) => (Number.isInteger(h) ? `${h}h` : `${h.toFixed(1)}h`);
@@ -311,7 +306,7 @@ export function Planning({
           <div className="week-nav">
             <button
               className="ghost"
-              onClick={() => setWeekStart(new Date(weekStart.getTime() - (mode === "week" ? 7 : 28) * DAY_MS))}
+              onClick={() => setWeekStart(mode === "week" ? new Date(weekStart.getTime() - 7 * DAY_MS) : shiftMonth(weekStart, -1))}
               aria-label={mode === "week" ? "Previous week" : "Previous month"}
             >
               ‹
@@ -323,7 +318,7 @@ export function Planning({
             </button>
             <button
               className="ghost"
-              onClick={() => setWeekStart(new Date(weekStart.getTime() + (mode === "week" ? 7 : 28) * DAY_MS))}
+              onClick={() => setWeekStart(mode === "week" ? new Date(weekStart.getTime() + 7 * DAY_MS) : shiftMonth(weekStart, +1))}
               aria-label={mode === "week" ? "Next week" : "Next month"}
             >
               ›
