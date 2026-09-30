@@ -446,6 +446,10 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   and a crash in between leaves a note empty in the folder Obsidian has open.
   Because a save renames over the note, the watcher's `unlink` checks the file
   is really gone before dropping it.
+- **The agent's log rotates itself** (`rotateLogIfLarge`, `logging.ts`): past
+  5 MB at boot or on the hourly check, `~/.basalt-run/server.log` moves to
+  `server.log.1` (owner-only) and starts again — only when stdout really is
+  that file. URLs in it are already redacted (no query strings or secret paths).
 - **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
   Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
   auth hook and the live-sync socket refuse a token whose row is gone or

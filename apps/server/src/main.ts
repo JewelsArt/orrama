@@ -33,7 +33,7 @@ import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { initWebhooks } from "./webhooks.js";
 import { sessionUser } from "./sessions.js";
 import { eq } from "drizzle-orm";
-import { privateLogFiles, reqSerializer } from "./logging.js";
+import { privateLogFiles, reqSerializer, rotateLogIfLarge } from "./logging.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -263,10 +263,17 @@ Vault layout:
 }
 
 if (isEntry(import.meta.url, process.argv[1])) {
-  // Under launchd stdout/stderr are a plain log file, created world-readable.
+  // Under launchd stdout/stderr are a plain log file, created world-readable
+  // and never rotated: tighten it, and keep it under a cap (logging.ts).
+  const rotated = rotateLogIfLarge();
   const tightened = privateLogFiles();
   const { app } = await buildServer();
+  if (rotated) app.log.info("log rotated: the previous one is server.log.1");
   if (tightened.length) app.log.info(`log file made owner-only (fd ${tightened.join(", ")})`);
+  const rotateTimer = setInterval(() => {
+    if (rotateLogIfLarge()) app.log.info("log rotated: the previous one is server.log.1");
+  }, 3_600_000);
+  rotateTimer.unref();
   await app.listen({ port: env.port, host: env.host });
 
   // launchd stops the agent with SIGTERM (a kickstart, a logout, `pnpm ship`).

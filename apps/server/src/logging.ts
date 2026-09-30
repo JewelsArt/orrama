@@ -13,6 +13,8 @@
  * does not depend on that: any client, old or new, gets the same treatment.
  */
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { FastifyRequest } from "fastify";
 
 /** A URL with its query string dropped and any secret path segment masked. */
@@ -57,4 +59,38 @@ export function privateLogFiles(fds: number[] = [1, 2]): number[] {
     }
   }
   return changed;
+}
+
+/** Past this the log is rotated: one previous generation is kept, so ~10 MB at most. */
+export const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
+/** Where the launchd agent sends stdout and stderr (dev.basalt.server.plist). */
+export const AGENT_LOG = path.join(os.homedir(), ".basalt-run", "server.log");
+
+/**
+ * Keep the agent's log from growing forever (audit B7). launchd opens
+ * StandardOutPath once, in append mode, and never rotates it; by September it
+ * was 6.4 MB and climbing. newsyslog would need a system config and sudo, so
+ * the server does it: when its stdout IS that file (same device and inode —
+ * never a file it merely has the name of) and the file is past the cap, the
+ * contents move to `server.log.1` (owner-only, replacing the previous one) and
+ * the file is truncated in place. Append mode means the next write lands at
+ * the new end. Lines written between the copy and the truncate — a few
+ * milliseconds — are lost. Returns whether it rotated.
+ */
+export function rotateLogIfLarge(opts: { fd?: number; file?: string; maxBytes?: number } = {}): boolean {
+  const { fd = 1, file = AGENT_LOG, maxBytes = LOG_ROTATE_BYTES } = opts;
+  try {
+    const open = fs.fstatSync(fd);
+    const named = fs.statSync(file);
+    if (!open.isFile() || open.dev !== named.dev || open.ino !== named.ino) return false;
+    if (open.size <= maxBytes) return false;
+    const previous = `${file}.1`;
+    fs.copyFileSync(file, previous);
+    fs.chmodSync(previous, 0o600);
+    fs.ftruncateSync(fd, 0);
+    return true;
+  } catch {
+    // No such file, not ours, or not a file: a terminal or a pipe needs nothing.
+    return false;
+  }
 }
