@@ -38,6 +38,7 @@ describe("environment", () => {
       BASALT_DOC_CACHE: "0",
       BASALT_ALLOW_DEV_SECRETS: "true",
       BASALT_JWT_SECRET: "short",
+      BASALT_FETCH_ALLOW: "nas.local,100.64.0.0/10,10.0.0.0/99,http://x",
     });
     const has = (re: RegExp) => expect(problems.some((p) => re.test(p)), `${re} in ${JSON.stringify(problems)}`).toBe(true);
     has(/^PORT="abc"/);
@@ -49,6 +50,9 @@ describe("environment", () => {
     has(/^BASALT_DOC_CACHE="0"/);
     has(/^BASALT_ALLOW_DEV_SECRETS="true"/);
     has(/^BASALT_JWT_SECRET is 5 characters/);
+    has(/BASALT_FETCH_ALLOW: "10\.0\.0\.0\/99"/);
+    has(/BASALT_FETCH_ALLOW: "http:\/\/x"/);
+    expect(problems.some((p) => /nas\.local|100\.64\.0\.0\/10/.test(p))).toBe(false);
     expect(problems.some((p) => p.includes("http://localhost:4623"))).toBe(false);
     expect(() => assertValidEnv({ PORT: "99999" })).toThrow(/Refusing to start[\s\S]*PORT="99999"/);
   });

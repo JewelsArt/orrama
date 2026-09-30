@@ -554,6 +554,8 @@ function WebhooksSection() {
   const [events, setEvents] = useState<Set<string>>(new Set(["task.completed"]));
   const [fresh, setFresh] = useState<Webhook | null>(null);
   const [testStatus, setTestStatus] = useState<Record<string, string>>({});
+  /** The server records a class, not the far end's code (safeFetch.ts): say it in words. */
+  const hookResult = (s: number | null) => (s === 200 ? "delivered" : s === 400 ? "refused" : s === 500 ? "server error" : "unreachable or not allowed");
 
   useEffect(() => {
     void api<Webhook[]>("GET", "/api/webhooks").then(setHooks);
@@ -569,7 +571,7 @@ function WebhooksSection() {
             {h.url}
             <span className="integr-sub">
               {h.events.join(", ")}
-              {h.lastStatus !== null && ` · last ${h.lastStatus}`}
+              {h.lastFiredAt !== null && ` · last: ${hookResult(h.lastStatus)}`}
               {testStatus[h.id] && ` · test: ${testStatus[h.id]}`}
             </span>
           </span>
@@ -578,7 +580,7 @@ function WebhooksSection() {
             title="Send test ping"
             onClick={async () => {
               const r = await api<{ status: number | null }>("POST", `/api/webhooks/${h.id}/test`);
-              setTestStatus({ ...testStatus, [h.id]: r.status === null ? "unreachable" : String(r.status) });
+              setTestStatus({ ...testStatus, [h.id]: hookResult(r.status) });
             }}
           >
             test

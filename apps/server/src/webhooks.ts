@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { canRead } from "@basalt/core";
 import { tables, type Db } from "./db.js";
+import { outcomeOf, safeFetch, type Outcome } from "./safeFetch.js";
 import type { NoteChangedEvent, VaultStore } from "./vaultStore.js";
 
 export const WEBHOOK_EVENTS = ["note.changed", "task.completed"] as const;
@@ -28,12 +29,20 @@ export function signPayload(secret: string, body: string): string {
   return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
+/**
+ * The status a hook records: the CLASS of the answer (200 delivered, 400
+ * refused, 500 server error) or null for unreachable/blocked — never the far
+ * end's exact code, which made the hook list a port-and-service scanner.
+ */
+const STATUS: Record<Outcome, number | null> = { delivered: 200, rejected: 400, "server-error": 500, unreachable: null, blocked: null };
+
 /** POST one payload to one hook; records delivery status, never throws. */
 export async function deliver(db: Db, hook: HookRow, payload: Record<string, unknown>): Promise<number | null> {
   const body = JSON.stringify(payload);
   let status: number | null = null;
   try {
-    const res = await fetch(hook.url, {
+    // safeFetch: public addresses only (or BASALT_FETCH_ALLOW), no redirects for a POST.
+    const res = await safeFetch(hook.url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -42,11 +51,12 @@ export async function deliver(db: Db, hook: HookRow, payload: Record<string, unk
         "x-basalt-signature": signPayload(hook.secret, body),
       },
       body,
-      signal: AbortSignal.timeout(DELIVER_TIMEOUT_MS),
+      timeoutMs: DELIVER_TIMEOUT_MS,
+      maxBytes: 64 * 1024,
     });
-    status = res.status;
-  } catch {
-    status = null; // unreachable endpoint — recorded as such, retried on next event
+    status = STATUS[outcomeOf(res)];
+  } catch (err) {
+    status = STATUS[outcomeOf(err instanceof Error ? err : new Error(String(err)))]; // retried on next event
   }
   db.update(tables.webhooks).set({ lastStatus: status, lastFiredAt: Date.now() }).where(eq(tables.webhooks.id, hook.id)).run();
   return status;

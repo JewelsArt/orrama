@@ -1,0 +1,152 @@
+/**
+ * Outbound requests to URLs a user typed: subscribed calendars and webhooks.
+ *
+ * Both went through plain `fetch` with whatever URL was saved, so the server
+ * would request `http://127.0.0.1:…`, a router's admin page, a NAS on the LAN,
+ * or 169.254.169.254 (a cloud host's metadata service) on the user's behalf —
+ * and the feed's `lastError` ("feed returned 401") and the hook's `lastStatus`
+ * reported what answered, which is a port scanner (SSRF). ICS also followed
+ * redirects blindly, so a public URL could bounce the request inward.
+ *
+ * Now:
+ * - only http(s);
+ * - every address a host resolves to must be public — checked in the socket's
+ *   own `lookup`, i.e. at connect time, so DNS that answers public for a check
+ *   and private for the connection (rebinding) is caught too; IP literals are
+ *   checked before connecting, because Node does not look those up;
+ * - redirects are followed by hand, at most 3, each hop checked the same way,
+ *   and only for GET;
+ * - callers get a coarse outcome, not the upstream's status or error text.
+ *
+ * A private target that is really wanted (a calendar on the NAS, a host on the
+ * tailnet, a test server) is named in BASALT_FETCH_ALLOW: hosts or CIDRs,
+ * comma-separated. Nothing private is reachable without it.
+ */
+import dns from "node:dns";
+import http from "node:http";
+import https from "node:https";
+import net from "node:net";
+
+export class BlockedTargetError extends Error {}
+
+const blocked = new net.BlockList();
+for (const [addr, prefix] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12],
+  ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
+  ["224.0.0.0", 4], ["240.0.0.0", 4],
+] as const) blocked.addSubnet(addr, prefix, "ipv4");
+for (const [addr, prefix] of [
+  ["::", 128], ["::1", 128], ["64:ff9b::", 96], ["100::", 64], ["2001:db8::", 32], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8],
+] as const) blocked.addSubnet(addr, prefix, "ipv6");
+
+/** An allow-list entry: a hostname, or an address/CIDR. */
+function allowList(): { hosts: Set<string>; nets: net.BlockList } {
+  const hosts = new Set<string>();
+  const nets = new net.BlockList();
+  for (const raw of (process.env.BASALT_FETCH_ALLOW ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [addr, prefix] = raw.split("/");
+    const v = net.isIP(addr!);
+    if (v) nets.addSubnet(addr!, prefix ? Number(prefix) : v === 4 ? 32 : 128, v === 4 ? "ipv4" : "ipv6");
+    else hosts.add(raw.toLowerCase());
+  }
+  return { hosts, nets };
+}
+
+/** True for an address the server may reach without being told to. */
+export function isPublicAddress(ip: string): boolean {
+  const v = net.isIP(ip);
+  if (v === 0) return false;
+  // BlockList matches IPv4-mapped IPv6 (::ffff:127.0.0.1, and the hex form
+  // ::ffff:7f00:1 that URL parsing produces) against the IPv4 subnets itself.
+  return !blocked.check(ip, v === 6 ? "ipv6" : "ipv4");
+}
+
+const permitted = (ip: string, host: string) => {
+  if (isPublicAddress(ip)) return true;
+  const allow = allowList();
+  return allow.hosts.has(host.toLowerCase()) || allow.nets.check(ip, net.isIP(ip) === 6 ? "ipv6" : "ipv4");
+};
+
+export interface SafeResponse {
+  status: number;
+  text: string;
+}
+
+export interface SafeRequest {
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs: number;
+  maxBytes: number;
+  /** GET only; each hop is checked like the first. */
+  maxRedirects?: number;
+}
+
+function once(url: URL, req: SafeRequest): Promise<{ status: number; location: string | null; text: string }> {
+  return new Promise((resolve, reject) => {
+    const host = url.hostname.replace(/^\[|\]$/g, "");
+    if (net.isIP(host) && !permitted(host, host)) return reject(new BlockedTargetError("address not allowed"));
+    const lookup: net.LookupFunction = (hostname, options, cb) => {
+      dns.lookup(hostname, { all: true, verbatim: true }, (err, addrs) => {
+        if (err) return (cb as (e: Error | null, a: string, f: number) => void)(err, "", 0);
+        const bad = addrs.find((a) => !permitted(a.address, hostname));
+        if (bad || addrs.length === 0) {
+          return (cb as (e: Error | null, a: string, f: number) => void)(new BlockedTargetError("address not allowed"), "", 0);
+        }
+        if ((options as dns.LookupOptions).all) (cb as unknown as (e: null, a: dns.LookupAddress[]) => void)(null, addrs);
+        else (cb as (e: null, a: string, f: number) => void)(null, addrs[0]!.address, addrs[0]!.family);
+      });
+    };
+    const mod = url.protocol === "https:" ? https : http;
+    const r = mod.request(
+      url,
+      { method: req.method ?? "GET", headers: req.headers, lookup, timeout: req.timeoutMs },
+      (res) => {
+        let size = 0;
+        const chunks: Buffer[] = [];
+        res.on("data", (c: Buffer) => {
+          size += c.length;
+          if (size > req.maxBytes) {
+            res.destroy();
+            reject(new Error("response too large"));
+            return;
+          }
+          chunks.push(c);
+        });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, location: typeof res.headers.location === "string" ? res.headers.location : null, text: Buffer.concat(chunks).toString("utf8") }));
+        res.on("error", reject);
+      },
+    );
+    r.on("timeout", () => r.destroy(new Error("timed out")));
+    r.on("error", reject);
+    const hard = setTimeout(() => r.destroy(new Error("timed out")), req.timeoutMs);
+    r.on("close", () => clearTimeout(hard));
+    if (req.body) r.write(req.body);
+    r.end();
+  });
+}
+
+/** One request to a user-supplied URL, under every rule above. Throws on a blocked target. */
+export async function safeFetch(input: string, req: SafeRequest): Promise<SafeResponse> {
+  let url = new URL(input);
+  const hops = (req.method ?? "GET") === "GET" ? (req.maxRedirects ?? 3) : 0;
+  for (let i = 0; ; i++) {
+    if (url.protocol !== "http:" && url.protocol !== "https:") throw new BlockedTargetError("only http(s)");
+    const res = await once(url, req);
+    if (res.status >= 300 && res.status < 400 && res.location && i < hops) {
+      url = new URL(res.location, url);
+      continue;
+    }
+    return { status: res.status, text: res.text };
+  }
+}
+
+/** What a caller may say about an attempt: never the upstream's own status or message. */
+export type Outcome = "delivered" | "rejected" | "server-error" | "unreachable" | "blocked";
+export function outcomeOf(r: SafeResponse | Error): Outcome {
+  if (r instanceof BlockedTargetError) return "blocked";
+  if (r instanceof Error) return "unreachable";
+  if (r.status >= 200 && r.status < 300) return "delivered";
+  if (r.status >= 500) return "server-error";
+  return "rejected";
+}

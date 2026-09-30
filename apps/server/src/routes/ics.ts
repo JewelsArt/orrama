@@ -17,6 +17,7 @@ import { canRead } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { buildIcs, expandIcs, parseIcs, type IcsExportItem, type VEvent } from "../ics.js";
 import { decryptSecret, encryptSecret } from "../secrets.js";
+import { BlockedTargetError, safeFetch } from "../safeFetch.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 const FEED_TTL_MS = 10 * 60_000;
@@ -31,17 +32,22 @@ export function dropFeedCache(feedId?: string) {
   else cache.clear();
 }
 
+/**
+ * The feed's text, through safeFetch: public addresses only (or ones named in
+ * BASALT_FETCH_ALLOW), redirects re-checked, size capped while reading. The
+ * error says what kind of failure it was, never what the far end answered.
+ */
 async function fetchIcsText(url: string): Promise<string> {
-  const res = await fetch(url, {
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    headers: { accept: "text/calendar, text/plain, */*" },
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`feed returned ${res.status}`);
-  const text = await res.text();
-  if (text.length > MAX_FEED_BYTES) throw new Error("feed too large");
-  if (!text.includes("BEGIN:VCALENDAR")) throw new Error("not an ICS calendar");
-  return text;
+  let res: Awaited<ReturnType<typeof safeFetch>>;
+  try {
+    res = await safeFetch(url, { headers: { accept: "text/calendar, text/plain, */*" }, timeoutMs: FETCH_TIMEOUT_MS, maxBytes: MAX_FEED_BYTES });
+  } catch (err) {
+    if (err instanceof BlockedTargetError) throw new Error("that address is on a private network (set BASALT_FETCH_ALLOW to allow it)");
+    throw new Error(err instanceof Error && err.message === "response too large" ? "feed too large" : "the feed could not be reached");
+  }
+  if (res.status < 200 || res.status >= 300) throw new Error("the feed refused the request");
+  if (!res.text.includes("BEGIN:VCALENDAR")) throw new Error("not an ICS calendar");
+  return res.text;
 }
 
 type FeedRow = typeof tables.icsFeeds.$inferSelect;

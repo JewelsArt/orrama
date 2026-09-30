@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 export const DEV_JWT_SECRET = "dev-secret-change-me";
@@ -140,6 +141,13 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
   for (const o of (e["BASALT_PUBLIC_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) origin("BASALT_PUBLIC_ORIGINS", o);
   if (e["BASALT_CORS_ORIGIN"]) origin("BASALT_CORS_ORIGIN", e["BASALT_CORS_ORIGIN"]);
   if (e["BASALT_OPENAI_BASE_URL"] && !/^https?:\/\/[^/]/.test(e["BASALT_OPENAI_BASE_URL"])) out.push("BASALT_OPENAI_BASE_URL must be an http(s) URL");
+  for (const entry of (e["BASALT_FETCH_ALLOW"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+    const [addr, prefix, extra] = entry.split("/");
+    const v = net.isIP(addr!);
+    const okCidr = v !== 0 && extra === undefined && (prefix === undefined || (/^\d+$/.test(prefix) && Number(prefix) <= (v === 4 ? 32 : 128)));
+    const okHost = v === 0 && prefix === undefined && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(entry);
+    if (!okCidr && !okHost) out.push(`BASALT_FETCH_ALLOW: ${JSON.stringify(entry)} is not a hostname, an address or a CIDR`);
+  }
   int("BASALT_DOC_CACHE", 1);
   int("BASALT_PLAN_AI_TIMEOUT_MS", 1);
   int("BASALT_WEBHOOK_DEBOUNCE_MS", 0);

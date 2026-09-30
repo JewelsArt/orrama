@@ -22,6 +22,8 @@ process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+// The helper server below listens on 127.0.0.1; private targets need naming (safeFetch.ts).
+process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
 process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "40";
 process.env.TZ = "Europe/Amsterdam";
 

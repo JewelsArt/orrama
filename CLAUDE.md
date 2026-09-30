@@ -392,6 +392,13 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   `BASALT_PLAN_AI_TIMEOUT_MS`, `BASALT_WEBHOOK_DEBOUNCE_MS`) are whole numbers,
   origins are bare origins, data/vault paths are directories, and real secrets
   are ≥ 32 characters. A new variable gets a rule there.
+- **Outbound requests to user-typed URLs go through `safeFetch`** (calendar
+  feeds, webhooks): http(s) only, every resolved address public (checked in the
+  socket's own `lookup`, so DNS rebinding is caught), redirects re-checked hop
+  by hop (GET only), and callers report a coarse outcome — never the far end's
+  status or error text. A private target that is really wanted (a NAS, a
+  tailnet host) is named in `BASALT_FETCH_ALLOW` (hosts or CIDRs). Anything new
+  that fetches a URL a user supplied uses it too.
 - **Touch ID trusts only known origins.** Set `BASALT_PUBLIC_ORIGINS` (comma-
   separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
   launchd plist; unset, the `Origin` must equal the address the request was
