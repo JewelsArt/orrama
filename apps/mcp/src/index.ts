@@ -7,6 +7,7 @@ import {
   ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
+import { authHeader } from "./auth.js";
 
 const url = process.env.BASALT_URL || "http://localhost:4623";
 const token = process.env.BASALT_TOKEN;
@@ -19,7 +20,7 @@ if (!token) {
 const server = new Server(
   {
     name: "basalt-mcp",
-    version: "1.0.0",
+    version: "0.1.0",
   },
   {
     capabilities: {
@@ -32,7 +33,7 @@ async function fetchBasalt(path: string, method: string = "GET", body?: any) {
   const res = await fetch(`${url}${path}`, {
     method,
     headers: {
-      "Authorization": `Bearer bslt_${token}`,
+      "Authorization": authHeader(token!),
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,

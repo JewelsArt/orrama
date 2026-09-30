@@ -17,6 +17,11 @@ pnpm test
 echo "→ build web"
 pnpm --dir apps/web build
 
+# The vault's .mcp.json runs apps/mcp/dist/index.js; without this step the MCP
+# tools Claude uses kept whatever was last built by hand.
+echo "→ build mcp"
+pnpm --dir apps/mcp build
+
 echo "→ restart server"
 # -sTCP:LISTEN matters: without it lsof also returns *client* sockets on 4623.
 PID="$(lsof -nP -iTCP:4623 -sTCP:LISTEN -t | head -1 || true)"
