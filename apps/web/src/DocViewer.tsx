@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { api, apiBlob } from "./api.js";
 
 /**
@@ -209,7 +210,7 @@ export function DocViewer({
 
   return (
     <div className="doc-backdrop" onClick={onClose}>
-      <div className="doc-modal" onClick={(e) => e.stopPropagation()}>
+      <Dialog label={name} className="doc-modal">
         <header className="doc-head">
           <span className="doc-ext">{(ext || ".?").slice(1).toUpperCase()}</span>
           <span className="doc-name" title={name}>
@@ -252,7 +253,7 @@ export function DocViewer({
           {url && ext.match(/\.(png|jpe?g|gif|webp)$/) && <img className="doc-img" src={url} alt={name} />}
           {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="empty">Opening…</p>}
         </div>
-      </div>
+      </Dialog>
     </div>
   );
 }

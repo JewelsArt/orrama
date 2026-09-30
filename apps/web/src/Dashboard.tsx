@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { isoLocal } from "@basalt/core/dates";
 import { api, type Me, type TreeNote } from "./api.js";
 import type { FinancePage } from "./App.js";
@@ -1148,7 +1149,7 @@ export function Dashboard({
 
       {addOpen && (
         <div className="overlay" onClick={() => setAddOpen(false)}>
-          <div className="dh-add-modal" onClick={(e) => e.stopPropagation()}>
+          <Dialog label="Add a component" className="dh-add-modal">
             <h3>Add a component</h3>
             <p className="dh-add-modal-sub">
               {hidden.size > 0
@@ -1183,7 +1184,7 @@ export function Dashboard({
             <div className="dh-add-modal-foot">
               <button className="dh-link" onClick={() => setAddOpen(false)}>Close</button>
             </div>
-          </div>
+          </Dialog>
         </div>
       )}
     </div>
@@ -1239,9 +1240,9 @@ function AddMoneyRow({
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div
+      <Dialog
+        label={isIncome ? "Add income" : "Add subscription"}
         className="dh-add-modal dh-form"
-        onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Escape") onClose();
           // Enter saves from any field except the note, where it is just a key.
@@ -1298,7 +1299,7 @@ function AddMoneyRow({
             </button>
           )}
         </div>
-      </div>
+      </Dialog>
     </div>
   );
 }

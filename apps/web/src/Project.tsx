@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { api, type DashboardTask, type Me, type NoteDetail } from "./api.js";
 import { ContactSheet, initials as sheetInitials, type CompanyRecord, type ContactRecord } from "./cards.js";
 import { DOMAIN_COLOR, daysTo } from "./categories.js";
@@ -678,7 +679,7 @@ function PersonModal({
 
   return (
     <div className="ct-backdrop" onClick={onClose}>
-      <div className="ct-modal" onClick={(e) => e.stopPropagation()}>
+      <Dialog label="Person" className="ct-modal">
         {person.kind === "company" && company ? (
           <div className="sheet">
             <header className="sheet-head">
@@ -723,7 +724,7 @@ function PersonModal({
             onRemove={canEdit ? () => void onRemove() : undefined}
           />
         )}
-      </div>
+      </Dialog>
     </div>
   );
 }

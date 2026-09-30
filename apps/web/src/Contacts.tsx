@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { api, type Me } from "./api.js";
 import { Companies } from "./Companies.js";
 import { IconPlus, IconSearch } from "./icons.js";
@@ -235,7 +236,7 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
 
       {selectedContact && (
         <div className="ct-backdrop" onClick={() => setSelectedContact(null)}>
-          <div className="ct-modal" onClick={(e) => e.stopPropagation()}>
+          <Dialog label="Contact" className="ct-modal">
             <div className="ct-m-head">
               <span 
                 className={`ct-m-av ${selectedContact.sector ? selectedContact.sector.toLowerCase() : "other"}`}
@@ -355,7 +356,7 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
                 Open note
               </button>
             </div>
-          </div>
+          </Dialog>
         </div>
       )}
     </div>

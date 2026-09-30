@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Dialog } from "./dialog.js";
 
 export interface ConfirmRequest {
   title: string;
@@ -46,7 +47,7 @@ export function Confirm({ request, onClose }: { request: ConfirmRequest | null; 
 
   return (
     <div className="ct-backdrop" onClick={onClose}>
-      <div className="confirm" role="alertdialog" aria-modal="true" aria-label={request.title} onClick={(e) => e.stopPropagation()}>
+      <Dialog label={request.title} role="alertdialog" className="confirm">
         <h2>{request.title}</h2>
         {request.body && <p>{request.body}</p>}
         <div className="confirm-actions">
@@ -64,7 +65,7 @@ export function Confirm({ request, onClose }: { request: ConfirmRequest | null; 
             {request.confirmLabel ?? "Confirm"}
           </button>
         </div>
-      </div>
+      </Dialog>
     </div>
   );
 }

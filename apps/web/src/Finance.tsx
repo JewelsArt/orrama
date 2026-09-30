@@ -19,6 +19,24 @@ import {
 } from "./icons.js";
 
 /**
+ * A chart column's hit area is an SVG <rect>, not a button: it took clicks but
+ * not focus, so every drill-down behind a chart was mouse-only. These props
+ * make one a button to the keyboard and to a screen reader.
+ */
+const svgButton = (label: string, act: () => void) => ({
+  role: "button",
+  tabIndex: 0,
+  "aria-label": label,
+  onClick: act,
+  onKeyDown: (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      act();
+    }
+  },
+});
+
+/**
  * The Finance area: what comes in, what goes out, and — the part no bank app
  * can do — what an hour of your work actually paid, tracked over time.
  *
@@ -391,7 +409,7 @@ function StackedMonths({
               y={pad.t}
               width={slot}
               height={plot}
-              onClick={() => onPick(m.month)}
+              {...svgButton(byYear ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`, () => onPick(m.month))}
             >
               <title>{byYear ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`}</title>
             </rect>
@@ -887,7 +905,7 @@ function LineMonths({
             width="36"
             height={ih}
             fill="transparent"
-            onClick={() => !m.future && onPick(m.month)}
+            {...(m.future ? {} : svgButton(period === "year" ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`, () => onPick(m.month)))}
           >
             {!m.future && <title>{period === "year" ? `Show ${m.month} month by month` : `Open ${monthName(m.month)}`}</title>}
           </rect>

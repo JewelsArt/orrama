@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { api } from "./api.js";
 import { initials } from "./cards.js";
 import type { ProjectWorkspace } from "./Project.js";
@@ -94,7 +95,7 @@ export function TaskCard({
 
   return (
     <div className="ct-backdrop" onClick={onClose}>
-      <div className="ct-modal task-card" onClick={(e) => e.stopPropagation()}>
+      <Dialog label="Task" className="ct-modal task-card">
         <header className="task-head">
           <span className="task-kicker">Step</span>
           <button className="doc-close" onClick={onClose} aria-label="Close">
@@ -170,7 +171,7 @@ export function TaskCard({
           </div>
           {done && <p className="task-done">{done}</p>}
         </section>
-      </div>
+      </Dialog>
     </div>
   );
 }

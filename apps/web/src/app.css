@@ -6197,6 +6197,7 @@ button.ov-pname {
 /* Every column and every point is a door. */
 .fin-hit { fill: transparent; cursor: pointer; }
 .fin-hit:hover { fill: color-mix(in srgb, var(--d-ink) 4%, transparent); }
+.fin-hit:focus-visible { outline: none; fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: 2; }
 
 /* ---- month navigation ---------------------------------------------------- */
 .fin-monthnav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
@@ -7114,3 +7115,7 @@ button.ov-pname {
     font-size: clamp(22px, 7vw, 32px);
   }
 }
+
+/* A dialog box that takes focus itself (it has no controls yet) shows no ring. */
+[role="dialog"][tabindex="-1"]:focus,
+[role="alertdialog"][tabindex="-1"]:focus { outline: none; }

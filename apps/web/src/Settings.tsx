@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { api, enrolTouchId, touchIdAvailable, type Me } from "./api.js";
 import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
@@ -70,7 +71,7 @@ export function Settings({
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="settings" role="dialog" aria-label="Settings" onClick={(e) => e.stopPropagation()}>
+      <Dialog label="Settings" className="settings">
         <header className="settings-head">
           <span>Settings</span>
           <button className="ghost" onClick={onClose} aria-label="Close">
@@ -222,7 +223,7 @@ export function Settings({
         <button className="settings-signout ghost" onClick={onSignOut}>
           <IconSignOut /> Sign out
         </button>
-      </div>
+      </Dialog>
     </div>
   );
 }

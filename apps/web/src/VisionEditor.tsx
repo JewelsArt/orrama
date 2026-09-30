@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Dialog } from "./dialog.js";
 import { iconFor } from "./Finance.js";
 import { IconX } from "./icons.js";
 import { BRAND_SLOT, PALETTE_SLOTS, type VisionProfile, closestPair, contrast, deriveInk, profileVars } from "./palette.js";
@@ -115,7 +116,7 @@ export function VisionEditor({
 
   return (
     <div className="vised-backdrop" onClick={onClose}>
-      <div className="vised" role="dialog" aria-label="Edit colour profile" onClick={(e) => e.stopPropagation()}>
+      <Dialog label="Edit colour profile" className="vised">
         <header className="vised-head">
           <input
             ref={firstField}
@@ -223,7 +224,7 @@ export function VisionEditor({
             </div>
           </div>
         </div>
-      </div>
+      </Dialog>
     </div>
   );
 }

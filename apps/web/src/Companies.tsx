@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Dialog } from "./dialog.js";
 import { api, type Me } from "./api.js";
 import { ContactSheet, initials as sheetInitials, useColleagues, type ContactRecord } from "./cards.js";
 import { IconPlus } from "./icons.js";
@@ -389,7 +390,7 @@ function CompanyModal({
   if (person) {
     return (
       <div className="ct-backdrop" onClick={onClose}>
-        <div className="ct-modal" onClick={(e) => e.stopPropagation()}>
+        <Dialog label="Contact" className="ct-modal">
           <ContactSheet
             contact={person}
             onBack={() => setPerson(null)}
@@ -399,14 +400,14 @@ function CompanyModal({
               onOpenNote(id);
             }}
           />
-        </div>
+        </Dialog>
       </div>
     );
   }
 
   return (
     <div className="ct-backdrop" onClick={onClose}>
-      <div className="ct-modal" onClick={(e) => e.stopPropagation()}>
+      <Dialog label="Company" className="ct-modal">
         <div className="ct-m-head">
           <span className="ct-m-av" style={{ background: swatchOf(company), borderRadius: 16 }}>
             {initials(company.name)}
@@ -539,7 +540,7 @@ function CompanyModal({
             </div>
           </>
         )}
-      </div>
+      </Dialog>
     </div>
   );
 }
