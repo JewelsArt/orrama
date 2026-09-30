@@ -16,3 +16,4 @@ export * from "./recurring.js";
 export * from "./savings.js";
 export * from "./spending.js";
 export * from "./ownAccounts.js";
+export * from "./vaultCategories.js";

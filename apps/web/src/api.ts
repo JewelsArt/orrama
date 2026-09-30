@@ -37,6 +37,8 @@ export interface TreeNote {
   mtimeMs?: number;
   tags: string[];
   openTasks: number;
+  /** Life-area, from the vault's #vault-categories rules (server-side). */
+  category?: string;
 }
 
 export interface NoteLink {

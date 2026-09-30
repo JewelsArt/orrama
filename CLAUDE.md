@@ -504,6 +504,13 @@ simulation, not a rebuild) and **local graph**: the last-opened note plus
 everything within N hops, `onShown` reporting the real count back so the hint
 never lies. Settings persist in `localStorage` under `basalt-graph`.
 
+**Life-areas (School / Work / Knowledge / Claude & tools / Personal) are vault
+data.** A note tagged `#vault-categories` holds `| Category | Matches |` rows —
+phrases or `/regex/` against a note's path and tags, first row wins
+(`packages/core/src/vaultCategories.ts`). The server applies the rules the caller
+can read and sends `category` on every `/api/vault/tree` note; the web only
+colours and counts. Without the note, only the PARA folders are known.
+
 The **Dashboard** (`Dashboard.tsx`, the default tab) is a card grid: white
 (or near-black) cards, hairline borders, no tints. Six cards: hero stat, this-week/last-week activity line chart, In Focus
 tasks, Schedule (mini calendar + agenda), Today's Tasks checklist, Analytics

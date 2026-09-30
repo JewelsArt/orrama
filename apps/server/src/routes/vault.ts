@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@basalt/sync";
 import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
-import { appendLine, canEdit, canRead, parseFrontmatter, suggestRelated } from "@basalt/core";
+import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, parseFrontmatter, parseVaultCategoryRules, suggestRelated } from "@basalt/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";
@@ -14,6 +14,11 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.get("/api/vault/tree", auth, async (req) => {
     const user = store.aclUser(req.userId);
     const notes = store.readable(user).sort((a, b) => a.path.localeCompare(b.path));
+    // Life-area rules come from the vault (#vault-categories), read with the
+    // caller's own ACL like any note; without one, the generic PARA defaults.
+    const ruleNote = notes.find((n) => n.tags.some((t) => t.tag === "vault-categories"));
+    const parsed = ruleNote ? parseVaultCategoryRules(ruleNote.content) : [];
+    const rules = parsed.length ? parsed : DEFAULT_VAULT_CATEGORY_RULES;
     return notes.map((n) => ({
       id: n.id,
       path: n.path,
@@ -23,6 +28,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       mtimeMs: n.mtimeMs,
       tags: [...new Set(n.tags.map((t) => t.tag))],
       openTasks: n.tasks.filter((t) => !t.checked).length,
+      category: categorizeNote({ path: n.path, tags: n.tags.map((t) => t.tag) }, rules),
     }));
   });
 

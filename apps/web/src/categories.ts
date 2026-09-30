@@ -5,8 +5,8 @@ import { daysTo as coreDaysTo, isoLocal } from "@basalt/core/dates";
  * Semantic categories over the PARA vault, each with a colour. This one module
  * is the single source of truth for how the vault is grouped and coloured — the
  * map, the file list, and the category filter all read from here, so a note is
- * the same colour everywhere. First rule that matches wins (Personal is the
- * catch-all); edit the rules to re-shape the grouping and nothing else changes.
+ * the same colour everywhere. The grouping itself is the vault's
+ * `#vault-categories` note, applied on the server.
  *
  * The colours are TOKENS, not hex. They used to be five hand-picked hex values
  * that were chosen against a white page and then carried unchanged into the
@@ -19,15 +19,20 @@ export interface Category {
   id: string;
   label: string;
   color: string;
-  re: RegExp;
 }
 
+/**
+ * The areas, in the order they are drawn. WHICH notes fall in each is decided
+ * on the server from the vault's own `#vault-categories` note (core
+ * vaultCategories.ts) and arrives as `TreeNote.category` — the rules used to be
+ * regexes here naming Jules's university, employer and projects.
+ */
 export const CATEGORIES: Category[] = [
-  { id: "school", label: "School", color: "var(--vault-school)", re: /universit|resit|\blaw\b|financial risk|financial account|transcomercial|school-resits|internship-defense|\bexam\b|the-professor|amsib|hva/ },
-  { id: "work", label: "Work", color: "var(--vault-work)", re: /scooperz|career|dashboard|portfolio|linkedin|paris-expansion|python-finance|proof-bank|05-content|the-scribe|the-finance|contact/ },
-  { id: "knowledge", label: "Knowledge", color: "var(--vault-knowledge)", re: /03-knowledge|knowledge\//i },
-  { id: "tools", label: "Claude & tools", color: "var(--vault-tools)", re: /07-claude|city map|characters|skills|obsidian-town|claude\.md|\/agents|claude sessions/ },
-  { id: "personal", label: "Personal", color: "var(--vault-personal)", re: /.*/ },
+  { id: "school", label: "School", color: "var(--vault-school)" },
+  { id: "work", label: "Work", color: "var(--vault-work)" },
+  { id: "knowledge", label: "Knowledge", color: "var(--vault-knowledge)" },
+  { id: "tools", label: "Claude & tools", color: "var(--vault-tools)" },
+  { id: "personal", label: "Personal", color: "var(--vault-personal)" },
 ];
 
 const FALLBACK = "var(--vault-other)";
@@ -96,15 +101,14 @@ export function isSessionLog(note: Pick<TreeNote, "path">): boolean {
   return note.path.startsWith("Claude Sessions/");
 }
 
-export function categoryOf(note: Pick<TreeNote, "path" | "tags">): string {
-  const hay = `${note.path} ${note.tags.join(" ")}`.toLowerCase();
-  return CATEGORIES.find((c) => c.re.test(hay))!.id;
+export function categoryOf(note: Pick<TreeNote, "category">): string {
+  return note.category ?? "personal";
 }
 
 export function categoryColor(id: string): string {
   return CATEGORIES.find((c) => c.id === id)?.color ?? FALLBACK;
 }
 
-export function colorOf(note: Pick<TreeNote, "path" | "tags">): string {
+export function colorOf(note: Pick<TreeNote, "category">): string {
   return categoryColor(categoryOf(note));
 }
