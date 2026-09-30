@@ -213,6 +213,12 @@ export async function sendMail(c: MailCreds, input: SendInput): Promise<{ messag
     host: c.smtpHost,
     port: c.smtpPort,
     secure: c.smtpPort === 465,
+    // Any other port starts in plain text and upgrades with STARTTLS — but only
+    // if the server offers it, and nodemailer's default was to carry on without
+    // it. A network that strips STARTTLS from the greeting then received AUTH
+    // with the mailbox password in base64. Require the upgrade; no TLS, no login.
+    requireTLS: c.smtpPort !== 465,
+    tls: { minVersion: "TLSv1.2" },
     auth: { user: c.email, pass: c.password },
   });
   const info = await transporter.sendMail({
