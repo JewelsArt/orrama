@@ -65,7 +65,12 @@ export function initWebhooks(db: Db, store: VaultStore) {
       .where(eq(tables.webhooks.active, true))
       .all()
       .filter((h) => (JSON.parse(h.events) as string[]).includes(event))
-      .filter((h) => canRead(store.aclUser(h.ownerId), note, grants));
+      .filter((h) => {
+        // A hook whose owner no longer exists delivers nothing (and must not
+        // throw: this runs inside store.write's event).
+        const owner = store.aclUserOrNull(h.ownerId);
+        return owner !== null && canRead(owner, note, grants);
+      });
   };
 
   const username = (id: string | null) =>

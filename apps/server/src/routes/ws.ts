@@ -30,7 +30,14 @@ export async function wsRoutes(app: FastifyInstance, _db: Db, store: VaultStore)
     if (!note) return;
     const grants = store.grants();
     for (const client of clients) {
-      const user = store.aclUser(client.userId);
+      // An account deleted while its socket is open: close it, don't throw —
+      // this listener runs inside store.write().
+      const user = store.aclUserOrNull(client.userId);
+      if (!user) {
+        clients.delete(client);
+        client.socket.close(4001, "account removed");
+        continue;
+      }
       if (!canRead(user, note, grants)) continue;
       sendTo(client, { type: "note-changed", noteId: ev.noteId, path: ev.path, authorId: ev.authorId });
     }
@@ -84,8 +91,8 @@ export async function wsRoutes(app: FastifyInstance, _db: Db, store: VaultStore)
         const grants = store.grants();
         for (const other of clients) {
           if (other.userId === userId) continue;
-          const user = store.aclUser(other.userId);
-          if (!canRead(user, note, grants)) continue;
+          const user = store.aclUserOrNull(other.userId);
+          if (!user || !canRead(user, note, grants)) continue;
           sendTo(other, { type: "presence", userId, username: me.username, noteId: msg.noteId, at: Date.now() });
         }
       } catch {

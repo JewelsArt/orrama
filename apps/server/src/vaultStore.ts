@@ -382,6 +382,20 @@ export class VaultStore {
     return { id: user.id, username: user.username, teams: teamRows.map((t) => t.slug), isOwner: user.isOwner };
   }
 
+  /**
+   * aclUser for code that must not throw: event listeners. A listener that
+   * throws throws INTO the emitter — store.write() — so one deleted account
+   * with a webhook or an open socket made every note save a 500, after the
+   * file was already written.
+   */
+  aclUserOrNull(userId: string): AclUser | null {
+    try {
+      return this.aclUser(userId);
+    } catch {
+      return null;
+    }
+  }
+
   grants(): FolderGrant[] {
     return this.db
       .select({ team: tables.teams.slug, folder: tables.folderGrants.folder, role: tables.folderGrants.role })
