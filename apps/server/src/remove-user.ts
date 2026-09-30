@@ -63,6 +63,7 @@ async function main(): Promise<void> {
     passkeys: count(
       db.select().from(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.userId, user.id)).all(),
     ),
+    sessions: count(db.select().from(tables.sessions).where(eq(tables.sessions.userId, user.id)).all()),
     icsFeeds: count(db.select().from(tables.icsFeeds).where(eq(tables.icsFeeds.ownerId, user.id)).all()),
     webhooks: count(db.select().from(tables.webhooks).where(eq(tables.webhooks.ownerId, user.id)).all()),
     events: count(db.select().from(tables.events).where(eq(tables.events.ownerId, user.id)).all()),
@@ -106,6 +107,7 @@ async function main(): Promise<void> {
     tx.delete(tables.memberships).where(eq(tables.memberships.userId, user.id)).run();
     tx.delete(tables.apiTokens).where(eq(tables.apiTokens.userId, user.id)).run();
     tx.delete(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.userId, user.id)).run();
+    tx.delete(tables.sessions).where(eq(tables.sessions.userId, user.id)).run();
     tx.delete(tables.webauthnChallenges).where(eq(tables.webauthnChallenges.userId, user.id)).run();
     tx.delete(tables.icsFeeds).where(eq(tables.icsFeeds.ownerId, user.id)).run();
     tx.delete(tables.webhooks).where(eq(tables.webhooks.ownerId, user.id)).run();

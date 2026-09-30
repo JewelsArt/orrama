@@ -255,9 +255,33 @@ export async function api<T>(method: string, url: string, body?: unknown): Promi
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
+    // A session ended elsewhere (signed out from another device, revoked in
+    // Settings): back to the sign-in screen instead of a page of failures.
+    if (res.status === 401 && token && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
   return res.json() as Promise<T>;
+}
+
+/** Fired when the server stops accepting this browser's session. */
+export const SESSION_ENDED = "basalt:session-ended";
+
+export interface SessionInfo {
+  id: string;
+  label: string;
+  createdAt: number;
+  lastSeenAt: number | null;
+  current: boolean;
+}
+
+/** Sign out on the server too — the token stops working everywhere it was copied. */
+export async function signOut(): Promise<void> {
+  try {
+    await api("POST", "/api/auth/logout");
+  } catch {
+    // Already ended, or offline: forgetting it locally is still right.
+  }
+  clearToken();
 }
 
 /** Same auth as api(), but for bytes: project documents are behind the bearer

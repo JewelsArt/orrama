@@ -31,6 +31,7 @@ import { icsRoutes } from "./routes/ics.js";
 import { mailRoutes } from "./routes/mail.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { initWebhooks } from "./webhooks.js";
+import { sessionUser } from "./sessions.js";
 import { eq } from "drizzle-orm";
 import { privateLogFiles, reqSerializer } from "./logging.js";
 
@@ -40,6 +41,8 @@ declare module "fastify" {
   }
   interface FastifyRequest {
     userId: string;
+    /** The sign-in session behind a JWT (sessions.ts); unset for API tokens. */
+    sessionId?: string;
     /** True when authenticated with a personal API token instead of a session JWT. */
     viaToken?: boolean;
   }
@@ -171,12 +174,19 @@ Vault layout:
       db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();
       return;
     }
+    let payload: { sub?: unknown; sid?: unknown };
     try {
-      const payload = await req.jwtVerify();
-      req.userId = payload.sub as string;
+      payload = await req.jwtVerify();
     } catch {
-      reply.code(401).send({ error: "authentication required" });
+      return reply.code(401).send({ error: "authentication required" });
     }
+    // A valid signature is not enough: the session must still be open
+    // (sessions.ts) — signed out, revoked from Settings, or from before
+    // sessions existed, it is refused.
+    const userId = sessionUser(db, payload);
+    if (!userId) return reply.code(401).send({ error: "this session has ended — sign in again" });
+    req.userId = userId;
+    req.sessionId = payload.sid as string;
   });
 
   app.setErrorHandler((err, _req, reply) => {

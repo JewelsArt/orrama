@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
-import { api, enrolTouchId, touchIdAvailable, type Me } from "./api.js";
+import { api, enrolTouchId, touchIdAvailable, type Me, type SessionInfo } from "./api.js";
 import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
 import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
@@ -220,11 +220,62 @@ export function Settings({
 
         <Security />
 
+        <Sessions />
+
         <button className="settings-signout ghost" onClick={onSignOut}>
           <IconSignOut /> Sign out
         </button>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Where this account is signed in. Signing a session out here ends it on the
+ * server: its token stops working, and its live sync closes.
+ */
+function Sessions() {
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      setSessions(await api<SessionInfo[]>("GET", "/api/auth/sessions"));
+    } catch {
+      setSessions([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const end = async (id: string) => {
+    await api("DELETE", `/api/auth/sessions/${id}`);
+    await load();
+  };
+
+  const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—");
+
+  return (
+    <section>
+      <h3>Signed in</h3>
+      <p className="integr-hint">Every device and browser signed in to this account. Signing one out ends it everywhere its token was copied.</p>
+      {sessions.map((s) => (
+        <div key={s.id} className="integr-row">
+          <span className="integr-main">
+            {s.label}
+            <span className="integr-sub">
+              {s.current ? "this device · " : ""}since {when(s.createdAt)} · seen {when(s.lastSeenAt)}
+            </span>
+          </span>
+          {!s.current && (
+            <button className="ghost danger" title="Sign out this session" onClick={() => void end(s.id)}>
+              <IconX />
+            </button>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 

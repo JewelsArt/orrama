@@ -204,6 +204,16 @@ export const icsFeeds = sqliteTable("ics_feeds", {
   lastError: text("last_error"),
 });
 
+/** Sign-in sessions: a JWT is good only while its row here is (apps/server/src/sessions.ts). */
+export const sessions = sqliteTable("sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  label: text("label").notNull(),
+  createdAt: integer("created_at").notNull(),
+  lastSeenAt: integer("last_seen_at"),
+  revokedAt: integer("revoked_at"),
+});
+
 /** Personal API tokens (`bslt_…`) — stored as a hash, shown once on creation. */
 export const apiTokens = sqliteTable("api_tokens", {
   id: text("id").primaryKey(),

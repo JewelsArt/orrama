@@ -446,6 +446,13 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   and a crash in between leaves a note empty in the folder Obsidian has open.
   Because a save renames over the note, the watcher's `unlink` checks the file
   is really gone before dropping it.
+- **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
+  Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
+  auth hook and the live-sync socket refuse a token whose row is gone or
+  revoked. Sign-out (`POST /api/auth/logout`) revokes on the server, Settings
+  → Signed in revokes the others, and a revoked session's socket is closed at
+  once. Anything new that issues a session token goes through `signIn` in
+  `routes/auth.ts`. A token without a `sid` is refused.
 - **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one
   address inside 15 minutes → 429 until the oldest ages out, even for the
   right password. In memory; a restart clears it.

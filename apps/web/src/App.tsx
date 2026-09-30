@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Admin } from "./Admin.js";
-import { api, clearToken, lastEmail, type Me } from "./api.js";
+import { api, clearToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
@@ -139,6 +139,19 @@ export function App() {
     });
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
   }, [vision, profiles, theme]);
+
+  // The server ended this session (signed out elsewhere, or revoked in
+  // Settings on another device): drop it and show the sign-in screen.
+  useEffect(() => {
+    const ended = () => {
+      clearToken();
+      disconnectWs();
+      setMe(null);
+      setSettingsOpen(false);
+    };
+    window.addEventListener(SESSION_ENDED, ended);
+    return () => window.removeEventListener(SESSION_ENDED, ended);
+  }, []);
 
   useEffect(() => {
     // Both answers are needed before anything renders: a stored token might still
@@ -461,8 +474,8 @@ export function App() {
           onUpdate={setMe}
           onClose={() => setSettingsOpen(false)}
           onSignOut={() => {
-            clearToken();
             disconnectWs();
+            void signOut();
             setMe(null);
             setSettingsOpen(false);
           }}

@@ -8,6 +8,7 @@ import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
 import { canRead } from "@basalt/core";
 import type { Db } from "../db.js";
+import { sessionUser } from "../sessions.js";
 import type { NoteChangedEvent, VaultStore } from "../vaultStore.js";
 
 /** How long a new socket has to send its auth frame before it is closed. */
@@ -15,11 +16,22 @@ export const AUTH_TIMEOUT_MS = 5000;
 
 interface Client {
   userId: string;
+  sessionId: string;
   socket: WebSocket;
 }
 
-export async function wsRoutes(app: FastifyInstance, _db: Db, store: VaultStore) {
+export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const clients = new Set<Client>();
+
+  // A revoked session loses its live feed now, not at its next reconnect —
+  // an open socket kept receiving every note change it could read.
+  store.events.on("session-revoked", ({ sessionId }: { sessionId?: string }) => {
+    for (const client of clients) {
+      if (client.sessionId !== sessionId) continue;
+      clients.delete(client);
+      client.socket.close(4001, "session ended");
+    }
+  });
 
   const sendTo = (client: Client, payload: unknown) => {
     if (client.socket.readyState === 1) client.socket.send(JSON.stringify(payload));
@@ -67,9 +79,11 @@ export async function wsRoutes(app: FastifyInstance, _db: Db, store: VaultStore)
       if (!client) {
         if (msg.type !== "auth" || typeof msg.token !== "string") return refuse();
         try {
-          const { sub } = app.jwt.verify<{ sub: string }>(msg.token);
+          const payload = app.jwt.verify<{ sub?: unknown; sid?: unknown }>(msg.token);
+          const sub = sessionUser(db, payload); // a signed-out or revoked session is no token
+          if (!sub) return refuse();
           store.aclUser(sub); // a token for an account that no longer exists is no token
-          client = { userId: sub, socket };
+          client = { userId: sub, sessionId: payload.sid as string, socket };
         } catch {
           return refuse();
         }

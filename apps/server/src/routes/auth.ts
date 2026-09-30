@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { hash as argonHash, verify as argonVerify } from "@node-rs/argon2";
 import { and, eq, isNull } from "drizzle-orm";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
   generateAuthenticationOptions,
@@ -12,10 +12,15 @@ import {
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
+import { listSessions, openSession, revokeSession, SESSION_DAYS } from "../sessions.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
+  /** Every way in ends here: a session row, and a token that names it. */
+  const signIn = (userId: string, req: FastifyRequest) =>
+    app.jwt.sign({ sub: userId, sid: openSession(db, userId, req.headers["user-agent"]) }, { expiresIn: `${SESSION_DAYS}d` });
+
   app.post("/api/auth/register", async (req, reply) => {
     const body = registerSchema.parse(req.body);
     // Hash BEFORE deciding anything. The count used to be read, then the hash
@@ -60,7 +65,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     for (const teamId of teamIds) {
       db.insert(tables.memberships).values({ id: `m-${crypto.randomUUID().slice(0, 8)}`, userId: id, teamId }).run();
     }
-    const token = app.jwt.sign({ sub: id }, { expiresIn: "30d" });
+    const token = signIn(id, req);
     return reply.send({ token, user: publicUser(db, store, id) });
   });
 
@@ -88,7 +93,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+    const token = signIn(user.id, req);
     return reply.send({ token, user: publicUser(db, store, user.id) });
   });
 
@@ -204,7 +209,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+    const token = signIn(user.id, req);
     return reply.send({ token, user: publicUser(db, store, user.id) });
   });
 
@@ -328,7 +333,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ counter: result.authenticationInfo.newCounter, lastUsedAt: Date.now() })
       .where(eq(tables.webauthnCredentials.id, cred.id))
       .run();
-    const token = app.jwt.sign({ sub: cred.userId }, { expiresIn: "30d" });
+    const token = signIn(cred.userId, req);
     return reply.send({ token, user: publicUser(db, store, cred.userId) });
   });
 
@@ -347,6 +352,28 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const cred = db.select().from(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.id, id)).get();
     if (!cred || cred.userId !== req.userId) throw new HttpError(404, "not found");
     db.delete(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.id, id)).run();
+    return { ok: true };
+  });
+
+  // ---- sessions (sessions.ts) ----------------------------------------------
+
+  /** Sign out: this session ends on the server, not just in this browser. */
+  app.post("/api/auth/logout", { preHandler: [app.authenticate] }, async (req) => {
+    if (req.sessionId) revokeSession(db, req.userId, req.sessionId);
+    store.events.emit("session-revoked", { sessionId: req.sessionId });
+    return { ok: true };
+  });
+
+  /** Where you are signed in, for Settings. */
+  app.get("/api/auth/sessions", { preHandler: [app.authenticate] }, async (req) =>
+    listSessions(db, req.userId).map((s) => ({ id: s.id, label: s.label, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, current: s.id === req.sessionId })),
+  );
+
+  /** End one of your sessions — a lost phone, a borrowed laptop. */
+  app.delete("/api/auth/sessions/:id", { preHandler: [app.authenticate] }, async (req) => {
+    const { id } = req.params as { id: string };
+    if (!revokeSession(db, req.userId, id)) throw new HttpError(404, "not found");
+    store.events.emit("session-revoked", { sessionId: id });
     return { ok: true };
   });
 }

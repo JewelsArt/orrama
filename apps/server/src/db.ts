@@ -102,6 +102,11 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,
   created_at INTEGER NOT NULL, last_used_at INTEGER
 );
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
+  created_at INTEGER NOT NULL, last_seen_at INTEGER, revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
 -- One-shot data migrations that must not run twice (see migrations.ts).
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS webhooks (
@@ -116,8 +121,9 @@ CREATE TABLE IF NOT EXISTS webhooks (
  * PRAGMA user_version. A database from a NEWER build refuses to open, so a
  * rollback cannot quietly run over columns it has never heard of.
  *   1  — cal_note_id on task_blocks/events, the meta table (Sep 2026).
+ *   2  — sessions (Sep 2026).
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export function createDb(file = dbPath()) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
