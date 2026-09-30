@@ -253,6 +253,11 @@ async function main() {
     updatedAt: Date.now(),
   }).run();
 
+  // load() started a vault watcher. Left open, it kept `pnpm seed` from ever
+  // exiting, and inside a test process it kept a second, stale store alive
+  // that re-read the server's writes and logged them against its own
+  // seed-time doc — which corrupted the notes' Y.Doc history.
+  await store.close();
   console.log("seeded: jules/erin/mara @basalt.dev — password basalt-demo");
 }
 
