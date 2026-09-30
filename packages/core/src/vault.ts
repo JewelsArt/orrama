@@ -36,9 +36,17 @@ export interface ProjectDef {
  * In-memory index over a set of vault files. Deterministic: rebuilt from Markdown
  * alone it must reproduce every dashboard number (spec §6 "view over the vault").
  */
+/** Lower-case, accents off: "Résumé" and "resume" are the same search. */
+const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+const WORD_RE = /[\p{L}\p{N}]+/gu;
+
 export class VaultIndex {
   readonly notes = new Map<NoteId, IndexedNote>();
   private byPath = new Map<string, NoteId>();
+  /** Per note, folded once at index time for search: see `search`. */
+  private searchText = new Map<NoteId, { title: string; text: string; words: Map<string, number>; length: number }>();
+  /** How many notes contain each folded word — the idf half of the ranking. */
+  private docFreq = new Map<string, number>();
   private byTitle = new Map<string, NoteId>();
 
   constructor(files: VaultFile[] = []) {
@@ -60,6 +68,11 @@ export class VaultIndex {
     this.notes.set(note.id, note);
     this.byPath.set(note.path, note.id);
     this.registerTitles(note);
+    const text = fold(`${note.title}\n${note.content}`);
+    const words = new Map<string, number>();
+    for (const w of text.match(WORD_RE) ?? []) words.set(w, (words.get(w) ?? 0) + 1);
+    for (const w of words.keys()) this.docFreq.set(w, (this.docFreq.get(w) ?? 0) + 1);
+    this.searchText.set(note.id, { title: fold(note.title), text, words, length: [...words.values()].reduce((a, b) => a + b, 0) });
     return note;
   }
 
@@ -71,6 +84,12 @@ export class VaultIndex {
   private removeById(id: NoteId): void {
     const note = this.notes.get(id);
     if (!note) return;
+    for (const w of this.searchText.get(id)?.words.keys() ?? []) {
+      const n = (this.docFreq.get(w) ?? 1) - 1;
+      if (n > 0) this.docFreq.set(w, n);
+      else this.docFreq.delete(w);
+    }
+    this.searchText.delete(id);
     this.notes.delete(id);
     this.byPath.delete(note.path);
     for (const key of this.linkKeys(note)) {
@@ -227,17 +246,59 @@ export class VaultIndex {
     for (const token of query.trim().split(/\s+/).filter(Boolean)) {
       const m = /^(tag|path|task|assignee):(.*)$/.exec(token);
       if (m && m[2]) filters.push({ key: m[1]!, value: m[2].toLowerCase() });
-      else terms.push(token.toLowerCase());
+      else terms.push(fold(token));
     }
-    return notes.filter((note) => {
+    const hits = notes.filter((note) => {
       for (const f of filters) {
         if (f.key === "tag" && !note.tags.some((t) => t.tag === f.value || t.tag.startsWith(f.value + "/"))) return false;
         if (f.key === "path" && !note.path.toLowerCase().includes(f.value)) return false;
         if (f.key === "task" && !note.tasks.some((t) => t.text.toLowerCase().includes(f.value))) return false;
         if (f.key === "assignee" && !note.tasks.some((t) => t.assignee?.toLowerCase() === f.value)) return false;
       }
-      const haystack = (note.title + "\n" + note.content).toLowerCase();
-      return terms.every((t) => haystack.includes(t));
+      // Still "every term is in the note" — a substring, so mid-word matches
+      // keep working — but against text folded ONCE at index time.
+      const text = this.searchText.get(note.id)?.text ?? "";
+      return terms.every((t) => text.includes(t));
     });
+    if (terms.length === 0) return hits;
+    return this.rank(hits, terms);
   }
+
+  /**
+   * Best first: a term in the title outweighs any number of mentions, then a
+   * BM25-style score over whole words starting with each term. Unranked, the
+   * route's first-50 cut kept whatever came first in index order — a note with
+   * the word in its title could be dropped behind 50 passing mentions.
+   */
+  private rank(hits: IndexedNote[], terms: string[]): IndexedNote[] {
+    const n = this.notes.size;
+    const avg = [...this.searchText.values()].reduce((a, s) => a + s.length, 0) / Math.max(1, this.searchText.size);
+    const prefixDf = new Map<string, number>();
+    const df = (term: string) => {
+      let v = prefixDf.get(term);
+      if (v === undefined) {
+        v = 0;
+        for (const [w, c] of this.docFreq) if (w.startsWith(term)) v = Math.max(v, c);
+        prefixDf.set(term, v);
+      }
+      return v;
+    };
+    const score = (note: IndexedNote) => {
+      const st = this.searchText.get(note.id)!;
+      let total = 0;
+      for (const term of terms) {
+        if (st.title.includes(term)) total += 100;
+        let tf = 0;
+        for (const [w, c] of st.words) if (w.startsWith(term)) tf += c;
+        const idf = Math.log(1 + (n - df(term) + 0.5) / (df(term) + 0.5));
+        total += (idf * tf * 2.2) / (tf + 1.2 * (0.25 + (0.75 * st.length) / Math.max(1, avg)));
+      }
+      return total;
+    };
+    return hits
+      .map((note) => ({ note, s: score(note) }))
+      .sort((a, b) => b.s - a.s || (b.note.mtimeMs ?? 0) - (a.note.mtimeMs ?? 0))
+      .map((x) => x.note);
+  }
+
 }
