@@ -1,10 +1,10 @@
 # Basalt Desktop (Tauri 2 shell)
 
-Thin native shell around the same React app as `apps/web`, plus:
-
-- local vault folder as a real partial checkout (read/write via Tauri commands)
-- file watcher → external edits (e.g. Obsidian on the same folder) feed the CRDT
-- keychain storage for the auth token, tray quick-capture (planned)
+Thin native shell: a window on the local server (`http://localhost:4623`),
+which serves the same React app as `apps/web` and the API, same-origin. It has
+no Tauri commands and no plugins — file access, the vault watcher and sync all
+live in the server. `security.csp` mirrors the server's own policy so a
+Tauri-served page (`tauri dev`, `frontendDist`) is never without one.
 
 ## Build requirements
 

@@ -1,36 +1,15 @@
-use std::fs;
-use std::path::PathBuf;
-
-/// Read a note from the local vault checkout. The web UI running inside the shell
-/// calls this instead of HTTP when offline (offline-first, spec §10).
-#[tauri::command]
-fn read_vault_file(vault_root: String, rel_path: String) -> Result<String, String> {
-    let root = PathBuf::from(&vault_root);
-    let path = root.join(&rel_path);
-    // No traversal outside the vault, mirroring the server's path rules.
-    if !path.starts_with(&root) || rel_path.contains("..") {
-        return Err("invalid path".into());
-    }
-    fs::read_to_string(path).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn write_vault_file(vault_root: String, rel_path: String, content: String) -> Result<(), String> {
-    let root = PathBuf::from(&vault_root);
-    let path = root.join(&rel_path);
-    if !path.starts_with(&root) || rel_path.contains("..") {
-        return Err("invalid path".into());
-    }
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(path, content).map_err(|e| e.to_string())
-}
-
+/// The window, and nothing else.
+///
+/// The shell loads the running server (http://localhost:4623, which serves the
+/// app and the API same-origin), so it needs no commands of its own. It used to
+/// register `read_vault_file` / `write_vault_file`, which took the vault root
+/// FROM THE CALLER — anything able to invoke them could read or write any file
+/// on the Mac — and nothing in the app ever called them. Removed with the
+/// never-initialised fs/dialog plugins and the `notify` watcher; the server's
+/// watcher is the one that feeds outside edits into the CRDT.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_vault_file, write_vault_file])
         .run(tauri::generate_context!())
         .expect("error while running basalt");
 }
