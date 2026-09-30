@@ -110,6 +110,15 @@ export function initWebhooks(db: Db, store: VaultStore) {
     }
   });
 
+  // A note saved just before shutdown left its debounce timer running; it
+  // fired after the database closed and threw out of the timer (an uncaught
+  // "database connection is not open"). The delivery is dropped, not rushed
+  // out during shutdown.
+  store.events.once("closed", () => {
+    for (const t of pending.values()) clearTimeout(t);
+    pending.clear();
+  });
+
   store.events.on("task-completed", (e: TaskCompletedEvent) => {
     for (const hook of hooksFor("task.completed", e.noteId)) {
       void deliver(db, hook, {

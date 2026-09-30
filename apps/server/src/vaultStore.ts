@@ -202,12 +202,14 @@ export class VaultStore {
     this.syncProjectRow(note);
   }
 
-  /** Stop watching the vault. Called when the app closes. */
+  /** Stop watching the vault. Called when the app closes, before the database
+   *  is: "closed" tells listeners holding timers to drop them (webhooks.ts). */
   async close(): Promise<void> {
     for (const t of this.watchTimeouts.values()) clearTimeout(t);
     this.watchTimeouts.clear();
     await this.watcher?.close();
     this.watcher = null;
+    this.events.emit("closed");
   }
 
   private handleExternalChange(event: string, relPath: string, absPath: string) {
