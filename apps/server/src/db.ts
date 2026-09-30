@@ -111,10 +111,31 @@ CREATE TABLE IF NOT EXISTS webhooks (
 );
 `;
 
+/**
+ * Bumped whenever BOOTSTRAP or the ALTERs below change the schema; stored in
+ * PRAGMA user_version. A database from a NEWER build refuses to open, so a
+ * rollback cannot quietly run over columns it has never heard of.
+ *   1  — cal_note_id on task_blocks/events, the meta table (Sep 2026).
+ */
+export const SCHEMA_VERSION = 1;
+
 export function createDb(file = dbPath()) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const sqlite = new Database(file);
   sqlite.pragma("journal_mode = WAL");
+  // Wait for a lock instead of failing at once: the server, a `pnpm account`
+  // script and a backup can all hold this file. better-sqlite3 already
+  // defaults to 5 s (its `timeout` option); stated here so it is not lost if
+  // the driver or its options ever change. (Plain SQLite's default is 0.)
+  sqlite.pragma("busy_timeout = 5000");
+  const onDisk = Number(sqlite.pragma("user_version", { simple: true }));
+  if (onDisk > SCHEMA_VERSION) {
+    sqlite.close();
+    throw new Error(
+      `${file} was written by a newer Basalt (schema ${onDisk}; this build knows ${SCHEMA_VERSION}). ` +
+        "Running older code over it could drop what it does not know — update Basalt, or restore a backup.",
+    );
+  }
   sqlite.exec(BOOTSTRAP);
   // Additive migrations for existing volumes; ALTER is a no-op error when present.
   try {
@@ -171,6 +192,7 @@ export function createDb(file = dbPath()) {
       /* column exists */
     }
   }
+  sqlite.pragma(`user_version = ${SCHEMA_VERSION}`);
   return drizzle(sqlite, { schema: tables });
 }
 

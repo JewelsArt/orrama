@@ -428,7 +428,10 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   and every kept revision's text are unchanged (on the live DB in Sep 2026:
   417 rows → 161).
 - DB bootstraps from plain SQL in `apps/server/src/db.ts` (no drizzle-kit). Keep the
-  Drizzle table defs in `packages/schema/src/db.ts` in lockstep with it.
+  Drizzle table defs in `packages/schema/src/db.ts` in lockstep with it —
+  `test/schema.test.ts` fails on any column or table only one side has. A schema
+  change bumps `SCHEMA_VERSION` (stored in `PRAGMA user_version`); a database
+  stamped by a newer build refuses to open.
 - Task objects are keyed `(noteId, blockId)`; file wins on conflict; deleted lines
   orphan the object (surfaced on the dashboard, never auto-deleted).
 
