@@ -260,3 +260,57 @@ describe("one id, one path", () => {
     expect(index.search("plan").map((n) => n.id)).toEqual(["n-plan"]);
   });
 });
+
+describe("a link key several notes share", () => {
+  const note = (id: string, title?: string, aliases = "") =>
+    `---\nid: ${id}\n${title ? `title: ${title}\n` : ""}${aliases ? `aliases: [${aliases}]\n` : ""}---\n# body\n`;
+  const both = (a: { path: string; content: string }, b: { path: string; content: string }) => [new VaultIndex([a, b]), new VaultIndex([b, a])];
+
+  it("a filename beats a copy's title, whichever was indexed last", () => {
+    // The copy's path sorts after the original's, so only the rank decides.
+    const orig = { path: "Plans/Roadmap.md", content: note("n-orig", "Roadmap") };
+    const copy = { path: "Zeta/Roadmap 1.md", content: note("n-copy", "Roadmap") };
+    for (const index of both(orig, copy)) {
+      expect(index.resolveLink("Roadmap")?.id).toBe("n-orig");
+      index.upsert(copy); // re-indexing the copy does not take the link back
+      expect(index.resolveLink("Roadmap")?.id).toBe("n-orig");
+    }
+  });
+
+  it("removing the copy leaves the link to the original resolved", () => {
+    const index = new VaultIndex([
+      { path: "Plans/Roadmap.md", content: note("n-orig", "Roadmap") },
+      { path: "Plans/Roadmap 1.md", content: note("n-copy", "Roadmap") },
+    ]);
+    index.remove("Plans/Roadmap 1.md");
+    expect(index.resolveLink("Roadmap")?.id).toBe("n-orig");
+    index.remove("Plans/Roadmap.md");
+    expect(index.resolveLink("Roadmap")).toBeUndefined();
+  });
+
+  it("a title beats an alias", () => {
+    const titled = { path: "A/x.md", content: note("n-titled", "Scribe") };
+    const aliased = { path: "B/y.md", content: note("n-aliased", "Other", "Scribe") };
+    for (const index of both(titled, aliased)) expect(index.resolveLink("Scribe")?.id).toBe("n-titled");
+  });
+
+  it("within one rank, the greatest path — the same after any re-index", () => {
+    // The real vault's one case: [[Scooperz]] has meant the company card.
+    const agent = { path: "07-Claude/agents/scooperz.md", content: note("n-agent") };
+    const card = { path: "Contacts/Companies/Scooperz.md", content: note("n-card") };
+    for (const index of both(agent, card)) {
+      expect(index.resolveLink("Scooperz")?.id).toBe("n-card");
+      index.upsert(agent);
+      expect(index.resolveLink("Scooperz")?.id).toBe("n-card");
+    }
+  });
+
+  it("a full path still names exactly one note", () => {
+    const index = new VaultIndex([
+      { path: "07-Claude/agents/scooperz.md", content: note("n-agent") },
+      { path: "Contacts/Companies/Scooperz.md", content: note("n-card") },
+    ]);
+    expect(index.resolveLink("07-Claude/agents/scooperz")?.id).toBe("n-agent");
+    expect(index.resolveLink("Contacts/Companies/Scooperz.md")?.id).toBe("n-card");
+  });
+});

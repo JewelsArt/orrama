@@ -34,6 +34,7 @@ let built: Built;
 let token = "";
 let id = "";
 let otherId = "";
+let linkedFrom: string[] = [];
 const OTHER = "Engineering/Other.md";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const abs = (rel: string) => path.join(VAULT, rel);
@@ -64,6 +65,8 @@ const replay = (noteId: string) => {
 };
 const tree = async () => ((await api("GET", "/api/vault/tree")).json as { id: string; path: string }[]).map((n) => `${n.path} ${n.id}`);
 const row = (noteId: string) => built.db.select().from(tables.notes).where(eq(tables.notes.id, noteId)).get();
+const backlinks = async () =>
+  ((await api("GET", `/api/vault/note/${id}`)).json?.backlinks as { fromPath: string }[] | undefined)?.map((b) => b.fromPath).sort() ?? [];
 const objects = (noteId: string) => built.db.select().from(tables.taskObjects).where(eq(tables.taskObjects.noteId, noteId)).all();
 
 /** Everything that says ORIG is note `id`, intact. */
@@ -78,6 +81,9 @@ async function originalIntact() {
   expect(objs).toHaveLength(2);
   expect(objs.every((o) => o.status !== "orphaned")).toBe(true);
   expect(replay(id)).toBe(read(ORIG));
+  // Links: the copies carry `title: Atlas Roadmap` too; the filename wins.
+  expect(built.store.index.resolveLink("Atlas Roadmap")?.id).toBe(id);
+  expect(await backlinks()).toEqual(linkedFrom);
   const blocks = built.db.select().from(tables.taskBlocks).all();
   expect(blocks.map((b) => objs.some((o) => o.id === b.taskObjectId))).toEqual([true]);
 }
@@ -106,6 +112,8 @@ beforeAll(async () => {
     expect((await api("PUT", "/api/vault/note", { path: ORIG, content: `${built.store.index.get(id)!.content}\n${extra}\n` })).status).toBe(200);
   }
   await sleep(500);
+  linkedFrom = await backlinks();
+  expect(linkedFrom.length).toBeGreaterThanOrEqual(5);
   await originalIntact();
 });
 
@@ -172,7 +180,7 @@ describe("a new note written through Basalt with another note's id", () => {
 
 describe("a copy made while the server is down", () => {
   const EARLY = "Aardvark/Atlas Roadmap.md"; // walked before the original
-  const LATE = "Zeta/Atlas Roadmap.md"; // walked after it — it used to take the id over
+  const LATE = "Zeta/Atlas Roadmap (conflicted copy).md"; // walked after it — it used to take the id over
 
   it("each copy gets its own id at boot, wherever the walk meets it", async () => {
     await built.app.close();

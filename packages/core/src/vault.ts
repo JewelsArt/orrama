@@ -47,7 +47,14 @@ export class VaultIndex {
   private searchText = new Map<NoteId, { title: string; text: string; words: Map<string, number>; length: number }>();
   /** How many notes contain each folded word — the idf half of the ranking. */
   private docFreq = new Map<string, number>();
-  private byTitle = new Map<string, NoteId>();
+  /**
+   * Link key (lower-cased) → every note it can name, with how strongly (see
+   * linkKeys). It was one note per key, last writer wins: a copy whose
+   * `title:` matched another note's filename took over every link to that
+   * note, re-indexing either one flipped them back and forth, and removing
+   * the one holding the key left the link to the other unresolved.
+   */
+  private byKey = new Map<string, Map<NoteId, number>>();
 
   constructor(files: VaultFile[] = []) {
     for (const f of files) this.upsert(f);
@@ -100,19 +107,61 @@ export class VaultIndex {
     this.searchText.delete(id);
     this.notes.delete(id);
     this.byPath.delete(note.path);
-    for (const key of this.linkKeys(note)) {
-      if (this.byTitle.get(key.toLowerCase()) === id) this.byTitle.delete(key.toLowerCase());
+    for (const [key] of this.linkKeys(note)) {
+      const holders = this.byKey.get(key);
+      holders?.delete(id);
+      if (holders?.size === 0) this.byKey.delete(key);
     }
   }
 
-  /** Every string a link may legitimately use to mean this note. */
-  private linkKeys(note: IndexedNote): string[] {
-    const noExt = note.path.replace(/\.md$/i, "");
-    return [note.title, ...note.aliases, titleFromPath(note.path), noExt, note.path];
+  /**
+   * Every string a link may legitimately use to mean this note, lower-cased,
+   * with its rank — lower is stronger: the vault path, then the filename (what
+   * Obsidian resolves a link by), then the title, then an alias. A string
+   * that is several of these for one note keeps its strongest.
+   */
+  private linkKeys(note: IndexedNote): Map<string, number> {
+    const keys = new Map<string, number>();
+    const add = (k: string, rank: number) => {
+      const key = k.toLowerCase();
+      keys.set(key, Math.min(rank, keys.get(key) ?? rank));
+    };
+    add(note.path, 0);
+    add(note.path.replace(/\.md$/i, ""), 0);
+    add(titleFromPath(note.path), 1);
+    add(note.title, 2);
+    for (const a of note.aliases) add(a, 3);
+    return keys;
   }
 
   private registerTitles(note: IndexedNote): void {
-    for (const key of this.linkKeys(note)) this.byTitle.set(key.toLowerCase(), note.id);
+    for (const [key, rank] of this.linkKeys(note)) {
+      let holders = this.byKey.get(key);
+      if (!holders) this.byKey.set(key, (holders = new Map()));
+      holders.set(note.id, rank);
+    }
+  }
+
+  /**
+   * The note a key names: the strongest rank wins; within a rank, the
+   * greatest path in code-unit order. That tie-break is arbitrary but fixed —
+   * it is what the boot walk used to leave in place (on the real vault in Sep
+   * 2026, [[Scooperz]] stays Contacts/Companies/Scooperz.md, not the agent
+   * note in 07-Claude/agents/) — and it no longer depends on which note
+   * happened to be indexed last.
+   */
+  private byLinkKey(key: string): IndexedNote | undefined {
+    let best: IndexedNote | undefined;
+    let bestRank = Infinity;
+    for (const [id, rank] of this.byKey.get(key) ?? []) {
+      const note = this.notes.get(id);
+      if (!note) continue;
+      if (rank < bestRank || (rank === bestRank && best && note.path > best.path)) {
+        best = note;
+        bestRank = rank;
+      }
+    }
+    return best;
   }
 
   get(id: NoteId): IndexedNote | undefined {
@@ -141,8 +190,8 @@ export class VaultIndex {
     key = key.replace(/^\.\//, "").replace(/\/+$/, "");
     const tries = [key, key.replace(/\.md$/i, "")];
     for (const t of tries) {
-      const id = this.byTitle.get(t.toLowerCase());
-      if (id) return this.notes.get(id);
+      const note = this.byLinkKey(t.toLowerCase());
+      if (note) return note;
     }
     return undefined;
   }

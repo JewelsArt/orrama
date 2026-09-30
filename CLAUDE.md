@@ -494,7 +494,10 @@ layer adds ~319 edges — most of the density is tags, not links. Hence the "Tag
 as nodes" switch in the graph panel, built client-side from the `tags` each node
 already carries. Links themselves are parsed from `[[wiki]]` *and* markdown
 `[text](note.md)` form, and resolve by title, alias, filename, or vault path
-(with or without `.md`, `%20`-decoded).
+(with or without `.md`, `%20`-decoded). When notes share a key, the strongest
+kind wins — path, then filename, then title, then alias — and within one kind
+the greatest path; which note was indexed last never matters (a copy's
+`title:` used to take over links to its original).
 
 The map (`GraphCanvas`) is a live d3-force graph on canvas, Obsidian-style:
 repulsion + `forceCollide` (nodes never overlap), link springs, drag a node to
