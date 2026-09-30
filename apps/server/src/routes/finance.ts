@@ -55,6 +55,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { writeFileAtomic } from "../atomicWrite.js";
 
 export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } as const;
 
@@ -1022,7 +1023,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     fs.mkdirSync(dir, { recursive: true });
     const abs = path.join(dir, name);
     if (path.dirname(abs) !== dir) throw new HttpError(400, "invalid filename");
-    fs.writeFileSync(abs, data);
+    writeFileAtomic(abs, data);
 
     if (!name.toLowerCase().endsWith(".pdf")) return { ok: true, name, parsed: null, filed: false };
 

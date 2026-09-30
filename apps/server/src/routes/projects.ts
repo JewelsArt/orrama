@@ -14,6 +14,7 @@ import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { writeFileAtomic } from "../atomicWrite.js";
 
 export const PROJECTS_DIR = "04-Projects";
 export const DOMAINS = ["personal", "professional", "academic"] as const;
@@ -402,9 +403,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     }
     const abs = boardPath(req.params.slug);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    const tmp = `${abs}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(board, null, 2) + "\n");
-    fs.renameSync(tmp, abs);
+    writeFileAtomic(abs, JSON.stringify(board, null, 2) + "\n");
     return board;
   });
 
@@ -501,7 +500,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       fs.mkdirSync(dir, { recursive: true });
       const abs = path.join(dir, name);
       if (path.dirname(abs) !== dir) throw new HttpError(400, "invalid filename");
-      fs.writeFileSync(abs, data);
+      writeFileAtomic(abs, data);
       return { ok: true, name, size: data.length };
     },
   );

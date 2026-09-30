@@ -32,6 +32,7 @@ import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, u
 import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
+import { writeFileAtomic } from "./atomicWrite.js";
 
 export const hash = (s: string) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
 
@@ -287,7 +288,7 @@ export class VaultStore {
       const stamped = this.restamp(rel, content, file.id!, reassign.owner, reassign.id);
       if (stamped === null) return;
       content = stamped;
-      fs.writeFileSync(abs, content);
+      writeFileAtomic(abs, content);
     }
     const parsed = parseNote(content, titleFromPath(rel));
     if (!parsed.id) {
@@ -301,7 +302,7 @@ export class VaultStore {
         console.warn(`[vault] ${rel}: front matter does not parse — indexed without stamping an id. Fix the YAML (an unquoted colon is the usual cause).`);
       } else {
         content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-        fs.writeFileSync(abs, content);
+        writeFileAtomic(abs, content);
       }
     }
     const mtimeMs = fs.statSync(abs).mtimeMs;
@@ -320,7 +321,7 @@ export class VaultStore {
     this.events.emit("closed");
   }
 
-  private handleExternalChange(event: string, relPath: string, absPath: string) {
+  private handleExternalChange(event: string, relPath: string, absPath: string): void {
     if (event === "add" || event === "change") {
       try {
         if (!fs.existsSync(absPath)) return;
@@ -340,6 +341,11 @@ export class VaultStore {
         console.error("Error handling external change", err);
       }
     } else if (event === "unlink") {
+      // A save that replaces the file (ours are atomic: temp file, then rename;
+      // some editors do the same) can reach us as unlink + add, and the two
+      // share one debounce, so the unlink may be the one that fires. The file
+      // is still there: it changed, it did not go.
+      if (fs.existsSync(absPath)) return this.handleExternalChange("change", relPath, absPath);
       const existing = this.index.getByPath(relPath);
       if (existing) {
         this.index.remove(relPath);
@@ -368,7 +374,7 @@ export class VaultStore {
       if (stamped === null) return;
       content = stamped;
       this.markWritten(relPath, content);
-      fs.writeFileSync(absPath, content);
+      writeFileAtomic(absPath, content);
     } else if (!parsed.id) {
       // Same rule as load(): never rewrite a note whose front matter we
       // could not read. This path fires on every watcher event, so without
@@ -378,7 +384,7 @@ export class VaultStore {
       } else {
         content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
         this.markWritten(relPath, content);
-        fs.writeFileSync(absPath, content);
+        writeFileAtomic(absPath, content);
       }
     }
     
@@ -715,7 +721,7 @@ export class VaultStore {
 
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     this.markWritten(relPath, finalContent);
-    fs.writeFileSync(abs, finalContent);
+    writeFileAtomic(abs, finalContent);
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
     if (!existing) this.recordContent(note.id, finalContent, user.id);
     this.syncNoteRow(note);

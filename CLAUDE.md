@@ -439,6 +439,13 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   write to your calendar note). Comments stay at read.
 - **Finance files follow the folder ACL** of `02-Areas/finance/files`, like the
   notes beside them (`canReadFinanceFiles`); uploads need edit.
+- **Files in the vault are replaced, never rewritten in place**
+  (`writeFileAtomic`, `apps/server/src/atomicWrite.ts`): a hidden temp file in
+  the same folder, fsync, rename. Anything new that writes into the vault
+  (notes, uploads, boards) uses it — a bare `fs.writeFileSync` truncates first,
+  and a crash in between leaves a note empty in the folder Obsidian has open.
+  Because a save renames over the note, the watcher's `unlink` checks the file
+  is really gone before dropping it.
 - **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one
   address inside 15 minutes → 429 until the oldest ages out, even for the
   right password. In memory; a restart clears it.
