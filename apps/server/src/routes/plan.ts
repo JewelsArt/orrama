@@ -10,7 +10,8 @@ import type { FastifyInstance } from "fastify";
 import { canEdit, isoLocal } from "@basalt/core";
 import type { AclUser, VaultTask } from "@basalt/core";
 import { tables, type Db } from "../db.js";
-import { decryptSecret } from "../secrets.js";
+import { generateText } from "ai";
+import { aiConfig, resolveModel, type AiConfig } from "../aiProvider.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -26,26 +27,25 @@ const AI_TIMEOUT_MS = Number(process.env.BASALT_PLAN_AI_TIMEOUT_MS ?? 8000);
 const AI_CACHE_MS = 6 * 60 * 60 * 1000;
 const aiCache = new Map<string, { at: number; hours: number[] }>();
 
-/** Focused-hour estimates for a numbered task listing: cached, and bounded in time. */
-async function estimatesFor(apiKey: string, model: string, listing: string): Promise<number[]> {
-  const key = crypto.createHash("sha256").update(`${model}\n${listing}`).digest("hex");
+/**
+ * Focused-hour estimates for a numbered task listing: cached, bounded in time,
+ * and asked of whichever provider the workspace is configured for.
+ */
+async function estimatesFor(c: AiConfig, listing: string): Promise<number[]> {
+  const key = crypto.createHash("sha256").update(`${c.provider}\n${c.baseUrl ?? ""}\n${c.model}\n${listing}`).digest("hex");
   const hit = aiCache.get(key);
   if (hit && Date.now() - hit.at < AI_CACHE_MS) return hit.hours;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
-    headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({
-      model,
-      max_tokens: 1000,
-      system:
-        "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
-      messages: [{ role: "user", content: listing }],
-    }),
+  const { text } = await generateText({
+    model: await resolveModel(c),
+    system:
+      "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
+    prompt: listing,
+    maxOutputTokens: 1000,
+    // The abort signal bounds the call either way; the SDK's default two
+    // retries (≈6s of back-off on a 500) would only spend it, and pay twice.
+    maxRetries: 0,
+    abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`estimates: HTTP ${res.status}`);
-  const data = (await res.json()) as { content: { type: string; text?: string }[] };
-  const text = data.content.find((b) => b.type === "text")?.text ?? "";
   const hours = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as number[];
   if (!Array.isArray(hours)) throw new Error("estimates: not an array");
   aiCache.set(key, { at: Date.now(), hours });
@@ -135,14 +135,14 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
     const estimates = new Map<string, number>();
     for (const t of open) estimates.set(`${t.noteId}:${t.line}`, heuristicEstimate(t));
 
-    const ws = db.select().from(tables.workspace).all()[0];
+    const ai = aiConfig(db);
     let source: "heuristic" | "ai" = "heuristic";
-    if (ws?.aiProvider === "anthropic" && ws.aiKeyEncrypted && ws.aiModel && open.length > 0) {
+    if (ai && open.length > 0) {
       try {
         const listing = open
           .map((t, i) => `${i}. [${t.priority ? "p" + t.priority : "p?"}] ${t.text} (project: ${t.project})`)
           .join("\n");
-        const hours = await estimatesFor(decryptSecret(ws.aiKeyEncrypted), ws.aiModel, listing);
+        const hours = await estimatesFor(ai, listing);
         if (hours.length === open.length) {
           open.forEach((t, i) => {
             const h = Number(hours[i]);

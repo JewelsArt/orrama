@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-access-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
@@ -161,7 +161,21 @@ describe("Touch ID origin", () => {
   });
 });
 
+/** A provider's reply carrying `hours` for however many tasks the request listed. */
+function providerReply(url: string, body: string): Response {
+  const req = JSON.parse(body);
+  const prompt: string =
+    typeof req.messages?.[0]?.content === "string" ? req.messages[0].content : req.messages?.[0]?.content?.[0]?.text ?? req.contents?.[0]?.parts?.[0]?.text ?? "";
+  const answer = JSON.stringify(Array(prompt.split("\n").length).fill(3));
+  if (url.includes("generativelanguage.googleapis.com")) {
+    return Response.json({ candidates: [{ content: { role: "model", parts: [{ text: answer }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 } });
+  }
+  return Response.json({ id: "msg_1", type: "message", role: "assistant", model: "test-model", content: [{ type: "text", text: answer }], stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } });
+}
+
 describe("Planning's AI estimates", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("give up on a hung connection and fall back to the heuristic", async () => {
     expect((await call("jules", "POST", "/api/admin/ai", { provider: "anthropic", model: "test-model", apiKey: "sk-test-0123456789" })).status).toBe(200);
     // Never answers; only the abort signal can end it.
@@ -170,17 +184,42 @@ describe("Planning's AI estimates", () => {
     const started = Date.now();
     const plan = await call("jules", "GET", "/api/plan");
     expect(plan.status).toBe(200);
+    expect(plan.body.source).toBe("heuristic");
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
   it("ask once for the same open tasks, not on every page load", async () => {
-    const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
-      const n = (JSON.parse(init.body).messages[0].content as string).split("\n").length;
-      return new Response(JSON.stringify({ content: [{ type: "text", text: JSON.stringify(Array(n).fill(3)) }] }), { status: 200 });
-    });
+    const fetchMock = vi.fn(async (url: string, init: { body: string }) => providerReply(String(url), init.body));
     vi.stubGlobal("fetch", fetchMock);
+    const first = await call("jules", "GET", "/api/plan");
     await call("jules", "GET", "/api/plan");
-    await call("jules", "GET", "/api/plan");
+    expect(first.body.source).toBe("ai");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("ask the provider the workspace is configured for, not Anthropic", async () => {
+    // Gemini: the estimate used to be skipped outright unless the provider was Anthropic.
+    expect((await call("jules", "POST", "/api/admin/ai", { provider: "google", model: "gemini-2.5-flash", apiKey: "g-test-0123456789" })).status).toBe(200);
+    const google = vi.fn(async (url: string, init: { body: string }) => providerReply(String(url), init.body));
+    vi.stubGlobal("fetch", google);
+    const plan = await call("jules", "GET", "/api/plan");
+    expect(plan.body.source).toBe("ai");
+    expect(google).toHaveBeenCalledTimes(1);
+    expect(String(google.mock.calls[0]![0])).toContain("generativelanguage.googleapis.com");
+    expect(String(google.mock.calls[0]![0])).toContain("gemini-2.5-flash");
+
+    // An OpenAI-compatible endpoint: the request goes to ITS base URL.
+    expect((await call("jules", "POST", "/api/admin/ai", { provider: "openai-compatible", model: "local-model", apiKey: "sk-local-0123456789", baseUrl: "https://llm.example.test/v1" })).status).toBe(200);
+    const local = vi.fn(async () => new Response("{}", { status: 500 }));
+    vi.stubGlobal("fetch", local);
+    const planLocal = await call("jules", "GET", "/api/plan");
+    expect(planLocal.status).toBe(200); // a failing provider still plans, heuristically
+    expect(planLocal.body.source).toBe("heuristic");
+    expect(local.mock.calls.length).toBeGreaterThan(0);
+    for (const [url] of local.mock.calls as unknown as [string][]) {
+      expect(String(url)).toMatch(/^https:\/\/llm\.example\.test\/v1\//);
+      expect(String(url)).not.toContain("anthropic.com");
+    }
+  });
 });
+
