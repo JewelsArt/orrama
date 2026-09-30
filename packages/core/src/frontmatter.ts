@@ -68,8 +68,28 @@ export function updateFrontmatter(
   content: string,
   update: (data: Record<string, unknown>) => Record<string, unknown>,
 ): string {
-  const { data, bodyStart, malformed } = parseFrontmatter(content);
+  const { data, bodyStart, malformed, raw } = parseFrontmatter(content);
   if (malformed) return content;
   const body = content.split("\n").slice(bodyStart).join("\n");
-  return withFrontmatter(update({ ...data }), body);
+  const next = update({ ...data });
+  if (bodyStart === 0) return withFrontmatter(next, body);
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  // Nothing to change: leave the file exactly as written, spacing and all.
+  if (same(Object.keys(data), Object.keys(next)) && Object.keys(data).every((k) => same(data[k], next[k]))) return content;
+
+  // Edit the parsed document rather than re-serialising the data: a comment,
+  // a quoted value or a blank line the user wrote survives a key being stamped
+  // (every note gets `id:` on first index) or a status being set. The old
+  // YAML.stringify(data) dropped every `# comment` in the block.
+  const doc = YAML.parseDocument(raw);
+  if (!YAML.isMap(doc.contents)) return withFrontmatter(next, body);
+  for (const key of Object.keys(data)) if (!(key in next)) doc.delete(key);
+  for (const [key, value] of Object.entries(next)) if (!(key in data) || !same(data[key], value)) doc.set(key, value);
+  // New keys go where the updater put them — `{ id, ...d }` means id first.
+  const order = Object.keys(next);
+  const map = doc.contents as YAML.YAMLMap;
+  const keyOf = (p: YAML.Pair) => String(YAML.isScalar(p.key) ? p.key.value : p.key);
+  map.items.sort((a, b) => order.indexOf(keyOf(a as YAML.Pair)) - order.indexOf(keyOf(b as YAML.Pair)));
+  if (map.items.length === 0) return body;
+  return `${FENCE}\n${doc.toString().trimEnd()}\n${FENCE}\n${body}`;
 }
