@@ -84,6 +84,13 @@ export class VaultStore {
   private inFlightWrites = new Map<string, string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private watcher: FSWatcher | null = null;
+  /**
+   * Settles once the watcher is attached to every folder. load() returns
+   * before that: chokidar walks the tree asynchronously, and a file written
+   * in between raised no event at all — an Obsidian save in the first moments
+   * after a restart was never indexed. buildServer() waits on this.
+   */
+  watching: Promise<void> = Promise.resolve();
 
   /** Cheap content fingerprint for the echo check above. */
   private static digest(content: string): string {
@@ -154,7 +161,7 @@ export class VaultStore {
       }
     }
 
-    this.watcher = chokidar.watch(this.root, {
+    const watcher = chokidar.watch(this.root, {
       ignored: (filePath: string, stats?: fs.Stats) => {
         const basename = path.basename(filePath);
         if (basename.startsWith(".")) return true;
@@ -176,6 +183,16 @@ export class VaultStore {
         this.handleExternalChange(event, relPath, absPath);
       }, 300));
     });
+    // Without a listener, chokidar's "error" (EACCES on a folder or file the
+    // server may not read) is thrown inside its own walk: an unhandled
+    // rejection, which ends a Node process — under launchd's KeepAlive, a
+    // crash loop, from the folder load() had already skipped politely. It
+    // also left "ready" unfired, so boot waited forever.
+    watcher.on("error", (err) => {
+      console.error(`[vault] watcher: ${err instanceof Error ? err.message : String(err)} — that path is not watched`);
+    });
+    this.watcher = watcher;
+    this.watching = new Promise((resolve) => watcher.once("ready", () => resolve()));
   }
 
   /** Index one file at boot, stamping an id if it has none. */

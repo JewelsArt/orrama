@@ -56,6 +56,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   }
   const store = new VaultStore(db);
   store.load();
+  await store.watching;
   const calendar = new CalendarNotes(db, store);
   runDataMigrations(db, store, calendar);
   store.reconcileAll();
