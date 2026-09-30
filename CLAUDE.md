@@ -186,6 +186,17 @@ on the note id), and it means pointing Basalt at a fresh vault modifies every
 file in it once. `scripts/merge-vaults.mjs` is the one-off that folded Basalt's
 old copy into the Obsidian vault (newest-wins per file, carrying ids across).
 
+**One id, one file.** A note copied outside Basalt (Obsidian's "Make a copy",
+Finder's Duplicate, `cp`, a sync conflict copy) carries the original's id. The
+file that already owns the id keeps it; the copy is given its own, stamped into
+its front matter and logged (`[vault] X 1.md: carries note id …`). Live, the
+owner is the file the index holds under that id, if it is still on disk with
+it — otherwise the newcomer is that note renamed, and keeps the id. At boot the
+notes table's path wins, then the file created first, then the older mtime,
+then path order (`apps/server/src/noteIds.ts`); a path that was overwritten by
+a copy gets its old id back. `VaultIndex.upsert` holds one path per id, so a
+stale path can never delete the note it used to name.
+
 ## The Finance area
 
 `Finance.tsx` (web) + `routes/finance.ts` (server) + four core modules

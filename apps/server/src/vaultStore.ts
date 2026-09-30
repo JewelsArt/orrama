@@ -31,6 +31,7 @@ import {
 import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, updateDocContent } from "@basalt/sync";
 import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
+import { carriedId, chooseIdOwner } from "./noteIds.js";
 
 export const hash = (s: string) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
 
@@ -47,6 +48,16 @@ export interface NoteChangedEvent {
   noteId: string;
   path: string;
   authorId: string | null;
+}
+
+/** One vault file as boot reads it, before anything is indexed. */
+interface BootFile {
+  abs: string;
+  rel: string;
+  content: string;
+  id: string | undefined;
+  birthtimeMs: number;
+  mtimeMs: number;
 }
 
 export class VaultStore {
@@ -148,16 +159,31 @@ export class VaultStore {
         if (e.isDirectory()) return walk(full);
         return e.name.toLowerCase().endsWith(".md") ? [full] : [];
       });
+    // One file must not be able to stop the server booting. Under launchd's
+    // KeepAlive a throw here is not an error page, it is a crash loop: the
+    // agent restarts, meets the same file, and the whole app is down until
+    // someone edits the database by hand. Skip it, loudly, and boot.
+    const skip = (rel: string, err: unknown) =>
+      console.error(`[vault] ${rel}: skipped at boot — ${err instanceof Error ? err.message : String(err)}`);
+    // Read everything first: which of two files carrying one id keeps it is
+    // decided over the whole vault, not by whichever the walk reached last.
+    const files: BootFile[] = [];
     for (const abs of walk(this.root)) {
       const rel = path.relative(this.root, abs).split(path.sep).join("/");
-      // One file must not be able to stop the server booting. Under launchd's
-      // KeepAlive a throw here is not an error page, it is a crash loop: the
-      // agent restarts, meets the same file, and the whole app is down until
-      // someone edits the database by hand. Skip it, loudly, and boot.
       try {
-        this.loadOne(abs, rel);
+        const content = fs.readFileSync(abs, "utf8");
+        const stat = fs.statSync(abs);
+        files.push({ abs, rel, content, id: carriedId(content), birthtimeMs: stat.birthtimeMs, mtimeMs: stat.mtimeMs });
       } catch (err) {
-        console.error(`[vault] ${rel}: skipped at boot — ${err instanceof Error ? err.message : String(err)}`);
+        skip(rel, err);
+      }
+    }
+    const reassigned = this.settleDuplicateIds(files);
+    for (const f of files) {
+      try {
+        this.loadOne(f, reassigned.get(f.rel));
+      } catch (err) {
+        skip(f.rel, err);
       }
     }
 
@@ -195,9 +221,74 @@ export class VaultStore {
     this.watching = new Promise((resolve) => watcher.once("ready", () => resolve()));
   }
 
-  /** Index one file at boot, stamping an id if it has none. */
-  private loadOne(abs: string, rel: string): void {
-    let content = fs.readFileSync(abs, "utf8");
+  /**
+   * Boot: of several files carrying one id, which keeps it (noteIds.ts), and
+   * what each of the others is given instead — the id the notes table has
+   * for its own path, when no file claims that id (a note overwritten by a
+   * copy of another keeps being itself), else a fresh one.
+   */
+  private settleDuplicateIds(files: BootFile[]): Map<string, { id: string; owner: string }> {
+    const byId = new Map<string, BootFile[]>();
+    for (const f of files) if (f.id) byId.set(f.id, [...(byId.get(f.id) ?? []), f]);
+    const out = new Map<string, { id: string; owner: string }>();
+    const taken = new Set(byId.keys());
+    for (const [id, group] of byId) {
+      if (group.length < 2) continue;
+      const known = this.db.select({ path: tables.notes.path }).from(tables.notes).where(eq(tables.notes.id, id)).get()?.path;
+      const owner = chooseIdOwner(group, known);
+      for (const f of group) {
+        if (f === owner) continue;
+        const own = this.db.select({ id: tables.notes.id }).from(tables.notes).where(eq(tables.notes.path, f.rel)).get()?.id;
+        const next = own && !taken.has(own) ? own : generateNoteId();
+        taken.add(next);
+        out.set(f.rel, { id: next, owner: owner.rel });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * A copy's content with its own id stamped in, logged loudly — or null when
+   * it cannot be stamped. (Front matter that does not parse carries no id, so
+   * a file here always has some; the check is the backstop.)
+   */
+  private restamp(rel: string, content: string, id: string, ownerPath: string, next: string): string | null {
+    const stamped = updateFrontmatter(content, (d) => ({ ...d, id: next }));
+    if (carriedId(stamped) !== next) {
+      console.error(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath}, and its front matter could not be given a new one — not indexed. Change or remove its id: line.`);
+      return null;
+    }
+    console.warn(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath} (a copy made outside Basalt?) — gave it its own id ${next}.`);
+    return stamped;
+  }
+
+  /**
+   * The note the index holds under `id`, when it lives at another path and
+   * its file is still there with that id — i.e. `rel` holding the same id is
+   * a copy. When that file is gone or says otherwise, `rel` is the same note
+   * renamed outside Basalt (its unlink not processed yet), and keeps the id.
+   */
+  private ownerElsewhere(id: string, rel: string): IndexedNote | undefined {
+    const holder = this.index.get(id);
+    if (!holder || holder.path === rel) return undefined;
+    try {
+      return carriedId(fs.readFileSync(path.join(this.root, holder.path), "utf8")) === id ? holder : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Index one file at boot, stamping an id if it has none, or its own if it
+   *  carried another file's (settleDuplicateIds). */
+  private loadOne(file: BootFile, reassign: { id: string; owner: string } | undefined): void {
+    const { abs, rel } = file;
+    let content = file.content;
+    if (reassign) {
+      const stamped = this.restamp(rel, content, file.id!, reassign.owner, reassign.id);
+      if (stamped === null) return;
+      content = stamped;
+      fs.writeFileSync(abs, content);
+    }
     const parsed = parseNote(content, titleFromPath(rel));
     if (!parsed.id) {
       // Stamping an id means rewriting the file from its parsed front matter.
@@ -268,7 +359,17 @@ export class VaultStore {
    */
   private ingest(relPath: string, absPath: string, content: string): void {
     const parsed = parseNote(content, titleFromPath(relPath));
-    if (!parsed.id) {
+    const owner = parsed.id ? this.ownerElsewhere(parsed.id, relPath) : undefined;
+    if (owner) {
+      // A copy of another note. It becomes a note of its own; if this path
+      // already was one (`cp A.md B.md` over B), it stays that note.
+      const own = this.index.getByPath(relPath)?.id;
+      const stamped = this.restamp(relPath, content, parsed.id!, owner.path, own ?? generateNoteId());
+      if (stamped === null) return;
+      content = stamped;
+      this.markWritten(relPath, content);
+      fs.writeFileSync(absPath, content);
+    } else if (!parsed.id) {
       // Same rule as load(): never rewrite a note whose front matter we
       // could not read. This path fires on every watcher event, so without
       // the guard one bad note is re-stamped — and re-flattened — forever.
@@ -284,17 +385,18 @@ export class VaultStore {
     const existing = this.index.getByPath(relPath);
     const mtimeMs = fs.statSync(absPath).mtimeMs;
     const note = this.index.upsert({ path: relPath, content, mtimeMs });
-    
-    if (existing) {
+
+    if (existing && existing.id !== note.id) {
+      // The file at this path now says it is a different note (its id was
+      // edited, or it was replaced by a renamed note). The edit belongs to the
+      // old note's history as it always did.
       const doc = this.doc(existing.id);
       const update = updateDocContent(doc, content);
       if (update) this.logUpdate(existing.id, update, null);
     } else {
-      const doc = createNoteDoc(content);
-      this.cacheDoc(note.id, doc);
-      this.logUpdate(note.id, encodeStateB64(doc), null);
+      this.recordContent(note.id, content, null);
     }
-    
+
     this.syncNoteRow(note);
     this.syncProjectRow(note);
     this.reconcileTaskObjects(note);
@@ -385,6 +487,28 @@ export class VaultStore {
 
   private logUpdate(noteId: string, update: string, authorId: string | null): void {
     this.db.insert(tables.ydocUpdates).values({ noteId, update, authorId, createdAt: Date.now() }).run();
+  }
+
+  /**
+   * Bring a note's doc to `content` and record the change. Only a note with
+   * no doc and no history starts a new doc. Starting one for a note that had
+   * history — a note renamed outside Basalt, or deleted and put back — logged
+   * a second, independent doc under the same id, and every replay after that
+   * held the whole note twice.
+   */
+  private recordContent(noteId: string, content: string, authorId: string | null): void {
+    const known =
+      this.docs.has(noteId) ||
+      !!this.db.select({ id: tables.ydocUpdates.id }).from(tables.ydocUpdates).where(eq(tables.ydocUpdates.noteId, noteId)).limit(1).get();
+    if (!known) {
+      const doc = createNoteDoc(content);
+      this.cacheDoc(noteId, doc);
+      this.logUpdate(noteId, encodeStateB64(doc), authorId);
+      return;
+    }
+    const doc = this.doc(noteId);
+    const update = updateDocContent(doc, content, authorId ?? undefined);
+    if (update) this.logUpdate(noteId, update, authorId);
   }
 
   // ---- ACL plumbing -------------------------------------------------------
@@ -569,6 +693,15 @@ export class VaultStore {
       finalContent = updateFrontmatter(content, (d) => ({ id: keepId ?? generateNoteId(), ...d }));
     } else if (keepId && parsedId !== keepId) {
       finalContent = updateFrontmatter(content, (d) => ({ ...d, id: keepId }));
+    } else if (!keepId) {
+      // A new note carrying another note's id — content pasted whole, or the
+      // agent's write_note given a note to copy — is a copy, same as on disk.
+      const owner = this.ownerElsewhere(parsedId, relPath);
+      if (owner) {
+        const stamped = this.restamp(relPath, content, parsedId, owner.path, generateNoteId());
+        if (stamped === null) throw new HttpError(400, "this note carries another note's id");
+        finalContent = stamped;
+      }
     }
 
     if (existing) {
@@ -584,11 +717,7 @@ export class VaultStore {
     this.markWritten(relPath, finalContent);
     fs.writeFileSync(abs, finalContent);
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
-    if (!existing) {
-      const doc = createNoteDoc(finalContent);
-      this.cacheDoc(note.id, doc);
-      this.logUpdate(note.id, encodeStateB64(doc), user.id);
-    }
+    if (!existing) this.recordContent(note.id, finalContent, user.id);
     this.syncNoteRow(note);
     this.syncProjectRow(note);
     this.reconcileTaskObjects(note);

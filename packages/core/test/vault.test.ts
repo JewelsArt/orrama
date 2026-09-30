@@ -238,3 +238,25 @@ describe("resolveLink accepts the forms links actually take", () => {
     expect(index.resolveLink("nobody home")).toBeUndefined();
   });
 });
+
+describe("one id, one path", () => {
+  const note = (id: string, body: string) => `---\nid: ${id}\n---\n# ${body}\n`;
+
+  it("the same id at a new path is a move: the old path lets go", () => {
+    const index = new VaultIndex([{ path: "A/Plan.md", content: note("n-plan", "Plan") }]);
+    index.upsert({ path: "B/Plan.md", content: note("n-plan", "Plan") });
+    expect(index.get("n-plan")?.path).toBe("B/Plan.md");
+    expect(index.getByPath("A/Plan.md")).toBeUndefined();
+    expect(index.all().map((n) => n.path)).toEqual(["B/Plan.md"]);
+  });
+
+  it("removing the old path afterwards leaves the note where it now is", () => {
+    // A rename outside the app arrives as add(new) then unlink(old) — or the
+    // other way round. Either order must end with the note at the new path.
+    const index = new VaultIndex([{ path: "A/Plan.md", content: note("n-plan", "Plan") }]);
+    index.upsert({ path: "B/Plan.md", content: note("n-plan", "Plan") });
+    index.remove("A/Plan.md");
+    expect(index.get("n-plan")?.path).toBe("B/Plan.md");
+    expect(index.search("plan").map((n) => n.id)).toEqual(["n-plan"]);
+  });
+});

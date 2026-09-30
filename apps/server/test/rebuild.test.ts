@@ -21,7 +21,7 @@ process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
-const { tables } = await import("../src/db.js");
+const { tables, createDb } = await import("../src/db.js");
 
 type Booted = Awaited<ReturnType<typeof buildServer>>;
 const dbFile = path.join(process.env.BASALT_DATA_DIR!, "basalt.db");
@@ -123,23 +123,7 @@ describe("delete the database, re-index the vault", () => {
   });
 
   it("comes back identical on an empty database", async () => {
-    // Keep the accounts; drop the index.
-    const old = new Database(dbFile, { readonly: true });
-    const keep = ["users", "teams", "memberships", "folder_grants", "workspace"].map((t) => ({ t, rows: old.prepare(`SELECT * FROM ${t}`).all() as Record<string, unknown>[] }));
-    old.close();
-    for (const f of ["basalt.db", "basalt.db-wal", "basalt.db-shm"]) fs.rmSync(path.join(process.env.BASALT_DATA_DIR!, f), { force: true });
-    const { createDb } = await import("../src/db.js");
-    createDb(); // bootstrap the schema
-    const fresh = new Database(dbFile);
-    for (const { t, rows } of keep) {
-      for (const r of rows) {
-        const cols = Object.keys(r);
-        fresh.prepare(`INSERT INTO ${t} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`).run(...cols.map((c) => r[c] as never));
-      }
-    }
-    expect(fresh.prepare("SELECT count(*) AS n FROM events").get()).toEqual({ n: 0 });
-    fresh.close();
-
+    wipeIndex();
     const b = await buildServer();
     expect(snapshot(b)).toEqual(before);
 
@@ -149,4 +133,48 @@ describe("delete the database, re-index the vault", () => {
     expect(titles).toEqual(["Dentist", "Supervision | thesis"]);
     await b.app.close();
   });
+
+  it("a note copied while the database is gone: the original keeps its id, and its blocks", async () => {
+    // Nothing in the notes table says which file is the note, so the one
+    // created first keeps the id (noteIds.ts). The original is then edited,
+    // which makes the stale copy the file with the OLDER mtime.
+    const ORIG = "Engineering/Atlas Roadmap.md";
+    const COPY = "Engineering/Atlas Roadmap copy.md"; // Finder's Duplicate
+    const idOf = (rel: string) => /^id: (n-\S+)$/m.exec(fs.readFileSync(path.join(vault, rel), "utf8"))?.[1];
+    const id = idOf(ORIG)!;
+    fs.copyFileSync(path.join(vault, ORIG), path.join(vault, COPY));
+    await new Promise((r) => setTimeout(r, 20));
+    fs.appendFileSync(path.join(vault, ORIG), "\nEdited after the copy.\n");
+    expect(fs.statSync(path.join(vault, COPY)).mtimeMs).toBeLessThan(fs.statSync(path.join(vault, ORIG)).mtimeMs);
+
+    wipeIndex();
+    const b = await buildServer();
+    expect(idOf(ORIG)).toBe(id);
+    expect(idOf(COPY)).toMatch(/^n-/);
+    expect(idOf(COPY)).not.toBe(id);
+    expect(b.store.index.get(id)?.path).toBe(ORIG);
+    expect(b.store.index.getByPath(COPY)?.id).toBe(idOf(COPY));
+    // The calendar rows name the task by path; they still land on the note.
+    expect(snapshot(b).blocks).toEqual(before.blocks);
+    expect(snapshot(b).events).toEqual(before.events);
+    await b.app.close();
+  });
 });
+
+/** Drop the index, keep the accounts — the way a real rebuild would. */
+function wipeIndex() {
+  const old = new Database(dbFile, { readonly: true });
+  const keep = ["users", "teams", "memberships", "folder_grants", "workspace"].map((t) => ({ t, rows: old.prepare(`SELECT * FROM ${t}`).all() as Record<string, unknown>[] }));
+  old.close();
+  for (const f of ["basalt.db", "basalt.db-wal", "basalt.db-shm"]) fs.rmSync(path.join(process.env.BASALT_DATA_DIR!, f), { force: true });
+  createDb(); // bootstrap the schema
+  const fresh = new Database(dbFile);
+  for (const { t, rows } of keep) {
+    for (const r of rows) {
+      const cols = Object.keys(r);
+      fresh.prepare(`INSERT INTO ${t} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`).run(...cols.map((c) => r[c] as never));
+    }
+  }
+  expect(fresh.prepare("SELECT count(*) AS n FROM events").get()).toEqual({ n: 0 });
+  fresh.close();
+}

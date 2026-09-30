@@ -57,9 +57,17 @@ export class VaultIndex {
     const old = this.byPath.get(file.path);
     if (old) this.removeById(old);
     const parsed = parseNote(file.content, titleFromPath(file.path));
+    const id = parsed.id ?? generateNoteId();
+    // One id, one path. The same id arriving at another path is that note,
+    // moved: its old path goes with it. Keeping both left the old path
+    // pointing at the id while the id pointed at the new file, so deleting
+    // either file removed the note that was still there. Two files that
+    // really are different notes are the store's to tell apart — it gives the
+    // copy its own id before it gets here (vaultStore.ts, claimId).
+    if (this.notes.has(id)) this.removeById(id);
     const note: IndexedNote = {
       ...parsed,
-      id: parsed.id ?? generateNoteId(),
+      id,
       path: file.path,
       folder: folderOf(file.path),
       content: file.content,
