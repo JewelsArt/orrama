@@ -60,4 +60,10 @@ EXPOSE 4623
 # BASALT_SECRET_KEY still hold a placeholder (apps/server/src/env.ts). That
 # refusal is the feature: a forgeable JWT secret signs every session and nothing
 # about the running app looks wrong.
-CMD ["pnpm", "--dir", "apps/server", "start"]
+#
+# Node itself is PID 1, not pnpm: `docker stop` sends SIGTERM to PID 1, and
+# pnpm died on it without passing it on — the server's graceful close (watcher,
+# requests, the SQLite WAL checkpoint; main.ts) never ran and the container
+# exited 1 with the WAL left behind. Same command `pnpm start` runs, minus pnpm.
+WORKDIR /app/apps/server
+CMD ["node", "--import", "tsx", "src/main.ts"]
