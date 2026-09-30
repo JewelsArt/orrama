@@ -459,7 +459,38 @@ export interface IcsExportItem {
   durationMin: number;
 }
 
-const escapeText = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+/**
+ * RFC 5545 TEXT. A CR (alone or in CRLF) is a line break too: left raw, a bare
+ * CR inside SUMMARY ended the content line early in stricter clients and let
+ * the rest of a title read as a property of its own.
+ */
+const escapeText = (s: string) =>
+  s.replace(/\r\n?/g, "\n").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+
+/**
+ * Fold a content line at 75 octets (RFC 5545 §3.1): CRLF + one space, never
+ * inside a multi-byte character. Long titles were emitted on one line, which
+ * Outlook and some phone clients truncate or reject.
+ */
+export function foldLine(line: string): string {
+  if (Buffer.byteLength(line) <= 75) return line;
+  const parts: string[] = [];
+  let cur = "";
+  let bytes = 0;
+  for (const ch of line) {
+    const n = Buffer.byteLength(ch);
+    const limit = parts.length === 0 ? 75 : 74; // continuation lines start with the space
+    if (bytes + n > limit) {
+      parts.push(cur);
+      cur = "";
+      bytes = 0;
+    }
+    cur += ch;
+    bytes += n;
+  }
+  parts.push(cur);
+  return parts.join("\r\n ");
+}
 
 const utcStamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
@@ -488,5 +519,5 @@ export function buildIcs(calendarName: string, items: IcsExportItem[]): string {
     );
   }
   lines.push("END:VCALENDAR");
-  return lines.join("\r\n") + "\r\n";
+  return lines.map(foldLine).join("\r\n") + "\r\n";
 }

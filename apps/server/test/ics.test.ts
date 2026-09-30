@@ -318,3 +318,24 @@ describe("buildIcs", () => {
     ]);
   });
 });
+
+describe("buildIcs, long and awkward titles", () => {
+  const title = "Réunion de soutenance 🎓 — chapitre 3; méthodes, résultats & discussion\r\nsecond line\rthird \\ line " + "é".repeat(60);
+  const ics = buildIcs("Basalt", [{ uid: "ev-1", title, date: "2026-10-05", startMin: 600, durationMin: 60 }]);
+
+  it("folds every content line to at most 75 octets, and never splits a character", () => {
+    const physical = ics.split("\r\n").slice(0, -1);
+    for (const line of physical) expect(Buffer.byteLength(line), line).toBeLessThanOrEqual(75);
+    expect(physical.some((l) => l.startsWith(" "))).toBe(true); // it did fold
+    expect(ics).not.toContain("�");
+  });
+
+  it("has no bare CR or LF, only CRLF line ends", () => {
+    expect(ics.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
+  });
+
+  it("round-trips through the parser to the same title, breaks as \\n", () => {
+    const [ev] = parseIcs(ics);
+    expect(ev!.title).toBe(title.replace(/\r\n?/g, "\n"));
+  });
+});
