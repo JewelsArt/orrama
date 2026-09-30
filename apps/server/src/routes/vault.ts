@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@basalt/sync";
 import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
-import { appendLine, canEdit, parseFrontmatter, suggestRelated } from "@basalt/core";
+import { appendLine, canEdit, canRead, parseFrontmatter, suggestRelated } from "@basalt/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";
@@ -19,7 +19,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       path: n.path,
       folder: n.folder,
       title: n.title,
-      hash: hash(n.content),
+      hash: store.noteHash(n),
       mtimeMs: n.mtimeMs,
       tags: [...new Set(n.tags.map((t) => t.tag))],
       openTasks: n.tasks.filter((t) => !t.checked).length,
@@ -31,9 +31,11 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const note = store.requireReadable(user, req.params.id);
     const grants = store.grants();
     // Locked-stub info for outgoing links (§5.4): reveal only what the author wrote.
+    // canRead on the one target — it used to filter the WHOLE vault through
+    // the ACL (and re-read the grants from the DB) once per link.
     const links = note.links.map((l) => {
       const target = store.index.resolveLink(l.target);
-      const readable = target ? store.readable(user).some((n) => n.id === target.id) : false;
+      const readable = target ? canRead(user, target, grants) : false;
       return { ...l, targetId: readable && target ? target.id : null, locked: !!target && !readable };
     });
     return {
@@ -41,7 +43,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       path: note.path,
       title: note.title,
       content: note.content,
-      hash: hash(note.content),
+      hash: store.noteHash(note),
       tags: note.tags,
       tasks: note.tasks,
       links,
@@ -185,7 +187,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const notes = store.index.all().map((n) => ({
       id: n.id,
       path: n.path,
-      contentHash: hash(n.content),
+      contentHash: store.noteHash(n),
       folder: n.folder,
       onlyTeams: n.onlyTeams,
       shareTeams: n.shareTeams,

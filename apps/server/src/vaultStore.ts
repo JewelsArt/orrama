@@ -304,13 +304,13 @@ export class VaultStore {
         id: note.id,
         path: note.path,
         title: note.title,
-        contentHash: hash(note.content),
+        contentHash: this.noteHash(note),
         mtimeMs: Math.round(note.mtimeMs ?? Date.now()),
         deleted: false,
       })
       .onConflictDoUpdate({
         target: tables.notes.id,
-        set: { path: note.path, title: note.title, contentHash: hash(note.content), mtimeMs: Math.round(note.mtimeMs ?? Date.now()), deleted: false },
+        set: { path: note.path, title: note.title, contentHash: this.noteHash(note), mtimeMs: Math.round(note.mtimeMs ?? Date.now()), deleted: false },
       })
       .run();
   }
@@ -411,6 +411,21 @@ export class VaultStore {
       .all()
       .filter((p) => !p.hidden)
       .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
+  }
+
+  /**
+   * A note's content hash, computed once per indexed version. The index hands
+   * out a NEW object on every upsert, so keying on the object is the
+   * invalidation. /api/vault/tree used to sha256 every note on every request.
+   */
+  private hashes = new WeakMap<IndexedNote, string>();
+  noteHash(note: IndexedNote): string {
+    let h = this.hashes.get(note);
+    if (h === undefined) {
+      h = hash(note.content);
+      this.hashes.set(note, h);
+    }
+    return h;
   }
 
   readable(user: AclUser): IndexedNote[] {
