@@ -228,6 +228,15 @@ was visibly growing). And **committed categories are never "trimmable"** —
 telling someone to spend less on a subscription this month is noise; only a
 cancellation moves it.
 
+**A statement is read in one currency and one pocket, in time order.** Rows sort
+by their completed timestamp (`byTime`), not the date — exports come newest-
+first as well as oldest-first, and the closing balance is the day's last
+movement. The currency most rows use is the statement's; other-currency rows
+are left out of every total and counted (`otherCurrency`), and a file in
+another currency is left out of the merge (`statements()` in `finance.ts`).
+The running balance is Revolut's per pocket, so it is read from the pocket
+most rows move (Current), never from a Savings row that happens to come last.
+
 `loadTxns` (reached through `txnsFor`, which applies the reader's own-accounts
 list) and `buildRules` are shared by all four endpoints and the Dashboard on purpose: three
 copies of a de-duplication rule is three chances for two pages to disagree about

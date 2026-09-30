@@ -31,6 +31,7 @@ import {
   outflowByMonth,
   parseCategoryRules,
   parseStatement,
+  byTime,
   parseSubscriptions,
   payslipUsable,
   savingsPlan,
@@ -127,14 +128,32 @@ export function financeNote(store: VaultStore, user: Parameters<VaultStore["read
  * keeping their own copy, because three copies of a de-duplication rule is
  * three chances for two pages to disagree about what a month cost.
  */
-export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeof parseStatement>["rows"] {
+/**
+ * Every statement file, parsed, with the currency they are read in: the one
+ * most rows use across all files. Each file already keeps to its own main
+ * currency (parseStatement); this stops a USD-only export beside the euro ones
+ * from adding its dollars to euro months or supplying the "latest" balance.
+ */
+function statements(root: string): { currency: string; files: ReturnType<typeof parseStatement>[] } {
   const dirPath = filesDir(root);
+  if (!fs.existsSync(dirPath)) return { currency: "EUR", files: [] };
+  const files = fs
+    .readdirSync(dirPath)
+    .filter((n) => n.toLowerCase().endsWith(".csv"))
+    .sort()
+    .map((csv) => parseStatement(fs.readFileSync(path.join(dirPath, csv), "utf8")));
+  const weight = new Map<string, number>();
+  for (const f of files) weight.set(f.currency, (weight.get(f.currency) ?? 0) + f.rows.length);
+  const currency = [...weight.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "EUR";
+  return { currency, files: files.filter((f) => f.currency === currency || f.rows.length === 0) };
+}
+
+export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeof parseStatement>["rows"] {
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
-  if (!fs.existsSync(dirPath)) return rows;
   const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
-  for (const csv of fs.readdirSync(dirPath).filter((n) => n.toLowerCase().endsWith(".csv")).sort()) {
+  for (const file of statements(root).files) {
     const inFile = new Map<string, typeof rows>();
-    for (const r of parseStatement(fs.readFileSync(path.join(dirPath, csv), "utf8")).rows) {
+    for (const r of file.rows) {
       const same = inFile.get(r.key);
       if (same) same.push(r);
       else inFile.set(r.key, [r]);
@@ -144,7 +163,7 @@ export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeo
     }
   }
   for (const copies of merged.values()) rows.push(...copies);
-  rows.sort((a, b) => a.date.localeCompare(b.date));
+  rows.sort(byTime); // by completed time, not date: see byTime
   // Own accounts first, so a withdrawal filed as a Card Refund is a move, not
   // a refund to net off the deposit (ownAccounts.ts).
   // Each refund comes off the purchase it refunds, in that purchase's month,
@@ -209,10 +228,8 @@ export function balanceSpan(root: string): {
   let opening: number | null = null;
   let openingDate: string | null = null;
   let skipped = 0;
-  const dirPath = filesDir(root);
-  if (fs.existsSync(dirPath)) {
-    for (const csv of fs.readdirSync(dirPath).filter((n) => n.toLowerCase().endsWith(".csv")).sort()) {
-      const st = parseStatement(fs.readFileSync(path.join(dirPath, csv), "utf8"));
+  {
+    for (const st of statements(root).files) {
       skipped += st.skipped;
       if (st.balance !== null && (balanceDate === null || (st.balanceDate ?? "") > balanceDate)) {
         balance = st.balance;

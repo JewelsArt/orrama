@@ -32,6 +32,13 @@ export type Flow =
 export interface StatementRow {
   /** YYYY-MM-DD, from the completed date. */
   date: string;
+  /**
+   * The completed timestamp as written (`2026-01-01 06:00:46`), for ordering
+   * rows within a day. Absent on rows built by hand.
+   */
+  at?: string;
+  /** The pocket the row moved (Revolut's Product: Current, Savings…). */
+  product?: string;
   type: string;
   description: string;
   /** Signed, exactly as the file gives it. */
@@ -85,9 +92,20 @@ export interface Statement {
   balance: number | null;
   balanceDate: string | null;
   currency: string;
-  /** Rows dropped because they never settled, kept as a count so the UI can say so. */
+  /** Rows dropped — never settled, unreadable, or in another currency — kept as a count so the UI can say so. */
   skipped: number;
+  /** Of `skipped`, the rows in a currency other than `currency`. */
+  otherCurrency: number;
 }
+
+/**
+ * Oldest first, and within a day by the time it completed. Sorting on the date
+ * alone kept same-day rows in FILE order, and exports come newest-first as well
+ * as oldest-first — so the "last" row of the final day could be its earliest,
+ * and the closing balance was the balance before that day's other movements.
+ * Array.sort is stable: rows with the same second keep their file order.
+ */
+export const byTime = (a: StatementRow, b: StatementRow) => (a.at ?? a.date).localeCompare(b.at ?? b.date);
 
 /**
  * RFC 4180 CSV. Written out rather than pulled in, because a merchant called
@@ -157,7 +175,7 @@ function flowOf(type: string): Flow {
 
 export function parseStatement(csv: string): Statement {
   const table = parseCsv(csv);
-  const empty: Statement = { rows: [], months: [], openingBalance: null, openingDate: null, balance: null, balanceDate: null, currency: "EUR", skipped: 0 };
+  const empty: Statement = { rows: [], months: [], openingBalance: null, openingDate: null, balance: null, balanceDate: null, currency: "EUR", skipped: 0, otherCurrency: 0 };
   if (table.length < 2) return empty;
 
   const cols = table[0]!.map((h) => HEADERS[h.trim().toLowerCase()] ?? "");
@@ -207,6 +225,8 @@ export function parseStatement(csv: string): Statement {
     const currency = get(raw, "currency") || "EUR";
     rows.push({
       date,
+      at: completed,
+      product: get(raw, "product"),
       type,
       description,
       amount,
@@ -220,7 +240,18 @@ export function parseStatement(csv: string): Statement {
     });
   }
 
-  rows.sort((a, b) => a.date.localeCompare(b.date));
+  // One currency per statement. A Revolut export can hold a USD or GBP pocket
+  // beside the euro one, and adding its amounts into euro months (and taking
+  // the currency from whichever row came first) produced numbers that were
+  // neither. The currency most rows use is the statement's; the rest are left
+  // out of every total and counted.
+  const count = new Map<string, number>();
+  for (const r of rows) count.set(r.currency, (count.get(r.currency) ?? 0) + 1);
+  const currency = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "EUR";
+  const foreign = rows.filter((r) => r.currency !== currency).length;
+  const kept = rows.filter((r) => r.currency === currency).sort(byTime);
+  rows.length = 0;
+  rows.push(...kept);
 
   const byMonth = new Map<string, MonthSummary>();
   for (const r of rows) {
@@ -253,8 +284,13 @@ export function parseStatement(csv: string): Statement {
     .sort((a, b) => a.month.localeCompare(b.month));
 
   // The balance is whatever the last settled row says it was — the statement's
-  // own arithmetic, not ours, so it cannot drift from the bank's.
-  const withBalance = rows.filter((r) => r.balance !== null);
+  // own arithmetic, not ours, so it cannot drift from the bank's. The running
+  // balance is per pocket, so it is read from the pocket most rows move: a
+  // Savings row's balance is not the current account's.
+  const pockets = new Map<string, number>();
+  for (const r of rows) if (r.balance !== null) pockets.set(r.product ?? "", (pockets.get(r.product ?? "") ?? 0) + 1);
+  const pocket = [...pockets.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+  const withBalance = rows.filter((r) => r.balance !== null && (r.product ?? "") === pocket);
   const last = withBalance[withBalance.length - 1];
   const first = withBalance[0];
 
@@ -265,8 +301,9 @@ export function parseStatement(csv: string): Statement {
     openingDate: first ? first.date : null,
     balance: last ? last.balance : null,
     balanceDate: last ? last.date : null,
-    currency: rows[0]?.currency ?? "EUR",
-    skipped,
+    currency,
+    skipped: skipped + foreign,
+    otherCurrency: foreign,
   };
 }
 
