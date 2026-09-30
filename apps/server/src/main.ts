@@ -142,6 +142,8 @@ Vault layout:
   const compactTimer = setInterval(compact, 24 * 3_600_000);
   compactTimer.unref();
   app.addHook("onClose", async () => clearInterval(compactTimer));
+  // Last: the database, once everything that writes to it has stopped.
+  app.addHook("onClose", async () => (db as unknown as { $client: { close(): void } }).$client.close());
   app.addHook("onSend", async (req, reply, payload) => {
     reply.header("x-content-type-options", "nosniff");
     // Every non-API response, not just text/html: a revalidated index.html
@@ -254,4 +256,25 @@ if (isEntry(import.meta.url, process.argv[1])) {
   const { app } = await buildServer();
   if (tightened.length) app.log.info(`log file made owner-only (fd ${tightened.join(", ")})`);
   await app.listen({ port: env.port, host: env.host });
+
+  // launchd stops the agent with SIGTERM (a kickstart, a logout, `pnpm ship`).
+  // Close properly — stop the watcher, finish in-flight requests, close the
+  // database so its WAL is checkpointed — instead of dying mid-write. A close
+  // that hangs is cut off, because launchd will SIGKILL us anyway.
+  let closing = false;
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.on(signal, () => {
+      if (closing) return;
+      closing = true;
+      app.log.info(`${signal}: closing`);
+      setTimeout(() => process.exit(1), 10_000).unref();
+      app.close().then(
+        () => process.exit(0),
+        (err) => {
+          app.log.error(err, "close failed");
+          process.exit(1);
+        },
+      );
+    });
+  }
 }
