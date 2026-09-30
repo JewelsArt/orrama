@@ -10,7 +10,7 @@ import { defaultBoard, fileRef, normalizeBoard, placeMissing } from "../src/boar
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-board-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret";
+process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const VAULT = process.env.BASALT_VAULT_DIR;

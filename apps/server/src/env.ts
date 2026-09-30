@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 export const DEV_JWT_SECRET = "dev-secret-change-me";
@@ -97,6 +98,69 @@ export function assertProductionSecrets(
       `Rotating BASALT_SECRET_KEY on an existing database needs \`pnpm --dir apps/server rotate-secret-key\` ` +
       `first, or the stored mail and AI credentials become undecryptable.`,
   );
+}
+
+/**
+ * Everything wrong with the environment, in one list. Nothing was validated:
+ * `PORT=abc` became NaN, `BASALT_PLAN_AI_TIMEOUT_MS=8s` made every AI estimate
+ * throw inside AbortSignal.timeout and quietly fall back to the heuristic, a
+ * typo in BASALT_PUBLIC_ORIGINS just broke Touch ID, and BASALT_VAULT_DIR
+ * pointing at a file failed deep inside the first vault scan.
+ */
+export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
+  const out: string[] = [];
+  const int = (name: string, min: number, max = Number.MAX_SAFE_INTEGER) => {
+    const v = e[name];
+    if (v === undefined || v === "") return;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < min || n > max) out.push(`${name}=${JSON.stringify(v)} must be a whole number from ${min}${max === Number.MAX_SAFE_INTEGER ? " up" : ` to ${max}`}`);
+  };
+  const origin = (name: string, v: string) => {
+    try {
+      const u = new URL(v);
+      if (!/^https?:$/.test(u.protocol) || u.origin !== v.replace(/\/+$/, "")) throw new Error();
+    } catch {
+      out.push(`${name}: ${JSON.stringify(v)} is not an origin like https://host:port (no path)`);
+    }
+  };
+  const dir = (name: string) => {
+    const v = e[name];
+    if (!v) return;
+    try {
+      if (!fs.statSync(path.resolve(v)).isDirectory()) out.push(`${name}=${v} is not a directory`);
+    } catch {
+      /* missing is fine — it is created */
+    }
+  };
+
+  int("PORT", 0, 65535);
+  if (e["HOST"] !== undefined && e["HOST"].trim() === "") out.push("HOST is set but empty");
+  dir("BASALT_DATA_DIR");
+  dir("BASALT_VAULT_DIR");
+  for (const o of (e["BASALT_PUBLIC_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) origin("BASALT_PUBLIC_ORIGINS", o);
+  if (e["BASALT_CORS_ORIGIN"]) origin("BASALT_CORS_ORIGIN", e["BASALT_CORS_ORIGIN"]);
+  if (e["BASALT_OPENAI_BASE_URL"] && !/^https?:\/\/[^/]/.test(e["BASALT_OPENAI_BASE_URL"])) out.push("BASALT_OPENAI_BASE_URL must be an http(s) URL");
+  int("BASALT_DOC_CACHE", 1);
+  int("BASALT_PLAN_AI_TIMEOUT_MS", 1);
+  int("BASALT_WEBHOOK_DEBOUNCE_MS", 0);
+  const allow = e["BASALT_ALLOW_DEV_SECRETS"];
+  if (allow !== undefined && allow !== "" && allow !== "1" && allow !== "0") {
+    out.push(`BASALT_ALLOW_DEV_SECRETS=${JSON.stringify(allow)} means nothing — it is "1" or unset`);
+  }
+  // A real secret is long; `openssl rand -hex 32` gives 64 characters.
+  if (allow !== "1") {
+    for (const name of ["BASALT_JWT_SECRET", "BASALT_SECRET_KEY"]) {
+      const v = e[name];
+      if (v && !PLACEHOLDER_SECRETS.has(v) && v.length < 32) out.push(`${name} is ${v.length} characters; use at least 32 (openssl rand -hex 32)`);
+    }
+  }
+  return out;
+}
+
+/** Refuse to boot on a malformed environment, naming every problem at once. */
+export function assertValidEnv(e: NodeJS.ProcessEnv = process.env): void {
+  const problems = envProblems(e);
+  if (problems.length) throw new Error(`Refusing to start — the environment is not valid:\n  - ${problems.join("\n  - ")}`);
 }
 
 export const vaultDir = () => env.vaultDir ?? path.join(env.dataDir, "vault");

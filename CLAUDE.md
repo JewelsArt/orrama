@@ -378,6 +378,11 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   PDFs and every document went blank for three days while Chrome looked fine.
   **Check policy changes in WebKit**, not only Chrome: a WKWebView snapshot
   (`scripts/webkit-snap.swift`) is what found it.
+- **The environment is validated at boot** (`envProblems` in `env.ts`, every
+  problem listed at once): ports and the numeric knobs (`BASALT_DOC_CACHE`,
+  `BASALT_PLAN_AI_TIMEOUT_MS`, `BASALT_WEBHOOK_DEBOUNCE_MS`) are whole numbers,
+  origins are bare origins, data/vault paths are directories, and real secrets
+  are ≥ 32 characters. A new variable gets a rule there.
 - **Touch ID trusts only known origins.** Set `BASALT_PUBLIC_ORIGINS` (comma-
   separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
   launchd plist; unset, the `Origin` must equal the address the request was

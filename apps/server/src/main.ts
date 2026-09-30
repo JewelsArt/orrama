@@ -8,7 +8,7 @@ import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
-import { assertProductionSecrets, env, vaultDir } from "./env.js";
+import { assertProductionSecrets, assertValidEnv, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
@@ -47,6 +47,7 @@ declare module "fastify" {
 
 /** `logStream` lets a test read exactly what the real app logs. */
 export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = {}) {
+  assertValidEnv();
   assertProductionSecrets();
   const db = createDb();
   // Single-workspace server (spec §3): one company, one vault, one container.

@@ -27,7 +27,7 @@ const ORIGINAL_TZ = process.env.TZ;
 process.env.TZ = "Europe/Amsterdam";
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dates-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret";
+process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
