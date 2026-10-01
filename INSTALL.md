@@ -260,6 +260,24 @@ first open.
 
 ---
 
+## Backing up
+
+Two things to keep:
+
+- **The vault** — your Markdown folder. Back it up like any folder (git, Time
+  Machine, a copy). Task status, time blocks and events live in it.
+- **What only the database holds** — accounts, task comments and descriptions,
+  project settings, AI settings, tokens, webhooks, history:
+
+  ```bash
+  BASALT_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
+  ```
+
+  writes `data/exports/basalt-export-<date>-<time>/` with a restorable
+  `basalt.db`, a readable `export.json` (no passwords, hashes or keys) and a
+  README on how to restore. It is safe to run while the server is up. Keep the
+  folder private; it will not write into the vault.
+
 ## Troubleshooting
 
 **`cargo: command not found` / build hangs for minutes**

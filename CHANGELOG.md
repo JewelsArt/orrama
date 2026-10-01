@@ -7,6 +7,13 @@ one is in CLAUDE.md, "Releases".
 
 ## [Unreleased]
 
+### Added
+
+- `pnpm --dir apps/server export`: everything that lives only in the database
+  — accounts, team grants, task descriptions and comments, project settings,
+  mail drafts, AI settings, tokens, webhooks, feeds, history — as a restorable
+  snapshot plus a readable JSON with every secret left out.
+
 ## [0.1.0] — 2026-10-01
 
 The first tagged release: 120 commits from 3 July to 1 October 2026, running

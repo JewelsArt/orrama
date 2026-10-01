@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "account": "tsx src/account.ts",
     "remove-user": "tsx src/remove-user.ts",
+    "export": "tsx src/export.ts",
     "rotate-secret-key": "tsx src/rotate-secret-key.ts"
   },
   "dependencies": {

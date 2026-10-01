@@ -50,7 +50,11 @@ delete the DB, re-index the Markdown, and it rebuilds: task status is the checkb
 time blocks and events are calendar notes (`test/rebuild.test.ts` does exactly
 this). Still DB-only: task comments and descriptions, an assignee set through
 `PATCH /api/tasks/:id` over the line's `@user`, the legacy `planned_date`, a
-project's hidden flag, and accounts/settings.
+project's hidden flag, and accounts/settings. `pnpm --dir apps/server export`
+(`src/export.ts`) writes all of it out: a restorable `basalt.db` snapshot, a
+readable `export.json` with every secret left out, and a README — to
+`<data dir>/exports/` by default, never into the vault. Run it with the agent's
+`BASALT_VAULT_DIR` so the never-into-the-vault check knows the real vault.
 
 ## Layout
 
