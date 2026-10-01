@@ -562,6 +562,24 @@ from a StateField, never a ViewPlugin** — CodeMirror throws otherwise, which i
 why `frontmatterCollapse` and `blockPreview` are fields while the per-line pass
 is a plugin. Esc (or the ✕ in the note header) closes a note back to the map.
 
+## Releases
+
+`main` is what is running: after every `pnpm ship` from `sep-2026-redesign`,
+fast-forward it (`git push origin sep-2026-redesign:main`). A release is a tag
+on a shipped commit, with an entry in `CHANGELOG.md`:
+
+1. Move the `## [Unreleased]` notes under `## [X.Y.Z] — YYYY-MM-DD`, leave an
+   empty `[Unreleased]` above, and add the compare/tag links at the bottom.
+2. Bump the version in all twelve places — every `package.json`,
+   `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/Cargo.toml`
+   and the MCP server's handshake in `apps/mcp/src/index.ts`.
+   `test/release.test.ts` fails until they agree and the changelog has the entry.
+3. Commit, `pnpm ship`, then `git tag -a vX.Y.Z -m "Basalt X.Y.Z"` and push the
+   tag and `main`.
+
+Note anything users must do (a schema bump, signing in again) under
+"Upgrading" in that version's entry.
+
 ## Dev loop
 
 ```sh
