@@ -40,7 +40,7 @@ describe("GET /api/admin/ai", () => {
   it("starts unconfigured", async () => {
     const r = await call("jules", "GET", "/api/admin/ai");
     expect(r.status).toBe(200);
-    expect(r.json).toEqual({ provider: null, model: null, configured: false, instructions: "", baseUrl: "" });
+    expect(r.json).toEqual({ provider: null, model: null, configured: false, instructions: "", baseUrl: "", chatgpt: { connected: false, email: null, manageUsage: "https://chatgpt.com/#settings" } });
   });
 
   it("shows what was saved, and never the key", async () => {
@@ -48,8 +48,10 @@ describe("GET /api/admin/ai", () => {
     expect((await call("jules", "POST", "/api/admin/ai", { provider: "google", model: "gemini-2.5-flash", apiKey: KEY })).status).toBe(200);
     expect((await call("jules", "POST", "/api/admin/ai/instructions", { instructions: "Push me on deadlines." })).status).toBe(200);
     const r = await call("jules", "GET", "/api/admin/ai");
-    expect(r.json).toEqual({ provider: "google", model: "gemini-2.5-flash", configured: true, instructions: "Push me on deadlines.", baseUrl: "" });
+    expect(r.json).toMatchObject({ provider: "google", model: "gemini-2.5-flash", configured: true, instructions: "Push me on deadlines.", baseUrl: "" });
     expect(r.body).not.toContain(KEY);
+    // Exactly these fields: no key, encrypted or not.
+    expect(Object.keys(r.json).sort()).toEqual(["baseUrl", "chatgpt", "configured", "instructions", "model", "provider"]);
   });
 
   it("is for the workspace owner only", async () => {

@@ -370,6 +370,28 @@ into a stacked mobile layout (it quadrupled one message's height). The text
 fallback drops image-only lines and labels links by host, keeping the full URL
 on the href.
 
+## The agent's model
+
+Settings → AI (owners) picks it: a key for Anthropic, Gemini or an
+OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan**
+— Sign in with ChatGPT, so a Plus or Pro plan pays instead of a key
+(`apps/server/src/chatgpt.ts`, from OpenAI's documented protocol; their DevKit
+is noncommercial-licensed, so none of its code is used). OpenAI offers this to
+open-source and locally run apps. Its rules shape the code:
+
+- The redirect is fixed to `http://127.0.0.1:<port>/callback`, a root route,
+  so sign-in starts from a browser on this Mac; from anywhere else
+  `/api/admin/ai/chatgpt/start` refuses.
+- Credentials live encrypted in `meta` (`chatgpt_credentials`), apart from the
+  API key, so switching back to Gemini still finds its key. Each refresh
+  spends the refresh token and returns a new one: refreshes are serialised and
+  saved before use.
+- Every ChatGPT-plan request is streamed with `store: false` and carries no
+  token cap (`callOptions`/`completeText` in `aiProvider.ts`); one-shot calls
+  go through `completeText`, which keeps the other providers non-streaming.
+- Tool calling is not in OpenAI's docs for this flow; the Ask agent's tools are
+  sent and it is unverified until a real account signs in.
+
 ## The agent can draft mail, never send it
 
 The agent reads text nobody vetted — inbox messages, notes any teammate can

@@ -6,7 +6,8 @@
  * The Planning estimate did: it POSTed to api.anthropic.com itself, and on a
  * workspace configured for Gemini it simply never ran.
  */
-import type { LanguageModel } from "ai";
+import { generateText, streamText, type LanguageModel } from "ai";
+import { chatgptAccessToken, chatgptCredentials } from "./chatgpt.js";
 import { tables, type Db } from "./db.js";
 import { decryptSecret } from "./secrets.js";
 
@@ -15,16 +16,52 @@ export interface AiConfig {
   apiKey: string;
   model: string;
   baseUrl: string | null;
+  /** ChatGPT plan only: a current OAuth access token (chatgpt.ts), refreshed as needed. */
+  accessToken?: () => Promise<string>;
 }
 
 /** The configured provider, or null when AI is not set up. */
 export function aiConfig(db: Db): AiConfig | null {
   const ws = db.select().from(tables.workspace).all()[0];
-  if (!ws?.aiProvider || !ws.aiKeyEncrypted || !ws.aiModel) return null;
+  if (!ws?.aiProvider || !ws.aiModel) return null;
+  if (ws.aiProvider === "chatgpt") {
+    if (!chatgptCredentials(db)) return null;
+    return { provider: "chatgpt", apiKey: "", model: ws.aiModel, baseUrl: null, accessToken: () => chatgptAccessToken(db) };
+  }
+  if (!ws.aiKeyEncrypted) return null;
   return { provider: ws.aiProvider, apiKey: decryptSecret(ws.aiKeyEncrypted), model: ws.aiModel, baseUrl: ws.aiBaseUrl ?? null };
 }
 
+/**
+ * Per-provider request options. The ChatGPT plan requires `store: false`;
+ * with nothing stored server-side, reasoning from one tool step has to travel
+ * to the next in the request itself, encrypted.
+ */
+export function callOptions(c: AiConfig) {
+  return c.provider === "chatgpt" ? { openai: { store: false, include: ["reasoning.encrypted_content"] } } : undefined;
+}
+
+/**
+ * One prompt in, the whole answer out. The ChatGPT plan only answers streamed
+ * requests, so for it the stream is collected to the end — without a token
+ * cap, which its requests may not carry. Every other provider is asked as it
+ * always was, in one non-streaming call.
+ */
+export async function completeText(
+  c: AiConfig,
+  args: { system?: string; prompt: string; abortSignal?: AbortSignal; maxOutputTokens?: number; maxRetries?: number },
+): Promise<string> {
+  const model = await resolveModel(c);
+  if (c.provider !== "chatgpt") return (await generateText({ model, ...args })).text;
+  const { maxOutputTokens: _cap, ...rest } = args;
+  return await streamText({ model, ...rest, providerOptions: callOptions(c) }).text;
+}
+
 export async function resolveModel(c: AiConfig): Promise<LanguageModel> {
+  if (c.provider === "chatgpt") {
+    const { createOpenAI } = await import("@ai-sdk/openai");
+    return createOpenAI({ apiKey: await c.accessToken!() }).responses(c.model);
+  }
   if (c.provider === "anthropic") {
     const { createAnthropic } = await import("@ai-sdk/anthropic");
     return createAnthropic({ apiKey: c.apiKey })(c.model);

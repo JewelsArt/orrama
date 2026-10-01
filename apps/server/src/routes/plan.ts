@@ -10,8 +10,7 @@ import type { FastifyInstance } from "fastify";
 import { canEdit, isoLocal } from "@basalt/core";
 import type { AclUser, VaultTask } from "@basalt/core";
 import { tables, type Db } from "../db.js";
-import { generateText } from "ai";
-import { aiConfig, resolveModel, type AiConfig } from "../aiProvider.js";
+import { aiConfig, completeText, type AiConfig } from "../aiProvider.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -35,8 +34,7 @@ async function estimatesFor(c: AiConfig, listing: string): Promise<number[]> {
   const key = crypto.createHash("sha256").update(`${c.provider}\n${c.baseUrl ?? ""}\n${c.model}\n${listing}`).digest("hex");
   const hit = aiCache.get(key);
   if (hit && Date.now() - hit.at < AI_CACHE_MS) return hit.hours;
-  const { text } = await generateText({
-    model: await resolveModel(c),
+  const text = await completeText(c, {
     system:
       "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
     prompt: listing,

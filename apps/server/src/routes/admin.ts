@@ -4,6 +4,8 @@ import type { FastifyInstance } from "fastify";
 import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
+import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIWC, startSignIn } from "../chatgpt.js";
+import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 /** Workspace administration. v1 keeps it simple: owners only. */
@@ -129,7 +131,65 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.get("/api/admin/ai", auth, async (req) => {
     await requireOwner(req.userId);
     const ws = db.select().from(tables.workspace).all()[0];
-    return { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted, instructions: ws?.aiInstructions ?? "", baseUrl: ws?.aiBaseUrl ?? "" };
+    const gpt = chatgptCredentials(db);
+    const configured = ws?.aiProvider === "chatgpt" ? !!gpt && !!ws.aiModel : !!ws?.aiKeyEncrypted;
+    return {
+      provider: ws?.aiProvider ?? null,
+      model: ws?.aiModel ?? null,
+      configured,
+      instructions: ws?.aiInstructions ?? "",
+      baseUrl: ws?.aiBaseUrl ?? "",
+      chatgpt: { connected: !!gpt, email: gpt?.email ?? null, manageUsage: SIWC.manageUsage },
+    };
+  });
+
+  // ---- Sign in with ChatGPT (chatgpt.ts) ------------------------------------
+
+  /**
+   * The sign-in URL. OpenAI sends the browser back to 127.0.0.1 on this
+   * machine, so it has to start from a browser on this machine: from a phone
+   * it would land nowhere.
+   */
+  app.post("/api/admin/ai/chatgpt/start", auth, async (req) => {
+    await requireOwner(req.userId);
+    const local = (h: string) => /^(localhost|127\.0\.0\.1|\[::1\])$/.test(h);
+    if (!local(req.hostname)) throw new HttpError(400, "Sign in with ChatGPT from Basalt on the Mac it runs on — OpenAI returns to this computer.");
+    const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+    let returnTo = `http://127.0.0.1:${env.port}`;
+    try {
+      const o = new URL(origin);
+      if (o.protocol === "http:" && local(o.hostname)) returnTo = o.origin;
+    } catch {
+      // no usable Origin: back to the server itself
+    }
+    return { url: startSignIn(db, env.port, returnTo) };
+  });
+
+  /** Where OpenAI sends the browser after sign-in. Unauthenticated by nature; the one-time state is the check. */
+  app.get("/callback", async (req, reply) => {
+    try {
+      const { returnTo } = await finishSignIn(db, req.query as Record<string, string | undefined>);
+      return reply.redirect(`${returnTo}/?ai=chatgpt-connected`);
+    } catch (err) {
+      const msg = err instanceof HttpError ? err.message : "ChatGPT sign-in failed.";
+      const esc = msg.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+      return reply
+        .code(err instanceof HttpError ? err.statusCode : 500)
+        .type("text/html; charset=utf-8")
+        .send(`<!doctype html><meta charset="utf-8"><title>Basalt</title><p>${esc}</p><p><a href="/">Back to Basalt</a></p>`);
+    }
+  });
+
+  /** The models the connected plan offers, for Settings → AI. */
+  app.get("/api/admin/ai/chatgpt/models", auth, async (req) => {
+    await requireOwner(req.userId);
+    return chatgptModels(db);
+  });
+
+  app.post("/api/admin/ai/chatgpt/disconnect", auth, async (req) => {
+    await requireOwner(req.userId);
+    disconnectChatGpt(db);
+    return { ok: true };
   });
 
   /** BYO AI key (spec §9): stored encrypted at rest, never proxied through Basalt-the-company. */
@@ -138,6 +198,12 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const body = aiConfigSchema.parse(req.body);
     const ws = db.select().from(tables.workspace).all()[0];
     if (!ws) throw new HttpError(500, "workspace not initialized");
+    if (body.provider === "chatgpt") {
+      // No key: the plan is the credential (sign in first). Only the model changes.
+      if (!chatgptCredentials(db)) throw new HttpError(400, "sign in with ChatGPT first");
+      db.update(tables.workspace).set({ aiProvider: "chatgpt", aiModel: body.model }).where(eq(tables.workspace.id, ws.id)).run();
+      return { ok: true, provider: body.provider, model: body.model };
+    }
     // Blank key = keep the existing one; but the first save must include a key.
     const newKey = body.apiKey && body.apiKey.length >= 10 ? body.apiKey : undefined;
     if (!newKey && !ws.aiKeyEncrypted) throw new HttpError(400, "an API key is required");

@@ -153,7 +153,7 @@ export const inviteCreateSchema = z.object({
 });
 
 export const aiConfigSchema = z.object({
-  provider: z.enum(["anthropic", "openai-compatible", "google"]),
+  provider: z.enum(["anthropic", "openai-compatible", "google", "chatgpt"]),
   /** Blank = keep the existing key (so provider/model can be changed without re-pasting it). */
   apiKey: z.string().min(10).optional().or(z.literal("")),
   model: z.string().min(1),

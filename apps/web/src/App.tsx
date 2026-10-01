@@ -138,6 +138,13 @@ export function App() {
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
   }, [vision, profiles, theme]);
 
+  // Back from "Continue with ChatGPT": show where it landed, then tidy the URL.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("ai") !== "chatgpt-connected") return;
+    setSettingsOpen(true);
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
   // The server ended this session (signed out elsewhere, or revoked in
   // Settings on another device): drop it and show the sign-in screen.
   useEffect(() => {

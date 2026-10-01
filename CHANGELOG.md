@@ -13,6 +13,9 @@ one is in CLAUDE.md, "Releases".
   — accounts, team grants, task descriptions and comments, project settings,
   mail drafts, AI settings, tokens, webhooks, feeds, history — as a restorable
   snapshot plus a readable JSON with every secret left out.
+- Settings → AI: **ChatGPT plan** — Sign in with ChatGPT, so a Plus or Pro plan
+  runs the agent instead of an API key (from a browser on the Mac that runs
+  Basalt). Your other provider's key stays stored for switching back.
 
 ## [0.1.0] — 2026-10-01
 

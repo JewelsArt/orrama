@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { convertToModelMessages, generateText, stepCountIs, streamText, tool, type UIMessage } from "ai";
+import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import crypto from "node:crypto";
@@ -10,7 +10,7 @@ import { clampSlot } from "./calendar.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
-import { aiConfig, resolveModel } from "../aiProvider.js";
+import { aiConfig, callOptions, completeText, resolveModel } from "../aiProvider.js";
 import { credsFor, getMessage, listInbox } from "../mail.js";
 import { stageDraft } from "./mail.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -116,9 +116,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
   };
 
   const callProvider = async (c: NonNullable<ReturnType<typeof config>>, system: string, prompt: string): Promise<string> => {
-    const model = await resolveModel(c);
-    const { text } = await generateText({ model, system, prompt });
-    return text;
+    return completeText(c, { system, prompt });
   };
 
   /** Ask your vault (§9.1): answers cite [[notes]]. */
@@ -136,6 +134,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
       system: buildSystemPrompt(store, ws?.aiInstructions ?? null),
       messages: await convertToModelMessages(body.messages as unknown as UIMessage[]),
       stopWhen: stepCountIs(6), // allow: call tool → observe result → answer
+      providerOptions: callOptions(c),
       tools: {
         search_vault: tool({
           description: "Search the knowledge vault for notes matching a query.",

@@ -109,6 +109,9 @@ importers:
       imapflow:
         specifier: ^1.4.7
         version: 1.4.7
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       mailparser:
         specifier: ^3.9.14
         version: 3.9.14

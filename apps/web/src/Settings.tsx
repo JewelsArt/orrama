@@ -521,13 +521,18 @@ interface AiConfig {
   configured: boolean;
   instructions: string;
   baseUrl: string;
+  chatgpt: { connected: boolean; email: string | null; manageUsage: string };
 }
 
 /**
  * The AI the Ask panel and the agent use. This lived on the Admin screen, which
  * the rail stopped showing — so the only place to change the key, the model or
  * the agent's instructions could not be reached. Owners only (the server
- * checks); the key is write-only: the field stays empty, blank keeps it.
+ * checks); a key is write-only: the field stays empty, blank keeps it.
+ *
+ * "ChatGPT plan" has no key: Continue with ChatGPT signs in on OpenAI's page
+ * and comes back here (apps/server/src/chatgpt.ts), and the agent then runs on
+ * the plan's allowance.
  */
 function AiSection() {
   const [cfg, setCfg] = useState<AiConfig | null>(null);
@@ -536,13 +541,14 @@ function AiSection() {
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [planModels, setPlanModels] = useState<{ slug: string; name: string }[]>([]);
   const [status, setStatus] = useState("");
 
   const load = useCallback(async () => {
     try {
       const c = await api<AiConfig>("GET", "/api/admin/ai");
       setCfg(c);
-      setProvider(c.provider ?? "anthropic");
+      setProvider(c.provider ?? (c.chatgpt.connected ? "chatgpt" : "anthropic"));
       setModel(c.model ?? "");
       setBaseUrl(c.baseUrl);
       setInstructions(c.instructions);
@@ -555,6 +561,14 @@ function AiSection() {
     void load();
   }, [load]);
 
+  const connected = !!cfg?.chatgpt.connected;
+  useEffect(() => {
+    if (provider !== "chatgpt" || !connected) return;
+    api<{ slug: string; name: string }[]>("GET", "/api/admin/ai/chatgpt/models")
+      .then(setPlanModels)
+      .catch(() => setPlanModels([]));
+  }, [provider, connected]);
+
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
       await fn();
@@ -566,44 +580,92 @@ function AiSection() {
     }
   };
 
+  const signIn = async () => {
+    try {
+      const { url } = await api<{ url: string }>("POST", "/api/admin/ai/chatgpt/start");
+      window.location.href = url;
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "could not start sign-in");
+    }
+  };
+
   if (!cfg) return null;
+  const plan = provider === "chatgpt";
   return (
     <section>
       <h3>AI</h3>
       <p className="integr-hint">
-        {cfg.configured
-          ? `Using ${cfg.provider} · ${cfg.model}. The key is encrypted on this machine; requests go straight from your server to the provider.`
-          : "Bring your own key — nothing is sent anywhere until you add one."}
+        {cfg.configured && cfg.provider === "chatgpt"
+          ? `Using your ChatGPT plan${cfg.chatgpt.email ? ` (${cfg.chatgpt.email})` : ""} · ${cfg.model}. Requests count against the plan's allowance.`
+          : cfg.configured
+            ? `Using ${cfg.provider} · ${cfg.model}. The key is encrypted on this machine; requests go straight from your server to the provider.`
+            : "Bring your own key, or use a ChatGPT Plus or Pro plan — nothing is sent anywhere until you set one up."}
       </p>
       <form
         className="settings-col"
         onSubmit={(e) => {
           e.preventDefault();
-          void run(() => api("POST", "/api/admin/ai", { provider, model, apiKey, baseUrl: provider === "openai-compatible" ? baseUrl : "" }), "AI saved.");
+          if (plan) void run(() => api("POST", "/api/admin/ai", { provider, model }), "AI saved.");
+          else void run(() => api("POST", "/api/admin/ai", { provider, model, apiKey, baseUrl: provider === "openai-compatible" ? baseUrl : "" }), "AI saved.");
         }}
       >
         <select value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="Provider">
+          <option value="chatgpt">ChatGPT plan (Plus or Pro)</option>
           <option value="anthropic">Anthropic</option>
           <option value="google">Google (Gemini)</option>
           <option value="openai-compatible">OpenAI-compatible</option>
         </select>
-        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model, e.g. claude-sonnet-5 or gemini-2.5-flash" aria-label="Model" />
-        {provider === "openai-compatible" && (
-          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL, e.g. https://llm.example.com/v1" aria-label="Base URL" />
+        {plan && !connected && (
+          <div className="settings-row">
+            <button type="button" className="primary" onClick={() => void signIn()}>
+              Continue with ChatGPT
+            </button>
+          </div>
         )}
-        <div className="settings-row">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder={cfg.configured ? "API key (leave blank to keep the current one)" : "API key"}
-            aria-label="API key"
-            autoComplete="off"
-          />
-          <button className="primary" disabled={!model.trim() || (!cfg.configured && !apiKey.trim())}>
-            Save
-          </button>
-        </div>
+        {plan && connected && (
+          <>
+            <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model">
+              {!planModels.some((m) => m.slug === model) && <option value={model}>{model || "Choose a model"}</option>}
+              {planModels.map((m) => (
+                <option key={m.slug} value={m.slug}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <div className="settings-row">
+              <button className="primary" disabled={!model}>
+                Save
+              </button>
+              <button type="button" className="ghost" onClick={() => window.open(cfg.chatgpt.manageUsage, "_blank", "noopener")}>
+                Manage usage
+              </button>
+              <button type="button" className="ghost" onClick={() => void run(() => api("POST", "/api/admin/ai/chatgpt/disconnect"), "ChatGPT disconnected.")}>
+                Disconnect
+              </button>
+            </div>
+          </>
+        )}
+        {!plan && (
+          <>
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model, e.g. claude-sonnet-5 or gemini-2.5-flash" aria-label="Model" />
+            {provider === "openai-compatible" && (
+              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL, e.g. https://llm.example.com/v1" aria-label="Base URL" />
+            )}
+            <div className="settings-row">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={cfg.configured && cfg.provider === provider ? "API key (leave blank to keep the current one)" : "API key"}
+                aria-label="API key"
+                autoComplete="off"
+              />
+              <button className="primary" disabled={!model.trim()}>
+                Save
+              </button>
+            </div>
+          </>
+        )}
       </form>
 
       <p className="integr-hint">
