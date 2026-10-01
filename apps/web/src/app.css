@@ -2113,55 +2113,7 @@ button.ov-pname {
   color: var(--text-faint);
 }
 
-/* ---- admin ---- */
-.admin {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr;
-  gap: 16px;
-  padding: 18px 26px;
-  height: 100%;
-  overflow: auto;
-  align-items: start;
-}
-.admin-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-.admin-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  padding: 16px 18px;
-}
-.admin-card h2 {
-  margin: 0 0 4px;
-  font-size: 14px;
-}
-.admin-card h3 {
-  margin: 16px 0 6px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
-.admin-hint {
-  color: var(--text-faint);
-  font-size: 12px;
-  margin: 0 0 12px;
-}
-.admin-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.admin-row input,
-.admin-row select,
-.ai-form input,
-.ai-form select,
+/* ---- ask input, invite teams ---- */
 .ask-input input {
   background: var(--bg-raised);
   border: 1px solid var(--border);
@@ -2170,226 +2122,12 @@ button.ov-pname {
   color: var(--text);
   min-width: 0;
 }
-.admin-row input {
-  flex: 1;
-}
-.team-palette {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 4px;
-}
-.team-drag {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-raised);
-  cursor: grab;
-  font-weight: 600;
-  user-select: none;
-}
-.team-drag:active {
-  cursor: grabbing;
-}
-.team-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--team, var(--accent));
-  flex: none;
-}
-.team-drag-count {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-.member-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px 0;
-  font-size: 13px;
-}
-.member-team {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  min-width: 110px;
-}
-.member-names {
-  flex: 1;
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.member-row select {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 3px 6px;
-  font-size: 12px;
-  color: var(--text);
-}
-.folder-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.folder-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
-  border: 1px dashed transparent;
-  border-radius: var(--radius-sm);
-  background: var(--panel-strong);
-}
-.folder-row.droppable {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
-.folder-name {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  min-width: 150px;
-  display: flex;
-  gap: 7px;
-  align-items: center;
-}
-.folder-icon {
-  color: var(--text-faint);
-}
-.folder-grants {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1;
-}
-.grant-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--team, var(--accent));
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.grant-role {
-  background: none;
-  border: none;
-  color: var(--team, var(--accent));
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 3px 4px 3px 9px;
-  cursor: pointer;
-}
-.grant-x {
-  background: none;
-  border: none;
-  color: var(--text-faint);
-  font-size: 10px;
-  padding: 3px 7px 3px 4px;
-  cursor: pointer;
-}
-.grant-x:hover {
-  color: var(--danger);
-}
-.grant-none {
-  color: var(--text-faint);
-  font-size: 11.5px;
-  font-style: italic;
-}
-.invite-teams {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
 .invite-team {
   display: inline-flex;
   gap: 6px;
   align-items: center;
   font-size: 13px;
 }
-.invite-link {
-  margin: 10px 0 0;
-  font-size: 12.5px;
-}
-.invite-link code {
-  font-family: var(--font-mono);
-  background: var(--panel-strong);
-  padding: 2px 6px;
-  border-radius: 3px;
-  word-break: break-all;
-}
-.ai-form {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.ai-form input[name="apiKey"] {
-  flex: 1;
-  min-width: 140px;
-}
-.admin-subhead {
-  margin: 18px 0 0;
-  font: 600 13px var(--font-ui);
-  color: var(--text);
-}
-.ai-instructions-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-}
-.ai-instructions-form textarea {
-  width: 100%;
-  resize: vertical;
-  min-height: 88px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--text);
-  font: 13px/1.5 var(--font-ui);
-}
-.ai-instructions-form button {
-  align-self: flex-start;
-}
-.project-def {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  padding: 4px 0;
-}
-.project-def code {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.project-def-team {
-  margin-left: auto;
-  color: var(--text-faint);
-  font-size: 11.5px;
-}
-.admin-flash {
-  position: fixed;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  padding: 8px 16px;
-  font-size: 13px;
-  box-shadow: var(--shadow);
-  z-index: 60;
-}
-
 /* ---- ask panel ---- */
 .ask-panel {
   position: fixed;
@@ -5349,12 +5087,18 @@ button.ov-pname {
 
 /* ---- Settings: stacked field column (mail connect form) ---- */
 .settings-col { display: flex; flex-direction: column; gap: 8px; }
-.settings-col > input {
+.settings-col > input,
+.settings-col > select,
+.settings-col > textarea {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   color: var(--text);
+  font: inherit;
+}
+.settings-col > textarea {
+  resize: vertical;
 }
 
 /* ---- Mail view ---- */

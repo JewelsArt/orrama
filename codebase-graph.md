@@ -156,13 +156,9 @@
 - **Exports**: WEBHOOK_EVENTS, WebhookEvent, TaskCompletedEvent, signPayload, initWebhooks
 - **Imports**: node:crypto, drizzle-orm, @basalt/core, ./db.js, ./safeFetch.js, ./vaultStore.js
 
-### `apps/web/src/Admin.tsx`
-- **Exports**: Admin
-- **Imports**: react, ./api.js
-
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, App
-- **Imports**: react, ./Admin.js, ./api.js, ./Architecture.js, ./AskPanel.js, ./avatars.js, ./Contacts.js, ./Finance.js, ./Project.js, ./Dashboard.js, ./icons.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./Setup.js, ./ws.js
+- **Imports**: react, ./api.js, ./Architecture.js, ./AskPanel.js, ./avatars.js, ./Contacts.js, ./Finance.js, ./Project.js, ./Dashboard.js, ./icons.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./Setup.js, ./ws.js
 
 ### `apps/web/src/Architecture.tsx`
 - **Exports**: Architecture
@@ -299,7 +295,7 @@
 - **Imports**: react
 
 ### `apps/web/src/icons.tsx`
-- **Exports**: IconMark, IconDashboard, IconArchitecture, IconPlanning, IconOverview, IconAdmin, IconSearch, IconAsk, IconPlus, IconX, IconGear, IconSun, IconMoon, IconGroceries, IconEating, IconTransport, IconBoulder, IconHealth, IconSoftware, IconShopping, IconGoingOut, IconCash, IconOther, IconFinance, IconBack, IconRefresh, IconSignOut, IconContacts, IconMail, IconSend, IconReply, IconChevron, IconLock, IconPromote, IconWand
+- **Exports**: IconMark, IconDashboard, IconArchitecture, IconPlanning, IconOverview, IconSearch, IconAsk, IconPlus, IconX, IconGear, IconSun, IconMoon, IconGroceries, IconEating, IconTransport, IconBoulder, IconHealth, IconSoftware, IconShopping, IconGoingOut, IconCash, IconOther, IconFinance, IconBack, IconRefresh, IconSignOut, IconContacts, IconMail, IconSend, IconReply, IconChevron, IconLock, IconPromote, IconWand
 
 ### `apps/web/src/livePreview.ts`
 - **Exports**: frontmatterRange, livePreview

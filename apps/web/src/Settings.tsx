@@ -184,6 +184,7 @@ export function Settings({
 
         <CalendarSection />
         <MailSection />
+        {me.isOwner && <AiSection />}
         <TokensSection />
         <WebhooksSection />
 
@@ -508,6 +509,128 @@ function MailSection() {
           {error && <p className="integr-error">{error}</p>}
         </>
       )}
+    </section>
+  );
+}
+
+/* ---------- the agent: provider, model, key, instructions ---------- */
+
+interface AiConfig {
+  provider: string | null;
+  model: string | null;
+  configured: boolean;
+  instructions: string;
+  baseUrl: string;
+}
+
+/**
+ * The AI the Ask panel and the agent use. This lived on the Admin screen, which
+ * the rail stopped showing — so the only place to change the key, the model or
+ * the agent's instructions could not be reached. Owners only (the server
+ * checks); the key is write-only: the field stays empty, blank keeps it.
+ */
+function AiSection() {
+  const [cfg, setCfg] = useState<AiConfig | null>(null);
+  const [provider, setProvider] = useState("anthropic");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [instructions, setInstructions] = useState("");
+  const [status, setStatus] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      const c = await api<AiConfig>("GET", "/api/admin/ai");
+      setCfg(c);
+      setProvider(c.provider ?? "anthropic");
+      setModel(c.model ?? "");
+      setBaseUrl(c.baseUrl);
+      setInstructions(c.instructions);
+    } catch {
+      setCfg(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
+    try {
+      await fn();
+      setApiKey("");
+      await load();
+      setStatus(ok);
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "could not save");
+    }
+  };
+
+  if (!cfg) return null;
+  return (
+    <section>
+      <h3>AI</h3>
+      <p className="integr-hint">
+        {cfg.configured
+          ? `Using ${cfg.provider} · ${cfg.model}. The key is encrypted on this machine; requests go straight from your server to the provider.`
+          : "Bring your own key — nothing is sent anywhere until you add one."}
+      </p>
+      <form
+        className="settings-col"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(() => api("POST", "/api/admin/ai", { provider, model, apiKey, baseUrl: provider === "openai-compatible" ? baseUrl : "" }), "AI saved.");
+        }}
+      >
+        <select value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="Provider">
+          <option value="anthropic">Anthropic</option>
+          <option value="google">Google (Gemini)</option>
+          <option value="openai-compatible">OpenAI-compatible</option>
+        </select>
+        <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model, e.g. claude-sonnet-5 or gemini-2.5-flash" aria-label="Model" />
+        {provider === "openai-compatible" && (
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL, e.g. https://llm.example.com/v1" aria-label="Base URL" />
+        )}
+        <div className="settings-row">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={cfg.configured ? "API key (leave blank to keep the current one)" : "API key"}
+            aria-label="API key"
+            autoComplete="off"
+          />
+          <button className="primary" disabled={!model.trim() || (!cfg.configured && !apiKey.trim())}>
+            Save
+          </button>
+        </div>
+      </form>
+
+      <p className="integr-hint">
+        Agent instructions — how it should work for you (tone, priorities, habits). Added to a built-in guide that already covers projects,
+        tasks and the calendar, and to your vault’s CLAUDE.md.
+      </p>
+      <form
+        className="settings-col"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(() => api("POST", "/api/admin/ai/instructions", { instructions }), "Instructions saved.");
+        }}
+      >
+        <textarea
+          rows={6}
+          value={instructions}
+          onChange={(e) => setInstructions(e.target.value)}
+          placeholder="e.g. Be direct and structured. Push me on deadlines."
+          aria-label="Agent instructions"
+        />
+        <div className="settings-row">
+          <button className="primary" disabled={instructions === cfg.instructions}>
+            Save instructions
+          </button>
+        </div>
+      </form>
+      {status && <p className="settings-meta">{status}</p>}
     </section>
   );
 }

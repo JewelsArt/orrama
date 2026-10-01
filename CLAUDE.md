@@ -68,7 +68,7 @@ project's hidden flag, and accounts/settings.
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Admin` (DnD grants), `Settings` (character `avatars.tsx`), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
+| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Settings` (character `avatars.tsx`; the AI provider, key, model and agent instructions live under Settings → AI, owners only), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -331,7 +331,9 @@ tab, Planning has no team lanes or people picker, the Overview board has no
 vault". The team machinery underneath (`teams`, `memberships`, folder grants,
 the whole §5 ACL) is untouched and still enforced — the permission tests are
 release-blocking regardless — it simply has no UI. Re-adding a collaborator is a
-UI job, not a migration.
+UI job, not a migration: the old grants screen (`Admin.tsx`, teams dragged onto
+folders over `routes/admin.ts`) was unreachable and was removed in Oct 2026 once
+its AI section had moved to Settings — `git log -- apps/web/src/Admin.tsx`.
 
 ## Reading mail
 

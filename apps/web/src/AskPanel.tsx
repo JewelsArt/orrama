@@ -50,7 +50,7 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
       </header>
       {configured === false && (
         <p className="ask-off">
-          AI isn't configured. A workspace owner can add a provider key under <strong>Admin → AI</strong>. Your notes never
+          AI isn't configured. A workspace owner can add a provider key under <strong>Settings → AI</strong>. Your notes never
           leave your server until then.
         </p>
       )}
@@ -87,7 +87,7 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
           <div className="ask-error" role="alert">
             <strong>Something went wrong.</strong>
             <span>{error.message || "The model request failed."}</span>
-            <span className="ask-error-hint">Check the model name and API key under Admin → AI, then try again.</span>
+            <span className="ask-error-hint">Check the model name and API key under Settings → AI, then try again.</span>
           </div>
         )}
       </div>

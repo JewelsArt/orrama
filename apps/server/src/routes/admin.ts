@@ -125,6 +125,13 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     return invite;
   });
 
+  /** The AI settings, for Settings → AI. Never the key: only whether one is stored. */
+  app.get("/api/admin/ai", auth, async (req) => {
+    await requireOwner(req.userId);
+    const ws = db.select().from(tables.workspace).all()[0];
+    return { provider: ws?.aiProvider ?? null, model: ws?.aiModel ?? null, configured: !!ws?.aiKeyEncrypted, instructions: ws?.aiInstructions ?? "", baseUrl: ws?.aiBaseUrl ?? "" };
+  });
+
   /** BYO AI key (spec §9): stored encrypted at rest, never proxied through Basalt-the-company. */
   app.post("/api/admin/ai", auth, async (req) => {
     await requireOwner(req.userId);

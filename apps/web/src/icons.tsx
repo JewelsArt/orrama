@@ -96,13 +96,6 @@ export const IconOverview = () => (
   </svg>
 );
 
-export const IconAdmin = () => (
-  <svg {...base}>
-    <path d="M8 1.8 L13.5 4 V8 C13.5 11.2 11.2 13.4 8 14.4 C4.8 13.4 2.5 11.2 2.5 8 V4 Z" />
-    <path d="M5.8 8 L7.4 9.6 L10.4 6.4" />
-  </svg>
-);
-
 export const IconSearch = () => (
   <svg {...base}>
     <circle cx="7" cy="7" r="4.4" />
@@ -263,7 +256,6 @@ export const IconPromote = () => (
     <path d="M8 2.5 L13 8 L8 13.5 L3 8 Z" />
   </svg>
 );
-
 
 /** Auto-plan: a wand with two sparks — the one place the app fills the calendar for you. */
 export const IconWand = () => (

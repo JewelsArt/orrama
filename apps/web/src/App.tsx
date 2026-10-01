@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Admin } from "./Admin.js";
 import { api, clearToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
@@ -32,8 +31,7 @@ export type View =
   | { kind: "project"; slug: string }
   | { kind: "contacts" }
   | { kind: "finance"; category?: string; merchant?: string; page?: FinancePage; month?: string }
-  | { kind: "mail" }
-  | { kind: "admin" };
+  | { kind: "mail" };
 
 const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
   { kind: "dashboard", label: "Dashboard", icon: IconDashboard },
@@ -433,7 +431,7 @@ export function App() {
           <Contacts me={me} onOpenNote={openNote} />
         ) : view.kind === "mail" ? (
           <Mail me={me} />
-        ) : view.kind === "finance" ? (
+        ) : (
           <Finance
             onOpenNote={openNote}
             category={view.category}
@@ -446,8 +444,6 @@ export function App() {
             onOpenMonth={(m, c) => navigate({ kind: "finance", month: m, category: c })}
             onBack={goBack}
           />
-        ) : (
-          <Admin />
         )}
       </main>
 
