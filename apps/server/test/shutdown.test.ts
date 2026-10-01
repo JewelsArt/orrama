@@ -36,10 +36,14 @@ describe("shutdown", () => {
   }, 40_000);
 
   // The launchd agent does not run node: it runs `pnpm --dir apps/server
-  // start`, and launchd signals that pnpm. Verified 2026-10-01 that pnpm
-  // passes SIGTERM down (pnpm → tsx → node) — a pnpm that stopped doing so
-  // would kill the server mid-write on every logout and `launchctl` stop.
-  it("SIGTERM to `pnpm start` — what launchd signals — reaches the server", async () => {
+  // start`, and launchd signals that pnpm. Verified 2026-10-01 on macOS that
+  // pnpm passes SIGTERM down (pnpm → tsx → node) — a pnpm that stopped doing
+  // so would kill the server mid-write on every logout and `launchctl` stop.
+  // macOS only: on Ubuntu CI the same pnpm 11.9.0 did NOT get the signal to
+  // the server, for a reason not established (not dash: it execs the command
+  // like macOS's sh does). Linux deployments are the Docker image, which runs
+  // node directly (dockerfile.test.ts), so nothing there depends on it.
+  it.runIf(process.platform === "darwin")("SIGTERM to `pnpm start` — what launchd signals — reaches the server", async () => {
     const dir = fs.mkdtempSync(path.join(tmp, "pnpm-"));
     const child = spawn("pnpm", ["--dir", "apps/server", "start"], {
       cwd: path.resolve(import.meta.dirname, "../../.."),
