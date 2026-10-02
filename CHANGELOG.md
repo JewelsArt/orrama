@@ -41,6 +41,8 @@ one is in CLAUDE.md, "Releases".
 - A copied calendar note no longer doubles the events typed into it by hand.
 - Note titles in the file tree sit on the left, next to their dot, instead of
   floating mid-row.
+- A note Basalt has just created and that is deleted outside it a moment
+  later leaves the list, instead of staying there until a restart.
 
 ## [0.1.0] — 2026-10-01
 

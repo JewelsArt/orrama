@@ -204,16 +204,25 @@ export class VaultStore {
       if (event === "addDir") return this.lookAgainLater(absPath);
       if (!absPath.toLowerCase().endsWith(".md")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
-
       // No early return on "we wrote this": whether it is our echo is decided in
       // handleExternalChange, by comparing the bytes on disk with what we wrote.
-      const existingTimeout = this.watchTimeouts.get(relPath);
-      if (existingTimeout) clearTimeout(existingTimeout);
-      
-      this.watchTimeouts.set(relPath, setTimeout(() => {
-        this.watchTimeouts.delete(relPath);
-        this.handleExternalChange(event, relPath, absPath);
-      }, 300));
+      this.settleLater(event, relPath, absPath);
+    });
+    // A note created and deleted in one breath — Basalt writes it, something
+    // outside removes it a moment later — can reach chokidar as one coalesced
+    // fs event: by the time chokidar looks, the file is gone, so it reports
+    // neither "add" nor "unlink", and the note stayed in the index. The raw
+    // event still names the file; if the index holds it and it is gone, settle
+    // it the same way an unlink would be.
+    watcher.on("raw", (_event: string, evPath: unknown, details: unknown) => {
+      const watched = (details as { watchedPath?: unknown } | undefined)?.watchedPath;
+      if (typeof evPath !== "string" || !evPath || typeof watched !== "string") return;
+      // A folder's watcher names a child; a file's watcher names the file itself.
+      const absPath = path.basename(watched) === evPath ? watched : path.resolve(watched, evPath);
+      if (!absPath.toLowerCase().endsWith(".md") || path.basename(absPath).startsWith(".")) return;
+      const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
+      if (relPath.startsWith("..") || !this.index.getByPath(relPath) || fs.existsSync(absPath)) return;
+      this.settleLater("unlink", relPath, absPath);
     });
     // Without a listener, chokidar's "error" (EACCES on a folder or file the
     // server may not read) is thrown inside its own walk: an unhandled
@@ -225,6 +234,16 @@ export class VaultStore {
     });
     this.watcher = watcher;
     this.watching = new Promise((resolve) => watcher.once("ready", () => resolve()));
+  }
+
+  /** Debounce the watcher's events per path: the last one settles it, 300ms on. */
+  private settleLater(event: string, relPath: string, absPath: string): void {
+    const pending = this.watchTimeouts.get(relPath);
+    if (pending) clearTimeout(pending);
+    this.watchTimeouts.set(relPath, setTimeout(() => {
+      this.watchTimeouts.delete(relPath);
+      this.handleExternalChange(event, relPath, absPath);
+    }, 300));
   }
 
   /**
@@ -372,7 +391,10 @@ export class VaultStore {
   private handleExternalChange(event: string, relPath: string, absPath: string): void {
     if (event === "add" || event === "change") {
       try {
-        if (!fs.existsSync(absPath)) return;
+        // Gone again by the time the debounce settled: it is an unlink now,
+        // whatever the event said (and a "raw" settle may have been replaced
+        // by chokidar's own "add" for the same path).
+        if (!fs.existsSync(absPath)) return this.forget(relPath);
         const content = fs.readFileSync(absPath, "utf8");
 
         // Our own write coming back round: the file still holds exactly what we
@@ -394,14 +416,18 @@ export class VaultStore {
       // share one debounce, so the unlink may be the one that fires. The file
       // is still there: it changed, it did not go.
       if (fs.existsSync(absPath)) return this.handleExternalChange("change", relPath, absPath);
-      const existing = this.index.getByPath(relPath);
-      if (existing) {
-        this.index.remove(relPath);
-        this.db.update(tables.notes).set({ deleted: true, mtimeMs: Date.now() }).where(eq(tables.notes.id, existing.id)).run();
-        this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
-        this.events.emit("note-removed", { noteId: existing.id, path: relPath });
-      }
+      this.forget(relPath);
     }
+  }
+
+  /** The file at `relPath` is gone from disk: drop its note from the index. */
+  private forget(relPath: string): void {
+    const existing = this.index.getByPath(relPath);
+    if (!existing) return;
+    this.index.remove(relPath);
+    this.db.update(tables.notes).set({ deleted: true, mtimeMs: Date.now() }).where(eq(tables.notes.id, existing.id)).run();
+    this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
+    this.events.emit("note-removed", { noteId: existing.id, path: relPath });
   }
 
   /**
