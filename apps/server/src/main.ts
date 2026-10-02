@@ -192,6 +192,15 @@ Vault layout:
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) return reply.code(err.statusCode).send({ error: err.message });
     if (err instanceof ZodError) return reply.code(400).send({ error: err.issues.map((i) => i.message).join("; ") });
+    // Fastify's own rejections of a request (malformed or empty JSON, an
+    // unsupported content type, a body over the limit) are the client's fault:
+    // they keep their 4xx and message instead of reading as a server crash.
+    // Only FST_ errors — anything else carrying a statusCode came from a
+    // library and its message may describe the far end.
+    const fst = err as { code?: unknown; statusCode?: unknown; message: string };
+    if (typeof fst.code === "string" && fst.code.startsWith("FST_") && typeof fst.statusCode === "number" && fst.statusCode >= 400 && fst.statusCode < 500) {
+      return reply.code(fst.statusCode).send({ error: fst.message });
+    }
     app.log.error(err);
     return reply.code(500).send({ error: "internal error" });
   });

@@ -17,6 +17,13 @@ one is in CLAUDE.md, "Releases".
   runs the agent instead of an API key (from a browser on the Mac that runs
   Basalt). Your other provider's key stays stored for switching back.
 
+### Fixed
+
+- A request the server cannot read — malformed or empty JSON, an unsupported
+  content type, an upload over the size limit — is answered with its 400, 413
+  or 415 and Fastify's reason, not `500 internal error`, and no longer logged
+  as a server crash.
+
 ## [0.1.0] — 2026-10-01
 
 The first tagged release: 120 commits from 3 July to 1 October 2026, running
