@@ -2,7 +2,7 @@ import { rollUpYears } from "@basalt/core/spending";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isoLocal, monthKey, shiftMonth } from "@basalt/core/dates";
 import type { FinancePage } from "./App.js";
-import { api } from "./api.js";
+import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
 import {
   IconBoulder,
@@ -541,8 +541,10 @@ function MerchantPage({
   const [d, setD] = useState<MerchantDetail | null>(null);
   const [year, setYear] = useState<string | null>(null);
   useEffect(() => {
+    const ac = new AbortController();
     const q = year ? `?year=${encodeURIComponent(year)}` : "";
-    void api<MerchantDetail>("GET", `/api/finance/merchant/${encodeURIComponent(name)}${q}`).then(setD);
+    void api<MerchantDetail>("GET", `/api/finance/merchant/${encodeURIComponent(name)}${q}`, undefined, { signal: ac.signal }).then(setD, unlessAborted);
+    return () => ac.abort();
   }, [name, year]);
 
   if (!d) return <div className="fin"><p className="fin-loading">Reading {name}…</p></div>;
@@ -689,8 +691,10 @@ function CategoryPage({
   const [grain, setGrain] = useGrain();
 
   useEffect(() => {
+    const ac = new AbortController();
     const q = year ? `?year=${encodeURIComponent(year)}` : "";
-    void api<CategoryDetail>("GET", `/api/finance/category/${encodeURIComponent(name)}${q}`).then(setD);
+    void api<CategoryDetail>("GET", `/api/finance/category/${encodeURIComponent(name)}${q}`, undefined, { signal: ac.signal }).then(setD, unlessAborted);
+    return () => ac.abort();
   }, [name, year]);
 
   if (!d) return <div className="fin"><p className="fin-loading">Reading {name}…</p></div>;
@@ -2264,8 +2268,10 @@ function MonthPage({
   const [d, setD] = useState<MonthDetail | null>(null);
   useEffect(() => {
     setD(null);
+    const ac = new AbortController();
     const q = category && category !== SPENDING_PAGE ? `?category=${encodeURIComponent(category)}` : "";
-    void api<MonthDetail>("GET", `/api/finance/month/${month}${q}`).then(setD);
+    void api<MonthDetail>("GET", `/api/finance/month/${month}${q}`, undefined, { signal: ac.signal }).then(setD, unlessAborted);
+    return () => ac.abort();
   }, [month, category]);
   if (!d) return <div className="fin"><p className="fin-loading">Opening {monthLong(month)}…</p></div>;
 

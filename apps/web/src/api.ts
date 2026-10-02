@@ -244,9 +244,16 @@ interface PublicKeyCredentialRequestOptionsJSON {
   [k: string]: unknown;
 }
 
-export async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
+/**
+ * `signal` cancels the request. A reply that lands after its request was
+ * cancelled is never returned — it rejects with an AbortError (isAbort) — so
+ * a slow answer to an older question cannot overwrite a newer one.
+ */
+export async function api<T>(method: string, url: string, body?: unknown, opts: { signal?: AbortSignal } = {}): Promise<T> {
+  const { signal } = opts;
   const res = await fetch(url, {
     method,
+    signal,
     headers: {
       ...(body !== undefined ? { "content-type": "application/json" } : {}),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
@@ -260,7 +267,33 @@ export async function api<T>(method: string, url: string, body?: unknown): Promi
     if (res.status === 401 && token && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
-  return res.json() as Promise<T>;
+  const data = (await res.json()) as T;
+  if (signal?.aborted) throw abortError();
+  return data;
+}
+
+const abortError = () => new DOMException("superseded by a newer request", "AbortError");
+
+/** A request cancelled by its signal — expected, never an error to show. */
+export const isAbort = (e: unknown): boolean => (e as { name?: unknown } | null)?.name === "AbortError";
+
+/** For `.catch()`: swallow a cancellation, let anything else through as before. */
+export const unlessAborted = (e: unknown): void => {
+  if (!isAbort(e)) throw e;
+};
+
+/**
+ * One request of a kind in flight: each call cancels the previous one and
+ * returns the signal for the next. For loaders a click or a keystroke can
+ * start again before the last answer is back — open a note, flip a week.
+ */
+export function latestOnly(): () => AbortSignal {
+  let ctrl: AbortController | undefined;
+  return () => {
+    ctrl?.abort();
+    ctrl = new AbortController();
+    return ctrl.signal;
+  };
 }
 
 /** Fired when the server stops accepting this browser's session. */
@@ -286,10 +319,12 @@ export async function signOut(): Promise<void> {
 
 /** Same auth as api(), but for bytes: project documents are behind the bearer
  *  token, so a plain <a href> would 401. */
-export async function apiBlob(url: string): Promise<Blob> {
-  const res = await fetch(url, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+export async function apiBlob(url: string, opts: { signal?: AbortSignal } = {}): Promise<Blob> {
+  const res = await fetch(url, { signal: opts.signal, headers: token ? { authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
-  return res.blob();
+  const blob = await res.blob();
+  if (opts.signal?.aborted) throw abortError();
+  return blob;
 }
 
 export class ApiError extends Error {

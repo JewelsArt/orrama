@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "./dialog.js";
-import { api, type DashboardTask, type Me, type NoteDetail } from "./api.js";
+import { api, isAbort, latestOnly, unlessAborted, type DashboardTask, type Me, type NoteDetail } from "./api.js";
 import { ContactSheet, initials as sheetInitials, type CompanyRecord, type ContactRecord } from "./cards.js";
 import { DOMAIN_COLOR, daysTo } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
@@ -123,13 +123,15 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
     }
   };
 
+  const [nextLoad] = useState(latestOnly);
   const load = useCallback(async () => {
     try {
-      setW(await api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(slug)}`));
+      setW(await api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(slug)}`, undefined, { signal: nextLoad() }));
     } catch (err) {
+      if (isAbort(err)) return;
       setError(err instanceof Error ? err.message : "failed to load");
     }
-  }, [slug]);
+  }, [slug, nextLoad]);
 
   useEffect(() => {
     void load();
@@ -653,15 +655,18 @@ function PersonModal({
   }, [onClose]);
 
   useEffect(() => {
+    const ac = new AbortController();
+    const { signal } = ac;
     void (async () => {
       if (person.kind === "company") {
-        const all = await api<CompanyRecord[]>("GET", "/api/companies");
+        const all = await api<CompanyRecord[]>("GET", "/api/companies", undefined, { signal });
         setCompany(all.find((c) => c.id === person.id) ?? null);
       } else {
-        const all = await api<ContactRecord[]>("GET", "/api/contacts");
+        const all = await api<ContactRecord[]>("GET", "/api/contacts", undefined, { signal });
         setRecord(all.find((c) => c.id === person.id) ?? null);
       }
-    })();
+    })().catch(unlessAborted);
+    return () => ac.abort();
   }, [person]);
 
   const fallback: ContactRecord = {

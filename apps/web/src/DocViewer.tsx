@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
-import { api, apiBlob } from "./api.js";
+import { api, apiBlob, isAbort } from "./api.js";
 
 /**
  * Read a project document without leaving Basalt.
@@ -152,40 +152,51 @@ export function DocViewer({
 
   useEffect(() => {
     let objectUrl: string | null = null;
+    // Another document chosen before this one arrived: this one must not land.
+    const ac = new AbortController();
+    const { signal } = ac;
     void (async () => {
       try {
         if (ext === ".xlsx" || ext === ".xlsm") {
           const res = await api<{ sheets: Sheet[] }>(
             "GET",
             `${base}/${encodeURIComponent(name)}/sheet`,
+            undefined,
+            { signal },
           );
           setBook(res.sheets);
           return;
         }
         if (ext === ".pptx") {
-          setDeck(await api<Deck>("GET", `${base}/${encodeURIComponent(name)}/slides`));
+          setDeck(await api<Deck>("GET", `${base}/${encodeURIComponent(name)}/slides`, undefined, { signal }));
           return;
         }
         if (ext === ".docx") {
           const res = await api<{ html: string }>(
             "GET",
             `${base}/${encodeURIComponent(name)}/html`,
+            undefined,
+            { signal },
           );
           setHtml(res.html);
           return;
         }
-        const blob = await apiBlob(`${base}/${encodeURIComponent(name)}`);
+        const blob = await apiBlob(`${base}/${encodeURIComponent(name)}`, { signal });
         if ([".txt", ".md", ".csv", ".json"].includes(ext)) {
-          setText(await blob.text());
+          const text = await blob.text();
+          if (signal.aborted) return;
+          setText(text);
         } else {
           objectUrl = URL.createObjectURL(blob);
           setUrl(objectUrl);
         }
       } catch (err) {
+        if (isAbort(err)) return;
         setError(err instanceof Error ? err.message : "could not open this file");
       }
     })();
     return () => {
+      ac.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [base, name, ext]);

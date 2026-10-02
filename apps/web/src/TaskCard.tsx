@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
-import { api } from "./api.js";
+import { api, unlessAborted } from "./api.js";
 import { initials } from "./cards.js";
 import type { ProjectWorkspace } from "./Project.js";
 
@@ -65,13 +65,16 @@ export function TaskCard({
   // The plan only knows the project's *name*; the workspace is addressed by slug.
   useEffect(() => {
     if (!task.project) return;
+    const ac = new AbortController();
+    const { signal } = ac;
     void (async () => {
-      const list = await api<{ slug: string; name: string }[]>("GET", "/api/projects");
+      const list = await api<{ slug: string; name: string }[]>("GET", "/api/projects", undefined, { signal });
       const hit = list.find((p) => p.name === task.project);
       if (!hit) return;
       setSlug(hit.slug);
-      setProject(await api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(hit.slug)}`));
-    })();
+      setProject(await api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(hit.slug)}`, undefined, { signal }));
+    })().catch(unlessAborted);
+    return () => ac.abort();
   }, [task.project]);
 
   const schedule = async () => {

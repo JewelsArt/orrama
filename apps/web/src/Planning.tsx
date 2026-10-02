@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mondayOf, shiftMonth } from "./calendarMath.js";
-import { api, type Me } from "./api.js";
+import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { IconWand } from "./icons.js";
 import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
@@ -151,6 +151,8 @@ export function Planning({
 }) {
   const [card, setCard] = useState<PlanTask | null>(null);
   const [plan, setPlan] = useState<PlanData | null>(null);
+  // Flip weeks quickly and an older week's events must not land last.
+  const [nextLoad] = useState(latestOnly);
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [markers, setMarkers] = useState<DayMarker[]>([]);
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
@@ -178,15 +180,20 @@ export function Planning({
   }, [weekStart]);
 
   const load = useCallback(async () => {
-    const [p, e, m] = await Promise.all([
-      api<PlanData>("GET", "/api/plan"),
-      api<CalEvent[]>("GET", `/api/events?from=${range.from}&to=${range.to}`),
-      api<DayMarker[]>("GET", `/api/calendar/markers?from=${range.from}&to=${range.to}`),
-    ]);
-    setPlan(p);
-    setEvents(e);
-    setMarkers(m);
-  }, [range]);
+    const signal = nextLoad();
+    try {
+      const [p, e, m] = await Promise.all([
+        api<PlanData>("GET", "/api/plan", undefined, { signal }),
+        api<CalEvent[]>("GET", `/api/events?from=${range.from}&to=${range.to}`, undefined, { signal }),
+        api<DayMarker[]>("GET", `/api/calendar/markers?from=${range.from}&to=${range.to}`, undefined, { signal }),
+      ]);
+      setPlan(p);
+      setEvents(e);
+      setMarkers(m);
+    } catch (err) {
+      if (!isAbort(err)) throw err;
+    }
+  }, [range, nextLoad]);
 
   useEffect(() => {
     void load();

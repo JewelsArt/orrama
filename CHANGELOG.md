@@ -43,6 +43,10 @@ one is in CLAUDE.md, "Releases".
   floating mid-row.
 - A note Basalt has just created and that is deleted outside it a moment
   later leaves the list, instead of staying there until a restart.
+- A slow answer can no longer overwrite a newer one: opening one note and
+  then another quickly, flipping weeks in Planning, switching documents,
+  Finance months or mail messages, and typing in search each cancel the
+  request they replace.
 
 ## [0.1.0] — 2026-10-01
 

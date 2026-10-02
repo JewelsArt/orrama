@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type Me, type NoteDetail, type TreeNote } from "./api.js";
+import { api, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
@@ -27,6 +27,11 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   // and backlinks). See packages/sync/src/client.ts.
   const [sync, setSync] = useState<NoteSync | null>(null);
   const syncRef = useRef<{ id: string; sync: NoteSync | null } | null>(null);
+  // Opening a note is a latest-wins load: click A then B, and A's reply
+  // landing second used to open A — with its live sync — while B was chosen.
+  const [nextOpen] = useState(latestOnly);
+  /** The note last asked for, which may still be on its way. */
+  const wantRef = useRef<string | null>(null);
 
   const loadTree = useCallback(async () => {
     setTree(await api<TreeNote[]>("GET", "/api/vault/tree"));
@@ -35,11 +40,13 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
 
   /** Close the open note, saving anything still pending first. */
   const closeNote = useCallback(() => {
+    nextOpen(); // a note still on its way must not open after the close
+    wantRef.current = null;
     retire(syncRef.current?.sync ?? null);
     syncRef.current = null;
     setSync(null);
     setOpen(null);
-  }, []);
+  }, [nextOpen]);
   useEffect(() => () => retire(syncRef.current?.sync ?? null), []);
 
   // Remembered after the note closes so the map can stay anchored on it — that
@@ -63,7 +70,16 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
 
   const openNote = useCallback(
     async (id: string) => {
-      const note = await api<NoteDetail>("GET", `/api/vault/note/${id}`);
+      wantRef.current = id;
+      const signal = nextOpen();
+      let note: NoteDetail;
+      try {
+        note = await api<NoteDetail>("GET", `/api/vault/note/${id}`, undefined, { signal });
+      } catch (e) {
+        if (isAbort(e)) return;
+        if (wantRef.current === id) wantRef.current = openRef.current?.id ?? null;
+        throw e;
+      }
       if (syncRef.current?.id === id) {
         // The same note again (a toggle, a live-sync event): refresh the header
         // and let the sync merge the text into whatever is being typed.
@@ -78,9 +94,9 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       setOpen(note);
       setLastOpenId(note.id);
       setStatus("saved");
-      api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`).then(setRelated);
+      api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`, undefined, { signal }).then(setRelated, unlessAborted);
     },
-    [loadTree],
+    [loadTree, nextOpen],
   );
 
   useEffect(() => {
@@ -96,7 +112,9 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       if (msg.type === "note-changed") {
         void loadTree();
         const current = openRef.current;
-        if (current && msg.noteId === current.id) {
+        // Not while another note is on its way: refreshing this one would
+        // cancel the note just clicked.
+        if (current && msg.noteId === current.id && wantRef.current === current.id) {
           // Someone else: refresh the header too. You (another tab, the phone,
           // a toggle on this page): the text is all that can have moved, and a
           // refresh after your own save is a no-op.

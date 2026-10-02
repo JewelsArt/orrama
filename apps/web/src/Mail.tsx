@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type Me } from "./api.js";
+import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
 import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
 
 /** Inbox envelope (list row) — mirrors the server's InboxItem. */
@@ -142,6 +142,8 @@ export function Mail({ me }: { me: Me }) {
   const [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState<MailMessage | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(false);
+  // Click one message, then another: the first one's body must not land last.
+  const [nextMessage] = useState(latestOnly);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, setPending] = useState<PendingDraft[]>([]);
@@ -187,18 +189,21 @@ export function Mail({ me }: { me: Me }) {
     setMessage(null);
     setDraft(null);
     setLoadingMsg(true);
+    const signal = nextMessage();
     try {
-      const m = await api<MailMessage>("GET", `/api/mail/message/${uid}`);
+      const m = await api<MailMessage>("GET", `/api/mail/message/${uid}`, undefined, { signal });
       setMessage(m);
       // Reflect the read state in the list without a full refetch.
       setMessages((prev) => prev?.map((x) => (x.uid === uid ? { ...x, seen: true } : x)) ?? prev);
     } catch (e) {
+      if (isAbort(e)) return;
       setMessage(null);
       setListError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoadingMsg(false);
+      // A newer message is loading: its spinner is not ours to stop.
+      if (!signal.aborted) setLoadingMsg(false);
     }
-  }, []);
+  }, [nextMessage]);
 
   const replyTo = (m: MailMessage) =>
     setDraft({

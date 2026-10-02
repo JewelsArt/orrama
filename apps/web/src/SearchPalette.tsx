@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "./api.js";
+import { api, unlessAborted } from "./api.js";
 
 interface Hit {
   id: string;
@@ -17,12 +17,19 @@ export function SearchPalette({ onClose, onPick }: { onClose: () => void; onPick
   useEffect(() => ref.current?.focus(), []);
 
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const res = await api<Hit[]>("GET", `/api/vault/search?q=${encodeURIComponent(q)}`);
-      setHits(res);
-      setSel(0);
+    // The debounce drops keystrokes not yet sent; the abort drops a search
+    // already sent, so "ab"'s results cannot land after "abc"'s.
+    const ac = new AbortController();
+    const t = setTimeout(() => {
+      api<Hit[]>("GET", `/api/vault/search?q=${encodeURIComponent(q)}`, undefined, { signal: ac.signal }).then((res) => {
+        setHits(res);
+        setSel(0);
+      }, unlessAborted);
     }, 120);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
   }, [q]);
 
   const onKey = (e: React.KeyboardEvent) => {
