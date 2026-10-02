@@ -11,6 +11,9 @@
  */
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { isoLocal } from "@basalt/core/dates";
+// One tag grammar for the index and the chips: a chip drawn over half a tag
+// would show a different tag from the one the note is filed under.
+import { TAG_RE } from "@basalt/core";
 import {
   Decoration,
   EditorView,
@@ -21,7 +24,6 @@ import {
 } from "@codemirror/view";
 
 const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
-const TAG_RE = /(^|[\s(])#([A-Za-z][\w-]*(?:\/[\w-]+)*)/g;
 /** `[/]` in progress and `[b]` blocked are open tasks too (see core parse.ts). */
 const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] /;
 const HEADING_RE = /^(#{1,6}) /;

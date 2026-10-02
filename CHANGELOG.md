@@ -28,6 +28,10 @@ one is in CLAUDE.md, "Releases".
   landing in between was missed until something else in that folder changed —
   10 of 10 in a probe. The server now looks at each new folder again a second
   later. macOS was not affected in practice.
+- Tags in any alphabet: `#réunion` was filed as `r` and `#été` as no tag at
+  all. Front-matter tags now follow the same rules as inline ones (a tag with a
+  space or a dot in it is dropped), except an `only/…` tag, which stays so the
+  note stays restricted.
 
 ## [0.1.0] — 2026-10-01
 

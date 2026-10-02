@@ -19,10 +19,17 @@ const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
 const MD_LINK_RE = /(!?)\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;
 
 /**
- * Inline #tag. Must start a word boundary; allows letters, digits, -, _, and / for hierarchy.
- * Excludes pure-numeric "#123" (issue-reference style) and headings ("# Title" has a space).
+ * The tag grammar — one for inline `#tags`, front-matter `tags:` and the
+ * editor's chips (apps/web livePreview.ts imports TAG_RE). A letter first, of
+ * any script, then letters, accents, digits, `_` and `-`, with `/` between
+ * segments. Any script because the ASCII-only version read `#réunion` as `r`
+ * and `#été` as no tag at all. A letter first because that keeps `#0a0a0a` (a
+ * colour), `#123` (an issue) and `# Title` (a heading) out.
  */
-const TAG_RE = /(^|[\s(])#([A-Za-z][\w-]*(?:\/[\w-]+)*)/g;
+const TAG_BODY = String.raw`\p{L}[\p{L}\p{M}\p{N}_-]*(?:\/[\p{L}\p{M}\p{N}_-]+)*`;
+/** Inline #tag: starts a line, or follows a space or "(". */
+export const TAG_RE = new RegExp(String.raw`(^|[\s(])#(${TAG_BODY})`, "gu");
+const WHOLE_TAG = new RegExp(`^${TAG_BODY}$`, "u");
 
 /** `[/]` = in progress, `[b]` = blocked (the Obsidian Tasks / Minimal convention). */
 const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] (.*)$/;
@@ -36,24 +43,35 @@ const PRIORITY_RE = /(^|\s)!p([123])\b/;
 const BLOCK_ID_RE = /\s\^([\w-]+)\s*$/;
 const FENCE_RE = /^(```|~~~)/;
 
+/** Case-folded, and NFC so an accent typed as one character or as two is one tag. */
 function normalizeTag(t: string): string {
-  return t.replace(/^#/, "").toLowerCase();
+  return t.trim().replace(/^#/, "").normalize("NFC").toLowerCase();
 }
 
 /**
  * A tag that reads as a path escape is not a tag.
  *
- * Inline tags cannot produce one — TAG_RE has no `.` in its character class —
- * but front-matter tags reach normalizeTag unparsed, and a `project/<slug>` tag
- * becomes a directory name in routes/projects.ts. `routes/projects.ts` validates
- * the slug itself; this is the other end of the same hole, so a crafted tag
- * never enters the index in the first place.
- *
- * Deliberately narrow: only `.`/`..` segments and backslashes are dropped.
- * Anything wider risks discarding a legitimate `#only/<team>` tag, and losing
- * one of those does not fail closed — it makes the note readable by MORE people.
+ * The tag grammar has no `.` or backslash, so a tag that passes it cannot be one —
+ * but a malformed `only/…` front-matter tag is kept outside the grammar
+ * (frontmatterTag), and a `project/<slug>` tag becomes a directory name in
+ * routes/projects.ts. `routes/projects.ts` validates the slug itself; this is
+ * the other end of the same hole, so a crafted tag never enters the index.
  */
 const UNSAFE_TAG = /(^|\/)\.\.?(\/|$)|\\/;
+
+/**
+ * A front-matter tag, held to the inline grammar — they used to be taken as
+ * written, so `tags: [my tag]` indexed a tag with a space in it, which no
+ * `#tag` can ever be. Outside the grammar it is dropped, with one exception:
+ * an `only/…` tag stays. A malformed one names no team, so it restricts the
+ * note to owners; dropping it would open the note to every folder grant.
+ */
+function frontmatterTag(raw: string): string | null {
+  const tag = normalizeTag(raw);
+  if (!tag || UNSAFE_TAG.test(tag)) return null;
+  if (WHOLE_TAG.test(tag)) return tag;
+  return tag.startsWith("only/") ? tag : null;
+}
 
 /**
  * Inline Markdown off a task's display text: `**bold**`, `*em*`, `_em_`,
@@ -143,9 +161,8 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   const headings: Heading[] = [];
 
   for (const t of frontmatterStrings(data["tags"])) {
-    const tag = normalizeTag(t);
-    if (!tag || UNSAFE_TAG.test(tag)) continue;
-    tags.push({ tag, line: 0 });
+    const tag = frontmatterTag(t);
+    if (tag) tags.push({ tag, line: 0 });
   }
 
   let inFence = false;

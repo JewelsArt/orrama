@@ -73,7 +73,7 @@ const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "
  * A slug is a path segment, so it gets the grammar of one.
  *
  * `openProject` resolves a slug by matching any readable note's tag, and
- * front-matter tags reach `normalizeTag` without passing TAG_RE — so a note
+ * front-matter tags used to skip the tag grammar — so a note
  * carrying `tags: ["project/../../../../apps/web/dist"]` used to hand that
  * string straight to path.join. noteWriteSchema's no-`..` rule guards the note's
  * PATH, not its contents, and `safeName` hardens the filename only. The result

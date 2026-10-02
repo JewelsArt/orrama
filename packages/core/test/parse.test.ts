@@ -152,8 +152,12 @@ describe("front-matter tags that read as path escapes", () => {
     ]);
   });
 
-  it("keeps a tag that merely contains a dot mid-segment", () => {
-    expect(tagsOf(withTags('"v1.2-release"'))).toEqual(["v1.2-release"]);
+  it("drops a dotted tag like the inline grammar does — except an only/ one", () => {
+    // `#v1.2-release` inline has always been the tag `v1`; the front-matter
+    // form is now held to the same grammar (tag-grammar.test.ts). A dotted
+    // only/ tag still stays: dropping it would widen who can read the note.
+    expect(tagsOf(withTags('"v1.2-release"'))).toEqual([]);
+    expect(tagsOf(withTags('"only/fin.ance"'))).toEqual(["only/fin.ance"]);
   });
 });
 
