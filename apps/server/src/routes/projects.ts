@@ -63,7 +63,21 @@ const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && /^pro
  */
 export const projectNoteFor = (notes: IndexedNote[], key: string): IndexedNote | undefined => {
   const slug = key.startsWith("project/") ? key.slice("project/".length) : key;
-  return notes.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`) ?? notes.find((n) => n.tags.some((t) => t.tag === key));
+  const conventional = notes.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`);
+  if (conventional) return conventional;
+  // Without one, a FIXED choice among the tagged notes. "The first one the
+  // index lists" moved with every save — a write re-inserts its note at the
+  // end — so with two tagged notes the project note flipped on each write:
+  // a decision landed in one, the next capture in the other, and the page
+  // showed whichever was current. In 04-Projects/ first, then the note made
+  // first (ids are time-ordered), then path.
+  const rank = (n: IndexedNote) => (n.path.startsWith(`${PROJECTS_DIR}/`) ? 0 : 1);
+  let best: IndexedNote | undefined;
+  for (const n of notes) {
+    if (!n.tags.some((t) => t.tag === key)) continue;
+    if (!best || rank(n) < rank(best) || (rank(n) === rank(best) && (n.id < best.id || (n.id === best.id && n.path < best.path)))) best = n;
+  }
+  return best;
 };
 
 /** Sections the workspace owns inside the project note. Headings, not database rows. */
@@ -197,7 +211,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // The note is the project; the row is only its registration.
     const note =
       store.index.getByPath(`${PROJECTS_DIR}/${slug}.md`) ??
-      store.readable(user).find((n) => n.tags.some((t) => t.tag === `project/${slug}`));
+      projectNoteFor(store.readable(user), `project/${slug}`);
     if (!note || !canRead(user, note, grants)) throw new HttpError(404, "project not found");
     return { user, grants, row, note };
   };
