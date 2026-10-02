@@ -460,8 +460,10 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   them all. Rows count only from a calendar folder, for the user the note's
   `calendar:` names, who must be able to edit it (and the task's note) — a
   `calendar: jules` note in a shared folder is ignored. A hand-typed row with no
-  id gets a stable derived one. Moving a row to another month drops it from the
-  old note FIRST (the new note's re-read would otherwise see its id as taken).
+  id gets a stable derived one, from the owner and the line — not the note, so
+  a copied calendar note's rows are the same ids, skipped as taken, not
+  doubled. Moving a row to another month drops it from the old note FIRST (the
+  new note's re-read would otherwise see its id as taken).
 - **DB-only task changes need edit** (`store.requireEditable`): dates, assignee
   and time blocks check edit on the task's note themselves (a block is also a
   write to your calendar note). Comments stay at read.

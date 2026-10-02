@@ -25,15 +25,17 @@ const TABLE = "| Date | Start | End | What | Task | id |\n| --- | --- | --- | --
 describe("parseCalendarRows", () => {
   it("reads rows, skips the malformed ones, and gives a hand-typed row a stable id", () => {
     const note = `# Oct\n\n${TABLE}| 2026-10-02 | 09:00 | 10:30 | Dentist |  | ev-abc123 |\n| 2026-10-03 | 11:00 | 10:00 | ends before it starts |  |  |\n| 2026-13-01 | 09:00 | 10:00 | no such month |  |  |\n| 2026-02-30 | 09:00 | 10:00 | no such day |  |  |\n| someday | 09:00 | 10:00 | not a date |  |  |\n| 2026-10-04 | 14:00 | 15:00 | Typed in Obsidian |  |  |\n\nafter the table`;
-    const rows = parseCalendarRows("n-1", note);
+    const rows = parseCalendarRows("jules", note);
     expect(rows.map((r) => [r.id.slice(0, 3), r.date, r.startMin, r.durationMin, r.title])).toEqual([
       ["ev-", "2026-10-02", 540, 90, "Dentist"],
       ["ev-", "2026-10-04", 840, 60, "Typed in Obsidian"],
     ]);
     expect(rows[0]!.id).toBe("ev-abc123");
     // Same text, same id — the index does not churn on every re-read.
-    expect(parseCalendarRows("n-1", note)[1]!.id).toBe(rows[1]!.id);
-    expect(parseCalendarRows("n-2", note)[1]!.id).not.toBe(rows[1]!.id);
+    expect(parseCalendarRows("jules", note)[1]!.id).toBe(rows[1]!.id);
+    // Keyed by the calendar's owner: another person's identical line is
+    // another event; a copy of the same person's note is the same one.
+    expect(parseCalendarRows("erin", note)[1]!.id).not.toBe(rows[1]!.id);
   });
 
   it("round-trips a title with a pipe and a task link", () => {
@@ -85,6 +87,53 @@ describe("the index follows the notes", () => {
     await until(() => eventsOf().includes("Dentist (moved)"));
     expect(eventsOf()).toEqual(["Dentist (moved)"]);
     expect(b.db.select().from(tables.events).where(eq(tables.events.id, "ev-d1")).get()?.title).toBe("Dentist (moved)");
+  }, 25_000);
+
+  it("a copy of a calendar note does not double its hand-typed rows", async () => {
+    const dir = path.join(vault, "01-Me/Calendar");
+    fs.writeFileSync(path.join(dir, "2026-11.md"), `---\ncalendar: jules\nmonth: "2026-11"\n---\n${TABLE}| 2026-11-03 | 09:00 | 10:00 | Typed by hand |  |  |\n`);
+    await until(() => eventsOf().includes("Typed by hand"));
+    // Finder's Duplicate / `cp`: same rows, the copy gets its own note id.
+    fs.copyFileSync(path.join(dir, "2026-11.md"), path.join(dir, "2026-11 copy.md"));
+    await until(() => !!b.store.index.getByPath("01-Me/Calendar/2026-11 copy.md"));
+    await new Promise((r) => setTimeout(r, 400)); // the copy's re-read
+    const copy = b.store.index.getByPath("01-Me/Calendar/2026-11 copy.md")!;
+    expect(copy.id).not.toBe(b.store.index.getByPath("01-Me/Calendar/2026-11.md")!.id);
+    expect(eventsOf().filter((t) => t === "Typed by hand")).toHaveLength(1);
+    fs.rmSync(path.join(dir, "2026-11 copy.md"));
+    fs.rmSync(path.join(dir, "2026-11.md"));
+    await until(() => !eventsOf().includes("Typed by hand"));
+  }, 25_000);
+
+  it("a hand-typed row edited or deleted in the app is that row, not a new one", async () => {
+    const file = path.join(vault, "01-Me/Calendar/2026-12.md");
+    fs.writeFileSync(file, `---\ncalendar: jules\nmonth: "2026-12"\n---\n${TABLE}| 2026-12-07 | 09:00 | 10:00 | Typed row |  |  |\n| 2026-12-08 | 09:00 | 10:00 | Another typed row |  |  |\n| 2026-12-09 | 09:00 | 10:00 | Moving on |  |  |\n`);
+    await until(() => ["Typed row", "Another typed row", "Moving on"].every((t) => eventsOf().includes(t)));
+    const idOf = (title: string) => b.db.select().from(tables.events).where(eq(tables.events.title, title)).get()!.id;
+    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+    const headers = { authorization: `Bearer ${token}` };
+    const rowsIn = () => fs.readFileSync(file, "utf8").split("\n").filter((l) => l.startsWith("| 2026-12-"));
+
+    // Each acts on a row with no id in the file: the route must derive the
+    // same id the index did, or it cannot find the line.
+    const gone = await b.app.inject({ method: "DELETE", url: `/api/events/${idOf("Another typed row")}`, headers });
+    expect(gone.statusCode).toBe(200);
+    expect(rowsIn().map((l) => l.split("|")[4]!.trim())).toEqual(["Typed row", "Moving on"]);
+
+    // To another month: out of this note, into January's.
+    const january = await b.app.inject({ method: "PATCH", url: `/api/events/${idOf("Moving on")}`, headers, payload: { date: "2027-01-04" } });
+    expect(january.statusCode).toBe(200);
+    expect(rowsIn().map((l) => l.split("|")[4]!.trim())).toEqual(["Typed row"]);
+    const jan = path.join(vault, "01-Me/Calendar/2027-01.md");
+    expect(fs.readFileSync(jan, "utf8")).toContain("| 2027-01-04 | 09:00 | 10:00 | Moving on |");
+    expect((await b.app.inject({ method: "DELETE", url: `/api/events/${idOf("Moving on")}`, headers })).statusCode).toBe(200);
+
+    const moved = await b.app.inject({ method: "PATCH", url: `/api/events/${idOf("Typed row")}`, headers, payload: { startMin: 600 } });
+    expect(moved.statusCode).toBe(200);
+    expect(rowsIn()).toHaveLength(1); // replaced in place, not added beside the typed one
+    expect(rowsIn()[0]).toContain("| 10:00 | 11:00 | Typed row |");
+    fs.rmSync(file);
+    await until(() => !eventsOf().includes("Typed row"));
   }, 25_000);
 
   it("deleting the note takes its rows with it", async () => {

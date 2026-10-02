@@ -99,8 +99,11 @@ function cells(line: string): string[] | null {
   return out;
 }
 
-/** Every row of the note's calendar table, in file order. Malformed rows are skipped, not fatal. */
-export function parseCalendarRows(noteId: string, content: string): FoundRow[] {
+/**
+ * Every row of the note's calendar table, in file order. Malformed rows are
+ * skipped, not fatal. `owner` is the calendar's user (the note's `calendar:`).
+ */
+export function parseCalendarRows(owner: string, content: string): FoundRow[] {
   const lines = content.split("\n");
   const head = lines.findIndex((l) => HEADER_RE.test(l.trim()));
   if (head === -1) return [];
@@ -118,10 +121,14 @@ export function parseCalendarRows(noteId: string, content: string): FoundRow[] {
     let id = ID_RE.test(idCell) && idCell.startsWith(kind) ? idCell : "";
     if (!id) {
       // A row typed by hand has no id: derive one from what it says, so it is
-      // stable across re-reads until the row itself changes.
+      // stable across re-reads until the row itself changes. From the owner,
+      // not the note: a copy of the note (Finder, `cp`, "Make a copy") has
+      // its own note id, and keyed by note its rows came out as new events —
+      // every one doubled. Keyed by owner they are the same ids, and the
+      // copy's rows are skipped as taken, like rows that carry an id.
       const n = (seen.get(lines[i]!) ?? 0) + 1;
       seen.set(lines[i]!, n);
-      id = `${kind}-${crypto.createHash("sha1").update(`${noteId}\n${lines[i]}\n${n}`).digest("hex").slice(0, 8)}`;
+      id = `${kind}-${crypto.createHash("sha1").update(`${owner}\n${lines[i]}\n${n}`).digest("hex").slice(0, 8)}`;
     }
     rows.push({
       line: i,
@@ -159,9 +166,9 @@ function monthNote(username: string, month: string): string {
 }
 
 /** Put `row` into `content`: replace the line with its id, or insert it in date order. */
-export function placeRow(noteId: string, content: string, row: CalRow): string {
+export function placeRow(owner: string, content: string, row: CalRow): string {
   const lines = content.split("\n");
-  const found = parseCalendarRows(noteId, content);
+  const found = parseCalendarRows(owner, content);
   const hit = found.find((r) => r.id === row.id);
   if (hit) {
     lines[hit.line] = renderRow(row);
@@ -181,8 +188,8 @@ export function placeRow(noteId: string, content: string, row: CalRow): string {
   return lines.join("\n");
 }
 
-export function dropRow(noteId: string, content: string, id: string): string | null {
-  const hit = parseCalendarRows(noteId, content).find((r) => r.id === id);
+export function dropRow(owner: string, content: string, id: string): string | null {
+  const hit = parseCalendarRows(owner, content).find((r) => r.id === id);
   if (!hit) return null;
   const lines = content.split("\n");
   lines.splice(hit.line, 1);
@@ -244,7 +251,7 @@ export class CalendarNotes {
     const owner = this.db.select().from(tables.users).where(eq(tables.users.username, username)).get();
     const grants = this.store.grants();
     const acl = owner ? this.store.aclUser(owner.id) : null;
-    const rows = acl && inCalendarDir(note.path, username) && canEdit(acl, note, grants) ? parseCalendarRows(note.id, note.content) : [];
+    const rows = acl && inCalendarDir(note.path, username) && canEdit(acl, note, grants) ? parseCalendarRows(username, note.content) : [];
 
     // createdAt survives a re-read; ids taken by another note's rows (a copied
     // calendar note) are this note's problem, not a crash.
@@ -312,24 +319,24 @@ export class CalendarNotes {
     const home = this.homeOf(row.id);
     const month = row.date.slice(0, 7);
     if (home && monthOf(home) === month && ownerOf(home) === user.username) {
-      this.store.write(user, home.path, placeRow(home.id, home.content, row));
+      this.store.write(user, home.path, placeRow(user.username, home.content, row));
       return;
     }
     // Out of the old note first: while it still holds the id, the new note's
     // re-read would see the id as taken by another note and skip the row.
     if (home) {
-      const left = dropRow(home.id, home.content, row.id);
+      const left = dropRow(ownerOf(home) ?? user.username, home.content, row.id);
       if (left !== null) this.store.write(user, home.path, left);
     }
     const target = this.noteFor(user, month);
-    this.store.write(user, target.path, placeRow(target.id ?? "", target.content, row));
+    this.store.write(user, target.path, placeRow(user.username, target.content, row));
   }
 
   /** Take a row out of its note. */
   remove(user: AclUser, id: string): void {
     const home = this.homeOf(id);
     if (!home) throw new HttpError(404, "not on any calendar");
-    const left = dropRow(home.id, home.content, id);
+    const left = dropRow(ownerOf(home) ?? user.username, home.content, id);
     if (left !== null) this.store.write(user, home.path, left);
     else this.sync(home); // already gone from the file: the index just catches up
   }

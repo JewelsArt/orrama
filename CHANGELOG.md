@@ -38,6 +38,7 @@ one is in CLAUDE.md, "Releases".
 - Copies of a note in one folder are told apart in the file tree: a copy
   made outside Basalt keeps the original's title, so rows sharing a title
   also show their filename.
+- A copied calendar note no longer doubles the events typed into it by hand.
 
 ## [0.1.0] — 2026-10-01
 
