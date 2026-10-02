@@ -35,6 +35,9 @@ one is in CLAUDE.md, "Releases".
 - The note map works from the keyboard: Tab to it, arrow keys move between
   notes (shown and read out like a hover), Enter opens, + and − zoom, Esc
   lets go.
+- Copies of a note in one folder are told apart in the file tree: a copy
+  made outside Basalt keeps the original's title, so rows sharing a title
+  also show their filename.
 
 ## [0.1.0] — 2026-10-01
 

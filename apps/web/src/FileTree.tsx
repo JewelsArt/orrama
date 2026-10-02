@@ -15,6 +15,26 @@ function cleanFolderName(name: string): string {
   return name.replace(/^\d+[-_.\s]+/, "");
 }
 
+/**
+ * Notes that share a title with another in the same folder, mapped to their
+ * filename. A copy made outside Basalt keeps the original's `title:`, so
+ * without this the tree shows "Atlas Roadmap" twice and nothing tells them
+ * apart; those rows also show the file they are.
+ */
+export function sameTitleFilenames(notes: { id: string; title: string; folder: string; path: string }[]): Map<string, string> {
+  const groups = new Map<string, typeof notes>();
+  for (const n of notes) {
+    const key = `${n.folder}\u0000${n.title.toLowerCase()}`;
+    groups.set(key, [...(groups.get(key) ?? []), n]);
+  }
+  const out = new Map<string, string>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    for (const n of group) out.set(n.id, n.path.slice(n.path.lastIndexOf("/") + 1));
+  }
+  return out;
+}
+
 function buildTree(notes: TreeNote[]): FolderNode {
   const root: FolderNode = { name: "", path: "", folders: [], notes: [], count: 0 };
   const dir = (path: string): FolderNode => {
@@ -81,6 +101,7 @@ export function FileTree({
   });
 
   const tree = useMemo(() => buildTree(notes), [notes]);
+  const filenames = useMemo(() => sameTitleFilenames(notes), [notes]);
 
   /** Every note id at or below a folder — what "hovering the group" means. */
   const idsUnder = (node: FolderNode): Set<string> => {
@@ -159,6 +180,7 @@ export function FileTree({
             >
               {dot(n.id)}
               <span className="ft-note-title">{n.title}</span>
+              {filenames.has(n.id) && <span className="ft-note-path">{filenames.get(n.id)}</span>}
               {n.openTasks > 0 && <span className="ft-count">{n.openTasks}</span>}
             </button>
           ))}
