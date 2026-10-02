@@ -51,6 +51,11 @@ one is in CLAUDE.md, "Releases".
   its tagged notes: decisions, captures and people used to land in whichever
   note was "first" at that moment, and the page showed only one of them.
 
+### Internal
+
+- Every answer the web app reads has one schema (`packages/schema/src/responses.ts`)
+  and a contract test that checks the real server against it.
+
 ## [0.1.0] — 2026-10-01
 
 The first tagged release: 120 commits from 3 July to 1 October 2026, running

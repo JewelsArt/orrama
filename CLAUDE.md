@@ -512,6 +512,15 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   `test/schema.test.ts` fails on any column or table only one side has. A schema
   change bumps `SCHEMA_VERSION` (stored in `PRAGMA user_version`); a database
   stamped by a newer build refuses to open.
+- **What the server sends is typed once**: `packages/schema/src/responses.ts`
+  has a schema per GET endpoint the web app reads (strict objects — every
+  field listed), the web app's types are inferred from it, and
+  `apps/server/test/contract.test.ts` calls each endpoint on a fixture-rich
+  server (`contract-fixtures.ts`) and parses the answer. A new endpoint the web
+  reads needs a schema and a `CASES` row, or the test that scans
+  `apps/web/src` for GETs fails; one no fixture can answer (live IMAP, a
+  ChatGPT account) goes in `SKIPPED` with the reason. Changing what a route
+  returns means changing its schema in the same commit.
 - Task objects are keyed `(noteId, blockId)`; file wins on conflict; deleted lines
   orphan the object (surfaced on the dashboard, never auto-deleted).
 

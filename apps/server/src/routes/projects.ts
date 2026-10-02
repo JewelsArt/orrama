@@ -339,7 +339,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       name: row?.name ?? note.title,
       noteId: note.id,
       path: note.path,
-      domain: row?.domain ?? str(fm["domain"]) ?? null,
+      // One of the three, or null — not "" for an absent field, nor whatever text front matter holds.
+      domain: asDomain(row?.domain ?? fm["domain"]) ?? null,
       status: str(fm["status"]),
       start: str(fm["start"]),
       deadline: str(fm["deadline"]),
