@@ -2342,6 +2342,11 @@ button.ov-pname {
   color: var(--text);
 }
 .ft-note-title {
+  /* Left, filling the row like .ft-folder-name — the row is space-between,
+     so without this a short title floated between the dot and the count. */
+  flex: 1;
+  min-width: 0;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

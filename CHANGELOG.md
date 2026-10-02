@@ -39,6 +39,8 @@ one is in CLAUDE.md, "Releases".
   made outside Basalt keeps the original's title, so rows sharing a title
   also show their filename.
 - A copied calendar note no longer doubles the events typed into it by hand.
+- Note titles in the file tree sit on the left, next to their dot, instead of
+  floating mid-row.
 
 ## [0.1.0] — 2026-10-01
 
