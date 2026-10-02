@@ -1,131 +1,22 @@
 /** Tiny typed fetch client. The server is the permission gate — the UI just renders. */
 
-export interface Team {
-  id: string;
-  slug: string;
-  name: string;
-  color: string;
-  icon: string;
-  total?: number;
-  done?: number;
-}
-
-/** Theme + palette, stored on the account so every device shows the same app. */
-export interface Appearance {
-  theme?: string;
-  vision?: string;
-  profiles?: { id: string; name: string; colors: string[] }[];
-}
-
-export interface Me {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  isOwner: boolean;
-  avatar: string;
-  appearance: Appearance | null;
-  teams: Team[];
-}
-
-export interface TreeNote {
-  id: string;
-  path: string;
-  folder: string;
-  title: string;
-  hash: string;
-  mtimeMs?: number;
-  tags: string[];
-  openTasks: number;
-  /** Life-area, from the vault's #vault-categories rules (server-side). */
-  category?: string;
-}
-
-export interface NoteLink {
-  target: string;
-  heading?: string;
-  alias?: string;
-  raw: string;
-  line: number;
-  targetId: string | null;
-  locked: boolean;
-}
-
-export interface NoteDetail {
-  id: string;
-  path: string;
-  title: string;
-  content: string;
-  hash: string;
-  tags: { tag: string; line: number }[];
-  tasks: TaskLine[];
-  links: NoteLink[];
-  backlinks: { fromId: string; fromTitle: string; fromPath: string; line: number; context: string }[];
-  canEdit: boolean;
-}
-
-export interface TaskLine {
-  line: number;
-  checked: boolean;
-  /** Read off the checkbox: `[ ]` todo, `[/]` in progress, `[b]` blocked, `[x]` done. */
-  status: "todo" | "in-progress" | "blocked" | "done";
-  text: string;
-  raw: string;
-  assignee?: string;
-  start?: string;
-  due?: string;
-  priority?: number;
-  /** A `#deadline` task (core ParsedTask.key). */
-  key?: boolean;
-  blockId?: string;
-  indent: number;
-}
-
-export interface TaskObject {
-  id: string;
-  noteId: string;
-  blockId: string;
-  status: "todo" | "in-progress" | "done" | "blocked" | "orphaned";
-  assigneeId: string | null;
-  due: string | null;
-  description: string;
-}
-
-export interface DashboardTask extends TaskLine {
-  noteId: string;
-  notePath: string;
-  noteTitle: string;
-  project: string | null;
-  object: TaskObject | null;
-}
-
-export interface DashboardData {
-  team: Team;
-  projects: {
-    project: string;
-    projectId: string | null;
-    slug: string | null;
-    /** Front-matter lifecycle: "", planning, on-track, at-risk, blocked, sleeping, cancelled, done. */
-    status: string;
-    total: number;
-    done: number;
-    assignees: string[];
-    lastActivityMs?: number;
-    domain: "personal" | "professional" | "academic" | null;
-    tasks: DashboardTask[];
-  }[];
-  members: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatar: string;
-    openTasks: number;
-    inProgress: { text: string; noteId: string; project: string | null }[];
-    assigned: { text: string; noteId: string; due?: string; priority?: number }[];
-    lastEdit: { id: string; title: string; at: number } | null;
-  }[];
-  orphaned: { id: string; noteId: string; blockId: string; updatedAt: number }[];
-}
+// What the server sends is typed once, in packages/schema/src/responses.ts, and
+// checked against the real server by apps/server/test/contract.test.ts.
+// Type-only: no zod reaches the bundle.
+export type {
+  Appearance,
+  DashboardData,
+  DashboardTask,
+  Me,
+  NoteDetail,
+  NoteLink,
+  SessionInfo,
+  TaskLine,
+  TaskObject,
+  Team,
+  TreeNote,
+} from "@basalt/schema/responses";
+import type { Me } from "@basalt/schema/responses";
 
 let token = localStorage.getItem("basalt-token") ?? "";
 
@@ -299,13 +190,6 @@ export function latestOnly(): () => AbortSignal {
 /** Fired when the server stops accepting this browser's session. */
 export const SESSION_ENDED = "basalt:session-ended";
 
-export interface SessionInfo {
-  id: string;
-  label: string;
-  createdAt: number;
-  lastSeenAt: number | null;
-  current: boolean;
-}
 
 /** Sign out on the server too — the token stops working everywhere it was copied. */
 export async function signOut(): Promise<void> {

@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, unlessAborted } from "./api.js";
-
-interface Hit {
-  id: string;
-  path: string;
-  title: string;
-}
+import type { SearchHit as Hit } from "@basalt/schema/responses";
 
 /** ⌘K palette: fuzzy full-vault search with tag:/path:/task:/assignee: filters (spec §8). */
 export function SearchPalette({ onClose, onPick }: { onClose: () => void; onPick: (noteId: string) => void }) {

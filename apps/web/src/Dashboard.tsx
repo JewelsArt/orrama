@@ -6,6 +6,8 @@ import type { FinancePage } from "./App.js";
 import { CATEGORIES, DOMAIN_COLOR, categoryOf, daysTo, isProjectActive, isSessionLog, relDay } from "./categories.js";
 import { iconFor, paletteFor } from "./Finance.js";
 import { onWs } from "./ws.js";
+import type { AgendaItem, DeadlineItem, FocusItem, HomeData, HomeLedger as Ledger, ProjectRow, MoneyItem as SubscriptionItem } from "@basalt/schema/responses";
+export type { ProjectRow };
 
 /** What each card is called, for the remove button's label and the picker. */
 const CARD_META = {
@@ -346,104 +348,6 @@ function useBentoReorder(ids: string[]) {
  * the rest of the app stays dark). Faithful to the HireFlow card layout, on
  * Basalt's own palette + Plus Jakarta Sans. Fully scoped under `.home`.
  */
-
-interface SubscriptionItem {
-  service: string;
-  amount: number;
-  currency: string;
-  cadence: string;
-  next: string | null;
-  monthly: number;
-  note: string;
-}
-interface AgendaItem {
-  kind: "event" | "task" | "due" | "charge";
-  date: string;
-  title: string;
-  startMin: number | null;
-  durationMin: number | null;
-  noteId: string | null;
-  line: number | null;
-  /** Feed label for a calendar event, project for a due task. */
-  source: string | null;
-  amount: number | null;
-  currency: string | null;
-  /** A `#deadline` task. */
-  key: boolean;
-}
-interface FocusItem {
-  noteId: string;
-  noteTitle: string;
-  line: number;
-  text: string;
-  project: string | null;
-  due: string | null;
-  priority: number | null;
-  assignee: string | null;
-  overdue: boolean;
-}
-interface DeadlineItem {
-  noteId: string;
-  noteTitle: string;
-  line: number;
-  text: string;
-  project: string | null;
-  due: string;
-  priority: number | null;
-  /** A `#deadline` task; the server sorts upcoming ones to the top. */
-  key: boolean;
-  overdue: boolean;
-  days: number;
-}
-export interface ProjectRow {
-  slug: string;
-  key: string;
-  name: string;
-  domain: string | null;
-  noteId: string | null;
-  total: number;
-  done: number;
-  status: string | null;
-  start: string | null;
-  deadline: string | null;
-  nextDue: string | null;
-  overdue: number;
-}
-interface HomeData {
-  user: { displayName: string; username: string };
-  stats: { notes: number; sessions: number; openTasks: number; doneTasks: number; overdueTasks: number; weekHours: number };
-  deadlines: DeadlineItem[];
-  agenda: AgendaItem[];
-  focus: FocusItem[];
-  finance: {
-    out: Ledger;
-    in: Ledger;
-    net: { currency: string; monthly: number }[];
-  };
-  /** What the statement says the month is doing. Null with no statement filed. */
-  spending: {
-    month: string;
-    total: number;
-    typical: number;
-    categories: { category: string; total: number; typical: number; colour: string | null }[];
-    running: { month: string; total: number; dayOf: number; daysIn: number } | null;
-    savings: {
-      target: number;
-      surplus: number;
-      trimmable: number;
-      observed: number | null;
-      targetRate: number | null;
-      top: { category: string; save: number; colour: string | null }[];
-    };
-    basedOn: number;
-  } | null;
-}
-interface Ledger {
-  noteId: string | null;
-  totals: { currency: string; monthly: number }[];
-  items: SubscriptionItem[];
-  count: number;
-}
 
 /** The wall-calendar date, from @basalt/core — the one local-date module.
  *  This was `toISOString().slice(0, 10)`, which pre-filled the date picker

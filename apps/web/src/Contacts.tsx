@@ -4,19 +4,7 @@ import { api, type Me } from "./api.js";
 import { Companies } from "./Companies.js";
 import { IconPlus, IconSearch } from "./icons.js";
 import { onWs } from "./ws.js";
-
-interface Contact {
-  id: string;
-  name: string;
-  path: string;
-  sector: string;
-  role: string;
-  company: string;
-  email: string;
-  phone: string;
-  linkedin: string;
-  personal: boolean;
-}
+import type { Contact } from "@basalt/schema/responses";
 
 const SECTOR_SUGGESTIONS = ["Finance", "Marketing", "Leadership", "Operations", "University", "Engineering", "Design", "Other"];
 /**

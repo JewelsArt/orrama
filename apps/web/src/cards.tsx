@@ -1,34 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
-
-/** A contact note, as the contacts API returns it. */
-export interface ContactRecord {
-  id: string;
-  name: string;
-  path: string;
-  sector: string;
-  role: string;
-  company: string;
-  email: string;
-  phone: string;
-  linkedin: string;
-  personal: boolean;
-}
-
-/** A company note, as the companies API returns it. */
-export interface CompanyRecord {
-  id: string;
-  name: string;
-  path: string;
-  description: string;
-  sector: string;
-  linkedin: string;
-  website: string;
-  careers: string;
-  location: string;
-  positions: string[];
-  personal: boolean;
-}
+import type { Company as CompanyRecord, Contact as ContactRecord } from "@basalt/schema/responses";
+export type { CompanyRecord, ContactRecord };
 
 const href = (url: string) => `https://${url.replace(/^https?:\/\//, "")}`;
 export const initials = (name: string) =>

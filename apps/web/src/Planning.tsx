@@ -4,79 +4,9 @@ import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { IconWand } from "./icons.js";
 import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
+import type { CalEvent, DayMarker, PlanData, PlanTask, TimeBlock } from "@basalt/schema/responses";
 
 /* ---------- data shapes ---------- */
-
-interface TimeBlock {
-  id: string;
-  date: string;
-  startMin: number;
-  durationMin: number;
-}
-
-interface PlanTask {
-  noteId: string;
-  noteTitle: string;
-  line: number;
-  text: string;
-  project: string | null;
-  forYou: boolean;
-  assignee: string | null;
-  due: string | null;
-  priority: number | null;
-  estimateHours: number;
-  atRisk: boolean;
-  blockId: string | null;
-  objectId: string | null;
-  blocks: TimeBlock[];
-  scheduledHours: number;
-  remainingHours: number;
-}
-
-interface PlanData {
-  source: "heuristic" | "ai";
-  hoursPerDay: number;
-  atRisk: number;
-  totalHours: number;
-  assignees: { assignee: string; totalHours: number; tasks: PlanTask[] }[];
-}
-
-interface CalEvent {
-  id: string;
-  title: string;
-  date: string;
-  startMin: number;
-  durationMin: number;
-  username: string;
-  mine: boolean;
-  /** Set on occurrences from a subscribed ICS feed (Google/uni/…): render-only. */
-  source?: "ics";
-  readonly?: boolean;
-  feedLabel?: string;
-  allDay?: boolean;
-}
-
-/**
- * A dated thing with no time of day — a deadline, a project milestone, a
- * payment. It has no place *inside* an hour grid, which is why the calendar
- * used to be blank while the vault was full: everything Jules actually dates
- * lives here. `GET /api/calendar/markers`.
- */
-interface DayMarker {
-  id: string;
-  kind: "due" | "milestone" | "charge" | "income";
-  date: string;
-  title: string;
-  noteId: string | null;
-  line: number | null;
-  source: string | null;
-  amount: number | null;
-  currency: string | null;
-  overdue: boolean;
-  priority: number | null;
-  /** A `#deadline` task: a solid red chip, first in its day. */
-  key: boolean;
-}
 
 /** One block the auto-scheduler suggests. Nothing is written until "Book". */
 interface Proposal {

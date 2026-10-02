@@ -164,6 +164,9 @@ importers:
       '@basalt/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@basalt/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
       '@basalt/sync':
         specifier: workspace:*
         version: link:../../packages/sync

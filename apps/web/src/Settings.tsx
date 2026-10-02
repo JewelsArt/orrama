@@ -5,6 +5,12 @@ import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
 import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
 import { VisionEditor } from "./VisionEditor.js";
+import type { AiConfig, ApiToken as ApiTokenRow, Feed, MailAccount, Webhook as WebhookRow } from "@basalt/schema/responses";
+
+/** A token row; `token` only on the one answer that creates it, shown once. */
+type ApiToken = ApiTokenRow & { token?: string };
+/** A webhook row; `secret` only on the answer that creates it, shown once. */
+type Webhook = WebhookRow & { secret?: string };
 
 /* The palette swap is CSS: `data-vision` on <html> re-declares the colour
    families. The same attribute on the swatch strip below re-declares them for
@@ -282,15 +288,6 @@ function Sessions() {
 
 /* ---------- integrations: calendar feeds (ICS in + out, no Google API) ---------- */
 
-interface Feed {
-  id: string;
-  label: string;
-  host: string | null;
-  lastSyncedAt: number | null;
-  lastError: string | null;
-  eventCount?: number;
-}
-
 function CalendarSection() {
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [label, setLabel] = useState("");
@@ -423,12 +420,6 @@ function CalendarSection() {
 
 /* ---------- integrations: personal mail account (IMAP/SMTP, app password) ---------- */
 
-interface MailAccount {
-  connected: boolean;
-  email: string | null;
-  lastError: string | null;
-}
-
 function MailSection() {
   const [acct, setAcct] = useState<MailAccount | null>(null);
   const [email, setEmail] = useState("");
@@ -471,7 +462,7 @@ function MailSection() {
               title="Disconnect mail"
               onClick={async () => {
                 await api("DELETE", "/api/mail/account");
-                setAcct({ connected: false, email: null, lastError: null });
+                setAcct({ connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null });
               }}
             >
               <IconX />
@@ -514,15 +505,6 @@ function MailSection() {
 }
 
 /* ---------- the agent: provider, model, key, instructions ---------- */
-
-interface AiConfig {
-  provider: string | null;
-  model: string | null;
-  configured: boolean;
-  instructions: string;
-  baseUrl: string;
-  chatgpt: { connected: boolean; email: string | null; manageUsage: string };
-}
 
 /**
  * The AI the Ask panel and the agent use. This lived on the Admin screen, which
@@ -699,14 +681,6 @@ function AiSection() {
 
 /* ---------- integrations: personal API tokens ---------- */
 
-interface ApiToken {
-  id: string;
-  label: string;
-  prefix: string;
-  lastUsedAt: number | null;
-  token?: string;
-}
-
 function TokensSection() {
   const [tokens, setTokens] = useState<ApiToken[]>([]);
   const [label, setLabel] = useState("");
@@ -773,15 +747,6 @@ function TokensSection() {
 }
 
 /* ---------- integrations: outgoing webhooks ---------- */
-
-interface Webhook {
-  id: string;
-  url: string;
-  events: string[];
-  lastStatus: number | null;
-  lastFiredAt: number | null;
-  secret?: string;
-}
 
 const HOOK_EVENTS = ["note.changed", "task.completed"];
 

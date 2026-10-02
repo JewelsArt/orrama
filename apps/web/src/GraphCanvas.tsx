@@ -9,11 +9,8 @@ import {
   type Simulation,
 } from "d3-force";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-export interface GraphData {
-  nodes: { id: string; title: string; folder: string; links: number; tasks: number; description?: string; tags?: string[] }[];
-  edges: { from: string; to: string }[];
-}
+import type { GraphData } from "@basalt/schema/responses";
+export type { GraphData };
 
 const TAG_PREFIX = "tag:";
 
@@ -201,6 +198,8 @@ export function GraphCanvas({
         id: TAG_PREFIX + tag,
         title: `#${tag}`,
         folder: "",
+        sector: null,
+        tags: [],
         links: count,
         tasks: 0,
         description: `${count} note${count === 1 ? "" : "s"} tagged #${tag}`,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
 import { api, apiBlob, isAbort } from "./api.js";
+import type { Deck, Sheet } from "@basalt/schema/responses";
 
 /**
  * Read a project document without leaving Basalt.
@@ -13,21 +14,6 @@ import { api, apiBlob, isAbort } from "./api.js";
  * with ordinary elements: no markup from the deck is ever injected. Anything
  * else offers a download instead of pretending it can render it.
  */
-interface Sheet {
-  name: string;
-  rows: string[][];
-  truncated: boolean;
-  totalRows: number;
-}
-
-type SlideBlock = { kind: "p"; text: string; level: number } | { kind: "table"; rows: string[][] };
-interface Deck {
-  slides: { n: number; title: string; hidden: boolean; blocks: SlideBlock[]; images: { ref: string; alt: string }[]; notes: string }[];
-  slideCount: number;
-  truncated: boolean;
-  media: Record<string, string>;
-  omittedImages: number;
-}
 
 /** One card per slide, in deck order: title, text, tables, pictures, then the speaker notes. */
 function DeckView({ deck }: { deck: Deck }) {

@@ -47,6 +47,7 @@ beforeAll(async () => {
   fx.writeVaultFixtures(vault);
   await import("../src/seed.js");
   await fx.writeProjectFiles(vault, "atlas");
+  fx.writeBrokenBoard(vault, "acme");
   ics = await fx.serveIcs();
   b = await buildServer();
   const login = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json();
@@ -113,6 +114,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/projects", () => "/api/projects", R.projectsResponse],
   ["/api/projects/:x", () => "/api/projects/atlas", R.projectWorkspaceResponse],
   ["/api/projects/:x/board", () => "/api/projects/atlas/board", R.boardResponse],
+  ["/api/projects/:x/board", () => "/api/projects/acme/board", R.boardResponse], // unreadable canvas
   [":x/:x/html", () => "/api/projects/atlas/files/brief.docx/html", R.docHtmlResponse],
   [":x/:x/sheet", () => "/api/projects/atlas/files/budget.xlsx/sheet", R.sheetResponse],
   [":x/:x/slides", () => "/api/projects/atlas/files/deck.pptx/slides", R.deckResponse],

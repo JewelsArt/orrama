@@ -390,7 +390,13 @@ export const boardEdgeSchema = o({
   /** Proposed by Claude, drawn dashed until accepted. */
   basaltSuggested: z.literal(true).optional(),
 });
-export const boardResponse = o({ nodes: z.array(boardNodeSchema), edges: z.array(boardEdgeSchema), canEdit: z.boolean() });
+export const boardResponse = o({
+  nodes: z.array(boardNodeSchema),
+  edges: z.array(boardEdgeSchema),
+  canEdit: z.boolean(),
+  /** documents.canvas did not parse: this is the default layout, and saving replaces it. */
+  unreadable: z.literal(true).optional(),
+});
 
 // ---------- the document reader ----------
 
@@ -758,6 +764,7 @@ export const webhooksResponse = z.array(
 
 // ---------- inferred types for the web app ----------
 
+export type Appearance = z.infer<typeof appearanceSchema>;
 export type TaskLine = z.infer<typeof taskLineSchema>;
 export type TaskObject = z.infer<typeof taskObjectSchema>;
 export type DashboardTask = z.infer<typeof dashboardTaskSchema>;
@@ -786,6 +793,8 @@ export type ProjectFile = z.infer<typeof fileEntry>;
 export type ProjectTask = z.infer<typeof projectTaskSchema>;
 export type ProjectWorkspace = z.infer<typeof projectWorkspaceResponse>;
 export type BoardNode = z.infer<typeof boardNodeSchema>;
+export type FileNode = Extract<BoardNode, { type: "file" }>;
+export type GroupNode = Extract<BoardNode, { type: "group" }>;
 export type BoardEdge = z.infer<typeof boardEdgeSchema>;
 export type Board = z.infer<typeof boardResponse>;
 export type Sheet = z.infer<typeof sheetSchema>;
@@ -802,6 +811,10 @@ export type CategoryDetail = z.infer<typeof financeCategoryResponse>;
 export type MonthDetail = z.infer<typeof financeMonthResponse>;
 export type MerchantDetail = z.infer<typeof financeMerchantResponse>;
 export type HomeData = z.infer<typeof homeResponse>;
+export type AgendaItem = HomeData["agenda"][number];
+export type FocusItem = HomeData["focus"][number];
+export type DeadlineItem = HomeData["deadlines"][number];
+export type HomeLedger = HomeData["finance"]["out"];
 export type MailAccount = z.infer<typeof mailAccountResponse>;
 export type PendingDraft = z.infer<typeof mailDraftsResponse>[number];
 export type MailCategory = z.infer<typeof mailCategorySchema>;

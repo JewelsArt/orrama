@@ -17,6 +17,7 @@ import {
   IconSoftware,
   IconTransport,
 } from "./icons.js";
+import type { Activity, CategoryDetail, FinanceData, Ledger, MerchantDetail, MoneyItem as Money, MonthDetail, PayslipRow, Recurring, Savings } from "@basalt/schema/responses";
 
 /**
  * A chart column's hit area is an SVG <rect>, not a button: it took clicks but
@@ -44,127 +45,6 @@ const svgButton = (label: string, act: () => void) => ({
  * payslip stores the PDF and files its numbers as a row; nothing lives only in
  * the database, so the history survives a re-index.
  */
-
-interface Money {
-  service: string;
-  amount: number;
-  currency: string;
-  cadence: string;
-  next: string | null;
-  monthly: number;
-  note: string;
-}
-interface PayslipRow {
-  month: string;
-  gross: number | null;
-  net: number | null;
-  tax: number | null;
-  hours: number | null;
-  rate: number | null;
-  file: string;
-  effectiveNet: number | null;
-}
-/** What the statement says a ledger line has actually been doing. */
-interface Activity {
-  charges: number;
-  months: number;
-  first: string | null;
-  last: string | null;
-  total: number;
-  seen: string[];
-  /** The statement descriptors this line matched, biggest first. What the bank
-   *  calls it, which is not what the note calls it. */
-  merchants: string[];
-}
-interface Ledger {
-  totals: { currency: string; monthly: number }[];
-  items: Money[];
-  count: number;
-  activity: Record<string, Activity>;
-}
-/** The savings model; see packages/core/src/savings.ts for how it is derived. */
-interface Savings {
-  incomeMonthly: number;
-  incomeSource: "balance" | "payslips" | "ledger" | "none";
-  spendMonthly: number;
-  /** Everything that left the account, transfers included. */
-  outflowMonthly: number;
-  surplus: number;
-  committedMonthly: number;
-  discretionaryMonthly: number;
-  trimmable: number;
-  /** The two real months the headroom is measured between. */
-  typicalMonth: string | null;
-  goodMonth: string | null;
-  target: number;
-  targetRate: number | null;
-  observed: number | null;
-  headroom: { category: string; typical: number; good: number; save: number }[];
-  emergencyFund: number;
-  monthsToFund: number | null;
-  basedOn: number;
-}
-/** A charge that repeats at a fixed amount and is in no ledger yet. */
-interface Recurring {
-  merchant: string;
-  amount: number;
-  months: string[];
-  everyMonths: number;
-  first: string;
-  last: string;
-  total: number;
-  active: boolean;
-}
-interface FinanceData {
-  notes: { income: string | null; subscriptions: string | null; payslips: string | null; area: string | null };
-  income: Ledger;
-  subscriptions: Ledger;
-  payslips: PayslipRow[];
-  savings: Savings;
-  recurring: Recurring[];
-  summary: {
-    inPerMonth: number;
-    outPerMonth: number;
-    net: number;
-    balance: number | null;
-    balanceDate: string | null;
-    runwayMonths: number | null;
-    avgSpend: number;
-    burn: number | null;
-    /** Monthly change in balance; positive means the account is growing. */
-    drift: number | null;
-    spanMonths: number;
-  };
-  spending: {
-    months: { month: string; spend: number; fees: number; refunds: number; movedIn: number; movedOut: number }[];
-    dataThrough: string | null;
-    categories: {
-      noteId: string | null;
-      rules: { category: string; colour: string | null }[];
-      months: { month: string; byCategory: Record<string, number>; total: number }[];
-      forecast: {
-        category: string;
-        typical: number;
-        low: number;
-        high: number;
-        months: number;
-        last: number | null;
-        merchants: { name: string; total: number; count: number }[];
-      }[];
-      /** A typical month, from the server's one typicalMonth(). Null under
-       *  three complete months, where no honest figure exists. */
-      typical: number | null;
-      completeMonths: number;
-      lastComplete: string | null;
-    };
-    fixed: number;
-    variable: number;
-    matched: string[];
-    txnCount: number;
-    skipped: number;
-  };
-  files: { name: string; size: number; mtimeMs: number; ext: string }[];
-}
 
 const eur = (n: number, currency = "EUR") =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency, signDisplay: n < 0 ? "always" : "auto" }).format(n);
@@ -455,18 +335,6 @@ function GrainToggle({ grain, onChange }: { grain: Grain; onChange: (g: Grain) =
   );
 }
 
-interface CategoryDetail {
-  category: string;
-  colour: string | null;
-  years: string[];
-  year: string | null;
-  series: { month: string; total: number; count: number; hasData: boolean; future: boolean; partial: boolean }[];
-  /** Every year the statements reach, for the "Year" view. */
-  yearly: { year: string; total: number; count: number; partial: boolean }[];
-  merchants: { name: string; total: number; count: number }[];
-  stats: { total: number; count: number; activeMonths: number; high: number; low: number };
-}
-
 export function Finance({
   onOpenNote,
   category,
@@ -506,26 +374,6 @@ export function Finance({
     return <SpendingPage onOpenNote={onOpenNote} onOpenCategory={onOpenCategory} onOpenMonth={onOpenMonth} onBack={onBack} />;
   if (category) return <CategoryPage name={category} onBack={onBack} onOpenMerchant={onOpenMerchant} onOpenMonth={onOpenMonth} />;
   return <FinanceOverview onOpenNote={onOpenNote} onOpenCategory={onOpenCategory} onOpenPage={onOpenPage} onOpenMonth={onOpenMonth} />;
-}
-
-interface MerchantDetail {
-  merchant: string;
-  years: string[];
-  year: string | null;
-  /** Which way the money mostly goes here — a merchant is not always somewhere
-   *  you spend, and "PAYMENT FROM <NAME>" is €300 arriving. */
-  direction: "in" | "out";
-  transactions: { date: string; amount: number; refund: boolean; type: string; balance: number | null }[];
-  months: { month: string; total: number }[];
-  stats: {
-    total: number;
-    count: number;
-    average: number;
-    biggest: number;
-    first: string | null;
-    last: string | null;
-    allTime: number;
-  };
 }
 
 /** Every transaction with one merchant, grouped by month, newest first. */
@@ -2214,32 +2062,6 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
       )}
     </div>
   );
-}
-
-interface MonthDetail {
-  month: string;
-  category: string | null;
-  complete: boolean;
-  total: number;
-  movedOut: number;
-  movedIn: number;
-  refunded: number;
-  count: number;
-  transferCount: number;
-  typical: number;
-  categories: { category: string; total: number; count: number; colour: string | null; typical: number }[];
-  prev: string | null;
-  next: string | null;
-  transactions: {
-    date: string;
-    description: string;
-    amount: number;
-    refund: boolean;
-    moved: boolean;
-    type: string;
-    balance: number | null;
-    category: string;
-  }[];
 }
 
 /**

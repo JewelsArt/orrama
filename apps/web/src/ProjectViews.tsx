@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, daysTo, isoLocal } from "@basalt/core";
-import { api, type DashboardTask } from "./api.js";
+import { api } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
+import type { Board, BoardEdge, BoardNode, FileNode, GroupNode, ProjectTask } from "@basalt/schema/responses";
 
 /**
  * The project page's three working views, from the approved Sep 2026 mock:
@@ -19,7 +20,7 @@ import type { ProjectWorkspace } from "./Project.js";
  * the database.
  */
 
-export type ProjectTask = DashboardTask & { section: string };
+export type { ProjectTask };
 
 /** A section's colour, by the order it first appears: the note's structure picks it. */
 const INKS = ["var(--ink-azure)", "var(--ink-lilac)", "var(--ink-pink)", "var(--ink-cyan)", "var(--ink-magenta)", "var(--ink-amber)"];
@@ -331,12 +332,6 @@ export function ProjectTodo({ w, onChanged, onOpenNote }: { w: ProjectWorkspace;
 }
 
 /* ---------------------------------------------------------------- Documents board */
-
-interface FileNode { id: string; type: "file"; file: string; x: number; y: number; width: number; height: number }
-interface GroupNode { id: string; type: "group"; label: string; x: number; y: number; width: number; height: number; color?: string }
-type BoardNode = FileNode | GroupNode;
-interface BoardEdge { id: string; fromNode: string; toNode: string; label?: string; basaltSuggested?: true }
-interface Board { nodes: BoardNode[]; edges: BoardEdge[]; canEdit?: boolean; unreadable?: boolean }
 
 /** JSON Canvas preset colours onto Basalt's inks (green stays status-only). */
 const PRESET: Record<string, string> = { "1": "var(--ink-pink)", "2": "var(--ink-amber)", "3": "var(--ink-magenta)", "4": "var(--ink-azure)", "5": "var(--ink-cyan)", "6": "var(--ink-lilac)" };

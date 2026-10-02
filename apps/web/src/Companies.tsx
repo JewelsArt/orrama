@@ -4,20 +4,8 @@ import { api, type Me } from "./api.js";
 import { ContactSheet, initials as sheetInitials, useColleagues, type ContactRecord } from "./cards.js";
 import { IconPlus } from "./icons.js";
 import { onWs } from "./ws.js";
-
-export interface Company {
-  id: string;
-  name: string;
-  path: string;
-  description: string;
-  sector: string;
-  linkedin: string;
-  website: string;
-  careers: string;
-  location: string;
-  positions: string[];
-  personal: boolean;
-}
+import type { Company } from "@basalt/schema/responses";
+export type { Company };
 
 const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
 const SECTOR_SUGGESTIONS = ["Finance", "Marketing", "Leadership", "Operations", "University", "Engineering", "Design", "Other"];

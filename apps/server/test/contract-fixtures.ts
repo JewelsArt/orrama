@@ -90,6 +90,12 @@ export async function writeProjectFiles(vault: string, slug: string): Promise<vo
   fs.writeFileSync(path.join(dir, "notes.txt"), "plain text");
 }
 
+/** A board edited by hand into something that does not parse. */
+export function writeBrokenBoard(vault: string, slug: string): void {
+  fs.mkdirSync(path.join(vault, "04-Projects", slug), { recursive: true });
+  fs.writeFileSync(path.join(vault, "04-Projects", slug, "documents.canvas"), "{ not json");
+}
+
 /** A local calendar feed the server may fetch (BASALT_FETCH_ALLOW=127.0.0.1). */
 export async function serveIcs(): Promise<{ url: string; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => {

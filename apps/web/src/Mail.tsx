@@ -1,20 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
 import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
+import type { MailAccount as Account, InboxItem, MailCategory, MailMessage, PendingDraft } from "@basalt/schema/responses";
 
-/** Inbox envelope (list row) — mirrors the server's InboxItem. */
-interface InboxItem {
-  uid: number;
-  from: string;
-  fromName: string;
-  subject: string;
-  date: string | null;
-  seen: boolean;
-  messageId: string | null;
-  category: MailCategory;
-}
-
-type MailCategory = "primary" | "social" | "promotions" | "updates" | "forums";
 type MailTab = MailCategory | "all";
 
 /** Gmail's tab glyphs: a tray, a price tag, two people, an info dot. */
@@ -69,25 +57,6 @@ const CATEGORIES: { id: MailTab; label: string; icon: () => React.ReactNode }[] 
   { id: "all", label: "All", icon: IconStack },
 ];
 
-interface MailMessage {
-  uid: number;
-  from: string;
-  fromName: string;
-  to: string;
-  subject: string;
-  date: string | null;
-  text: string;
-  html: string | null;
-  messageId: string | null;
-  references: string | null;
-}
-
-interface Account {
-  connected: boolean;
-  email: string | null;
-  lastError: string | null;
-}
-
 interface Draft {
   to: string;
   subject: string;
@@ -97,18 +66,6 @@ interface Draft {
   /** Set when this came from a staged draft, so sending clears the stored row. */
   id?: string;
   createdBy?: "agent" | "token";
-}
-
-/** A message the agent (or an MCP client) prepared; it does not leave until you send it. */
-interface PendingDraft {
-  id: string;
-  to: string;
-  subject: string;
-  body: string;
-  inReplyTo: string | null;
-  references: string | null;
-  createdBy: "agent" | "token";
-  createdAt: number;
 }
 
 const fmtDate = (iso: string | null) => {

@@ -11,57 +11,8 @@ import { ProjectBoard, ProjectTimeline, ProjectTodo } from "./ProjectViews.js";
 import { IconPlus, IconSearch, IconX } from "./icons.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { onWs } from "./ws.js";
-
-export interface ProjectFile {
-  name: string;
-  size: number;
-  mtimeMs: number;
-  ext: string;
-}
-
-export interface ProjectPerson {
-  id: string;
-  title: string;
-  kind: "contact" | "company";
-  role: string;
-  company: string;
-  linkedin: string;
-  path: string;
-}
-
-export interface ProjectNote {
-  id: string;
-  title: string;
-  path: string;
-  mtimeMs: number;
-  tasks: number;
-  done: number;
-}
-
-export interface ProjectWorkspace {
-  slug: string;
-  key: string;
-  name: string;
-  noteId: string;
-  path: string;
-  domain: "personal" | "professional" | "academic" | null;
-  status: string;
-  start: string;
-  deadline: string;
-  prompt: string;
-  goals: string[];
-  decisions: string[];
-  inbox: string[];
-  people: ProjectPerson[];
-  notes: ProjectNote[];
-  files: ProjectFile[];
-  content: string;
-  canEdit: boolean;
-  total: number;
-  done: number;
-  /** Each step carries the `##` section of the project note it sits under (or its own note's title). */
-  tasks: (DashboardTask & { section: string })[];
-}
+import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@basalt/schema/responses";
+export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
 
 type View = "overview" | "timeline" | "documents" | "todo";
 const VIEWS: { id: View; label: string }[] = [
