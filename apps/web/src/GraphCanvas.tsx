@@ -88,11 +88,47 @@ function neighbourhood(edges: { from: string; to: string }[], from: string, dept
   return seen;
 }
 
+const ARROWS: Record<string, { x: number; y: number }> = {
+  ArrowRight: { x: 1, y: 0 },
+  ArrowLeft: { x: -1, y: 0 },
+  ArrowUp: { x: 0, y: -1 },
+  ArrowDown: { x: 0, y: 1 },
+};
+
+/**
+ * The keyboard's next node: the nearest one that lies in `dir` from `from`,
+ * with sideways distance counting double, so ArrowRight prefers the node
+ * straight across over a closer one far above. Null when nothing lies that way.
+ */
+export function nearestInDirection<N extends { id: string; x: number; y: number }>(
+  from: N,
+  nodes: N[],
+  dir: { x: number; y: number },
+): N | null {
+  let best: N | null = null;
+  let bestScore = Infinity;
+  for (const n of nodes) {
+    const vx = n.x - from.x;
+    const vy = n.y - from.y;
+    const along = vx * dir.x + vy * dir.y;
+    if (along <= 0) continue; // behind, beside, or `from` itself
+    const across = Math.abs(vx * dir.y - vy * dir.x);
+    const score = along + 2 * across;
+    if (score < bestScore) {
+      bestScore = score;
+      best = n;
+    }
+  }
+  return best;
+}
+
 /**
  * The map: a live force-directed graph, the way Obsidian does it. Nodes repel
  * and collide (so they never stack), links pull like springs, and you can grab
  * any node and drag it — the rest of the web reacts. Wheel to zoom, drag the
  * background to pan, hover to light up a node's neighbourhood, click to open.
+ * The keyboard does the same: Tab to the map, arrows move between notes (drawn
+ * and announced like a hover), Enter opens, + and − zoom, Esc lets go.
  *
  * Deliberately monochrome: a node's *size* carries its degree and nothing else
  * competes for attention, so the shape of the vault is what you see. Colour
@@ -140,6 +176,7 @@ export function GraphCanvas({
   const [hovered, setHovered] = useState<{ title: string; folder: string; description: string } | null>(null);
   const [settings, setSettings] = useState<GraphSettings>(loadSettings);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [keyboard, setKeyboard] = useState(false);
   const set = <K extends keyof GraphSettings>(k: K, v: GraphSettings[K]) =>
     setSettings((s) => {
       const next = { ...s, [k]: v };
@@ -448,15 +485,9 @@ export function GraphCanvas({
         }
       }
     };
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const { cx, cy } = cssPos(e);
-
-      // Smooth proportional zoom based on scroll magnitude.
-      // Math.exp gives a perfectly linear zoom feel regardless of current scale.
-      const scaleMultiplier = Math.exp(-e.deltaY * 0.0015);
-      const k2 = Math.max(0.2, Math.min(4, savedView.k * scaleMultiplier));
-
+    /** Zoom by `factor`, keeping the point under (cx, cy) where it is. */
+    const zoomAt = (cx: number, cy: number, factor: number) => {
+      const k2 = Math.max(0.2, Math.min(4, savedView.k * factor));
       const gx = (cx - savedView.x) / savedView.k;
       const gy = (cy - savedView.y) / savedView.k;
       savedView.k = k2;
@@ -464,12 +495,79 @@ export function GraphCanvas({
       savedView.y = cy - gy * k2;
       draw();
     };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const { cx, cy } = cssPos(e);
+      // Smooth proportional zoom based on scroll magnitude.
+      // Math.exp gives a perfectly linear zoom feel regardless of current scale.
+      zoomAt(cx, cy, Math.exp(-e.deltaY * 0.0015));
+    };
+
+    // ---- keyboard: the cursor is the hover, moved by arrows ----
+    const point = (n: SimNode | null) => {
+      hoverRef.current = n?.id ?? null;
+      setHovered(n ? { title: n.title, folder: n.folder, description: n.description } : null);
+      if (n) {
+        // Keep it on screen: pan just enough to bring it inside a margin.
+        const { sx, sy } = project(n);
+        const m = 48;
+        if (sx < m) savedView.x += m - sx;
+        else if (sx > w - m) savedView.x -= sx - (w - m);
+        if (sy < m) savedView.y += m - sy;
+        else if (sy > h - m) savedView.y -= sy - (h - m);
+      }
+      draw();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const current = hoverRef.current ? (byId.get(hoverRef.current) ?? null) : null;
+      const dir = ARROWS[e.key];
+      if (dir) {
+        e.preventDefault();
+        if (!current) {
+          // Start from the open note, else the one nearest the middle of the view.
+          const centre = toGraph(w / 2, h / 2);
+          const start =
+            (focusRef.current ? byId.get(focusRef.current) : undefined) ??
+            nodes.reduce<SimNode | null>(
+              (best, n) =>
+                !best || (n.x - centre.x) ** 2 + (n.y - centre.y) ** 2 < (best.x - centre.x) ** 2 + (best.y - centre.y) ** 2 ? n : best,
+              null,
+            );
+          point(start);
+        } else {
+          point(nearestInDirection(current, nodes, dir) ?? current);
+        }
+      } else if ((e.key === "Enter" || e.key === " ") && current) {
+        e.preventDefault();
+        if (!current.id.startsWith(TAG_PREFIX)) onOpenRef.current(current.id);
+      } else if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        zoomAt(w / 2, h / 2, 1.25);
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        zoomAt(w / 2, h / 2, 1 / 1.25);
+      } else if (e.key === "Escape" && current) {
+        // Let go of the cursor; a second Esc reaches the page (closes the note).
+        e.stopPropagation();
+        point(null);
+      }
+    };
+    const onBlur = () => {
+      setKeyboard(false);
+      if (hoverRef.current) point(null);
+    };
+    // Only for keyboard focus: a click focuses the canvas too, and needs no hint.
+    const onFocus = () => setKeyboard(canvas.matches(":focus-visible"));
 
     canvas.style.cursor = "grab";
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("keydown", onKeyDown);
+    canvas.addEventListener("focus", onFocus);
+    canvas.addEventListener("blur", onBlur);
     const ro = new ResizeObserver(draw);
     ro.observe(parent);
 
@@ -481,6 +579,9 @@ export function GraphCanvas({
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("keydown", onKeyDown);
+      canvas.removeEventListener("focus", onFocus);
+      canvas.removeEventListener("blur", onBlur);
       ro.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -511,7 +612,14 @@ export function GraphCanvas({
 
   return (
     <>
-      <canvas className="graph-canvas" ref={ref} />
+      <canvas
+        className="graph-canvas"
+        ref={ref}
+        tabIndex={0}
+        role="application"
+        aria-roledescription="note map"
+        aria-label="Note map. Arrow keys move between notes, Enter opens one, plus and minus zoom, Escape lets go."
+      />
       {spotlight && !hovered ? (
         <div className="graph-readout" aria-live="polite">
           <b>{spotlight.label}</b>
@@ -521,12 +629,19 @@ export function GraphCanvas({
           {spotOne?.description && <p>{spotOne.description}</p>}
         </div>
       ) : (
-        hovered && (
+        hovered ? (
           <div className="graph-readout" aria-live="polite">
             <b>{hovered.title}</b>
             {hovered.folder && <code>{hovered.folder}</code>}
             {hovered.description && <p>{hovered.description}</p>}
           </div>
+        ) : (
+          keyboard && (
+            <div className="graph-readout">
+              <b>Keyboard</b>
+              <p>Arrows move between notes · Enter opens · + − zoom · Esc lets go</p>
+            </div>
+          )
         )
       )}
       <div className={`graph-ui ${panelOpen ? "open" : ""}`}>

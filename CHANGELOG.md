@@ -32,6 +32,9 @@ one is in CLAUDE.md, "Releases".
   all. Front-matter tags now follow the same rules as inline ones (a tag with a
   space or a dot in it is dropped), except an `only/…` tag, which stays so the
   note stays restricted.
+- The note map works from the keyboard: Tab to it, arrow keys move between
+  notes (shown and read out like a hover), Enter opens, + and − zoom, Esc
+  lets go.
 
 ## [0.1.0] — 2026-10-01
 
