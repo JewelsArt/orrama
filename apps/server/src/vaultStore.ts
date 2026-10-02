@@ -34,6 +34,10 @@ import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
 import { writeFileAtomic } from "./atomicWrite.js";
 
+/** How long after a folder appears it is read again (lookAgainLater). The
+ *  gap it covers is microseconds wide; this is margin for a busy event loop. */
+const NEW_FOLDER_LOOK_AGAIN_MS = 1000;
+
 export const hash = (s: string) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
 
 export class HttpError extends Error {
@@ -197,6 +201,7 @@ export class VaultStore {
       },
       ignoreInitial: true,
     }).on("all", (event, absPath) => {
+      if (event === "addDir") return this.lookAgainLater(absPath);
       if (!absPath.toLowerCase().endsWith(".md")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
 
@@ -220,6 +225,49 @@ export class VaultStore {
     });
     this.watcher = watcher;
     this.watching = new Promise((resolve) => watcher.once("ready", () => resolve()));
+  }
+
+  /**
+   * A second look at a folder that just appeared. chokidar reads a new folder
+   * and only then attaches fs.watch to it (`_handleDir` in its handler.js), so
+   * a note — or a subfolder — that lands between the two raises no event and
+   * stays unindexed until something else in that folder changes. On Linux
+   * (inotify reports nothing from before the watch) that is a real miss; on
+   * macOS FSEvents happens to deliver it. By the time this runs the watch is
+   * attached: a note the index does not have is taken in, a subfolder chokidar
+   * never saw is handed to it and looked at the same way.
+   */
+  private lookAgainLater(absDir: string): void {
+    const key = `dir:${absDir}`;
+    const pending = this.watchTimeouts.get(key);
+    if (pending) clearTimeout(pending);
+    this.watchTimeouts.set(key, setTimeout(() => {
+      this.watchTimeouts.delete(key);
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(absDir, { withFileTypes: true });
+      } catch {
+        return; // gone again, or unreadable — chokidar reports those itself
+      }
+      const known = new Set(this.watcher?.getWatched()[absDir] ?? []);
+      for (const e of entries) {
+        if (e.name.startsWith(".")) continue;
+        const abs = path.join(absDir, e.name);
+        if (e.isDirectory()) {
+          // add() is an initial add to chokidar: with ignoreInitial it reports
+          // nothing inside, so this folder gets its own second look.
+          if (!known.has(e.name)) {
+            this.watcher?.add(abs);
+            this.lookAgainLater(abs);
+          }
+          continue;
+        }
+        if (!e.isFile() || !e.name.toLowerCase().endsWith(".md")) continue;
+        const rel = path.relative(this.root, abs).split(path.sep).join("/");
+        if (this.index.getByPath(rel) || this.watchTimeouts.has(rel)) continue;
+        this.handleExternalChange("add", rel, abs);
+      }
+    }, NEW_FOLDER_LOOK_AGAIN_MS));
   }
 
   /**

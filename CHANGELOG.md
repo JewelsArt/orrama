@@ -23,6 +23,11 @@ one is in CLAUDE.md, "Releases".
   content type, an upload over the size limit — is answered with its 400, 413
   or 415 and Fastify's reason, not `500 internal error`, and no longer logged
   as a server crash.
+- A note created together with its new folder is indexed. chokidar reads a
+  new folder before it watches it, and on Linux (the Docker image) a note
+  landing in between was missed until something else in that folder changed —
+  10 of 10 in a probe. The server now looks at each new folder again a second
+  later. macOS was not affected in practice.
 
 ## [0.1.0] — 2026-10-01
 
