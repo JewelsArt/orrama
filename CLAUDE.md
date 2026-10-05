@@ -575,6 +575,15 @@ simulation, not a rebuild) and **local graph**: the last-opened note plus
 everything within N hops, `onShown` reporting the real count back so the hint
 never lies. Settings persist in `localStorage` under `basalt-graph`.
 
+**Saved conversations are their own kind of note.** A note with front matter
+`type: claude-session` (or `type: conversation`) is a transcript: it is indexed,
+searchable, linkable and readable by the agent and MCP like any note, but its
+text adds no links, tags or tasks (`ParsedNote.kind`, `packages/core/src/parse.ts`)
+— transcripts quote file paths, spreadsheet errors and colours, and once made
+up 87% of the vault and almost all of its unresolved links and junk tags. The
+map hides them unless "Conversations" is ticked in its settings, and the hint
+says how many it left out.
+
 **Life-areas (School / Work / Knowledge / Claude & tools / Personal) are vault
 data.** A note tagged `#vault-categories` holds `| Category | Matches |` rows —
 phrases or `/regex/` against a note's path and tags, first row wins

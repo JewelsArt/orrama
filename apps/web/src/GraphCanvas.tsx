@@ -45,9 +45,11 @@ export interface GraphSettings {
   depth: number;
   /** Draw #tags as their own nodes, the way Obsidian's graph does. */
   tags: boolean;
+  /** Show saved chats (notes of kind "conversation"). Off: they are most of the vault, and noise on a map. */
+  conversations: boolean;
 }
 
-const DEFAULTS: GraphSettings = { linkDistance: 38, repel: 115, center: 0.09, nodeScale: 1, local: false, depth: 1, tags: false };
+const DEFAULTS: GraphSettings = { linkDistance: 38, repel: 115, center: 0.09, nodeScale: 1, local: false, depth: 1, tags: false, conversations: false };
 
 const loadSettings = (): GraphSettings => {
   try {
@@ -154,7 +156,7 @@ export function GraphCanvas({
    */
   spotlight?: { ids: Set<string>; label: string } | null;
   /** Reports what is actually on screen, so the caller's hint can tell the truth. */
-  onShown?: (info: { count: number; local: boolean; depth: number }) => void;
+  onShown?: (info: { count: number; local: boolean; depth: number; hidden: number }) => void;
   onOpen: (id: string) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -187,10 +189,16 @@ export function GraphCanvas({
    * denser than a note-links-only one. Built here rather than server-side: the
    * tags already ride along with each node.
    */
+  // Conversations leave the map unless asked for — and take their tags with them.
+  const hiddenIds = useMemo(
+    () => new Set(settings.conversations || !graph ? [] : graph.nodes.filter((n) => n.kind === "conversation").map((n) => n.id)),
+    [graph, settings.conversations],
+  );
+
   const tagged = useMemo(() => {
     if (!graph || !settings.tags) return graph;
     const used = new Map<string, number>();
-    for (const n of graph.nodes) for (const t of new Set(n.tags ?? [])) used.set(t, (used.get(t) ?? 0) + 1);
+    for (const n of graph.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) used.set(t, (used.get(t) ?? 0) + 1);
     const nodes = [...graph.nodes];
     const edges = [...graph.edges];
     for (const [tag, count] of used) {
@@ -200,28 +208,32 @@ export function GraphCanvas({
         folder: "",
         sector: null,
         tags: [],
+        kind: "note",
         links: count,
         tasks: 0,
         description: `${count} note${count === 1 ? "" : "s"} tagged #${tag}`,
       });
     }
-    for (const n of graph.nodes) for (const t of new Set(n.tags ?? [])) edges.push({ from: n.id, to: TAG_PREFIX + t });
+    for (const n of graph.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) edges.push({ from: n.id, to: TAG_PREFIX + t });
     return { nodes, edges };
-  }, [graph, settings.tags]);
+  }, [graph, settings.tags, hiddenIds]);
 
   // In local mode the node set itself shrinks to the open note's neighbourhood.
   const shownIds = useMemo(() => {
     const tagIds = settings.tags && tagged ? tagged.nodes.filter((n) => n.id.startsWith(TAG_PREFIX)).map((n) => n.id) : [];
-    if (!tagged || !settings.local || !focusId) return new Set([...visibleIds, ...tagIds]);
+    const ids = [...visibleIds].filter((id) => !hiddenIds.has(id)).concat(tagIds);
+    if (!tagged || !settings.local || !focusId) return new Set(ids);
     const near = neighbourhood(tagged.edges, focusId, settings.depth);
-    return new Set([...visibleIds, ...tagIds].filter((id) => near.has(id)));
-  }, [tagged, visibleIds, settings.local, settings.depth, settings.tags, focusId]);
+    return new Set(ids.filter((id) => near.has(id)));
+  }, [tagged, visibleIds, hiddenIds, settings.local, settings.depth, settings.tags, focusId]);
 
   const onShownRef = useRef(onShown);
   onShownRef.current = onShown;
   useEffect(() => {
-    onShownRef.current?.({ count: shownIds.size, local: settings.local && !!focusId, depth: settings.depth });
-  }, [shownIds, settings.local, settings.depth, focusId]);
+    // Notes only (tag nodes are not notes), and how many conversations the map leaves out.
+    const notes = [...shownIds].filter((id) => !id.startsWith(TAG_PREFIX)).length;
+    onShownRef.current?.({ count: notes, local: settings.local && !!focusId, depth: settings.depth, hidden: hiddenIds.size });
+  }, [shownIds, hiddenIds, settings.local, settings.depth, focusId]);
 
   // Rebuild the simulation only when the actual set of nodes/edges changes —
   // not on every unrelated re-render (highlight/force tweaks just redraw).
@@ -672,6 +684,10 @@ export function GraphCanvas({
             <label className="graph-row switch">
               <span>Tags as nodes</span>
               <input type="checkbox" checked={settings.tags} onChange={(e) => set("tags", e.target.checked)} />
+            </label>
+            <label className="graph-row switch">
+              <span>Conversations</span>
+              <input type="checkbox" checked={settings.conversations} onChange={(e) => set("conversations", e.target.checked)} />
             </label>
             <hr />
             <label className="graph-row">

@@ -81,6 +81,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
       headings: [],
       onlyTeams: [],
       shareTeams: [],
+      kind: "note",
       mtimeMs: Date.now(),
     };
     const scored = suggestRelated(pseudo, readable, (t) => store.index.resolveLink(t), 12);

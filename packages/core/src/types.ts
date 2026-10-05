@@ -93,6 +93,13 @@ export interface ParsedNote {
   /** Reserved security namespaces extracted from tags. */
   onlyTeams: TeamId[];
   shareTeams: TeamId[];
+  /**
+   * "conversation" for a saved chat (front matter `type: claude-session` or
+   * `type: conversation`): indexed, searchable and linkable like any note, but
+   * its text contributes no tags, links or tasks — a transcript quotes file
+   * paths, spreadsheet errors and colours, and none of that is Jules's graph.
+   */
+  kind: "note" | "conversation";
 }
 
 export interface VaultFile {

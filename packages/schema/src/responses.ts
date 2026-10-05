@@ -167,6 +167,8 @@ export const graphResponse = o({
       tags: z.array(z.string()),
       links: z.number(),
       tasks: z.number(),
+      /** "conversation" for a saved chat (`type: claude-session`); the map hides those by default. */
+      kind: z.enum(["note", "conversation"]),
       /** The note's description:/summary: front matter, else its first real sentence. */
       description: z.string(),
     }),

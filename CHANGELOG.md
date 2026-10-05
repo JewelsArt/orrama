@@ -47,6 +47,11 @@ one is in CLAUDE.md, "Releases".
   then another quickly, flipping weeks in Planning, switching documents,
   Finance months or mail messages, and typing in search each cancel the
   request they replace.
+- Saved Claude conversations (`type: claude-session`) are their own kind of
+  note: still searchable and linkable, but their text no longer adds links,
+  tags or tasks, and the map hides them unless "Conversations" is on.
+- Colours like `#d93025` are no longer read as tags (only colours starting
+  with a digit were kept out).
 - A project without a `04-Projects/<slug>.md` no longer flips between two of
   its tagged notes: decisions, captures and people used to land in whichever
   note was "first" at that moment, and the page showed only one of them.

@@ -175,6 +175,8 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       tags: n.tags.map((t) => t.tag),
       links: n.links.length,
       tasks: n.tasks.filter((t) => !t.checked).length,
+      /** A saved chat (ParsedNote.kind): the map hides these unless asked. */
+      kind: n.kind,
       /** One line about the note, for the map's hover readout. */
       description: describe(n),
     }));

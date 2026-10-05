@@ -71,6 +71,8 @@ export function writeVaultFixtures(vault: string): void {
   fs.writeFileSync(path.join(fin, "own-accounts.md"), ledger("Own accounts", "own-accounts", "| Account | Matches |\n|---|---|\n| Investment account | investment account |"));
   // Front matter is YAML, not text: numbers and lists where strings usually go.
   fs.mkdirSync(path.join(vault, "Shared"), { recursive: true });
+  // A saved Claude conversation: its own kind of note (graph node kind).
+  fs.writeFileSync(path.join(vault, "Shared", "Chat about the board.md"), "---\ntype: claude-session\ndate: 2026-10-01\n---\n# Chat about the board\n\n**Jules:** see [[apps/web/src/App.tsx]] #REF!\n");
   fs.writeFileSync(path.join(vault, "Shared", "Odd front matter.md"), "---\nsector: 2026\ndescription: [a, list]\n---\n# Odd\n");
   fs.writeFileSync(path.join(fin, "payslips.md"), ledger("Payslips", "payslips", "| Month | Gross | Net | Hours | Employer |\n|---|---|---|---|---|\n| 2026-02 | 600 | 500 | 160 | Salary Ltd |"));
 }

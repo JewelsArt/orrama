@@ -24,6 +24,16 @@ describe("inline #tags", () => {
     expect(inline(`${composed} ${decomposed}`)).toEqual(["café", "café"]);
   });
 
+  it("keep colours out even when they start with a letter", () => {
+    expect(inline("brand #d93025, gold #c9a84c, red #f00, #a1b2c3d4")).toEqual([]);
+    // All-letter hex is also a word: a tag, as in Obsidian.
+    expect(inline("#ffffff #cafe #decade")).toEqual(["ffffff", "cafe", "decade"]);
+    // A longer token that merely starts like a colour is a tag.
+    expect(inline("#d93025x #c9a84c/sub")).toEqual(["d93025x", "c9a84c/sub"]);
+    expect(front(["d93025", "ok"])).toEqual(["ok"]);
+    expect([..."#d93025 #réunion".matchAll(TAG_RE)].map((m) => m[2])).toEqual(["réunion"]);
+  });
+
   it("still keep colours, issue numbers and headings out", () => {
     expect(inline("color: #0a0a0a; see #123 and #2026")).toEqual([]);
     expect(parseNote("# Title\n").tags).toEqual([]);

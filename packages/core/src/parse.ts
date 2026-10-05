@@ -27,9 +27,16 @@ const MD_LINK_RE = /(!?)\[([^\]]*)\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;
  * colour), `#123` (an issue) and `# Title` (a heading) out.
  */
 const TAG_BODY = String.raw`\p{L}[\p{L}\p{M}\p{N}_-]*(?:\/[\p{L}\p{M}\p{N}_-]+)*`;
+/**
+ * Not a colour: 3, 4, 6 or 8 hex digits with at least one digit among them
+ * (`#d93025`, `#c9a84c`, `#f00`). A letter first was not enough — those start
+ * with a letter. All-letter hex (`#ffffff`, `#cafe`) stays a tag, as in
+ * Obsidian, since it is also a word.
+ */
+const NOT_COLOUR = String.raw`(?!(?=[0-9a-fA-F]*[0-9])(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\p{L}\p{M}\p{N}_\/-]))`;
 /** Inline #tag: starts a line, or follows a space or "(". */
-export const TAG_RE = new RegExp(String.raw`(^|[\s(])#(${TAG_BODY})`, "gu");
-const WHOLE_TAG = new RegExp(`^${TAG_BODY}$`, "u");
+export const TAG_RE = new RegExp(String.raw`(^|[\s(])#${NOT_COLOUR}(${TAG_BODY})`, "gu");
+const WHOLE_TAG = new RegExp(`^${NOT_COLOUR}${TAG_BODY}$`, "u");
 
 /** `[/]` = in progress, `[b]` = blocked (the Obsidian Tasks / Minimal convention). */
 const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] (.*)$/;
@@ -165,6 +172,9 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
     if (tag) tags.push({ tag, line: 0 });
   }
 
+  // A saved chat: front-matter tags count, its text does not (ParsedNote.kind).
+  const conversation = data["type"] === "claude-session" || data["type"] === "conversation";
+
   let inFence = false;
   for (let i = bodyStart; i < lines.length; i++) {
     const line = lines[i]!;
@@ -176,6 +186,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
 
     const hm = HEADING_RE.exec(line);
     if (hm) headings.push({ level: hm[1]!.length, text: hm[2]!.trim(), line: i });
+    if (conversation) continue; // headings only: no links, tags or tasks from a transcript
 
     for (const m of line.matchAll(LINK_RE)) {
       links.push({
@@ -237,6 +248,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
     headings,
     onlyTeams: [...new Set(onlyTeams)],
     shareTeams: [...new Set(shareTeams)],
+    kind: conversation ? "conversation" : "note",
   };
 }
 

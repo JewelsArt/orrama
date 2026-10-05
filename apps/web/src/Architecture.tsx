@@ -52,7 +52,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   // Remembered after the note closes so the map can stay anchored on it — that
   // is what makes the local graph useful: read a note, step back, see its web.
   const [lastOpenId, setLastOpenId] = useState<string | null>(null);
-  const [shown, setShown] = useState<{ count: number; local: boolean; depth: number }>({ count: 0, local: false, depth: 1 });
+  const [shown, setShown] = useState<{ count: number; local: boolean; depth: number; hidden: number }>({ count: 0, local: false, depth: 1, hidden: 0 });
   // What the file tree is pointing at, mirrored onto the map.
   const [spotlight, setSpotlight] = useState<{ ids: Set<string>; label: string } | null>(null);
 
@@ -304,8 +304,8 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               {shown.local
                 ? `${shown.count} of ${tree.length} · local graph, depth ${shown.depth}`
                 : category === "all"
-                  ? `${tree.length} notes`
-                  : `${scoped.length} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
+                  ? `${shown.count} notes${shown.hidden ? ` · ${shown.hidden} conversation${shown.hidden === 1 ? "" : "s"} hidden` : ""}`
+                  : `${shown.count} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
               · drag a node · scroll to zoom · click to open
             </span>
           </div>
