@@ -25,6 +25,7 @@
  * ACL: `readable` restricts BOTH ends. A fact whose subject or object the
  * caller cannot read does not exist for them — never confirm existence (§5.4).
  */
+import { describeNote } from "./describe.js";
 import { readSection } from "./sections.js";
 import { FALLBACK_TYPE, typeOfNote, type Ontology, type RelationDef } from "./ontology.js";
 import type { IndexedNote, NoteId } from "./types.js";
@@ -37,6 +38,8 @@ export interface Entity {
   type: string;
   /** Canonical status (the ontology's vocabulary), when the note has one. */
   status?: string;
+  /** One line about the note (describeNote): its own `description:`, else extractive. */
+  summary: string;
   /** The note's scalar front-matter fields, as text — `deadline`, `location`, `role`… */
   fields: Record<string, string>;
 }
@@ -135,7 +138,7 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
       const s = flatStrings(v).join(", ").trim();
       if (s) fields[lower(k)] = s;
     }
-    const entity: Entity = { id: n.id, title: n.title, path: n.path, type, fields };
+    const entity: Entity = { id: n.id, title: n.title, path: n.path, type, summary: describeNote(n), fields };
 
     if (type === "project" || "status" in fields) {
       const declared = fields["status"] ? lower(fields["status"]) : undefined;
