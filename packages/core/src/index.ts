@@ -17,3 +17,5 @@ export * from "./savings.js";
 export * from "./spending.js";
 export * from "./ownAccounts.js";
 export * from "./vaultCategories.js";
+export * from "./ontology.js";
+export * from "./graph.js";
