@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";
 import { hash, HttpError, type VaultStore } from "../vaultStore.js";
+import { graphFor } from "./graph.js";
 
 export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
@@ -150,12 +151,24 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
       /** One line about the note, for the map's hover readout. */
       description: describeNote(n),
     }));
-    const edges: { from: string; to: string }[] = [];
+    const edges: { from: string; to: string; relation?: string; implied?: true }[] = [];
     for (const n of readable) {
       for (const l of n.links) {
         const t = store.index.resolveLink(l.target);
         if (t && ids.has(t.id) && t.id !== n.id) edges.push({ from: n.id, to: t.id });
       }
+    }
+    // Typed relations ride on the same edges: a link that says `works_at` carries the name, and a relation
+    // no link spells out (a note tagged project/x belongs to the project; a conversation is about it) is an
+    // edge of its own. Stated facts only — the inverse is the same edge seen from the other end, a derived
+    // fact the two real ones it came from. Built from the readable notes, so nothing here names one you cannot read.
+    const at = new Map<string, number>();
+    edges.forEach((e, i) => at.set(`${e.from}\0${e.to}`, i));
+    for (const f of graphFor(store, req.userId).facts) {
+      if (f.via === "inverse" || f.via === "derived") continue;
+      const i = at.get(`${f.subject}\0${f.object}`) ?? at.get(`${f.object}\0${f.subject}`);
+      if (i === undefined) edges.push({ from: f.subject, to: f.object, relation: f.relation, implied: true });
+      else if (edges[i]!.relation === undefined) edges[i] = { from: f.subject, to: f.object, relation: f.relation }; // the fact's direction is the meaning's
     }
     return { nodes, edges };
   });

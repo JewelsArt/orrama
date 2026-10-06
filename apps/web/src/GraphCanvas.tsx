@@ -10,6 +10,7 @@ import {
 } from "d3-force";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData } from "@basalt/schema/responses";
+import { edgesFor, relationsAt, type RelationLine } from "./graphRelations.js";
 export type { GraphData };
 
 const TAG_PREFIX = "tag:";
@@ -32,6 +33,18 @@ interface SimNode {
 interface SimLink {
   source: SimNode;
   target: SimNode;
+  /** A typed relation, read from source to target. Drawn heavier, and named when you point at either end. */
+  relation?: string;
+  /** No link in the text says it (a tag, a field, a conversation's front matter): drawn dashed. */
+  implied?: boolean;
+}
+
+/** What the readout shows for a node under the pointer or the keyboard cursor. */
+interface Readout {
+  title: string;
+  folder: string;
+  description: string;
+  relations: { lines: RelationLine[]; more: number };
 }
 
 export interface GraphSettings {
@@ -47,9 +60,11 @@ export interface GraphSettings {
   tags: boolean;
   /** Show saved chats (notes of kind "conversation"). Off: they are most of the vault, and noise on a map. */
   conversations: boolean;
+  /** Typed relations: named edges, and the ones no link spells out. Off: the plain links, as the map always drew them. */
+  relations: boolean;
 }
 
-const DEFAULTS: GraphSettings = { linkDistance: 38, repel: 115, center: 0.09, nodeScale: 1, local: false, depth: 1, tags: false, conversations: false };
+const DEFAULTS: GraphSettings = { linkDistance: 38, repel: 115, center: 0.09, nodeScale: 1, local: false, depth: 1, tags: false, conversations: false, relations: true };
 
 const loadSettings = (): GraphSettings => {
   try {
@@ -172,7 +187,7 @@ export function GraphCanvas({
   const redrawRef = useRef<(() => void) | null>(null);
   const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
 
-  const [hovered, setHovered] = useState<{ title: string; folder: string; description: string } | null>(null);
+  const [hovered, setHovered] = useState<Readout | null>(null);
   const [settings, setSettings] = useState<GraphSettings>(loadSettings);
   const [panelOpen, setPanelOpen] = useState(false);
   const [keyboard, setKeyboard] = useState(false);
@@ -195,12 +210,15 @@ export function GraphCanvas({
     [graph, settings.conversations],
   );
 
+  // The relations switch decides which edges there are at all (implied ones only exist with it on).
+  const typed = useMemo(() => (graph ? { ...graph, edges: edgesFor(graph.edges, settings.relations) } : graph), [graph, settings.relations]);
+
   const tagged = useMemo(() => {
-    if (!graph || !settings.tags) return graph;
+    if (!typed || !settings.tags) return typed;
     const used = new Map<string, number>();
-    for (const n of graph.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) used.set(t, (used.get(t) ?? 0) + 1);
-    const nodes = [...graph.nodes];
-    const edges = [...graph.edges];
+    for (const n of typed.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) used.set(t, (used.get(t) ?? 0) + 1);
+    const nodes = [...typed.nodes];
+    const edges = [...typed.edges];
     for (const [tag, count] of used) {
       nodes.push({
         id: TAG_PREFIX + tag,
@@ -214,9 +232,9 @@ export function GraphCanvas({
         description: `${count} note${count === 1 ? "" : "s"} tagged #${tag}`,
       });
     }
-    for (const n of graph.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) edges.push({ from: n.id, to: TAG_PREFIX + t });
+    for (const n of typed.nodes) if (!hiddenIds.has(n.id)) for (const t of new Set(n.tags ?? [])) edges.push({ from: n.id, to: TAG_PREFIX + t });
     return { nodes, edges };
-  }, [graph, settings.tags, hiddenIds]);
+  }, [typed, settings.tags, hiddenIds]);
 
   // In local mode the node set itself shrinks to the open note's neighbourhood.
   const shownIds = useMemo(() => {
@@ -244,7 +262,9 @@ export function GraphCanvas({
         .sort()
         .join(",") +
       "|" +
-      tagged.edges.length
+      tagged.edges.length +
+      // Same count, different drawing: relations on names the edges, off does not.
+      (settings.relations ? "r" : "")
     : "";
 
   useEffect(() => {
@@ -281,7 +301,19 @@ export function GraphCanvas({
       };
     });
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    const links: SimLink[] = edges.map((e) => ({ source: byId.get(e.from)!, target: byId.get(e.to)! }));
+    const links: SimLink[] = edges.map((e) => ({
+      source: byId.get(e.from)!,
+      target: byId.get(e.to)!,
+      ...(e.relation ? { relation: e.relation } : {}),
+      ...(e.implied ? { implied: true } : {}),
+    }));
+    /** The readout's content for a node: its gist and its typed relations, in words. */
+    const readoutOf = (n: SimNode): Readout => ({
+      title: n.title,
+      folder: n.folder,
+      description: n.description,
+      relations: relationsAt(edges, n.id, (id) => byId.get(id)?.title),
+    });
 
     let w = parent.clientWidth;
     let h = parent.clientHeight;
@@ -336,6 +368,8 @@ export function GraphCanvas({
       const accent = styles.getPropertyValue("--accent").trim() || "#5b51dd";
       const textColor = styles.getPropertyValue("--text").trim() || "#111";
       const font = styles.getPropertyValue("--font-ui") || "sans-serif";
+      const mono = styles.getPropertyValue("--font-mono") || "monospace";
+      const paper = styles.getPropertyValue("--surface").trim() || "#fff";
       const k = savedView.k;
       const scale = settings.nodeScale;
 
@@ -360,14 +394,19 @@ export function GraphCanvas({
         const inSpot = spotted(l.source.id) || spotted(l.target.id);
         const hot = hover === l.source.id || hover === l.target.id || inSpot;
         const faded = !lit(l.source.id) && !lit(l.target.id);
+        // A typed edge is heavier than a plain link — weight, not colour, so the map stays one ink;
+        // one no link spells out is dashed.
+        const t = l.relation !== undefined;
         ctx.strokeStyle = hot ? accent : lineColor;
-        ctx.globalAlpha = hot ? 0.55 : faded ? 0.05 : hover || spot ? 0.07 : 0.18;
-        ctx.lineWidth = hot ? 1.3 : 1;
+        ctx.globalAlpha = hot ? 0.55 : faded ? 0.05 : hover || spot ? 0.07 : t ? 0.34 : 0.18;
+        ctx.lineWidth = hot ? 1.4 : t ? 1.3 : 1;
+        ctx.setLineDash(l.implied ? [4, 3] : []);
         ctx.beginPath();
         ctx.moveTo(a.sx, a.sy);
         ctx.lineTo(b.sx, b.sy);
         ctx.stroke();
       }
+      ctx.setLineDash([]);
 
       // nodes — one ink, size is the only signal
       for (const n of nodes) {
@@ -406,6 +445,37 @@ export function GraphCanvas({
         const label = n.title.length > 26 ? n.title.slice(0, 25) + "…" : n.title;
         const rr = Math.max(n.r * scale * k * (isHover ? 1.3 : 1), 1.6);
         ctx.fillText(label, p.sx, p.sy + rr + 3);
+      }
+
+      // The relation's name, on the typed edges of the node you point at: mono micro-label at the middle of
+      // the edge, on a paper halo so it reads over the lines.
+      if (hover) {
+        ctx.font = `600 10px ${mono}`;
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 3;
+        const own = links
+          .filter((l) => l.relation && (l.source.id === hover || l.target.id === hover))
+          .map((l) => ({ l, a: project(l.source), b: project(l.target) }))
+          .map((x) => ({ ...x, len: Math.hypot(x.b.sx - x.a.sx, x.b.sy - x.a.sy) }))
+          .sort((p, q) => q.len - p.len); // the longest edges are named first
+        const placed: { x: number; y: number; w: number }[] = [];
+        for (const { l, a, b, len } of own) {
+          const text = l.relation!.replace(/_/g, " ");
+          const tw = ctx.measureText(text).width;
+          // Only where the name fits on its edge and lands clear of the ones already placed: at a hub the short,
+          // near-parallel edges would pile their labels into a smear. The readout lists every relation, and
+          // zooming in makes the edges long enough to name.
+          const mx = (a.sx + b.sx) / 2;
+          const my = (a.sy + b.sy) / 2;
+          if (len < tw + 16 || placed.some((q) => Math.abs(q.x - mx) < (q.w + tw) / 2 + 4 && Math.abs(q.y - my) < 13)) continue;
+          placed.push({ x: mx, y: my, w: tw });
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = paper;
+          ctx.strokeText(text, mx, my);
+          ctx.fillStyle = textColor;
+          ctx.fillText(text, mx, my);
+        }
       }
       ctx.globalAlpha = 1;
     };
@@ -464,7 +534,7 @@ export function GraphCanvas({
         if (id !== hoverRef.current) {
           hoverRef.current = id;
           canvas.style.cursor = id ? "pointer" : "grab";
-          setHovered(hit ? { title: hit.title, folder: hit.folder, description: hit.description } : null);
+          setHovered(hit ? readoutOf(hit) : null);
           draw();
         }
         return;
@@ -517,7 +587,7 @@ export function GraphCanvas({
     // ---- keyboard: the cursor is the hover, moved by arrows ----
     const point = (n: SimNode | null) => {
       hoverRef.current = n?.id ?? null;
-      setHovered(n ? { title: n.title, folder: n.folder, description: n.description } : null);
+      setHovered(n ? readoutOf(n) : null);
       if (n) {
         // Keep it on screen: pan just enough to bring it inside a margin.
         const { sx, sy } = project(n);
@@ -645,6 +715,17 @@ export function GraphCanvas({
             <b>{hovered.title}</b>
             {hovered.folder && <code>{hovered.folder}</code>}
             {hovered.description && <p>{hovered.description}</p>}
+            {hovered.relations.lines.length > 0 && (
+              <ul className="graph-relations">
+                {hovered.relations.lines.map((r, i) => (
+                  <li key={i}>
+                    <i aria-hidden="true">{r.dir === "out" ? "→" : "←"}</i>
+                    <span>{r.label}</span> {r.title}
+                  </li>
+                ))}
+                {hovered.relations.more > 0 && <li className="more">+{hovered.relations.more} more</li>}
+              </ul>
+            )}
           </div>
         ) : (
           keyboard && (
@@ -689,6 +770,11 @@ export function GraphCanvas({
               <span>Conversations</span>
               <input type="checkbox" checked={settings.conversations} onChange={(e) => set("conversations", e.target.checked)} />
             </label>
+            <label className="graph-row switch">
+              <span>Relations</span>
+              <input type="checkbox" checked={settings.relations} onChange={(e) => set("relations", e.target.checked)} />
+            </label>
+            <p className="graph-note">Typed edges draw heavier and are named when you point at one; dashed ones are implied by a tag or a field, not a link.</p>
             <hr />
             <label className="graph-row">
               <span>Link distance</span>

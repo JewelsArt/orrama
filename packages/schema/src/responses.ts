@@ -173,7 +173,16 @@ export const graphResponse = o({
       description: z.string(),
     }),
   ),
-  edges: z.array(o({ from: z.string(), to: z.string() })),
+  edges: z.array(
+    o({
+      from: z.string(),
+      to: z.string(),
+      /** A typed relation (works_at, involves, part_of, about, supervises…), read from `from` to `to`; absent on a plain link. */
+      relation: z.string().optional(),
+      /** True when no link in the text says it: the relation comes from a tag, a field or a conversation's front matter. */
+      implied: z.literal(true).optional(),
+    }),
+  ),
 });
 
 export const noteResponse = o({

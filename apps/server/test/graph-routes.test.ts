@@ -88,6 +88,31 @@ describe("the five questions over HTTP", () => {
   });
 });
 
+describe("the map's edges carry the relation", () => {
+  let implied = 0;
+  const edges = async (who: string) => {
+    const g = await ok(who, "/api/vault/graph");
+    implied = g.edges.filter((e: { implied?: true }) => e.implied).length;
+    const title = new Map<string, string>(g.nodes.map((n: { id: string; title: string }) => [n.id, n.title]));
+    return g.edges.map((e: { from: string; to: string; relation?: string }) => `${title.get(e.from)} ${e.relation ?? "·"} ${title.get(e.to)}`);
+  };
+  it("a link that says works_at names it; a relation no link spells out is an edge of its own; inverses and derived facts add none", async () => {
+    const e = await edges("jules");
+    expect(e).toContain("Ada Quill works_at Acme"); // `company: [[Acme]]` is also a link: one edge, now named
+    expect(e.filter((x: string) => x.startsWith("Ada Quill") && x.endsWith("Acme"))).toHaveLength(1);
+    expect(e).toContain("Hush involves Ada Quill"); // the ## People link
+    expect(e).toContain("Notes about Acme"); // a conversation's `about:`, no link in its text
+    expect(e.some((x: string) => /employs|involved_in|involves_company/.test(x))).toBe(false);
+    expect(implied).toBeGreaterThanOrEqual(1); // the conversation's edge has no link behind it...
+    const g = await ok("jules", "/api/vault/graph");
+    const adaAcme = g.edges.find((x: { relation?: string; from: string }) => x.relation === "works_at");
+    expect(adaAcme.implied).toBeUndefined(); // ...and Ada's does
+  });
+  it("and never names a note the caller cannot read", async () => {
+    expect((await edges("erin")).join("\n")).not.toContain("Hush");
+  });
+});
+
 describe("access", () => {
   it("what a caller cannot read is not in any answer — and asking for it is the same 404 as asking for nothing", async () => {
     expect((await ok("erin", "/api/graph/entities?type=project&text=quiet")).total).toBe(0);

@@ -3728,6 +3728,11 @@ button.ov-pname {
 }
 .graph-readout b { display: block; font-size: 14px; font-weight: 750; letter-spacing: -0.01em; }
 .graph-readout code { display: block; margin-top: 2px; font: 600 10.5px var(--font-mono); color: var(--text-faint); }
+.graph-relations { list-style: none; margin: 8px 0 0; padding: 7px 0 0; border-top: 1px solid var(--border); display: grid; gap: 2px; }
+.graph-relations li { font: 500 11.5px var(--font-ui); color: var(--text-dim); line-height: 1.45; }
+.graph-relations i { font: 600 11px var(--font-mono); font-style: normal; color: var(--text-faint); margin-right: 5px; }
+.graph-relations span { font: 600 10.5px var(--font-mono); color: var(--text-faint); margin-right: 2px; }
+.graph-relations .more { font: 600 10.5px var(--font-mono); color: var(--text-faint); }
 .graph-readout p {
   margin: 7px 0 0;
   font-size: 12.5px;
