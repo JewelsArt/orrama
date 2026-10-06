@@ -8,7 +8,10 @@
 ## CLAUDE.md changes to apply (exact text, and where)
 - Layout table: add rows for `packages/core/src/ontology.ts` ("The vault's ontology as data: parses the `#vault-ontology` tables; `typeOfNote`") and `packages/core/src/graph.ts` ("`buildGraph`: typed facts with provenance, inverses, derived relations, warnings. Pure index; takes a `readable` filter that restricts BOTH ends of a fact").
 - After "Life-areas … are vault data": a paragraph "The vault is also a knowledge graph" — ontology note, where relations are read from, project note = conventional `04-Projects/<slug>.md`, ACL on both ends.
+## Measured (KG benchmark, 6 Oct 2026; ~/basalt-kg/findings-final.md)
+- 3 passes x 20 questions, same snapshot: haiku 13.3 -> 17.7 correct, sonnet 16.0 -> 18.3 with the graph tools; cost -28% / -30%; fresh tokens -40% / -38%. Haiku + graph beats sonnet + baseline. Relation, join and aggregate questions fixed; lookup, detail and not-found were already at ceiling; q17 (a phone-access side topic in a long conversation) fails everywhere.
 ## Not fixed (and why) / needs Jules
+- The live vault is untouched: it has no ontology note, no conversation descriptions, and plain-text company fields. The graph tools return nothing typed on it until Jules says go (backfill/preview-live.md; a Haiku pass over the live conversations).
 - Summaries: `list_summaries` of all ~100 conversations is ~32k characters (~8k tokens) — the first-pass estimate of 5k was low.
 - `active` is an alias of `on-track`, so a project with only an `#active` tag reads as on-track (School Resits, LinkedIn).
 ## Files touched outside my ownership
