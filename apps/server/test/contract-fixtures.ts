@@ -13,6 +13,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
+import { ONTOLOGY_TEMPLATE } from "@basalt/core";
 import { deck } from "./helpers/pptx.js";
 
 /**
@@ -73,6 +74,12 @@ export function writeVaultFixtures(vault: string): void {
   fs.mkdirSync(path.join(vault, "Shared"), { recursive: true });
   // A saved Claude conversation: its own kind of note (graph node kind).
   fs.writeFileSync(path.join(vault, "Shared", "Chat about the board.md"), "---\ntype: claude-session\ndate: 2026-10-01\n---\n# Chat about the board\n\n**Jules:** see [[apps/web/src/App.tsx]] #REF!\n");
+  // The knowledge graph: an ontology note and enough notes for every relation to have a row.
+  fs.writeFileSync(path.join(vault, "Shared", "vault-ontology.md"), ONTOLOGY_TEMPLATE);
+  fs.mkdirSync(path.join(vault, "Contacts", "Companies"), { recursive: true });
+  fs.writeFileSync(path.join(vault, "Contacts", "Companies", "Fixture Co.md"), "---\ntags: [company]\nlocation: Rotterdam\n---\n# Fixture Co\n");
+  fs.writeFileSync(path.join(vault, "Contacts", "Fixture Person.md"), '---\ntags: [contact]\nrole: CEO\ncompany: "[[Fixture Co]]"\n---\n# Fixture Person\n');
+  fs.writeFileSync(path.join(vault, "Shared", "Graph chat.md"), '---\ntype: claude-session\ndate: 2026-10-02\ndescription: Talked about Fixture Co\nabout: "[[Fixture Co]]"\n---\n# Graph chat\n');
   fs.writeFileSync(path.join(vault, "Shared", "Odd front matter.md"), "---\nsector: 2026\ndescription: [a, list]\n---\n# Odd\n");
   fs.writeFileSync(path.join(fin, "payslips.md"), ledger("Payslips", "payslips", "| Month | Gross | Net | Hours | Employer |\n|---|---|---|---|---|\n| 2026-02 | 600 | 500 | 160 | Salary Ltd |"));
 }

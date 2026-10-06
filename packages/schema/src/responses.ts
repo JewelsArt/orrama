@@ -766,6 +766,70 @@ export const webhooksResponse = z.array(
 
 // ---------- inferred types for the web app ----------
 
+// ---------- the knowledge graph (GET /api/graph/*) ----------
+// What the MCP's vault_schema / find_entities / get_relations / find_path /
+// list_summaries and the in-app agent hand a model. Compact on purpose: ids and
+// titles, one line of summary, and provenance — never a note body.
+
+const briefShape = { id: z.string(), title: z.string(), type: z.string() };
+const noteRef = o({ id: z.string(), title: z.string() });
+const graphVia = z.enum(["field", "inline", "section", "tag", "inverse", "derived"]);
+
+export const graphSchemaResponse = o({
+  notes: z.number(),
+  types: z.array(o({ id: z.string(), count: z.number(), description: z.string() })),
+  relations: z.array(
+    o({ id: z.string(), domain: z.array(z.string()), range: z.array(z.string()), inverse: z.string().optional(), count: z.number(), description: z.string() }),
+  ),
+  derived: z.array(o({ id: z.string(), meaning: z.string(), count: z.number() })),
+  statuses: z.array(o({ id: z.string(), count: z.number() })),
+  mostConnected: z.array(o({ ...briefShape, connections: z.number() })),
+  warnings: z.array(o({ code: z.string(), count: z.number() })),
+});
+
+export const graphEntitiesResponse = o({
+  total: z.number(),
+  entities: z.array(o({ ...briefShape, status: z.string().optional(), summary: z.string(), fields: z.record(z.string(), z.string()) })),
+});
+
+export const graphRelationsResponse = o({
+  entity: o({ ...briefShape, status: z.string().optional(), summary: z.string(), fields: z.record(z.string(), z.string()) }),
+  relations: z.array(
+    o({
+      relation: z.string(),
+      to: z.array(
+        o({
+          ...briefShape,
+          via: graphVia,
+          where: z.string(),
+          source: noteRef,
+          text: z.literal(true).optional(),
+          through: z.array(noteRef).optional(),
+        }),
+      ),
+    }),
+  ),
+  warnings: z.array(z.string()),
+});
+
+const brief = o(briefShape);
+export const graphPathResponse = o({
+  found: z.boolean(),
+  length: z.number().optional(),
+  paths: z.array(z.array(o({ from: brief, relation: z.string(), to: brief, via: graphVia, where: z.string() }))),
+});
+
+export const graphSummariesResponse = o({
+  total: z.number(),
+  items: z.array(o({ id: z.string(), type: z.string().optional(), title: z.string(), date: z.string().optional(), status: z.string().optional(), about: noteRef.optional(), summary: z.string() })),
+});
+
+export type GraphSchema = z.infer<typeof graphSchemaResponse>;
+export type GraphEntities = z.infer<typeof graphEntitiesResponse>;
+export type GraphRelations = z.infer<typeof graphRelationsResponse>;
+export type GraphPath = z.infer<typeof graphPathResponse>;
+export type GraphSummaries = z.infer<typeof graphSummariesResponse>;
+
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type TaskLine = z.infer<typeof taskLineSchema>;
 export type TaskObject = z.infer<typeof taskObjectSchema>;

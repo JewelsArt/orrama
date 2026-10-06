@@ -8,6 +8,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { authHeader } from "./auth.js";
+import { graphPath, type GraphTool } from "./graphQuery.js";
 
 const url = process.env.BASALT_URL || "http://localhost:4623";
 const token = process.env.BASALT_TOKEN;
@@ -60,13 +61,80 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: "search_notes",
-        description: "Search notes using full-text search, supporting tag:, path:, task: filters",
+        description: "Search notes using full-text search, supporting tag:, path:, task: filters. For questions about people, companies, projects, status, deadlines or conversations, try vault_schema, find_entities, get_relations or list_summaries first — they answer in a fraction of the tokens; search when you need words inside notes.",
         inputSchema: {
           type: "object",
           properties: {
             query: { type: "string", description: "Search query" },
           },
           required: ["query"],
+        },
+      },
+      {
+        name: "vault_schema",
+        description:
+          "START HERE for questions about people, companies, projects, their status or deadlines, or saved Claude conversations. A ~2k-token map of the vault: the kinds of notes (types) and how many, the relations between them (works_at, involves, part_of, about, supervises…) with counts, project statuses, the most-connected notes and data warnings. Far cheaper than searching or reading notes.",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
+        name: "find_entities",
+        description:
+          "List notes by type and facts instead of searching text. Examples: type=company where=[\"location=Rotterdam\"]; type=project status=archived; type=document where=[\"deadline=2026-10-19\"]; relation=works_at to=Scooperz (who works there). Returns id, title, type, status, a one-line summary and the front-matter fields. Prefer it to search_notes for any 'which … are …' or 'list the …' question. Field matches are exact (case-insensitive); start a value with ~ for 'contains'. Types come from vault_schema.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            type: { type: "string", description: "person, company, project, document, area, conversation, note" },
+            status: { type: "string", description: "planned, on-track, at-risk, paused, completed, archived, cancelled" },
+            where: { type: "array", items: { type: "string" }, description: "field=value filters, e.g. location=Rotterdam, deadline=2026-10-19, role=CEO" },
+            text: { type: "string", description: "words in the title or one-line summary" },
+            relation: { type: "string", description: "with `to`: only notes that have this relation to that note (works_at, involves, part_of, about, supervises, involved_in…)" },
+            to: { type: "string", description: "the note the relation points at (title, path or id)" },
+            limit: { type: "number", description: "default 25, max 100" },
+          },
+        },
+      },
+      {
+        name: "get_relations",
+        description:
+          "Everything one note is connected to, grouped by relation (works_at / employs, involves / involved_in, part_of / has_part, about / discussed_in, supervises / supervised_by, involves_company), each with where it was read. Use for 'who works at X', 'which people does project X involve', 'what belongs to project X', 'what is this conversation about'. Accepts a title, path or id. Cheaper and more complete than reading the note: a long note's links are all here.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            entity: { type: "string", description: "Title, path or id of the note" },
+            relation: { type: "string", description: "Only this relation, e.g. involves" },
+          },
+          required: ["entity"],
+        },
+      },
+      {
+        name: "find_path",
+        description: "How two notes are connected: the shortest chains of typed relations between them, step by step with where each was read. found=false means no typed connection within maxDepth (default 4).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            from: { type: "string", description: "Title, path or id" },
+            to: { type: "string", description: "Title, path or id" },
+            maxDepth: { type: "number", description: "default 4, max 6" },
+            limit: { type: "number", description: "paths to return, default 3" },
+          },
+          required: ["from", "to"],
+        },
+      },
+      {
+        name: "list_summaries",
+        description:
+          "One line per note — title, date, what it is about, a one-line summary — for a filter. The way to scan many notes, above all saved Claude conversations (type=conversation, ~100 of them), for a few thousand tokens instead of reading them: find WHICH note, then read_note only that one. Newest first. Filters: type, status, about (a note), text (words in title or summary), from/to (ISO dates on the note's date), limit (default 100).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            type: { type: "string" },
+            status: { type: "string" },
+            about: { type: "string", description: "Only notes about this one (title, path or id)" },
+            text: { type: "string" },
+            from: { type: "string", description: "YYYY-MM-DD" },
+            to: { type: "string", description: "YYYY-MM-DD" },
+            limit: { type: "number" },
+          },
         },
       },
       {
@@ -79,7 +147,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "read_note",
-        description: "Read the full content and metadata of a note by id or path",
+        description: "Read the full content and metadata of a note by id or path. Last, not first: find the note with find_entities, get_relations, list_summaries or search_notes, then read only that one.",
         inputSchema: {
           type: "object",
           properties: {
@@ -289,6 +357,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
       }
       
+      case "vault_schema":
+      case "find_entities":
+      case "get_relations":
+      case "find_path":
+      case "list_summaries": {
+        const answer = await fetchBasalt(graphPath(request.params.name as GraphTool, request.params.arguments ?? {}));
+        // Compact: these answers exist to save tokens, so no indentation.
+        return { content: [{ type: "text", text: JSON.stringify(answer) }] };
+      }
+
       case "list_tree": {
         const results = await fetchBasalt(`/api/vault/tree`);
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };

@@ -221,11 +221,11 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
       }
       // sections
       for (const src of rel.also) {
-        if (src.startsWith("section:")) {
-          const heading = src.slice(8).trim();
+        if (lower(src).startsWith("section:")) {
+          const heading = src.slice(8).trim(); // its case is the note's: shown as provenance
           for (const m of readSection(n.content, heading).matchAll(LINK_RE)) assert(rel, n, m[1]!.trim(), false, "section", `## ${heading}`);
-        } else if (src.endsWith("/*") && src.startsWith("tag:")) {
-          const family = src.slice(4, -2);
+        } else if (src.endsWith("/*") && lower(src).startsWith("tag:")) {
+          const family = lower(src.slice(4, -2));
           if (!rel.domain.includes(typeOf(n.id))) continue;
           for (const { tag } of n.tags) {
             if (!tag.startsWith(`${family}/`)) continue;

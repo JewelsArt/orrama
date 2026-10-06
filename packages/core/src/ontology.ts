@@ -118,7 +118,7 @@ export function parseOntology(content: string): Ontology {
           range,
           ...(inverse ? { inverse } : {}),
           fields: list(get(row, "fields")).map(lower),
-          also: list(get(row, "also from")).map(lower),
+          also: list(get(row, "also from")),
           description: get(row, "description"),
         });
       }

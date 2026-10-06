@@ -25,6 +25,7 @@ import { wsRoutes } from "./routes/ws.js";
 import { planRoutes } from "./routes/plan.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { contactRoutes } from "./routes/contacts.js";
+import { graphRoutes } from "./routes/graph.js";
 import { financeRoutes } from "./routes/finance.js";
 import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
@@ -216,6 +217,7 @@ Vault layout:
   await planRoutes(app, db, store);
   await calendarRoutes(app, db, store, calendar);
   await contactRoutes(app, db, store);
+  await graphRoutes(app, store);
   await homeRoutes(app, db, store);
   await financeRoutes(app, db, store);
   await icsRoutes(app, db, store);
