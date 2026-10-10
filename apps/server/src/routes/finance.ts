@@ -36,6 +36,7 @@ import {
   payslipUsable,
   savingsPlan,
   inMainPocket,
+  parseMoney,
   matchesTerms,
   coverageOf,
   fullMonths,
@@ -412,6 +413,18 @@ export function savingsCategories(names: string[], finished: CategoryMonthOf[]):
 type CategoryMonthOf = ReturnType<typeof monthlyByCategory>[number];
 
 /**
+ * The balance typed into the finance note's front matter, or null.
+ *
+ * Hand-typed money goes through parseMoney like every other amount (audit B4).
+ * YAML hands `balance: 1.234,56` over as a string, and parseFloat stopped at
+ * the comma: 1.234, a runway a thousand times too short (audit REG-003).
+ */
+export function writtenBalance(raw: unknown): number | null {
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? parseMoney(raw) : null;
+  return n !== null && Number.isFinite(n) ? n : null;
+}
+
+/**
  * The ledgers' in minus out, per currency. A currency on one side only is
  * passed through as it is rather than converted at a rate nobody has:
  * monthlyTotals keeps currencies apart because "mixing EUR and USD into one
@@ -582,9 +595,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // simply absent until then. Inventing it from income would be a lie.
     // The statement's own last balance beats anything typed by hand — it is the
     // bank's arithmetic, and it cannot go stale the way front-matter does.
-    const rawBalance = (areaNote?.frontmatter as Record<string, unknown> | undefined)?.["balance"];
-    const written = typeof rawBalance === "number" ? rawBalance : Number.parseFloat(String(rawBalance ?? ""));
-    const effectiveBalance = balance ?? (Number.isFinite(written) ? written : null);
+    const written = writtenBalance((areaNote?.frontmatter as Record<string, unknown> | undefined)?.["balance"]);
+    const effectiveBalance = balance ?? written;
     const haveBalance = effectiveBalance !== null;
 
     /**

@@ -70,7 +70,7 @@ const { csv: STATEMENT, currentAt } = statement((row) => {
 });
 
 const { buildServer } = await import("../src/main.js");
-const { balanceTrend, loadStatements, planSavings } = await import("../src/routes/finance.js");
+const { balanceTrend, loadStatements, planSavings, writtenBalance } = await import("../src/routes/finance.js");
 const { completeMonths, mainPocket, monthlyByCategory, parseStatement } = await import("@basalt/core");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
@@ -101,6 +101,9 @@ beforeAll(async () => {
       "| Service | Amount | Every | Next | Match |\n|---|---|---|---|---|\n| Pathe Unlimited | 24.99 | monthly | 2026-10-12 | pathe |\n| NS Flex | 99 | monthly | 2026-10-12 | =ns |\n| Döner Club | 12 | monthly | 2026-10-12 | |\n| GitHub | $12 | monthly | 2026-10-12 | github |",
     ),
   );
+  // A hand-typed balance in Dutch notation; the statement's own balance wins
+  // whenever it has one (REG-003).
+  fs.writeFileSync(path.join(FIN, "finance.md"), "---\ntitle: Finance\nbalance: 1.234,56\ntags:\n  - finance\n---\n\n# Finance\n");
   // Income in two currencies: the dollars are never euros (FIN-017).
   fs.writeFileSync(
     path.join(FIN, "income.md"),
@@ -475,5 +478,28 @@ describe("ledger totals stay in their own currency (FIN-017)", () => {
     });
     expect(plan.incomeSource).toBe("ledger");
     expect(plan.incomeMonthly).toBe(1800);
+  });
+});
+
+describe("the balance typed into the finance note (REG-003)", () => {
+  it("reads European and grouped notation as money, not as parseFloat does", () => {
+    expect(writtenBalance("1.234,56")).toBe(1234.56); // parseFloat: 1.234
+    expect(writtenBalance("2,500.00")).toBe(2500); //    parseFloat: 2
+    expect(writtenBalance("12.345,67")).toBe(12345.67);
+    expect(writtenBalance("1 234,56")).toBe(1234.56);
+    expect(writtenBalance(1234.56)).toBe(1234.56); // YAML already made it a number
+    expect(writtenBalance("")).toBeNull();
+    expect(writtenBalance(undefined)).toBeNull();
+    expect(writtenBalance("n/a")).toBeNull();
+  });
+
+  it("is the balance the Finance tab shows when the statement carries none", async () => {
+    const rows = ["Type,Completed Date,Description,Amount,Fee,Currency,State"];
+    for (const m of ["2026-06", "2026-07", "2026-08"]) rows.push(`Card Payment,${m}-10 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED`);
+    await withStatements({ "nobalance.csv": rows.join("\n") }, async () => {
+      expect((await get("/api/finance")).summary.balance).toBe(1234.56);
+    });
+    // With a balance column, the bank's figure wins over the typed one.
+    expect((await get("/api/finance")).summary.balance).toBe(currentAt("2026-10-09"));
   });
 });
