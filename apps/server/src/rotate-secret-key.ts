@@ -23,6 +23,7 @@
  */
 import crypto from "node:crypto";
 import Database from "better-sqlite3";
+import { isEntry } from "./entry.js";
 import { dbPath } from "./env.js";
 
 const keyFrom = (secret: string) => crypto.createHash("sha256").update(secret).digest();
@@ -41,12 +42,59 @@ function encrypt(plain: string, secret: string): string {
   return [iv.toString("base64"), enc.toString("base64"), c.getAuthTag().toString("base64")].join(".");
 }
 
-/** Every column holding something encryptSecret() wrote. */
-const COLUMNS: { table: string; id: string; column: string }[] = [
+/**
+ * Every value encryptSecret() wrote. `where` narrows a key/value table to the
+ * rows that hold one. The ChatGPT credentials (a long-lived refresh token)
+ * were missing: a rotation left them undecryptable under the new key and
+ * still readable under the old one — the one a rotation is meant to retire
+ * (audit SEC-006). Anything new stored with encryptSecret() goes here too.
+ */
+export const COLUMNS: { table: string; id: string; column: string; where?: string }[] = [
   { table: "mail_accounts", id: "id", column: "password_encrypted" },
   { table: "workspace", id: "id", column: "ai_key_encrypted" },
   { table: "ics_feeds", id: "id", column: "url_encrypted" },
+  { table: "meta", id: "key", column: "value", where: "key = 'chatgpt_credentials'" },
 ];
+
+export class RotateError extends Error {}
+
+/**
+ * Re-encrypt every stored credential from `oldKey` to `newKey`; with `apply`
+ * false, only check that each one reads back. Decrypts EVERYTHING first —
+ * a half-rotated database is worse than an unrotated one, so nothing is
+ * written until every row has been read back under the old key. Returns
+ * what it rotated (or would), as `table.column (id)`.
+ */
+export function rotateSecrets(db: Database.Database, oldKey: string, newKey: string, apply: boolean): string[] {
+  const tables = new Set(
+    (db.prepare("select name from sqlite_master where type='table'").all() as { name: string }[]).map((r) => r.name),
+  );
+  const staged: { table: string; id: string; column: string; idValue: string; plain: string }[] = [];
+  for (const { table, id, column, where } of COLUMNS) {
+    if (!tables.has(table)) continue;
+    const rows = db
+      .prepare(`select ${id} as rid, ${column} as val from ${table} where ${column} is not null and ${column} <> ''${where ? ` and ${where}` : ""}`)
+      .all() as { rid: string; val: string }[];
+    for (const row of rows) {
+      try {
+        staged.push({ table, id, column, idValue: row.rid, plain: decrypt(row.val, oldKey) });
+      } catch {
+        throw new RotateError(
+          `FAILED to decrypt ${table}.${column} (${row.rid}) with the old key. Nothing written.\n` +
+            "Either BASALT_OLD_SECRET_KEY is wrong, or this row was already rotated.",
+        );
+      }
+    }
+  }
+  if (apply) {
+    db.transaction(() => {
+      for (const s of staged) {
+        db.prepare(`update ${s.table} set ${s.column} = ? where ${s.id} = ?`).run(encrypt(s.plain, newKey), s.idValue);
+      }
+    })();
+  }
+  return staged.map((s) => `${s.table}.${s.column}  (${s.idValue})`);
+}
 
 function main(): void {
   const oldKey = process.env.BASALT_OLD_SECRET_KEY;
@@ -62,47 +110,26 @@ function main(): void {
     process.exit(1);
   }
 
-  const db = new Database(dbPath());
-  const tables = new Set(
-    (db.prepare("select name from sqlite_master where type='table'").all() as { name: string }[]).map((r) => r.name),
-  );
-
-  // Decrypt EVERYTHING first. A half-rotated database is worse than an
-  // unrotated one, so nothing is written until every row has been read back
-  // successfully under the old key.
-  const staged: { table: string; id: string; column: string; idValue: string; plain: string }[] = [];
-  for (const { table, id, column } of COLUMNS) {
-    if (!tables.has(table)) continue;
-    const rows = db.prepare(`select ${id} as rid, ${column} as val from ${table} where ${column} is not null and ${column} <> ''`).all() as { rid: string; val: string }[];
-    for (const row of rows) {
-      try {
-        staged.push({ table, id, column, idValue: row.rid, plain: decrypt(row.val, oldKey) });
-      } catch {
-        console.error(`FAILED to decrypt ${table}.${column} (${row.rid}) with the old key. Nothing written.`);
-        console.error("Either BASALT_OLD_SECRET_KEY is wrong, or this row was already rotated.");
-        process.exit(1);
-      }
-    }
+  let done: string[];
+  try {
+    done = rotateSecrets(new Database(dbPath()), oldKey, newKey, apply);
+  } catch (err) {
+    if (!(err instanceof RotateError)) throw err;
+    console.error(err.message);
+    process.exit(1);
   }
 
-  if (staged.length === 0) {
+  if (done.length === 0) {
     console.log("No encrypted credentials found. Rotating the key is safe with no migration.");
     return;
   }
 
-  for (const s of staged) console.log(`${apply ? "rotating" : "would rotate"}  ${s.table}.${s.column}  (${s.idValue})`);
+  for (const d of done) console.log(`${apply ? "rotated" : "would rotate"}  ${d}`);
   if (!apply) {
-    console.log(`\n${staged.length} credential(s) read back cleanly under the old key. Re-run with --apply.`);
+    console.log(`\n${done.length} credential(s) read back cleanly under the old key. Re-run with --apply.`);
     return;
   }
-
-  const write = db.transaction(() => {
-    for (const s of staged) {
-      db.prepare(`update ${s.table} set ${s.column} = ? where ${s.id} = ?`).run(encrypt(s.plain, newKey), s.idValue);
-    }
-  });
-  write();
-  console.log(`\nRotated ${staged.length} credential(s). Set BASALT_SECRET_KEY to the new value wherever the server runs.`);
+  console.log(`\nRotated ${done.length} credential(s). Set BASALT_SECRET_KEY to the new value wherever the server runs.`);
 }
 
-main();
+if (isEntry(import.meta.url, process.argv[1])) main();
