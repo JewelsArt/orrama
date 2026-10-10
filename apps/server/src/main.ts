@@ -49,6 +49,46 @@ declare module "fastify" {
   }
 }
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Is `host` (a Host header) a name this server answers to? Loopback, or a
+ * host named in BASALT_PUBLIC_ORIGINS (the tailnet name); any port, because
+ * vite dev proxies from :4625 and the attacker below controls the name, not
+ * the port.
+ *
+ * CORS stops another site READING our responses, but not DNS rebinding: a
+ * page on evil.example re-points its own name at 127.0.0.1, and from then on
+ * it is same-origin with this server, so CORS never applies. Binding to
+ * 127.0.0.1 does not help — the user's own browser makes the connection.
+ * Without this, a page the user merely visited could drive the
+ * unauthenticated auth routes: found the owner on a fresh install, guess the
+ * passcode, enumerate accounts (audit SEC-005). The one thing such a page
+ * cannot change is the Host its browser sends, which is its own name.
+ */
+export function allowedHost(host: string | undefined, publicOrigins: string[]): boolean {
+  // No Host at all is not a browser — every browser sends one, and the only
+  // client that can leave it out could equally write "localhost" in it.
+  if (host === undefined) return true;
+  // A name and an optional port, nothing URL-shaped: "localhost/x" or
+  // "localhost@evil" would otherwise parse to a hostname of our choosing.
+  if (!/^(\[[0-9a-f:.]+\]|[a-z0-9.-]+)(:\d{1,5})?$/i.test(host)) return false;
+  let name: string;
+  try {
+    name = new URL(`http://${host}`).hostname;
+  } catch {
+    return false;
+  }
+  if (LOOPBACK_HOSTS.has(name)) return true;
+  return publicOrigins.some((o) => {
+    try {
+      return new URL(o).hostname === name;
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** `logStream` lets a test read exactly what the real app logs. */
 export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = {}) {
   assertValidEnv();
@@ -141,6 +181,13 @@ Vault layout:
   // URLs in the log are redacted: no query strings, no /ics/<token> (logging.ts).
   const app = Fastify({
     logger: { level: "info", serializers: { req: reqSerializer }, ...(opts.logStream ? { stream: opts.logStream } : {}) },
+  });
+  // Before anything else, routes and static files alike: a request must be
+  // addressed to a name this server answers to (`allowedHost`).
+  app.addHook("onRequest", async (req, reply) => {
+    if (!allowedHost(req.headers.host, env.publicOrigins)) {
+      return reply.code(421).send({ error: "this server does not answer to that host name — add it to BASALT_PUBLIC_ORIGINS" });
+    }
   });
   // Stop the vault watcher with the app, so a closed server stops reacting to files.
   app.addHook("onClose", async () => store.close());
