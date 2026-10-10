@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv, parseStatement, splitFixed, subscriptionTerms, usefulTerms } from "../src/statement.js";
+import { parseCsv, parseStatement, subscriptionTerms, usefulTerms } from "../src/statement.js";
 
 /** Revolut's export shape, with the four traps the real file contains. */
 const CSV = `Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
@@ -75,36 +75,6 @@ describe("parseStatement", () => {
   it("survives an empty or headerless file", () => {
     expect(parseStatement("").rows).toEqual([]);
     expect(parseStatement("just some text\n").rows).toEqual([]);
-  });
-});
-
-describe("splitFixed", () => {
-  it("matches a card descriptor against a subscription name", () => {
-    const { fixed, variable, matched } = splitFixed(parseStatement(CSV).rows, ["Netflix", "Revolut Metal Plan"]);
-    // "NETFLIX.COM 866-579" matches on the name itself. The plan fee reads
-    // "Metal plan fee" and never says Revolut, so it is caught by the
-    // distinctive word "metal" — which is why matching is not just first-word.
-    expect(matched).toEqual(expect.arrayContaining(["netflix", "revolut metal plan"]));
-    expect(fixed).toBe(32.98); // 13.99 Netflix + 18.99 plan fee
-    expect(variable).toBe(25.5); // 1.00 + 24.50 of ordinary card spend
-  });
-
-  it("does not let a generic word in a subscription name match everything", () => {
-    // "Family" alone would hit any merchant with the word in its descriptor.
-    const { fixed } = splitFixed(parseStatement(CSV).rows, ["Youtube Family"]);
-    expect(fixed).toBe(0);
-  });
-
-  it("puts everything in variable when nothing is known to be fixed", () => {
-    const { fixed, variable } = splitFixed(parseStatement(CSV).rows, []);
-    expect(fixed).toBe(0);
-    expect(variable).toBe(58.48);
-  });
-
-  it("ignores subscription names too short to match safely", () => {
-    // "Go" would hit half the merchants on any statement.
-    const { fixed } = splitFixed(parseStatement(CSV).rows, ["Go"]);
-    expect(fixed).toBe(0);
   });
 });
 

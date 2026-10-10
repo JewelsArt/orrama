@@ -35,7 +35,6 @@ import {
   parseSubscriptions,
   payslipUsable,
   savingsPlan,
-  splitFixed,
   subscriptionTerms,
   typicalMonth,
   usefulTerms,
@@ -418,31 +417,37 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       ? balanceSpan(store.vaultRoot)
       : { balance: null, balanceDate: null, skipped: 0 };
 
-    // One month's worth of rows, re-aggregated over the merged set.
-    const monthsMap = new Map<string, { month: string; spend: number; fees: number; refunds: number; movedIn: number; movedOut: number }>();
-    for (const r of txns) {
-      const k = r.date.slice(0, 7);
-      const m = monthsMap.get(k) ?? { month: k, spend: 0, fees: 0, refunds: 0, movedIn: 0, movedOut: 0 };
-      m.fees += r.fee;
-      m.spend += r.fee;
-      if (r.flow === "spend" && r.amount < 0) m.spend += -r.amount;
-      else if (r.flow === "refund" && r.amount > 0) m.refunds += r.amount;
-      else if (r.flow === "moved") r.amount > 0 ? (m.movedIn += r.amount) : (m.movedOut += -r.amount);
-      monthsMap.set(k, m);
-    }
-    const r2 = (n: number) => Math.round(n * 100) / 100;
-    const months = [...monthsMap.values()]
-      .map((m) => ({ month: m.month, spend: r2(m.spend), fees: r2(m.fees), refunds: r2(m.refunds), movedIn: r2(m.movedIn), movedOut: r2(m.movedOut) }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-
-    const fixedSplit = splitFixed(txns, subscriptions.map((sub) => sub.service));
-
     // Categories are a note, so the grouping is the user's to change.
     const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
     const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
     const rules = buildRules(writtenRules, subscriptions, txns);
     const catMonths = monthlyByCategory(txns, rules);
+
+    /**
+     * Each month's movements, re-aggregated over the merged set. `spend` is
+     * the category month's total — costOf, through monthlyByCategory — and
+     * nothing else. This series once kept its own formula (card and ATM rows
+     * plus fees), so the hero's "Spent in October" left out the rent the rules
+     * note claims as a transfer and counted returned purchases in full: €100
+     * on the hero against €709 on the month page and the Dashboard (audit
+     * FIN-001). One quantity, one function.
+     */
+    const spentIn = new Map(catMonths.map((m) => [m.month, m.total]));
+    const monthsMap = new Map<string, { month: string; fees: number; refunds: number; movedIn: number; movedOut: number }>();
+    for (const r of txns) {
+      const k = r.date.slice(0, 7);
+      const m = monthsMap.get(k) ?? { month: k, fees: 0, refunds: 0, movedIn: 0, movedOut: 0 };
+      m.fees += r.fee;
+      if (r.flow === "refund" && r.amount > 0) m.refunds += r.amount;
+      else if (r.flow === "moved") r.amount > 0 ? (m.movedIn += r.amount) : (m.movedOut += -r.amount);
+      monthsMap.set(k, m);
+    }
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    const months = [...monthsMap.values()]
+      .map((m) => ({ month: m.month, spend: spentIn.get(m.month) ?? 0, fees: r2(m.fees), refunds: r2(m.refunds), movedIn: r2(m.movedIn), movedOut: r2(m.movedOut) }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
     // Forecast from finished months only — the export stops mid-month and that
     // partial month would drag every category's expectation down.
     const lastDate = txns.length ? txns[txns.length - 1]!.date : "";
@@ -463,15 +468,6 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const written = typeof rawBalance === "number" ? rawBalance : Number.parseFloat(String(rawBalance ?? ""));
     const effectiveBalance = balance ?? (Number.isFinite(written) ? written : null);
     const haveBalance = effectiveBalance !== null;
-    // Only a NEGATIVE net burns a balance down; with money coming in there is
-    // no runway to speak of, and dividing by a positive would print nonsense.
-    // COMPLETE months only. `completeMonths` was applied to the category
-    // series and never to this one, so the part-month the statement stops
-    // inside was averaged in — an export taken on the 3rd understated the
-    // average by about a third (audit).
-    const completeKeys = new Set(finished.map((m) => m.month));
-    const recentSpend = months.filter((m) => completeKeys.has(m.month)).slice(-3);
-    const avgSpend = recentSpend.length ? recentSpend.reduce((a, m) => a + m.spend, 0) / recentSpend.length : 0;
 
     /**
      * Burn comes from the STATEMENT'S OWN BALANCE TREND, not from combining the
@@ -638,7 +634,6 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         balance: effectiveBalance,
         balanceDate,
         runwayMonths,
-        avgSpend: Math.round(avgSpend * 100) / 100,
         burn,
         /** Positive when the balance is growing — surfaced, not hidden. */
         drift: drift === null ? null : Math.round(drift * 100) / 100,
@@ -666,9 +661,6 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
            *  part-month and must not be compared against the others. */
           lastComplete: finished.length ? finished[finished.length - 1]!.month : null,
         },
-        fixed: fixedSplit.fixed,
-        variable: fixedSplit.variable,
-        matched: fixedSplit.matched,
         txnCount: txns.length,
         skipped,
       },
@@ -949,8 +941,14 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
        * So the page works out which way the money mostly goes and reports THAT
        * side — while every row keeps its own true size and sign.
        */
-      const out = (r: (typeof txns)[number]) => (r.amount < 0 ? -r.amount : 0) + r.fee;
-      const inn = (r: (typeof txns)[number]) => (r.amount > 0 ? r.amount : 0);
+      // A purchase counts what it ended up costing: settleRefunds has already
+      // taken each refund off the purchase it refunds, so the refund row itself
+      // is neither money out nor money in here. Counting both — the purchase
+      // in full and the refund as "in" — put €100 on the merchant page for a
+      // €100 purchase with €40 returned, against €60 on the category page and
+      // the month page that opened it (audit FIN-001).
+      const out = (r: (typeof txns)[number]) => (r.amount < 0 ? -r.amount - (r.refunded ?? 0) : 0) + r.fee;
+      const inn = (r: (typeof txns)[number]) => (r.amount > 0 && r.flow !== "refund" ? r.amount : 0);
       const outTotal = inYear.reduce((a, r) => a + out(r), 0);
       const inTotal = inYear.reduce((a, r) => a + inn(r), 0);
       const direction: "in" | "out" = inTotal > outTotal ? "in" : "out";

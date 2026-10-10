@@ -113,16 +113,6 @@ describe("finance overview", () => {
   });
 });
 
-describe("average spend", () => {
-  it("leaves out the part-month the statement stops inside", async () => {
-    const { summary } = (await api("GET", "/api/finance", token)).json();
-    // Jan 200, Feb 100, Mar 150 are complete; April holds one EUR 10 row and
-    // the export stops on the 2nd. Averaging that in gave EUR 86.67 — an
-    // export taken early in a month understated by about a third (audit).
-    expect(summary.avgSpend).toBeCloseTo(150, 2);
-  });
-});
-
 describe("savings plan", () => {
   it("takes money in from the balance trend, not from payslips", async () => {
     const { savings, summary } = (await api("GET", "/api/finance", token)).json();

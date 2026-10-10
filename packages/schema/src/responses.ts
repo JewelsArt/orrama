@@ -526,7 +526,6 @@ export const financeResponse = o({
     balance: nnum,
     balanceDate: nstr,
     runwayMonths: nnum,
-    avgSpend: z.number(),
     burn: nnum,
     /** Monthly change in balance; positive means the account is growing. */
     drift: nnum,
@@ -555,9 +554,6 @@ export const financeResponse = o({
       completeMonths: z.number(),
       lastComplete: nstr,
     }),
-    fixed: z.number(),
-    variable: z.number(),
-    matched: z.array(z.string()),
     txnCount: z.number(),
     skipped: z.number(),
   }),

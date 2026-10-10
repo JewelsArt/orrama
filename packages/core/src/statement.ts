@@ -349,39 +349,3 @@ export function usefulTerms(terms: string[], merchants: string[], maxHits = 2): 
     return hits > 0 && hits <= maxHits;
   });
 }
-
-/**
- * Split a month's spending into what was already committed and what was
- * discretionary, by matching descriptions against the subscription names the
- * vault already knows. Matching is loose on purpose — a card descriptor reads
- * `NETFLIX.COM 866-579-7172`, not `Netflix`.
- */
-export function splitFixed(
-  rows: StatementRow[],
-  subscriptionNames: string[],
-): { fixed: number; variable: number; matched: string[] } {
-  const needles = subscriptionNames
-    .map((n) => n.trim().toLowerCase())
-    .filter((n) => n.length >= 3)
-    // Longest first, so "Revolut Metal Plan" wins over a shorter overlap.
-    .sort((a, b) => b.length - a.length);
-  const variants = subscriptionTerms;
-
-  let fixed = 0;
-  let variable = 0;
-  const matched = new Set<string>();
-
-  for (const r of rows) {
-    const cost = (r.flow === "spend" && r.amount < 0 ? -r.amount : 0) + r.fee;
-    if (cost === 0) continue;
-    const hay = r.description.toLowerCase();
-    // A subscription's first word is usually the brand; the rest is plan detail
-    // that never appears on a card descriptor.
-    const hit = needles.find((n) => variants(n).some((v) => hay.includes(v)));
-    if (hit) {
-      fixed += cost;
-      matched.add(hit);
-    } else variable += cost;
-  }
-  return { fixed: Math.round(fixed * 100) / 100, variable: Math.round(variable * 100) / 100, matched: [...matched] };
-}
