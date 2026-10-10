@@ -19,12 +19,12 @@ text`;
 
 describe("updateFrontmatter keeps the user's YAML", () => {
   it("stamps an id first without losing comments, quotes or blank lines", () => {
-    // Only inline spacing is normalised (`   #` → ` #`, `[a, b]` → `[ a, b ]`).
+    // Not even inline spacing changes (audit STO-007): only the id line is new.
     expect(updateFrontmatter(NOTE, (d) => ({ id: "n-abc", ...d }))).toBe(`---
 id: n-abc
 # Kept for the thesis defence — do not rename
-title: "Q3 Review: Ops" # quoted on purpose
-tags: [ project/thesis, school ]
+title: "Q3 Review: Ops"   # quoted on purpose
+tags: [project/thesis, school]
 
 deadline: 2026-10-19
 ---

@@ -107,6 +107,12 @@ export interface VaultFile {
   path: string;
   content: string;
   mtimeMs?: number;
+  /**
+   * The id to index the note under when its content carries none — a note
+   * whose front matter cannot be stamped keeps the id it had for its path
+   * instead of a new random one on every upsert (audit STO-003).
+   */
+  id?: string;
 }
 
 export interface IndexedNote extends ParsedNote {

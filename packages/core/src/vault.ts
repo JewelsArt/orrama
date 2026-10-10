@@ -64,7 +64,7 @@ export class VaultIndex {
     const old = this.byPath.get(file.path);
     if (old) this.removeById(old);
     const parsed = parseNote(file.content, titleFromPath(file.path));
-    const id = parsed.id ?? generateNoteId();
+    const id = parsed.id ?? file.id ?? generateNoteId();
     // One id, one path. The same id arriving at another path is that note,
     // moved: its old path goes with it. Keeping both left the old path
     // pointing at the id while the id pointed at the new file, so deleting

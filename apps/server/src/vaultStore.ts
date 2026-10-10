@@ -5,6 +5,7 @@
  * Every read surface goes through @basalt/core ACL — implemented once, used everywhere.
  */
 import crypto from "node:crypto";
+import { isUtf8 } from "node:buffer";
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,10 +18,9 @@ import {
   canRead,
   filterReadable,
   generateNoteId,
-  parseFrontmatter,
   parseNote,
+  stampId,
   titleFromPath,
-  updateFrontmatter,
   validateEdit,
   type AclUser,
   type EditValidation,
@@ -55,11 +55,26 @@ export interface NoteChangedEvent {
   authorId: string | null;
 }
 
+/**
+ * A vault file's text, and whether its bytes really are UTF-8. Decoding
+ * anything else as UTF-8 replaces every invalid byte with U+FFFD; writing that
+ * back (an id stamp on first sight) destroyed every accent in a Windows-1252
+ * note and turned a UTF-16 one into NUL-riddled mojibake (audit STO-011). Such
+ * a note is read — searchable, linkable — and never written.
+ */
+function readNote(abs: string): { content: string; utf8: boolean } {
+  const buf = fs.readFileSync(abs);
+  return { content: buf.toString("utf8"), utf8: isUtf8(buf) };
+}
+
+const NOT_UTF8 = "is not UTF-8 text, so Basalt reads it but will not write to it. Save it as UTF-8 to edit it here.";
+
 /** One vault file as boot reads it, before anything is indexed. */
 interface BootFile {
   abs: string;
   rel: string;
   content: string;
+  utf8: boolean;
   id: string | undefined;
   birthtimeMs: number;
   mtimeMs: number;
@@ -176,17 +191,18 @@ export class VaultStore {
     for (const abs of walk(this.root)) {
       const rel = path.relative(this.root, abs).split(path.sep).join("/");
       try {
-        const content = fs.readFileSync(abs, "utf8");
+        const { content, utf8 } = readNote(abs);
         const stat = fs.statSync(abs);
-        files.push({ abs, rel, content, id: carriedId(content), birthtimeMs: stat.birthtimeMs, mtimeMs: stat.mtimeMs });
+        files.push({ abs, rel, content, utf8, id: carriedId(content), birthtimeMs: stat.birthtimeMs, mtimeMs: stat.mtimeMs });
       } catch (err) {
         skip(rel, err);
       }
     }
     const reassigned = this.settleDuplicateIds(files);
+    const fallback = this.bootIds(files, reassigned);
     for (const f of files) {
       try {
-        this.loadOne(f, reassigned.get(f.rel));
+        this.loadOne(f, reassigned.get(f.rel), fallback.get(f.rel)!);
       } catch (err) {
         skip(f.rel, err);
       }
@@ -316,18 +332,54 @@ export class VaultStore {
   }
 
   /**
+   * Boot: the id each file that carries none is indexed under — stamped into
+   * it when it can be, kept in the index alone when it cannot (front matter
+   * that does not parse, a numeric `id:`, a file that is not UTF-8). The
+   * notes table's id for the path when no file claims it, so such a note is
+   * the same note across restarts (audit STO-003); otherwise a fresh one.
+   */
+  private bootIds(files: BootFile[], reassigned: Map<string, { id: string; owner: string }>): Map<string, string> {
+    const taken = new Set<string>([...files.flatMap((f) => (f.id ? [f.id] : [])), ...[...reassigned.values()].map((r) => r.id)]);
+    const out = new Map<string, string>();
+    for (const f of files) {
+      if (f.id) continue;
+      const known = this.db.select({ id: tables.notes.id }).from(tables.notes).where(eq(tables.notes.path, f.rel)).get()?.id;
+      const id = known && !taken.has(known) ? known : generateNoteId();
+      taken.add(id);
+      out.set(f.rel, id);
+    }
+    return out;
+  }
+
+  /**
    * A copy's content with its own id stamped in, logged loudly — or null when
-   * it cannot be stamped. (Front matter that does not parse carries no id, so
-   * a file here always has some; the check is the backstop.)
+   * it cannot be stamped (stampId says why; the file is left as it is).
    */
   private restamp(rel: string, content: string, id: string, ownerPath: string, next: string): string | null {
-    const stamped = updateFrontmatter(content, (d) => ({ ...d, id: next }));
-    if (carriedId(stamped) !== next) {
-      console.error(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath}, and its front matter could not be given a new one — not indexed. Change or remove its id: line.`);
+    const stamped = stampId(content, next);
+    if (!stamped.ok) {
+      console.error(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath}, and cannot be given a new one: ${stamped.reason} — not indexed. Change or remove its id: line.`);
       return null;
     }
     console.warn(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath} (a copy made outside Basalt?) — gave it its own id ${next}.`);
-    return stamped;
+    return stamped.content;
+  }
+
+  /**
+   * Content with `id` stamped in, when that changes nothing else in the file
+   * — or the content as it is, logged, when it would (front matter that does
+   * not parse or is not a mapping, a user's own non-text `id:`, bytes that are
+   * not UTF-8). Never rewrite what was not parsed (audit STO-002/003/011).
+   */
+  private stampOrKeep(rel: string, content: string, utf8: boolean, id: string): { content: string; stamped: boolean } {
+    if (!utf8) {
+      console.warn(`[vault] ${rel}: ${NOT_UTF8}`);
+      return { content, stamped: false };
+    }
+    const s = stampId(content, id);
+    if (s.ok) return { content: s.content, stamped: true };
+    console.warn(`[vault] ${rel}: indexed without stamping an id — ${s.reason}. Its id is kept by path until it can be.`);
+    return { content, stamped: false };
   }
 
   /**
@@ -348,32 +400,31 @@ export class VaultStore {
 
   /** Index one file at boot, stamping an id if it has none, or its own if it
    *  carried another file's (settleDuplicateIds). */
-  private loadOne(file: BootFile, reassign: { id: string; owner: string } | undefined): void {
+  private loadOne(file: BootFile, reassign: { id: string; owner: string } | undefined, fallbackId: string | undefined): void {
     const { abs, rel } = file;
     let content = file.content;
     if (reassign) {
+      if (!file.utf8) {
+        console.error(`[vault] ${rel}: carries note id ${file.id}, which belongs to ${reassign.owner}, and ${NOT_UTF8} Not indexed.`);
+        return;
+      }
       const stamped = this.restamp(rel, content, file.id!, reassign.owner, reassign.id);
       if (stamped === null) return;
       content = stamped;
       writeFileAtomic(abs, content);
     }
     const parsed = parseNote(content, titleFromPath(rel));
-    if (!parsed.id) {
-      // Stamping an id means rewriting the file from its parsed front matter.
-      // If that front matter did not parse, the rewrite would serialise an
-      // empty object over the user's real metadata — title, tags, aliases,
-      // deadline, and any #only/<team> restriction, which would WIDEN who can
-      // read the note. Index it as it is and say so; a missing id costs
-      // rename-safety for one note, which is recoverable. The metadata is not.
-      if (parseFrontmatter(content).malformed) {
-        console.warn(`[vault] ${rel}: front matter does not parse — indexed without stamping an id. Fix the YAML (an unquoted colon is the usual cause).`);
-      } else {
-        content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
-        writeFileAtomic(abs, content);
-      }
+    if (!parsed.id && fallbackId) {
+      // Stamp only what round-trips. A note that cannot be stamped is indexed
+      // as it is, under the id its path already had: a missing id in the file
+      // costs rename-safety for one note, which is recoverable. Rewriting
+      // metadata (or prose, or bytes) that was not parsed is not.
+      const s = this.stampOrKeep(rel, content, file.utf8, fallbackId);
+      content = s.content;
+      if (s.stamped) writeFileAtomic(abs, content);
     }
     const mtimeMs = fs.statSync(abs).mtimeMs;
-    const note = this.index.upsert({ path: rel, content, mtimeMs });
+    const note = this.index.upsert({ path: rel, content, mtimeMs, id: fallbackId });
     this.syncNoteRow(note);
     this.syncProjectRow(note);
   }
@@ -395,7 +446,7 @@ export class VaultStore {
         // whatever the event said (and a "raw" settle may have been replaced
         // by chokidar's own "add" for the same path).
         if (!fs.existsSync(absPath)) return this.forget(relPath);
-        const content = fs.readFileSync(absPath, "utf8");
+        const { content, utf8 } = readNote(absPath);
 
         // Our own write coming back round: the file still holds exactly what we
         // put there, so there is nothing to learn from it. Anything else is a
@@ -406,7 +457,7 @@ export class VaultStore {
           return;
         }
 
-        this.ingest(relPath, absPath, content);
+        this.ingest(relPath, absPath, content, utf8);
       } catch (err) {
         console.error("Error handling external change", err);
       }
@@ -437,34 +488,42 @@ export class VaultStore {
    * calls it too when it finds the disk ahead of the index, so an edit is
    * recorded the same way whichever of the two notices it first.
    */
-  private ingest(relPath: string, absPath: string, content: string): void {
+  private ingest(relPath: string, absPath: string, content: string, utf8: boolean): void {
     const parsed = parseNote(content, titleFromPath(relPath));
     const owner = parsed.id ? this.ownerElsewhere(parsed.id, relPath) : undefined;
+    // The id this path already has: a note that cannot be stamped keeps it
+    // across every save (audit STO-003), and one whose id: line was removed
+    // gets it back.
+    const pathId = this.index.getByPath(relPath)?.id;
+    if (owner && !utf8) {
+      console.error(`[vault] ${relPath}: carries note id ${parsed.id}, which belongs to ${owner.path}, and ${NOT_UTF8} Not indexed.`);
+      return;
+    }
     if (owner) {
       // A copy of another note. It becomes a note of its own; if this path
       // already was one (`cp A.md B.md` over B), it stays that note.
-      const own = this.index.getByPath(relPath)?.id;
-      const stamped = this.restamp(relPath, content, parsed.id!, owner.path, own ?? generateNoteId());
+      const stamped = this.restamp(relPath, content, parsed.id!, owner.path, pathId ?? generateNoteId());
       if (stamped === null) return;
       content = stamped;
       this.markWritten(relPath, content);
       writeFileAtomic(absPath, content);
-    } else if (!parsed.id) {
-      // Same rule as load(): never rewrite a note whose front matter we
-      // could not read. This path fires on every watcher event, so without
-      // the guard one bad note is re-stamped — and re-flattened — forever.
-      if (parseFrontmatter(content).malformed) {
-        console.warn(`[vault] ${relPath}: front matter does not parse — indexed without stamping an id.`);
-      } else {
-        content = updateFrontmatter(content, (d) => ({ id: generateNoteId(), ...d }));
+    }
+    const fallbackId = parsed.id ? undefined : (pathId ?? generateNoteId());
+    if (!owner && fallbackId) {
+      // Same rule as load(): stamp only what round-trips. This path fires on
+      // every watcher event, so a rewrite that changed anything else would be
+      // repeated — and compounded — forever.
+      const s = this.stampOrKeep(relPath, content, utf8, fallbackId);
+      content = s.content;
+      if (s.stamped) {
         this.markWritten(relPath, content);
         writeFileAtomic(absPath, content);
       }
     }
-    
+
     const existing = this.index.getByPath(relPath);
     const mtimeMs = fs.statSync(absPath).mtimeMs;
-    const note = this.index.upsert({ path: relPath, content, mtimeMs });
+    const note = this.index.upsert({ path: relPath, content, mtimeMs, id: fallbackId });
 
     if (existing && existing.id !== note.id) {
       // The file at this path now says it is a different note (its id was
@@ -739,14 +798,15 @@ export class VaultStore {
     // event, which no-oped. So look first. An edit found there is recorded
     // exactly as the watcher would record it, and the caller's change is merged
     // on top, against the text the caller actually started from.
+    const disk = fs.existsSync(abs) ? readNote(abs) : null;
+    // A file that is not UTF-8 was read with U+FFFD for every byte that did
+    // not decode; saving over it writes those (audit STO-011). Refuse.
+    if (disk && !disk.utf8) throw new HttpError(409, `This note ${NOT_UTF8}`);
     if (existing) {
       const before = existing.content;
-      if (fs.existsSync(abs)) {
-        const onDisk = fs.readFileSync(abs, "utf8");
-        if (onDisk !== before) {
-          this.ingest(relPath, abs, onDisk);
-          existing = this.index.getByPath(relPath);
-        }
+      if (disk && disk.content !== before) {
+        this.ingest(relPath, abs, disk.content, true);
+        existing = this.index.getByPath(relPath);
       }
       // Which text did the caller start from? Merge against THAT, so its edit
       // and everyone else's since both survive (packages/sync/src/merge.ts).
@@ -782,13 +842,20 @@ export class VaultStore {
     if (!verdict.ok) throw new HttpError(403, verdict.message);
 
     // Guarantee a stable id in front-matter (ids make renames link-safe, §10).
+    // Only what round-trips is stamped: content that cannot be (front matter
+    // that does not parse — an autosave mid-typing `tags: [work, ` — or is
+    // not a mapping, a numeric `id:`) is written as sent, and the index keeps
+    // this path's id for it (audit STO-003).
     let finalContent = content;
     const keepId = existing?.id;
     const parsedId = after.id;
+    const fallbackId = parsedId ? undefined : (keepId ?? generateNoteId());
     if (!parsedId) {
-      finalContent = updateFrontmatter(content, (d) => ({ id: keepId ?? generateNoteId(), ...d }));
+      const s = stampId(content, fallbackId!);
+      if (s.ok) finalContent = s.content;
     } else if (keepId && parsedId !== keepId) {
-      finalContent = updateFrontmatter(content, (d) => ({ ...d, id: keepId }));
+      const s = stampId(content, keepId);
+      if (s.ok) finalContent = s.content;
     } else if (!keepId) {
       // A new note carrying another note's id — content pasted whole, or the
       // agent's write_note given a note to copy — is a copy, same as on disk.
@@ -820,7 +887,7 @@ export class VaultStore {
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     this.markWritten(relPath, finalContent);
     writeFileAtomic(abs, finalContent);
-    const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now() });
+    const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now(), id: fallbackId });
     if (!existing) this.recordContent(note.id, finalContent, user.id);
     this.syncNoteRow(note);
     this.syncProjectRow(note);
