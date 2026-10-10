@@ -75,9 +75,10 @@ export interface SavingsPlan {
   outflowMonthly: number;
   /** incomeMonthly − outflowMonthly. Negative means the account is shrinking. */
   surplus: number;
-  /** The part of spending that no in-month decision changes. */
+  /** The part of the typical month's spending that no in-month decision
+   *  changes. With discretionaryMonthly it adds up to that month's spend. */
   committedMonthly: number;
-  /** The part that does respond to intent. */
+  /** The part of the typical month's spending that does respond to intent. */
   discretionaryMonthly: number;
   /** A typical month's discretionary spending less a good month's. */
   trimmable: number;
@@ -186,11 +187,6 @@ export function savingsPlan(input: {
   // makes the plan checkable against the account.
   const surplus = incomeMonthly - outflowMonthly;
 
-  // Committed vs discretionary, from the categories themselves.
-  const typicalOf = (c: CategoryMonths) => quantile(c.totals, 0.5);
-  const committedMonthly = input.categories.filter((c) => c.committed).reduce((a, c) => a + typicalOf(c), 0);
-  const discretionaryMonthly = input.categories.filter((c) => !c.committed).reduce((a, c) => a + typicalOf(c), 0);
-
   /**
    * The headroom, between two months that actually happened.
    *
@@ -218,11 +214,29 @@ export function savingsPlan(input: {
    * picked the same month twice and reported no headroom at all.
    */
   const byTotal = discTotals.map((total, i) => ({ total, i })).sort((a, b) => a.total - b.total);
-  const rank = (p: number): number => byTotal[Math.round((byTotal.length - 1) * p)]!.i;
+  const typicalRank = Math.round((byTotal.length - 1) * 0.5);
+  /**
+   * The good month sits one rank below the typical one at least. Rounding
+   * both ranks the same way made them the same month at three months — the
+   * minimum the plan accepts — so headroom was always €0 there, however much
+   * the months varied (audit FIN-016).
+   */
+  const goodRank = Math.min(Math.round((byTotal.length - 1) * 0.25), typicalRank - 1);
 
   const enough = basedOn >= MIN_MONTHS && discTotals.length > 0;
-  const typicalIdx = enough ? rank(0.5) : -1;
-  const goodIdx = enough ? rank(0.25) : -1;
+  const typicalIdx = enough ? byTotal[typicalRank]!.i : -1;
+  const goodIdx = enough ? byTotal[Math.max(goodRank, 0)]!.i : -1;
+
+  /**
+   * Committed vs discretionary, read off the typical month itself, like the
+   * headroom rows. Summing each category's own median gave two figures no
+   * month ever cost, which did not add up to the spending beside them —
+   * the sum-of-quantiles this module's header warns against.
+   */
+  const inTypical = (committed: boolean) =>
+    enough ? input.categories.filter((c) => c.committed === committed).reduce((a, c) => a + (c.totals[typicalIdx] ?? 0), 0) : 0;
+  const committedMonthly = inTypical(true);
+  const discretionaryMonthly = inTypical(false);
 
   const headroom = enough
     ? discretionary

@@ -2044,12 +2044,12 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
                   <em>if nothing else changes</em>
                 </li>
                 <li>
-                  <span>Committed each month</span>
+                  <span>Committed, typical month</span>
                   <b>{eur(s.committedMonthly)}</b>
                   <em>only a cancellation moves this</em>
                 </li>
                 <li>
-                  <span>Discretionary each month</span>
+                  <span>Discretionary, typical month</span>
                   <b>{eur(s.discretionaryMonthly)}</b>
                   <em>where the headroom lives</em>
                 </li>

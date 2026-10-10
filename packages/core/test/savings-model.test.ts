@@ -168,3 +168,42 @@ describe("money in survives one outsized month (FIN-011)", () => {
     expect(s.incomeMonthly - s.outflowMonthly).toBe(s.surplus);
   });
 });
+
+describe("three months are enough to name a good month (FIN-016)", () => {
+  const THREE = ["2026-01", "2026-02", "2026-03"];
+  const plan = () =>
+    savingsPlan({
+      categories: [
+        { category: "Eating out", totals: [600, 100, 400], committed: false },
+        { category: "Groceries", totals: [250, 300, 350], committed: false },
+        { category: "Rent", totals: [600, 600, 620], committed: true },
+      ],
+      months: THREE,
+      spendMonths: [1450, 1000, 1370],
+      outflowMonths: [1450, 1000, 1370],
+      payslipNet: [],
+      ledgerIncome: 0,
+      drift: 0,
+    });
+
+  it("picks a good month below the typical one, so differing months show headroom", () => {
+    // Discretionary 850, 400, 750: the typical month is March (750), the good
+    // one February (400). Both ranks rounded to 1 and named March twice.
+    const s = plan();
+    expect(s.typicalMonth).toBe("2026-03");
+    expect(s.goodMonth).toBe("2026-02");
+    expect(s.trimmable).toBe(350);
+    expect(s.headroom).toEqual([
+      { category: "Eating out", typical: 400, good: 100, save: 300 },
+      { category: "Groceries", typical: 350, good: 300, save: 50 },
+    ]);
+  });
+
+  it("splits the typical month's own spending into committed and discretionary", () => {
+    // Not each category's own median (600 and 400 + 300): no month cost that.
+    const s = plan();
+    expect(s.committedMonthly).toBe(620);
+    expect(s.discretionaryMonthly).toBe(750);
+    expect(s.committedMonthly + s.discretionaryMonthly).toBe(1370); // March's spend
+  });
+});
