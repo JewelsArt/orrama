@@ -548,8 +548,8 @@ function CategoryPage({
   if (!d) return <div className="fin"><p className="fin-loading">Reading {name}…</p></div>;
 
   const colour = paletteFor(d.colour ? [{ category: name, colour: d.colour }] : [])(name);
-  const active = d.series.filter((m) => m.hasData);
-  const avg = active.length ? active.reduce((a, m) => a + m.total, 0) / active.length : 0;
+  // The server's, over the complete months it names — never the part-month.
+  const avg = d.stats.average;
 
   return (
     <div className="fin">
@@ -589,7 +589,7 @@ function CategoryPage({
         </div>
         <div className="fin-kpi">
           <span className="fin-kpi-lbl">Monthly average</span>
-          <b style={{ color: colour }}>{eur(Math.round(avg * 100) / 100)}</b>
+          <b style={{ color: colour }}>{eur(avg)}</b>
           <span className="fin-kpi-sub">over {d.stats.activeMonths} months with spending</span>
         </div>
         <div className="fin-kpi">

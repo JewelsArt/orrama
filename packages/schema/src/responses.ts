@@ -569,7 +569,8 @@ export const financeCategoryResponse = o({
   /** Every year the statements reach, for the "Year" view. */
   yearly: z.array(o({ year: z.string(), total: z.number(), count: z.number(), partial: z.boolean() })),
   merchants: z.array(merchantTotal),
-  stats: o({ total: z.number(), count: z.number(), activeMonths: z.number(), high: z.number(), low: z.number() }),
+  /** `average` is over the `activeMonths` complete months with spending. */
+  stats: o({ total: z.number(), count: z.number(), activeMonths: z.number(), average: z.number(), high: z.number(), low: z.number() }),
 });
 
 export const financeMonthResponse = o({

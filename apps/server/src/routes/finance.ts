@@ -756,7 +756,11 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
       const rules = buildRules(writtenRules, subscriptions, txns);
 
-      const mine = txns.filter((r) => categoryOfRow(r.description, rules) === wanted);
+      // The rows that cost something in this category. Filed by description
+      // alone, "Other" counted every salary and top-up as one of its
+      // transactions and months, and a purchase returned in full kept its
+      // category "active" at €0 (audit FIN-009).
+      const mine = txns.filter((r) => categoryOfRow(r.description, rules) === wanted && costOf(r, rules) > 0);
       const years = [...new Set(mine.map((r) => r.date.slice(0, 4)))].sort().reverse();
       const year = req.query.year && years.includes(req.query.year) ? req.query.year : years[0];
       const inYear = year ? mine.filter((r) => r.date.startsWith(year)) : [];
@@ -804,7 +808,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       }
 
       const merchants = merchantsByCategory(inYear, rules, 20)[wanted] ?? [];
-      // Stats over whole months only: a part-month would understate the low.
+      // Stats over whole months only: a part-month would understate the low
+      // and the average alike. The average is computed here, beside the
+      // count of months it is over, so the label and the division cannot
+      // drift apart again — the page averaged in the part-month itself.
       const spent = series.filter((m) => m.hasData && !m.partial).map((m) => m.total);
       const colour = rules.find((r) => r.category === wanted)?.colour ?? null;
 
@@ -820,6 +827,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           total: Math.round(inYear.reduce((a, r) => a + costOf(r, rules), 0) * 100) / 100,
           count: inYear.length,
           activeMonths: spent.length,
+          /** Mean of the complete months with spending — "over activeMonths months". */
+          average: spent.length ? Math.round((spent.reduce((a, v) => a + v, 0) / spent.length) * 100) / 100 : 0,
           high: spent.length ? Math.max(...spent) : 0,
           low: spent.length ? Math.min(...spent) : 0,
         },

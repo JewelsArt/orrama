@@ -103,6 +103,19 @@ afterAll(async () => {
   fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
 });
 
+/** Swap the finance folder's statements for these while `fn` runs. */
+const withStatements = async (files: Record<string, string>, fn: () => Promise<void>) => {
+  const dir = path.join(FIN, "files");
+  fs.renameSync(path.join(dir, "statement.csv"), path.join(FIN, "statement.csv.aside"));
+  for (const [name, csv] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), csv);
+  try {
+    await fn();
+  } finally {
+    for (const name of Object.keys(files)) fs.rmSync(path.join(dir, name));
+    fs.renameSync(path.join(FIN, "statement.csv.aside"), path.join(dir, "statement.csv"));
+  }
+};
+
 type Month = { month: string; spend: number };
 type CatMonth = { month: string; total: number; byCategory: Record<string, number> };
 
@@ -229,19 +242,6 @@ describe("one pocket's balance (FIN-002)", () => {
 });
 
 describe("what the statements cover (FIN-008)", () => {
-  /** Swap the finance folder's statements for these while `fn` runs. */
-  const withStatements = async (files: Record<string, string>, fn: () => Promise<void>) => {
-    const dir = path.join(FIN, "files");
-    fs.renameSync(path.join(dir, "statement.csv"), path.join(FIN, "statement.csv.aside"));
-    for (const [name, csv] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), csv);
-    try {
-      await fn();
-    } finally {
-      for (const name of Object.keys(files)) fs.rmSync(path.join(dir, name));
-      fs.renameSync(path.join(FIN, "statement.csv.aside"), path.join(dir, "statement.csv"));
-    }
-  };
-
   it("does not count the month a statement starts inside", async () => {
     // From 17 March. Every whole month costs 400 of groceries and the
     // salary is 1,500; March holds half of that.
@@ -318,6 +318,48 @@ describe("what the statements cover (FIN-008)", () => {
       expect(d.spending.categories.forecast.find((f: { category: string }) => f.category === "Groceries").low).toBe(0);
       expect((await get("/api/finance/month/2026-08")).complete).toBe(true);
       expect(d.summary.drift).toBe(775); // (4 × 1,000 − 3 × 300) / 4
+    });
+  });
+});
+
+describe("the category page (FIN-009)", () => {
+  // Four complete months of €300 groceries and €40 in an uncategorised shop,
+  // salary and a top-up every month, a Coolblue purchase returned in full,
+  // and an export taken on 2 October holding €20 of groceries so far.
+  const { csv } = statement((row) => {
+    for (const m of ["2026-06", "2026-07", "2026-08", "2026-09"]) {
+      row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1800);
+      row(`${m}-02`, "Topup", "Top-up by *1234", 200);
+      row(`${m}-10`, "Card Payment", "ALBERT HEIJN", -300);
+      row(`${m}-15`, "Card Payment", "RANDOM SHOP", -40);
+    }
+    row("2026-07-20", "Card Payment", "COOLBLUE", -250);
+    row("2026-08-03", "Card Refund", "COOLBLUE", 250);
+    row("2026-10-01", "Transfer", "Payment from EMPLOYER BV", 1800);
+    row("2026-10-02", "Card Payment", "ALBERT HEIJN", -20);
+  });
+
+  it("averages the complete months only, and says over how many", async () => {
+    await withStatements({ "c.csv": csv }, async () => {
+      const g = await get("/api/finance/category/Groceries?year=2026");
+      expect(g.stats.average).toBe(300); // not (4 × 300 + 20) / 5 = 244
+      expect(g.stats.activeMonths).toBe(4);
+      expect(g.stats.count).toBe(5); // October's €20 is still a transaction
+    });
+  });
+
+  it("counts only what cost something", async () => {
+    await withStatements({ "c.csv": csv }, async () => {
+      const other = await get("/api/finance/category/Other?year=2026");
+      // Four shop visits — not the salary and top-ups beside them.
+      expect(other.stats.count).toBe(4);
+      expect(other.stats.activeMonths).toBe(4);
+      expect(other.series.find((m: { month: string }) => m.month === "2026-10").hasData).toBe(false);
+      // Bought and returned in full: no spending, so no active months.
+      const e = await get("/api/finance/category/Electronics");
+      expect(e.stats.activeMonths).toBe(0);
+      expect(e.stats.count).toBe(0);
+      expect(e.series.every((m: { hasData: boolean }) => !m.hasData)).toBe(true);
     });
   });
 });
