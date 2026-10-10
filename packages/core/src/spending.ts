@@ -146,6 +146,21 @@ export function ruleFor(description: string, rules: CategoryRule[]): CategoryRul
 }
 
 /**
+ * Whether a description answers to any of these terms, by exactly the rules
+ * that file it into a category: accents folded, `=exact` honoured, short
+ * terms only as a whole description.
+ *
+ * A ledger line's Match terms were applied by three matchers — ruleFor to
+ * file the charge, a plain lower-cased `includes` for the line's own card and
+ * another for "Looks recurring". So `pathe` filed "PATHÉ AMSTERDAM" as a
+ * commitment while its card said it had never been seen, and `=ns` was
+ * searched for literally, as "=ns" (audit FIN-010). Every question of the
+ * form "does this line match that description" comes here.
+ */
+export const matchesTerms = (description: string, terms: string[]): boolean =>
+  ruleFor(description, [{ category: "", matches: terms, colour: null }]) !== null;
+
+/**
  * What a statement row actually cost: its outflow plus any fee on it.
  *
  * Card payments and ATM withdrawals are spending by definition. **A transfer is

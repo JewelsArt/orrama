@@ -21,6 +21,7 @@
  */
 
 import { parseMoney } from "./money.js";
+import { matchesTerms } from "./spending.js";
 
 /** What a row means for the money, as opposed to what the bank calls it. */
 export type Flow =
@@ -439,9 +440,11 @@ export function subscriptionTerms(name: string): string[] {
  * to one descriptor, occasionally two; anything broader is a coincidence.
  */
 export function usefulTerms(terms: string[], merchants: string[], maxHits = 2): string[] {
-  const names = merchants.map((m) => m.trim().toLowerCase());
+  const names = [...new Set(merchants.map((m) => m.trim().toLowerCase()))];
+  // Counted with the matcher that will apply the term (matchesTerms), so a
+  // term judged against "PATHÉ" here is the term that files it there.
   return terms.filter((t) => {
-    const hits = new Set(names.filter((n) => n.includes(t))).size;
+    const hits = names.filter((n) => matchesTerms(n, [t])).length;
     return hits > 0 && hits <= maxHits;
   });
 }

@@ -91,6 +91,16 @@ beforeAll(async () => {
       "| Category | Matches |\n|---|---|\n| Home | stichting duwo |\n| Groceries | albert heijn |\n| Electronics | coolblue |\n| Shopping | zalando |",
     ),
   );
+  // Lines matched three ways: an unaccented term for an accented descriptor,
+  // an exact `=ns`, and no Match at all (the name's own words, accented).
+  fs.writeFileSync(
+    path.join(FIN, "subscriptions.md"),
+    note(
+      "Subscriptions",
+      "subscriptions",
+      "| Service | Amount | Every | Next | Match |\n|---|---|---|---|---|\n| Pathe Unlimited | 24.99 | monthly | 2026-10-12 | pathe |\n| NS Flex | 99 | monthly | 2026-10-12 | =ns |\n| Döner Club | 12 | monthly | 2026-10-12 | |",
+    ),
+  );
   await import("../src/seed.js");
   app = (await buildServer()).app;
   token = (
@@ -360,6 +370,37 @@ describe("the category page (FIN-009)", () => {
       expect(e.stats.activeMonths).toBe(0);
       expect(e.stats.count).toBe(0);
       expect(e.series.every((m: { hasData: boolean }) => !m.hasData)).toBe(true);
+    });
+  });
+});
+
+describe("a ledger line's Match terms (FIN-010)", () => {
+  const { csv } = statement((row) => {
+    for (const m of ["2026-06", "2026-07", "2026-08", "2026-09"]) {
+      row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1800);
+      row(`${m}-05`, "Card Payment", "PATHÉ AMSTERDAM", -24.99);
+      row(`${m}-06`, "Card Payment", "NS", -99);
+      row(`${m}-07`, "Card Payment", "DONER CLUB AMSTERDAM", -12);
+      row(`${m}-08`, "Card Payment", "HANS EN GRIETJE", -8); // "ns" inside a word: not the railway
+    }
+    row("2026-09-30", "Card Payment", "ALBERT HEIJN", -1);
+  });
+
+  it("finds the charges on the line's own card that the categories file under it", async () => {
+    await withStatements({ "subs.csv": csv }, async () => {
+      const d = await get("/api/finance");
+      const sept = d.spending.categories.months.find((m: CatMonth) => m.month === "2026-09");
+      expect(sept.byCategory.Subscriptions).toBe(135.99); // 24.99 + 99 + 12
+      for (const [line, merchant] of [["Pathe Unlimited", "PATHÉ AMSTERDAM"], ["NS Flex", "NS"], ["Döner Club", "DONER CLUB AMSTERDAM"]]) {
+        expect(d.subscriptions.activity[line!], line).toMatchObject({ charges: 4, months: 4, first: "2026-06", merchants: [merchant] });
+      }
+    });
+  });
+
+  it("does not offer a claimed charge under Looks recurring", async () => {
+    await withStatements({ "subs.csv": csv }, async () => {
+      const d = await get("/api/finance");
+      expect(d.recurring.map((r: { merchant: string }) => r.merchant)).toEqual(["HANS EN GRIETJE"]);
     });
   });
 });

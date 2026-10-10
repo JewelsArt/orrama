@@ -36,6 +36,7 @@ import {
   payslipUsable,
   savingsPlan,
   inMainPocket,
+  matchesTerms,
   coverageOf,
   fullMonths,
   subscriptionTerms,
@@ -588,10 +589,11 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       Object.fromEntries(
         items.map((item) => {
           const terms = termsFor(item, descriptions);
+          // The matcher that files these charges (matchesTerms → ruleFor), so
+          // a line the categories call committed is never "not seen" here.
           const hits = terms.length
             ? txns.filter((t) => {
-                const d = t.description.toLowerCase();
-                if (!terms.some((term) => d.includes(term))) return false;
+                if (!matchesTerms(t.description, terms)) return false;
                 return direction === "in" ? t.amount > 0 : t.amount < 0 || t.fee > 0;
               })
             : [];

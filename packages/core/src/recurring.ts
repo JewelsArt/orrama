@@ -21,6 +21,7 @@
  * because their prices are close is the kind of inference that quietly files a
  * cancelled service as ongoing.
  */
+import { matchesTerms } from "./spending.js";
 import type { StatementRow } from "./statement.js";
 
 export interface RecurringCharge {
@@ -110,9 +111,7 @@ export function findRecurring(
  * a ledger line already answers to is not a discovery, it is the thing working.
  */
 export function unclaimedRecurring(found: RecurringCharge[], claimed: string[]): RecurringCharge[] {
-  const terms = claimed.map((t) => t.trim().toLowerCase()).filter(Boolean);
-  return found.filter((r) => {
-    const hay = r.merchant.toLowerCase();
-    return !terms.some((t) => hay.includes(t));
-  });
+  // The matcher that files the charge decides whether a line claims it, or
+  // the same charge is a commitment and a discovery at once (FIN-010).
+  return found.filter((r) => !matchesTerms(r.merchant, claimed));
 }
