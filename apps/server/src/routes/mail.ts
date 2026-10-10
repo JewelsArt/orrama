@@ -14,6 +14,8 @@ import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
 import { HttpError } from "../vaultStore.js";
 import { GMAIL_DEFAULTS, credsFor, getMessage, listInbox, normalizeAppPassword, sendMail, verifyConnection } from "../mail.js";
+import { assertPermittedHost } from "../safeFetch.js";
+import { sessionOnly } from "./auth.js";
 
 type MailRow = typeof tables.mailAccounts.$inferSelect;
 
@@ -25,6 +27,8 @@ const accountPublic = (row: MailRow | undefined) =>
 
 export async function mailRoutes(app: FastifyInstance, db: Db) {
   const auth = { preHandler: [app.authenticate] };
+  /** Where mail goes and who sends it: a signed-in human only (`authenticate` in main.ts). */
+  const accountAuth = { preHandler: [app.authenticate], config: sessionOnly("connect or remove the mail account from a signed-in session, not with an API token") };
   const accountOf = (userId: string) => db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, userId)).get();
 
   const requireAccount = (userId: string): MailRow => {
@@ -40,7 +44,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
   app.get("/api/mail/account", auth, async (req) => accountPublic(accountOf(req.userId)));
 
   /** Connect (or replace) the account. Validates the creds against IMAP before saving. */
-  app.post("/api/mail/account", auth, async (req) => {
+  app.post("/api/mail/account", accountAuth, async (req) => {
     const body = mailConnectSchema.parse(req.body);
     const creds = {
       email: body.email,
@@ -50,10 +54,22 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
       smtpHost: body.smtpHost ?? GMAIL_DEFAULTS.smtpHost,
       smtpPort: body.smtpPort ?? GMAIL_DEFAULTS.smtpPort,
     };
+    // Same rules as any other user-typed address (safeFetch.ts): a private or
+    // loopback mail server must be named in BASALT_FETCH_ALLOW, and the reply
+    // is coarse. It used to connect anywhere and hand back the socket error
+    // ("connect ECONNREFUSED 10.0.0.5:993"), a port scanner for the server's
+    // network (audit SEC-014). The detail goes to the log only.
+    try {
+      for (const host of new Set([creds.imapHost, creds.smtpHost])) await assertPermittedHost(host);
+    } catch (err) {
+      req.log.warn({ err: err instanceof Error ? err.message : String(err) }, "mail account: server address refused");
+      throw new HttpError(400, "that mail server address is not allowed — a private one must be listed in BASALT_FETCH_ALLOW");
+    }
     try {
       await verifyConnection(creds);
     } catch (err) {
-      throw new HttpError(400, `could not sign in: ${err instanceof Error ? err.message : String(err)}`);
+      req.log.warn({ err: err instanceof Error ? err.message : String(err) }, "mail account: sign-in check failed");
+      throw new HttpError(400, "could not sign in to the mail server — check the address, the app password, and that IMAP is on");
     }
     const existing = accountOf(req.userId);
     const row: MailRow = {
@@ -74,7 +90,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
     return accountPublic(row);
   });
 
-  app.delete("/api/mail/account", auth, async (req) => {
+  app.delete("/api/mail/account", accountAuth, async (req) => {
     db.delete(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).run();
     return { ok: true };
   });
@@ -117,10 +133,8 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
    * keyboard. API tokens (MCP clients, scripts) and the in-app agent stage a
    * draft instead; see stageDraft and the module doc on mail_drafts.
    */
-  app.post("/api/mail/send", auth, async (req) => {
-    if (req.viaToken) {
-      throw new HttpError(403, "API tokens cannot send mail directly — POST /api/mail/drafts and confirm it in Basalt");
-    }
+  const sendAuth = { preHandler: [app.authenticate], config: sessionOnly("API tokens cannot send mail directly — POST /api/mail/drafts and confirm it in Basalt") };
+  app.post("/api/mail/send", sendAuth, async (req) => {
     const row = requireAccount(req.userId);
     const body = mailSendSchema.parse(req.body);
     try {

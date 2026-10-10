@@ -5,7 +5,7 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
-import Fastify from "fastify";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
 import { assertProductionSecrets, assertValidEnv, env, vaultDir } from "./env.js";
@@ -46,6 +46,14 @@ declare module "fastify" {
     sessionId?: string;
     /** True when authenticated with a personal API token instead of a session JWT. */
     viaToken?: boolean;
+  }
+  interface FastifyContextConfig {
+    /**
+     * Refuse API tokens on this route, saying why. For anything that creates,
+     * changes or reveals a credential, or decides where one is sent — see
+     * `authenticate`. Use `sessionOnly(reason)` from auth.ts.
+     */
+    sessionOnly?: string;
   }
 }
 
@@ -210,13 +218,22 @@ Vault layout:
   await app.register(jwt, { secret: env.jwtSecret });
   await app.register(websocket);
 
-  app.decorate("authenticate", async (req: any, reply: any) => {
+  app.decorate("authenticate", async (req: FastifyRequest, reply: FastifyReply) => {
     // Personal API tokens (`bslt_…`) ride the same gate as JWTs: scripts and
     // shortcuts get the caller's normal permissions, nothing more.
     const header = (req.headers.authorization ?? "") as string;
     if (header.startsWith("Bearer bslt_")) {
       const row = db.select().from(tables.apiTokens).where(eq(tables.apiTokens.tokenHash, hashToken(header.slice(7)))).get();
       if (!row) return reply.code(401).send({ error: "invalid API token" });
+      // A token is the weaker credential, and stays that way: it may never
+      // create, change or reveal a credential, or re-aim one. That used to be
+      // a `viaToken` line in two routes, so every other one was open — a
+      // token set a passcode, unlocked with it and held a full session, then
+      // minted siblings; it re-pointed the AI key at its own server and
+      // replaced the mail account (audit SEC-013, SEC-004, SEC-014). Now a
+      // route says so once, in its config, and it is refused here.
+      const sessionOnly = req.routeOptions.config.sessionOnly;
+      if (sessionOnly) return reply.code(403).send({ error: sessionOnly });
       req.userId = row.userId;
       req.viaToken = true;
       db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();

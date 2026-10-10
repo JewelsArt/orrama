@@ -19,6 +19,7 @@ import { buildIcs, expandIcs, parseIcs, type IcsExportItem, type VEvent } from "
 import { decryptSecret, encryptSecret } from "../secrets.js";
 import { BlockedTargetError, safeFetch } from "../safeFetch.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { sessionOnly } from "./auth.js";
 
 const FEED_TTL_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 10_000;
@@ -198,19 +199,22 @@ export async function icsRoutes(app: FastifyInstance, db: Db, store: VaultStore)
 
   // ---- outbound feed -------------------------------------------------------
 
-  app.get("/api/me/ics-token", auth, async (req) => {
+  /** The feed token is a credential (it reads the calendar with no sign-in): a session only. */
+  const feedTokenAuth = { preHandler: [app.authenticate], config: sessionOnly("the calendar feed link is managed from a signed-in session, not with an API token") };
+
+  app.get("/api/me/ics-token", feedTokenAuth, async (req) => {
     const u = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
     return { token: u?.icsToken ?? null };
   });
 
   /** Mint (or rotate) the private feed token. Old URL stops working immediately. */
-  app.post("/api/me/ics-token", auth, async (req) => {
+  app.post("/api/me/ics-token", feedTokenAuth, async (req) => {
     const token = crypto.randomBytes(20).toString("hex");
     db.update(tables.users).set({ icsToken: token }).where(eq(tables.users.id, req.userId)).run();
     return { token };
   });
 
-  app.delete("/api/me/ics-token", auth, async (req) => {
+  app.delete("/api/me/ics-token", feedTokenAuth, async (req) => {
     db.update(tables.users).set({ icsToken: null }).where(eq(tables.users.id, req.userId)).run();
     return { ok: true };
   });

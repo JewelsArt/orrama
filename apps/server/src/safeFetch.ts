@@ -126,6 +126,20 @@ function once(url: URL, req: SafeRequest): Promise<{ status: number; location: s
   });
 }
 
+/**
+ * The same address rule for a connection this module does not make itself —
+ * IMAP and SMTP to a user-typed mail server. Throws BlockedTargetError unless
+ * every address `host` resolves to is public or allow-listed. Checked before
+ * the client connects, so unlike safeFetch it does not catch a name that is
+ * re-pointed in between; it does stop the plain "connect to 10.x / 127.x and
+ * read back what happened" probe.
+ */
+export async function assertPermittedHost(host: string): Promise<void> {
+  const name = host.replace(/^\[|\]$/g, "");
+  const addrs = net.isIP(name) ? [name] : (await dns.promises.lookup(name, { all: true, verbatim: true })).map((a) => a.address);
+  if (addrs.length === 0 || addrs.some((ip) => !permitted(ip, name))) throw new BlockedTargetError("address not allowed");
+}
+
 /** One request to a user-supplied URL, under every rule above. Throws on a blocked target. */
 export async function safeFetch(input: string, req: SafeRequest): Promise<SafeResponse> {
   let url = new URL(input);

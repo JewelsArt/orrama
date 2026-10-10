@@ -7,6 +7,7 @@ import { encryptSecret } from "../secrets.js";
 import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIWC, startSignIn } from "../chatgpt.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+import { sessionOnly } from "./auth.js";
 
 /** Workspace administration. v1 keeps it simple: owners only. */
 export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
@@ -15,7 +16,10 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     if (!user.isOwner) throw new HttpError(403, "workspace owner required");
     return user;
   };
-  const auth = { preHandler: [app.authenticate] };
+  // Every admin route is session-only: invites mint accounts, grants and
+  // teams decide who reads what, and the AI settings decide where the stored
+  // key is sent (audit SEC-004). None of it is for an API token.
+  const auth = { preHandler: [app.authenticate], config: sessionOnly("workspace settings are changed from a signed-in session, not with an API token") };
 
   /** Everything the admin console needs in one round-trip. */
   app.get("/api/admin/overview", auth, async (req) => {
@@ -207,6 +211,15 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     // Blank key = keep the existing one; but the first save must include a key.
     const newKey = body.apiKey && body.apiKey.length >= 10 ? body.apiKey : undefined;
     if (!newKey && !ws.aiKeyEncrypted) throw new HttpError(400, "an API key is required");
+    // The stored key is sent, as a bearer token, to the openai-compatible
+    // address on the next AI call. Keeping it while changing that address
+    // handed the key to whoever the new address belongs to, and the key is
+    // otherwise never shown (audit SEC-004). A new address needs the key typed
+    // again. (Anthropic and Gemini go to their own fixed hosts, so switching
+    // between them, or back from ChatGPT, still keeps it.)
+    if (!newKey && body.provider === "openai-compatible" && (body.baseUrl || null) !== (ws.aiBaseUrl ?? null)) {
+      throw new HttpError(400, "enter the API key again to use it with a new base URL");
+    }
     db.update(tables.workspace)
       .set({
         aiProvider: body.provider,

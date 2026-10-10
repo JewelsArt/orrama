@@ -16,7 +16,16 @@ import { listSessions, openSession, revokeSession, SESSION_DAYS } from "../sessi
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
+/**
+ * Route config that refuses API tokens (`authenticate` in main.ts) with this
+ * reason — for routes that create, change or reveal a credential, or decide
+ * where one is sent. A token must never be able to trade itself up.
+ */
+export const sessionOnly = (reason: string) => ({ sessionOnly: reason });
+
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
+  /** Passcode, Touch ID and sessions are credentials: changed from a session only. */
+  const credentials = { preHandler: [app.authenticate], config: sessionOnly("sign-in methods and sessions are managed from a signed-in session, not with an API token") };
   /** Every way in ends here: a session row, and a token that names it. */
   const signIn = (userId: string, req: FastifyRequest) =>
     app.jwt.sign({ sub: userId, sid: openSession(db, userId, req.headers["user-agent"]) }, { expiresIn: `${SESSION_DAYS}d` });
@@ -182,8 +191,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     };
   });
 
-  /** Set or replace the quick-unlock passcode. Requires a live session. */
-  app.post("/api/auth/passcode", { preHandler: [app.authenticate] }, async (req) => {
+  /** Set or replace the quick-unlock passcode. A session only: a token that could set one could unlock with it. */
+  app.post("/api/auth/passcode", credentials, async (req) => {
     const { passcode } = passcodeSchema.parse(req.body);
     db.update(tables.users)
       .set({ passcodeHash: await argonHash(passcode), passcodeFails: 0, passcodeLockedUntil: null })
@@ -193,7 +202,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   });
 
   /** Remove it. Password login still works; this only drops the shortcut. */
-  app.delete("/api/auth/passcode", { preHandler: [app.authenticate] }, async (req) => {
+  app.delete("/api/auth/passcode", credentials, async (req) => {
     db.update(tables.users)
       .set({ passcodeHash: null, passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, req.userId))
@@ -272,7 +281,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return row;
   };
 
-  app.post("/api/auth/webauthn/register/options", { preHandler: [app.authenticate] }, async (req) => {
+  app.post("/api/auth/webauthn/register/options", credentials, async (req) => {
     const user = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
     if (!user) throw new HttpError(404, "user not found");
     const existing = db
@@ -296,7 +305,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return { challengeId: putChallenge(user.id, options.challenge), options };
   });
 
-  app.post("/api/auth/webauthn/register/verify", { preHandler: [app.authenticate] }, async (req) => {
+  app.post("/api/auth/webauthn/register/verify", credentials, async (req) => {
     const body = req.body as { challengeId: string; response: never; label?: string };
     const challenge = takeChallenge(body.challengeId);
     const { rpID, origin } = rp(req as never);
@@ -375,7 +384,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   });
 
   /** Enrolled devices, for the Settings list and its revoke buttons. */
-  app.get("/api/auth/webauthn/credentials", { preHandler: [app.authenticate] }, async (req) => {
+  app.get("/api/auth/webauthn/credentials", credentials, async (req) => {
     return db
       .select()
       .from(tables.webauthnCredentials)
@@ -384,7 +393,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .map((c) => ({ id: c.id, label: c.label, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt }));
   });
 
-  app.delete("/api/auth/webauthn/credentials/:id", { preHandler: [app.authenticate] }, async (req) => {
+  app.delete("/api/auth/webauthn/credentials/:id", credentials, async (req) => {
     const { id } = req.params as { id: string };
     const cred = db.select().from(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.id, id)).get();
     if (!cred || cred.userId !== req.userId) throw new HttpError(404, "not found");
@@ -395,19 +404,19 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   // ---- sessions (sessions.ts) ----------------------------------------------
 
   /** Sign out: this session ends on the server, not just in this browser. */
-  app.post("/api/auth/logout", { preHandler: [app.authenticate] }, async (req) => {
+  app.post("/api/auth/logout", credentials, async (req) => {
     if (req.sessionId) revokeSession(db, req.userId, req.sessionId);
     store.events.emit("session-revoked", { sessionId: req.sessionId });
     return { ok: true };
   });
 
   /** Where you are signed in, for Settings. */
-  app.get("/api/auth/sessions", { preHandler: [app.authenticate] }, async (req) =>
+  app.get("/api/auth/sessions", credentials, async (req) =>
     listSessions(db, req.userId).map((s) => ({ id: s.id, label: s.label, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, current: s.id === req.sessionId })),
   );
 
   /** End one of your sessions — a lost phone, a borrowed laptop. */
-  app.delete("/api/auth/sessions/:id", { preHandler: [app.authenticate] }, async (req) => {
+  app.delete("/api/auth/sessions/:id", credentials, async (req) => {
     const { id } = req.params as { id: string };
     if (!revokeSession(db, req.userId, id)) throw new HttpError(404, "not found");
     store.events.emit("session-revoked", { sessionId: id });

@@ -13,21 +13,17 @@ import type { FastifyInstance } from "fastify";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { deliver, WEBHOOK_EVENTS, type WebhookEvent } from "../webhooks.js";
+import { sessionOnly } from "./auth.js";
 
 export const hashToken = (raw: string) => crypto.createHash("sha256").update(raw).digest("hex");
 
 export async function integrationRoutes(app: FastifyInstance, db: Db, _store: VaultStore) {
-  const auth = { preHandler: [app.authenticate] };
-
   /** Token/webhook management is session-only — see module doc. */
-  const requireSession = (req: { viaToken?: boolean }) => {
-    if (req.viaToken) throw new HttpError(403, "manage tokens and webhooks from a signed-in session");
-  };
+  const auth = { preHandler: [app.authenticate], config: sessionOnly("manage tokens and webhooks from a signed-in session") };
 
   // ---- API tokens ----------------------------------------------------------
 
   app.get("/api/tokens", auth, async (req) => {
-    requireSession(req);
     return db
       .select()
       .from(tables.apiTokens)
@@ -37,7 +33,6 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
   });
 
   app.post("/api/tokens", auth, async (req) => {
-    requireSession(req);
     const body = (req.body ?? {}) as { label?: string };
     const label = body.label?.trim();
     if (!label || label.length > 60) throw new HttpError(400, "label required (max 60)");
@@ -57,7 +52,6 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
   });
 
   app.delete<{ Params: { id: string } }>("/api/tokens/:id", auth, async (req) => {
-    requireSession(req);
     const res = db
       .delete(tables.apiTokens)
       .where(and(eq(tables.apiTokens.id, req.params.id), eq(tables.apiTokens.userId, req.userId)))
@@ -79,12 +73,10 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
   });
 
   app.get("/api/webhooks", auth, async (req) => {
-    requireSession(req);
     return db.select().from(tables.webhooks).where(eq(tables.webhooks.ownerId, req.userId)).all().map(hookPublic);
   });
 
   app.post("/api/webhooks", auth, async (req) => {
-    requireSession(req);
     const body = (req.body ?? {}) as { url?: string; events?: string[] };
     let url: URL;
     try {
@@ -112,7 +104,6 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
   });
 
   app.delete<{ Params: { id: string } }>("/api/webhooks/:id", auth, async (req) => {
-    requireSession(req);
     const res = db
       .delete(tables.webhooks)
       .where(and(eq(tables.webhooks.id, req.params.id), eq(tables.webhooks.ownerId, req.userId)))
@@ -123,7 +114,6 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
 
   /** Fire a ping now and report the response status — debugging without waiting for real activity. */
   app.post<{ Params: { id: string } }>("/api/webhooks/:id/test", auth, async (req) => {
-    requireSession(req);
     const hook = db.select().from(tables.webhooks).where(eq(tables.webhooks.id, req.params.id)).get();
     if (!hook || hook.ownerId !== req.userId) throw new HttpError(404, "webhook not found");
     const status = await deliver(db, hook, { event: "ping", at: new Date().toISOString() });
