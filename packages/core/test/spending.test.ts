@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { completeMonths, forecast, merchantsByCategory, monthlyByCategory, parseCategoryRules, categoryOf, UNCATEGORISED } from "../src/spending.js";
-import type { StatementRow } from "../src/statement.js";
+import { coverageOf, fullMonths, type StatementRow } from "../src/statement.js";
 
 const RULES = parseCategoryRules(`
 | Category  | Matches                   | Colour  |
@@ -92,15 +92,55 @@ describe("completeMonths", () => {
     [row("2026-07-05", "LIDL", 10), row("2026-08-05", "LIDL", 20), row("2026-09-02", "LIDL", 1)],
     RULES,
   );
+  /** One export from `first` to `last`. */
+  const covered = (first: string, last: string) =>
+    fullMonths(coverageOf([[{ ...row(first, "LIDL", 1) }, { ...row(last, "LIDL", 1) }]]));
 
   it("drops the month the statement stops inside", () => {
     // Exported on the 3rd: September holds three days and would drag every
     // average down if it counted.
-    expect(completeMonths(months, "2026-09-03").map((m) => m.month)).toEqual(["2026-07", "2026-08"]);
+    expect(completeMonths(months, covered("2026-07-01", "2026-09-03")).map((m) => m.month)).toEqual(["2026-07", "2026-08"]);
   });
 
   it("keeps a final month that ran to its last day", () => {
-    expect(completeMonths(months, "2026-09-30").map((m) => m.month)).toEqual(["2026-07", "2026-08", "2026-09"]);
+    expect(completeMonths(months, covered("2026-07-01", "2026-09-30")).map((m) => m.month)).toEqual(["2026-07", "2026-08", "2026-09"]);
+  });
+
+  it("drops the month the statement starts inside", () => {
+    // From the 17th: July is half a month, not a cheap one (FIN-008).
+    expect(completeMonths(months, covered("2026-07-17", "2026-09-30")).map((m) => m.month)).toEqual(["2026-08", "2026-09"]);
+  });
+
+  it("counts a covered month with nothing spent as a zero month", () => {
+    const sparse = monthlyByCategory([row("2026-07-05", "LIDL", 10), row("2026-09-05", "LIDL", 30)], RULES);
+    const out = completeMonths(sparse, covered("2026-07-01", "2026-09-30"));
+    expect(out.map((m) => [m.month, m.total])).toEqual([["2026-07", 10], ["2026-08", 0], ["2026-09", 30]]);
+  });
+});
+
+describe("coverageOf", () => {
+  const priced = (date: string, amount: number, balance: number): StatementRow => ({ ...row(date, "LIDL", -amount), product: "Current", balance });
+
+  it("joins exports that overlap or touch, and keeps a real gap", () => {
+    const a = [row("2026-01-01", "LIDL", 1), row("2026-03-31", "LIDL", 1)];
+    const b = [row("2026-04-01", "LIDL", 1), row("2026-05-15", "LIDL", 1)];
+    const c = [row("2026-07-01", "LIDL", 1), row("2026-09-30", "LIDL", 1)];
+    expect(coverageOf([c, a, b])).toEqual([
+      { first: "2026-01-01", last: "2026-05-15" },
+      { first: "2026-07-01", last: "2026-09-30" },
+    ]);
+    expect(fullMonths(coverageOf([a, b, c]))).toEqual(["2026-01", "2026-02", "2026-03", "2026-04", "2026-07", "2026-08", "2026-09"]);
+  });
+
+  it("joins across a gap the running balance carries straight over", () => {
+    // Nothing on 31 December or 1 January, but January's first row starts
+    // from the balance December's last row left: nothing moved in between.
+    const dec = [priced("2025-12-01", 0, 500), priced("2025-12-30", -100, 400)];
+    const jan = [priced("2026-01-02", -50, 350), priced("2026-01-31", -50, 300)];
+    expect(coverageOf([dec, jan])).toEqual([{ first: "2025-12-01", last: "2026-01-31" }]);
+    // Had something moved (the balance does not carry), the gap is real.
+    const moved = [priced("2026-01-02", -50, 250), priced("2026-01-31", -50, 200)];
+    expect(coverageOf([dec, moved])).toHaveLength(2);
   });
 });
 

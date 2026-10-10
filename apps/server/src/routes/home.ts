@@ -21,7 +21,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { buildRules, financeNote, planSavings, txnsFor } from "./finance.js";
+import { buildRules, financeNote, planSavings, statementsFor } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -246,13 +246,13 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        * reported, underneath, where it cannot be mistaken for the headline.
        */
       spending: (() => {
-        const txns = txnsFor(store, user);
+        const { txns, complete } = statementsFor(store, user);
         if (txns.length === 0) return null;
         const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
         const catMonths = monthlyByCategory(txns, rules);
         const last = txns[txns.length - 1]!.date;
-        const finished = recentMonths(completeMonths(catMonths, last)); // the same window as the Finance tab
+        const finished = recentMonths(completeMonths(catMonths, complete)); // the same window as the Finance tab
         const outlook = forecast(finished);
         // One typicalMonth(), shared with the Finance tab (audit). It answers
         // null under three complete months, which is the same threshold the

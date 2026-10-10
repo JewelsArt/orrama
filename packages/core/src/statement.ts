@@ -333,6 +333,76 @@ export function inMainPocket(rows: StatementRow[]): StatementRow[] {
   return pocket === undefined ? rows : rows.filter((r) => (r.product ?? "") === pocket);
 }
 
+/** A stretch of days the statements cover without a hole, as YYYY-MM-DD. */
+export interface Coverage {
+  first: string;
+  last: string;
+}
+
+const nextDay = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * What the statement files cover, as stretches with no hole in them.
+ *
+ * Coverage used to be inferred from spending: a month existed if something
+ * cost money in it, and only the month the data stops inside was treated as
+ * partial. So an export starting on the 17th made a half-month count as a
+ * whole one (in typical, the forecast's low, the savings plan's ranking), and
+ * two exports with three months between them were read as one run — the
+ * balance change across nine months divided by six (audit FIN-008).
+ *
+ * An export covers the days from its first row to its last. Two of them make
+ * one stretch when they overlap or touch, or when the running balance carries
+ * straight across the gap between them — the first row after the gap starts
+ * from the balance the last row before it left, so nothing moved in between.
+ * Without balances, a gap between files is a gap.
+ */
+export function coverageOf(files: StatementRow[][]): Coverage[] {
+  const pocket = mainPocket(files.flat());
+  const spans = files
+    .filter((rows) => rows.length > 0)
+    .map((rows) => {
+      const dates = rows.map((r) => r.date).sort();
+      const priced = rows.filter((r) => r.balance !== null && (r.product ?? "") === pocket);
+      return { first: dates[0]!, last: dates.at(-1)!, head: priced[0], tail: priced.at(-1) };
+    })
+    .sort((a, b) => a.first.localeCompare(b.first) || a.last.localeCompare(b.last));
+  const out: (typeof spans)[number][] = [];
+  for (const s of spans) {
+    const cur = out.at(-1);
+    const touches = cur && s.first <= nextDay(cur.last);
+    const carries =
+      cur?.tail && s.head && Math.abs(s.head.balance! - s.head.amount + s.head.fee - cur.tail.balance!) < 0.005;
+    if (cur && (touches || carries)) {
+      if (s.last > cur.last) {
+        cur.last = s.last;
+        cur.tail = s.tail ?? cur.tail;
+      }
+    } else out.push({ ...s });
+  }
+  return out.map(({ first, last }) => ({ first, last }));
+}
+
+/**
+ * The calendar months a coverage holds from their first day to their last,
+ * oldest first — the months "complete" means. A month the statements only
+ * partly reach, at either end or beside a gap, is not one of them.
+ */
+export function fullMonths(coverage: Coverage[]): string[] {
+  const out: string[] = [];
+  for (const { first, last } of coverage) {
+    let [y, m] = first.slice(0, 7).split("-").map(Number) as [number, number];
+    for (;;) {
+      const month = `${y}-${String(m).padStart(2, "0")}`;
+      if (month > last.slice(0, 7)) break;
+      const end = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+      if (first <= `${month}-01` && last >= end) out.push(month);
+      m === 12 ? ((m = 1), y++) : m++;
+    }
+  }
+  return out.sort();
+}
+
 /** Words too generic to identify a merchant on their own. */
 const GENERIC = new Set([
   "plan", "family", "premium", "monthly", "yearly", "subscription",

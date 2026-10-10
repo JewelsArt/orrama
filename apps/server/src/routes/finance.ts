@@ -36,6 +36,8 @@ import {
   payslipUsable,
   savingsPlan,
   inMainPocket,
+  coverageOf,
+  fullMonths,
   subscriptionTerms,
   typicalMonth,
   usefulTerms,
@@ -150,9 +152,19 @@ function statements(root: string): { currency: string; files: ReturnType<typeof 
 }
 
 export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeof parseStatement>["rows"] {
+  return loadStatements(root, own).txns;
+}
+
+/**
+ * The merged transactions and what the files cover. Complete months are read
+ * off the coverage (fullMonths), never inferred from which months had
+ * spending in them (FIN-008).
+ */
+export function loadStatements(root: string, own: OwnAccount[] = []): { txns: ReturnType<typeof parseStatement>["rows"]; complete: string[] } {
+  const files = statements(root).files;
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
-  for (const file of statements(root).files) {
+  for (const file of files) {
     const inFile = new Map<string, typeof rows>();
     for (const r of file.rows) {
       const same = inFile.get(r.key);
@@ -169,7 +181,7 @@ export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeo
   // a refund to net off the deposit (ownAccounts.ts).
   // Each refund comes off the purchase it refunds, in that purchase's month,
   // or — bought before these statements begin — off nothing (spending.ts).
-  return settleRefunds(markOwnAccounts(rows, own));
+  return { txns: settleRefunds(markOwnAccounts(rows, own)), complete: fullMonths(coverageOf(files.map((f) => f.rows))) };
 }
 
 /** The own-accounts list — a broker, a savings pot — from the note tagged #own-accounts. */
@@ -178,9 +190,12 @@ export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["r
   return note ? parseOwnAccounts(note.content) : [];
 }
 
-/** loadTxns with the reader's own-accounts list applied — what every endpoint wants. */
-export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
-  canReadFinanceFiles(store, user) ? loadTxns(store.vaultRoot, ownAccountsFor(store, user)) : [];
+/** loadStatements with the reader's own-accounts list applied — what every endpoint wants. */
+export const statementsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
+  canReadFinanceFiles(store, user) ? loadStatements(store.vaultRoot, ownAccountsFor(store, user)) : { txns: [], complete: [] };
+
+/** Just the transactions, for a page that never asks which months are complete. */
+export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) => statementsFor(store, user).txns;
 
 /**
  * The drift the savings plan reads: the balance's slope PLUS what went into own
@@ -189,12 +204,13 @@ export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable
  * Balance card keeps the raw slope — that is what the account itself did.
  */
 export function savingsDrift(txns: ReturnType<typeof parseStatement>["rows"], months: string[]): number | null {
-  const { drift } = balanceTrend(txns, months);
-  if (drift === null || months.length === 0) return drift;
+  const { drift, counted } = balanceTrend(txns, months);
+  if (drift === null || counted.length === 0) return drift;
   // The same pocket as the balance: a deposit is added back onto the slope
-  // only if it came out of the account whose slope this is.
+  // only if it came out of the account whose slope this is — and over the
+  // same months the slope was measured across.
   const saved = ownSavedByMonth(inMainPocket(txns));
-  return drift + months.reduce((a, m) => a + (saved.get(m) ?? 0), 0) / months.length;
+  return drift + counted.reduce((a, m) => a + (saved.get(m) ?? 0), 0) / counted.length;
 }
 
 /**
@@ -261,25 +277,47 @@ export function balanceSpan(root: string): {
  * it covers the SAME months as the typical figures — a slope from a 2020
  * balance set against this year's spending made income minus outflow stop
  * matching the account.
+ *
+ * Measured per CONTIGUOUS run of those months and divided by the months
+ * measured. Two exports, January–March and July–September, used to be read
+ * as one run: the balance change across nine months over six, which inflated
+ * the drift, the income derived from it and the savings target by half
+ * (audit FIN-008). Each run opens at the balance before its own first row —
+ * after = before + amount − fee — so a gap's movements are never counted.
+ * `counted` is the months that had a balance to measure.
  */
 export function balanceTrend(
   txns: ReturnType<typeof parseStatement>["rows"],
   months: string[],
-): { opening: number | null; openingDate: string | null; drift: number | null; spanMonths: number } {
-  const none = { opening: null, openingDate: null, drift: null, spanMonths: 0 };
-  if (months.length === 0) return none;
-  const start = months[0]!;
-  const end = months[months.length - 1]!;
+): { drift: number | null; spanMonths: number; counted: string[] } {
   // One pocket's running balance: Savings' balance is not Current's (FIN-002).
   const priced = inMainPocket(txns).filter((r) => r.balance !== null);
-  const before = priced.filter((r) => r.date.slice(0, 7) < start).at(-1);
-  const first = priced.find((r) => r.date.slice(0, 7) >= start);
-  // Balance after a row = balance before + amount - fee, so before = after - amount + fee.
-  const opening = before ? before.balance! : first ? Math.round((first.balance! - first.amount + first.fee) * 100) / 100 : null;
-  const closing = priced.filter((r) => r.date.slice(0, 7) <= end).at(-1)?.balance ?? null;
-  if (opening === null || closing === null) return none;
-  return { opening, openingDate: `${start}-01`, drift: (closing - opening) / months.length, spanMonths: months.length };
+  const runs: string[][] = [];
+  for (const m of [...months].sort()) {
+    const run = runs.at(-1);
+    if (run && nextMonth(run.at(-1)!) === m) run.push(m);
+    else runs.push([m]);
+  }
+  let change = 0;
+  const counted: string[] = [];
+  for (const run of runs) {
+    const inRun = priced.filter((r) => r.date.slice(0, 7) >= run[0]! && r.date.slice(0, 7) <= run.at(-1)!);
+    const first = inRun[0];
+    const last = inRun.at(-1);
+    if (!first || !last) continue;
+    const open = Math.round((first.balance! - first.amount + first.fee) * 100) / 100;
+    change += last.balance! - open;
+    counted.push(...run);
+  }
+  if (counted.length === 0) return { drift: null, spanMonths: 0, counted };
+  return { drift: change / counted.length, spanMonths: counted.length, counted };
 }
+
+/** The calendar month after `YYYY-MM`. */
+const nextMonth = (m: string) => {
+  const [y, mo] = m.split("-").map(Number) as [number, number];
+  return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, "0")}`;
+};
 
 export function buildRules(
   written: ReturnType<typeof parseCategoryRules>,
@@ -445,7 +483,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
-    const txns = txnsFor(store, user);
+    const { txns, complete } = statementsFor(store, user);
     const filesReadable = canReadFinanceFiles(store, user);
     const { balance, balanceDate, skipped } = filesReadable
       ? balanceSpan(store.vaultRoot)
@@ -483,15 +521,14 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       .sort((a, b) => a.month.localeCompare(b.month));
 
     // Forecast from finished months only — the export stops mid-month and that
-    // partial month would drag every category's expectation down.
-    const lastDate = txns.length ? txns[txns.length - 1]!.date : "";
-    // …and from the last TYPICAL_WINDOW of them: "typical" means now, not a
-    // median across every year on record.
-    const finished = lastDate ? recentMonths(completeMonths(catMonths, lastDate)) : [];
+    // partial month would drag every category's expectation down — and from
+    // the last TYPICAL_WINDOW of them: "typical" means now, not a median
+    // across every year on record.
+    const finished = recentMonths(completeMonths(catMonths, complete));
     const outlook = forecast(finished);
     const windowed = new Set(finished.map((m) => m.month));
     const merchants = merchantsByCategory(txns.filter((r) => windowed.has(r.date.slice(0, 7))), rules);
-    const { opening, openingDate, spanMonths, drift } = balanceTrend(txns, finished.map((m) => m.month));
+    const { spanMonths, drift } = balanceTrend(txns, finished.map((m) => m.month));
 
     // Runway needs a balance, and nothing in the vault knows one unless it is
     // written down — so it is read from the finance note's front-matter and
@@ -714,7 +751,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
       const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
-      const txns = txnsFor(store, user);
+      const { txns, complete } = statementsFor(store, user);
+      const covered = new Set(complete);
 
       const rules = buildRules(writtenRules, subscriptions, txns);
 
@@ -728,7 +766,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       // which nothing was spent — and the two must not draw the same.
       const lastTxn = txns.length ? txns[txns.length - 1]!.date : "";
       const dataThrough = lastTxn.slice(0, 7);
-      const lastDayCovered = Number.parseInt(lastTxn.slice(8, 10), 10);
+      const firstTxn = txns.length ? txns[0]!.date : "";
 
       // Every month of the chosen year, so a gap reads as a month with no
       // spending rather than the line skipping over it.
@@ -736,7 +774,6 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         const month = `${year}-${String(i + 1).padStart(2, "0")}`;
         const rows = inYear.filter((r) => r.date.startsWith(month));
         const total = rows.reduce((a, r) => a + costOf(r, rules), 0);
-        const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
         return {
           month,
           total: Math.round(total * 100) / 100,
@@ -744,15 +781,15 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           hasData: rows.length > 0,
           /** No statement covers this month at all. */
           future: dataThrough !== "" && month > dataThrough,
-          /** Covered, but only part of the way through. */
-          partial: month === dataThrough && lastDayCovered < lastDay,
+          /** Inside the statements' range, but not covered from its first
+           *  day to its last: where they start or stop, or beside a gap. */
+          partial: dataThrough !== "" && month >= firstTxn.slice(0, 7) && month <= dataThrough && !covered.has(month),
         };
       });
 
       // Every year the statements reach, for the chart's "Year" view: a year
       // with none of this category reads as zero, not as missing, and a year
       // the statements only partly cover says so.
-      const firstTxn = txns.length ? txns[0]!.date : "";
       const yearly: { year: string; total: number; count: number; partial: boolean }[] = [];
       if (firstTxn && lastTxn) {
         for (let y = Number(firstTxn.slice(0, 4)); y <= Number(lastTxn.slice(0, 4)); y++) {
@@ -761,7 +798,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
             year: String(y),
             total: Math.round(rows.reduce((a, r) => a + costOf(r, rules), 0) * 100) / 100,
             count: rows.length,
-            partial: firstTxn > `${y}-01-01` || lastTxn < `${y}-12-31`,
+            partial: Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`).some((m) => !covered.has(m)),
           });
         }
       }
@@ -810,12 +847,11 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
-      const txns = txnsFor(store, user);
+      const { txns, complete: covered } = statementsFor(store, user);
       const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
 
       const catMonths = monthlyByCategory(txns, rules);
-      const lastDate = txns.length ? txns[txns.length - 1]!.date : "";
-      const finished = lastDate ? completeMonths(catMonths, lastDate) : [];
+      const finished = completeMonths(catMonths, covered);
 
       const wanted = req.query.category?.trim() || null;
       const inMonth = txns

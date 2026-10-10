@@ -23,12 +23,13 @@ const VAULT = process.env.BASALT_VAULT_DIR!;
 const FIN = path.join(VAULT, "02-Areas/finance");
 
 /**
- * Two complete months plus a part-month, with running balances so the drift —
+ * Three complete months plus a part-month, with running balances so the drift —
  * and therefore the savings plan's money-in — is computable.
  */
 const STATEMENT = [
   "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance",
-  "Card Payment,Current,2026-01-05 10:00:00,2026-01-05 10:00:00,ALBERT HEIJN,-100.00,0.00,EUR,COMPLETED,1000.00",
+  // From the 1st: a statement starting mid-month leaves that month partial (FIN-008).
+  "Card Payment,Current,2026-01-01 10:00:00,2026-01-01 10:00:00,ALBERT HEIJN,-100.00,0.00,EUR,COMPLETED,1000.00",
   "Card Payment,Current,2026-01-20 10:00:00,2026-01-20 10:00:00,UNIQLO,-100.00,0.00,EUR,COMPLETED,900.00",
   "Card Payment,Current,2026-02-05 10:00:00,2026-02-05 10:00:00,ALBERT HEIJN,-50.00,0.00,EUR,COMPLETED,1050.00",
   "Card Payment,Current,2026-02-20 10:00:00,2026-02-20 10:00:00,UNIQLO,-50.00,0.00,EUR,COMPLETED,1000.00",

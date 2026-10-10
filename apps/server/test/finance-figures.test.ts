@@ -70,7 +70,7 @@ const { csv: STATEMENT, currentAt } = statement((row) => {
 });
 
 const { buildServer } = await import("../src/main.js");
-const { balanceTrend, loadTxns, planSavings } = await import("../src/routes/finance.js");
+const { balanceTrend, loadStatements, planSavings } = await import("../src/routes/finance.js");
 const { completeMonths, mainPocket, monthlyByCategory, parseStatement } = await import("@basalt/core");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
@@ -188,8 +188,8 @@ describe("one pocket's balance (FIN-002)", () => {
       if (withSavings) row("2026-04-30", "Transfer", "Savings interest", 9, "Savings");
     }).csv;
   const plan = (csv: string) => {
-    const txns = loadTxns(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
-    const finished = completeMonths(monthlyByCategory(txns, []), txns.at(-1)!.date);
+    const { txns, complete } = loadStatements(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
+    const finished = completeMonths(monthlyByCategory(txns, []), complete);
     return { txns, finished, savings: planSavings(txns, finished, { payslipNet: [], ledgerIncome: 0 }) };
   };
 
@@ -225,5 +225,99 @@ describe("one pocket's balance (FIN-002)", () => {
     for (const k of ["target", "surplus", "trimmable", "observed", "targetRate"] as const) {
       expect(home.spending.savings[k], k).toBe(d.savings[k]);
     }
+  });
+});
+
+describe("what the statements cover (FIN-008)", () => {
+  /** Swap the finance folder's statements for these while `fn` runs. */
+  const withStatements = async (files: Record<string, string>, fn: () => Promise<void>) => {
+    const dir = path.join(FIN, "files");
+    fs.renameSync(path.join(dir, "statement.csv"), path.join(FIN, "statement.csv.aside"));
+    for (const [name, csv] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), csv);
+    try {
+      await fn();
+    } finally {
+      for (const name of Object.keys(files)) fs.rmSync(path.join(dir, name));
+      fs.renameSync(path.join(FIN, "statement.csv.aside"), path.join(dir, "statement.csv"));
+    }
+  };
+
+  it("does not count the month a statement starts inside", async () => {
+    // From 17 March. Every whole month costs 400 of groceries and the
+    // salary is 1,500; March holds half of that.
+    const { csv } = statement((row) => {
+      row("2026-03-17", "Transfer", "Payment from EMPLOYER BV", 1500);
+      row("2026-03-20", "Card Payment", "ALBERT HEIJN", -200);
+      for (const m of ["2026-04", "2026-05", "2026-06"]) {
+        row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1500);
+        row(`${m}-05`, "Card Payment", "ALBERT HEIJN", -200);
+        row(`${m}-20`, "Card Payment", "ALBERT HEIJN", -200);
+      }
+      row("2026-07-02", "Card Payment", "ALBERT HEIJN", -10);
+    });
+    await withStatements({ "march.csv": csv }, async () => {
+      const d = await get("/api/finance");
+      expect(d.spending.categories.completeMonths).toBe(3);
+      expect(d.spending.categories.forecast.find((f: { category: string }) => f.category === "Groceries").low).toBe(400);
+      expect([d.savings.typicalMonth, d.savings.goodMonth]).not.toContain("2026-03");
+      // +1,100 a month (1,500 in, 400 out), not the half-month's +1,300 averaged in.
+      expect(d.summary.drift).toBe(1100);
+      expect(d.savings.incomeMonthly).toBe(1500);
+      const cat = await get("/api/finance/category/Groceries?year=2026");
+      expect(cat.series.find((m: { month: string }) => m.month === "2026-03").partial).toBe(true);
+      expect(cat.stats.low).toBe(400);
+      expect(cat.stats.activeMonths).toBe(3);
+      expect((await get("/api/finance/month/2026-03")).complete).toBe(false);
+    });
+  });
+
+  it("measures the balance across a gap per covered run, over the months measured", async () => {
+    // The account grows 500 every month, nine months running, but April–June
+    // were never uploaded. Over the two runs it is +500 a month; across the
+    // gap it read 3,500 of change over six months.
+    const header = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance";
+    const q1 = [header];
+    const q3 = [header];
+    let balance = 1000;
+    for (let i = 1; i <= 9; i++) {
+      const m = `2026-${String(i).padStart(2, "0")}`;
+      const end = new Date(Date.UTC(2026, i, 0)).getUTCDate();
+      for (const [day, type, what, amount] of [
+        ["01", "Transfer", "Payment from EMPLOYER BV", 2000],
+        ["10", "Card Payment", "ALBERT HEIJN", -1000],
+        [String(end), "Card Payment", "ALBERT HEIJN", -500],
+      ] as const) {
+        balance += amount;
+        const at = `${m}-${day} 10:00:00`;
+        (i <= 3 ? q1 : i >= 7 ? q3 : []).push(`${type},Current,${at},${at},${what},${amount.toFixed(2)},0.00,EUR,COMPLETED,${balance.toFixed(2)}`);
+      }
+    }
+    await withStatements({ "q1.csv": q1.join("\n"), "q3.csv": q3.join("\n") }, async () => {
+      const d = await get("/api/finance");
+      expect(d.spending.categories.completeMonths).toBe(6);
+      expect(d.summary.drift).toBe(500);
+      expect(d.summary.spanMonths).toBe(6);
+      expect(d.savings.incomeMonthly).toBe(2000);
+      // April to June are not €0 months: nobody can say what they cost.
+      const cat = await get("/api/finance/category/Groceries?year=2026");
+      expect(cat.series.filter((m: { partial: boolean }) => m.partial).map((m: { month: string }) => m.month)).toEqual(["2026-04", "2026-05", "2026-06"]);
+    });
+  });
+
+  it("counts a covered month with nothing spent as a €0 month", async () => {
+    const { csv } = statement((row) => {
+      for (const m of ["2026-06", "2026-07", "2026-08", "2026-09"]) {
+        row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1000);
+        if (m !== "2026-08") row(`${m}-10`, "Card Payment", "ALBERT HEIJN", -300); // away all August
+      }
+      row("2026-10-01", "Transfer", "Payment from EMPLOYER BV", 1000);
+    });
+    await withStatements({ "away.csv": csv }, async () => {
+      const d = await get("/api/finance");
+      expect(d.spending.categories.completeMonths).toBe(4);
+      expect(d.spending.categories.forecast.find((f: { category: string }) => f.category === "Groceries").low).toBe(0);
+      expect((await get("/api/finance/month/2026-08")).complete).toBe(true);
+      expect(d.summary.drift).toBe(775); // (4 × 1,000 − 3 × 300) / 4
+    });
   });
 });

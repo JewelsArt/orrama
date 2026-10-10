@@ -25,7 +25,8 @@ const FIN = path.join(VAULT, "02-Areas/finance");
 
 const STATEMENT = [
   "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance",
-  "Card Payment,Current,2026-01-10 10:00:00,2026-01-10 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED,1000.00",
+  // Starts on the 1st, so January is a complete month (FIN-008).
+  "Card Payment,Current,2026-01-01 10:00:00,2026-01-01 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED,1000.00",
   "Card Payment,Current,2026-02-10 10:00:00,2026-02-10 10:00:00,UNIQLO,-300.00,0.00,EUR,COMPLETED,900.00",
   "Card Payment,Current,2026-03-10 10:00:00,2026-03-10 10:00:00,NS GROEP,-300.00,0.00,EUR,COMPLETED,800.00",
   "Card Payment,Current,2026-04-10 10:00:00,2026-04-10 10:00:00,ALBERT HEIJN,-600.00,0.00,EUR,COMPLETED,200.00",
@@ -106,11 +107,9 @@ describe("one typical month", () => {
 
   it("still compares on the month page when only two other months exist", async () => {
     // No three-month floor on the comparison, unlike the headline: the
-    // category comparison finance.test.ts pins has exactly this shape.
-    fs.writeFileSync(
-      path.join(FIN, "files", "statement.csv"),
-      STATEMENT.split("\n").filter((l) => !l.includes("2026-01-10")).join("\n"),
-    );
+    // category comparison finance.test.ts pins has exactly this shape. An
+    // export starting on 10 January leaves January a part-month.
+    fs.writeFileSync(path.join(FIN, "files", "statement.csv"), STATEMENT.replaceAll("2026-01-01", "2026-01-10"));
     try {
       // Feb and Apr left: median(300, 600) = 450.
       const march = await get("/api/finance/month/2026-03");
@@ -121,10 +120,11 @@ describe("one typical month", () => {
   });
 
   it("withholds the dashboard card rather than quoting a typical €0", async () => {
-    // Two complete months is under the three the card's own empty state names.
+    // Two complete months is under the three the card's own empty state names:
+    // an export from 10 February covers March and April in full, no more.
     fs.writeFileSync(
       path.join(FIN, "files", "statement.csv"),
-      STATEMENT.split("\n").filter((l) => !l.includes("2026-03-10") && !l.includes("2026-04-10")).join("\n"),
+      STATEMENT.split("\n").filter((l) => !l.includes("2026-01-01")).join("\n"),
     );
     try {
       const home = await get("/api/home");

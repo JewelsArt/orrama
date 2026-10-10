@@ -248,14 +248,6 @@ export const median = (xs: number[]): number => {
 };
 
 /**
- * Drop the month the statement stops inside.
- *
- * This is the difference between a useful forecast and a badly wrong one: an
- * export taken on the 3rd contains three days of that month, and averaging it
- * in drags every category's expectation down by a third or more. A month counts
- * only if the data runs past its end.
- */
-/**
  * Total money OUT per month: every debit plus every fee, transfers included.
  *
  * Not the same question as `monthlyByCategory`, which answers "what did I
@@ -339,14 +331,24 @@ export function monthsAround<T extends { month: string }>(months: T[], month: st
   return [...before, ...months.filter((m) => m.month > month).slice(0, n - before.length)];
 }
 
-export function completeMonths(months: CategoryMonth[], lastDate: string): CategoryMonth[] {
-  const cutoff = lastDate.slice(0, 7);
-  const dayOfMonth = Number.parseInt(lastDate.slice(8, 10), 10);
-  const lastDayOfCutoff = new Date(
-    Date.UTC(Number.parseInt(cutoff.slice(0, 4), 10), Number.parseInt(cutoff.slice(5, 7), 10), 0),
-  ).getUTCDate();
-  // The final month survives only if the statement reaches its last day.
-  return months.filter((m) => m.month < cutoff || (m.month === cutoff && dayOfMonth >= lastDayOfCutoff));
+/**
+ * The complete months, from what the statements cover (`fullMonths` in
+ * statement.ts) rather than from what was spent.
+ *
+ * This is the difference between a useful forecast and a badly wrong one: an
+ * export taken on the 3rd contains three days of that month, and averaging it
+ * in drags every category's expectation down by a third or more — and one
+ * that starts on the 17th does the same at the other end. A month counts only
+ * if the statements run from its first day to its last.
+ *
+ * A covered month in which nothing cost money is a €0 month, not a missing
+ * one: leaving it out made the months that remain look like every month.
+ */
+export function completeMonths(months: CategoryMonth[], covered: string[]): CategoryMonth[] {
+  const by = new Map(months.map((m) => [m.month, m]));
+  return [...new Set(covered)]
+    .sort()
+    .map((month) => by.get(month) ?? { month, byCategory: {}, committed: {}, total: 0 });
 }
 
 /**
