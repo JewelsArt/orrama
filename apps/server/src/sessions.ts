@@ -62,6 +62,33 @@ export function revokeSession(db: Db, userId: string, sessionId: string, now = D
   return res.changes > 0;
 }
 
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+/**
+ * End every way into an account at once: all its sessions, API tokens and
+ * Touch ID devices, its quick-unlock passcode and its calendar feed link.
+ * What a password change does, and what "Sign out everywhere" does.
+ *
+ * A password change used to leave all of it working — the attacker's 30-day
+ * session, the API token they made, a passkey they enrolled — and revoking
+ * sessions by hand left the tokens, which could mint a fresh session (audit
+ * SEC-007). Run it inside the caller's transaction when it goes with another
+ * write. Returns the revoked session ids, so their live-sync sockets can be
+ * closed (`session-revoked`), and what else was removed.
+ */
+export function revokeEverything(db: Db | Tx, userId: string, now = Date.now()) {
+  const live = and(eq(tables.sessions.userId, userId), isNull(tables.sessions.revokedAt));
+  const sessions = db.select({ id: tables.sessions.id }).from(tables.sessions).where(live).all().map((s) => s.id);
+  db.update(tables.sessions).set({ revokedAt: now }).where(live).run();
+  const tokens = db.delete(tables.apiTokens).where(eq(tables.apiTokens.userId, userId)).run().changes;
+  const devices = db.delete(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.userId, userId)).run().changes;
+  db.update(tables.users)
+    .set({ passcodeHash: null, passcodeFails: 0, passcodeLockedUntil: null, icsToken: null })
+    .where(eq(tables.users.id, userId))
+    .run();
+  return { sessions, tokens, devices };
+}
+
 /** A user's live sessions, newest first, for Settings. */
 export function listSessions(db: Db, userId: string, now = Date.now()) {
   return db

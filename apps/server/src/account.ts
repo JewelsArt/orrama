@@ -15,13 +15,34 @@
 import { eq } from "drizzle-orm";
 import readline from "node:readline";
 import { hash as argonHash } from "@node-rs/argon2";
-import { createDb, tables } from "./db.js";
+import { createDb, tables, type Db } from "./db.js";
+import { isEntry } from "./entry.js";
+import { revokeEverything } from "./sessions.js";
 
 const ETX = "\u0003";       // Ctrl-C
 const BACKSPACE = "\u007f";
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q: string): Promise<string> => new Promise((res) => rl.question(q, res));
+/**
+ * Write the change. A new password is a clean break: it ends every session,
+ * API token and Touch ID device, and clears the passcode and the calendar
+ * feed link, in the same transaction (sessions.ts `revokeEverything`).
+ * Whoever had the account under the old password keeps nothing — it used to
+ * leave their session and their tokens working (audit SEC-007).
+ */
+export function applyAccountChange(
+  db: Db,
+  userId: string,
+  change: { email: string; username: string; displayName: string; passwordHash: string | null },
+) {
+  const { passwordHash, ...profile } = change;
+  return db.transaction((tx) => {
+    tx.update(tables.users)
+      .set(passwordHash ? { ...profile, passwordHash } : profile)
+      .where(eq(tables.users.id, userId))
+      .run();
+    return passwordHash ? revokeEverything(tx, userId) : null;
+  });
+}
 
 /** Read a line without echoing it. Restores the terminal even on Ctrl-C. */
 function askSecret(q: string): Promise<string> {
@@ -56,6 +77,8 @@ function askSecret(q: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q: string): Promise<string> => new Promise((res) => rl.question(q, res));
   const db = createDb();
   const users = db.select().from(tables.users).all();
   if (users.length === 0) {
@@ -116,24 +139,25 @@ async function main(): Promise<void> {
     passwordHash = await argonHash(password);
   }
 
-  const set: Record<string, string | number | null> = { email, username, displayName };
-  if (passwordHash) {
-    set["passwordHash"] = passwordHash;
-    // A new password clears the quick-unlock passcode: whoever knew the old
-    // password should not keep a four-digit shortcut into the account.
-    set["passcodeHash"] = null;
-    set["passcodeFails"] = 0;
-    set["passcodeLockedUntil"] = null;
-  }
-  db.update(tables.users).set(set).where(eq(tables.users.id, user.id)).run();
+  const revoked = applyAccountChange(db, user.id, { email, username, displayName, passwordHash });
 
   console.log(`\nUpdated. Sign in as ${email}.`);
-  if (passwordHash) console.log("The quick-unlock passcode was cleared; set a new one in Settings.");
-  console.log("Existing sessions stay valid until they expire.\n");
+  if (revoked) {
+    console.log(
+      `Signed out everywhere: ${revoked.sessions.length} session(s), ${revoked.tokens} API token(s) and ` +
+        `${revoked.devices} Touch ID device(s) removed; the passcode and the calendar feed link were cleared. ` +
+        "Set them up again in Settings. A live-sync connection already open ends when it reconnects or the server restarts.",
+    );
+  } else {
+    console.log("Password unchanged: existing sessions and tokens stay valid.");
+  }
+  console.log("");
   rl.close();
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (isEntry(import.meta.url, process.argv[1])) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

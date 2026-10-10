@@ -12,7 +12,7 @@ import {
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@basalt/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
-import { listSessions, openSession, revokeSession, SESSION_DAYS } from "../sessions.js";
+import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS } from "../sessions.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -414,6 +414,17 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.get("/api/auth/sessions", credentials, async (req) =>
     listSessions(db, req.userId).map((s) => ({ id: s.id, label: s.label, createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, current: s.id === req.sessionId })),
   );
+
+  /**
+   * Sign out everywhere: every session (this one too), API token, Touch ID
+   * device, the passcode and the calendar feed link (sessions.ts). For when
+   * the account may have been someone else's for a while.
+   */
+  app.post("/api/auth/revoke-all", credentials, async (req) => {
+    const done = db.transaction((tx) => revokeEverything(tx, req.userId));
+    for (const sessionId of done.sessions) store.events.emit("session-revoked", { sessionId });
+    return { sessions: done.sessions.length, tokens: done.tokens, devices: done.devices };
+  });
 
   /** End one of your sessions — a lost phone, a borrowed laptop. */
   app.delete("/api/auth/sessions/:id", credentials, async (req) => {

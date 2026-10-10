@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
-import { api, enrolTouchId, touchIdAvailable, type Me, type SessionInfo } from "./api.js";
+import { api, enrolTouchId, SESSION_ENDED, touchIdAvailable, type Me, type SessionInfo } from "./api.js";
 import { CHARACTERS, CharacterAvatar } from "./avatars.js";
 import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
 import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
@@ -243,6 +243,7 @@ export function Settings({
  */
 function Sessions() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -259,6 +260,12 @@ function Sessions() {
   const end = async (id: string) => {
     await api("DELETE", `/api/auth/sessions/${id}`);
     await load();
+  };
+
+  /** Everything ends, this browser too — so the app signs out like any ended session. */
+  const everywhere = async () => {
+    await api("POST", "/api/auth/revoke-all");
+    window.dispatchEvent(new Event(SESSION_ENDED));
   };
 
   const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—");
@@ -282,6 +289,20 @@ function Sessions() {
           )}
         </div>
       ))}
+      <div className="integr-row" title="Ends every session, this one too, and removes every API token, Touch ID device, the passcode and the calendar feed link.">
+        <span className="integr-main">
+          Sign out everywhere
+          <span className="integr-sub">sessions · tokens · devices · passcode</span>
+        </span>
+        {confirming ? (
+          <>
+            <button className="ghost" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="ghost danger" onClick={() => void everywhere()}>Sign out everywhere</button>
+          </>
+        ) : (
+          <button className="ghost danger" onClick={() => setConfirming(true)}>Sign out everywhere…</button>
+        )}
+      </div>
     </section>
   );
 }

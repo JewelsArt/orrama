@@ -51,6 +51,7 @@ const SESSION_ONLY: [Method, string, object?][] = [
   ["POST", "/api/auth/logout"],
   ["GET", "/api/auth/sessions"],
   ["DELETE", "/api/auth/sessions/s-x"],
+  ["POST", "/api/auth/revoke-all"],
   ["GET", "/api/tokens"],
   ["POST", "/api/tokens", { label: "sibling" }],
   ["DELETE", "/api/tokens/tok-x"],
