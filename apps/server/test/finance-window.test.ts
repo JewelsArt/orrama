@@ -90,7 +90,10 @@ describe("GET /api/finance with years of history", () => {
     const f = await get("/api/finance");
     expect(f.summary.spanMonths).toBe(12);
     expect(f.summary.drift).toBe(1299.92); // 2,000 in - 700 out a month, less the closing EUR 1 over 12
-    expect(f.savings.incomeMonthly).toBe(1999.92); // median outflow 700 + this window's drift
+    // 2,000 lands every month: the average outflow (700.08, the closing EUR 1
+    // included) + this window's drift. A median outflow (700) said 1,999.92
+    // — the median-plus-mean mix FIN-011 is about.
+    expect(f.savings.incomeMonthly).toBe(2000);
   });
 
   it("gives the Dashboard the same window, so the two quote one target", async () => {

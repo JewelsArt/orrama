@@ -5,7 +5,7 @@
  * your coffee" — and every one of them is a guess about someone else. This one
  * is derived from Jules's own statement, and the whole model is two numbers:
  *
- *   surplus   = typical money in  −  typical money out
+ *   surplus   = money in  −  money out, in an average month
  *   trimmable = a typical month's discretionary spending − a good month's
  *
  * `surplus` comes from the BANK, not from a payslip. Where the statement
@@ -58,12 +58,20 @@ export interface CategoryMonths {
 }
 
 export interface SavingsPlan {
-  /** Typical money in per month, and where the figure came from. */
+  /** Money in per month, and where the figure came from. From the balance it
+   *  is an average month's: outflowMonthly + drift. */
   incomeMonthly: number;
   incomeSource: "balance" | "payslips" | "ledger" | "none";
   /** Typical money SPENT per month, from the statement. Drives the fund. */
   spendMonthly: number;
-  /** Typical money OUT per month: every debit, transfers included. */
+  /**
+   * Money OUT in an average month: every debit, transfers included. A mean,
+   * not a median, because the drift it is set against is one: money in =
+   * out + the balance change holds for averages, and a median out plus a
+   * mean drift dropped every one-off transfer ÷ months out of income — a
+   * €5,000 month among €1,000 ones reported €1,000 of income against a real
+   * €2,000 (audit FIN-011).
+   */
   outflowMonthly: number;
   /** incomeMonthly − outflowMonthly. Negative means the account is shrinking. */
   surplus: number;
@@ -152,9 +160,9 @@ export function savingsPlan(input: {
 
   const spendMonthly = quantile(input.spendMonths, 0.5);
   const outflowMonths = input.outflowMonths?.length ? input.outflowMonths : input.spendMonths;
-  const outflowMonthly = quantile(outflowMonths, 0.5);
+  const outflowMonthly = outflowMonths.length ? outflowMonths.reduce((a, v) => a + v, 0) / outflowMonths.length : 0;
 
-  // The bank first. `spend + drift` is what must have come in for the balance
+  // The bank first. `out + drift` is what must have come in for the balance
   // to move the way it did, so it needs no source beyond the statement itself.
   const incomeSource: SavingsPlan["incomeSource"] =
     input.drift !== null

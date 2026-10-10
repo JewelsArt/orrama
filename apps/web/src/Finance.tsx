@@ -1934,7 +1934,7 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
             {/* The arithmetic, laid out rather than asserted. */}
             <ul className="fin-maths">
               <li>
-                <span>Typical month in</span>
+                <span>Average month in</span>
                 <b>{eur(s.incomeMonthly)}</b>
                 <em>
                   {s.incomeSource === "balance"
@@ -1950,13 +1950,11 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
                 {/* Money OUT, not money spent. The two differ by every transfer
                     the rules note never claimed, and this row has to be the
                     one the surplus above is actually computed from or the
-                    three figures stop adding up. */}
-                <span>Typical month out</span>
+                    three figures stop adding up. An average, like the drift
+                    beside it: a one-off transfer is money that left. */}
+                <span>Average month out</span>
                 <b className="neg">−{eur(s.outflowMonthly)}</b>
-                <em>
-                  everything that left, across {s.basedOn} months
-                  {s.outflowMonthly > s.spendMonthly && ` · ${eur(s.spendMonthly)} of it spent`}
-                </em>
+                <em>everything that left, transfers included, over {s.basedOn} months</em>
               </li>
               <li className="sum">
                 <span>Left over</span>

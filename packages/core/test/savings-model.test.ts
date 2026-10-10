@@ -130,3 +130,41 @@ describe("headroom is one real month against another", () => {
     expect(s.target).toBe(0);
   });
 });
+
+describe("money in survives one outsized month (FIN-011)", () => {
+  /**
+   * €2,000 lands every month. Four months send €1,000 out; one also pays a
+   * €5,000 yearly fee by transfer. A median out (€1,000) plus the mean drift
+   * reported €1,000 of income, and a target rate against that.
+   */
+  const FIVE = [...MONTHS, "2026-05"];
+  const plan = (outflowMonths: number[], drift: number) =>
+    savingsPlan({
+      categories: [{ category: "Groceries", totals: [1000, 1000, 1000, 1000, 1000], committed: false }],
+      months: FIVE,
+      spendMonths: [1000, 1000, 1000, 1000, 1000],
+      outflowMonths,
+      payslipNet: [],
+      ledgerIncome: 0,
+      drift,
+    });
+
+  it("reports the income that actually arrived", () => {
+    // The balance is flat: 5 × 2,000 in, 4 × 1,000 + 6,000 out.
+    const s = plan([1000, 1000, 1000, 1000, 6000], 0);
+    expect(s.incomeMonthly).toBe(2000);
+    expect(s.outflowMonthly).toBe(2000);
+    expect(s.surplus).toBe(0);
+  });
+
+  it("measures the target rate against that income", () => {
+    // Growing €50 a month: 950 out in four months, 5,950 in the fifth.
+    const s = plan([950, 950, 950, 950, 5950], 50);
+    expect(s.incomeMonthly).toBe(2000);
+    expect(s.surplus).toBe(50);
+    expect(s.target).toBe(50);
+    expect(s.targetRate).toBe(2.5);
+    // The three lines the page prints add up.
+    expect(s.incomeMonthly - s.outflowMonthly).toBe(s.surplus);
+  });
+});
