@@ -143,3 +143,62 @@ describe("lineHunks", () => {
     ]);
   });
 });
+
+/**
+ * Audit STO-004. Hunks are whole lines, and the last line of a note Obsidian
+ * saved has no "\n". When one side edited that line and the other appended
+ * after it, the two insertions were joined with nothing between them:
+ * "- [ ] oat milk- [ ] milk". No output line may be two lines glued.
+ */
+describe("mergeText at a final line with no newline (STO-004)", () => {
+  it("keeps the editor's typing and the agent's appended line apart", () => {
+    expect(mergeText("# Inbox\n- milk", "# Inbox\n- milk\n- call Marc", "# Inbox\n- milk and eggs")).toBe(
+      "# Inbox\n- milk and eggs\n- call Marc",
+    );
+  });
+
+  it("keeps an Obsidian edit of the last line and a quick capture apart", () => {
+    expect(mergeText("# Inbox\n- milk", "# Inbox\n- milk\n- [ ] pay rent @jules\n", "# Inbox\n- oat milk")).toBe(
+      "# Inbox\n- oat milk\n- [ ] pay rent @jules\n",
+    );
+  });
+
+  it("matches the control where the base ends with a newline", () => {
+    expect(mergeText("# Inbox\n- milk\n", "# Inbox\n- milk\n- [ ] pay rent @jules\n", "# Inbox\n- oat milk\n")).toBe(
+      "# Inbox\n- oat milk\n- [ ] pay rent @jules\n",
+    );
+  });
+
+  it("never glues a line from one side onto a line from the other (seeded, 3,000 rounds)", () => {
+    const rand = prng(404);
+    let open = 0;
+    for (let round = 0; round < 3000; round++) {
+      const base = Array.from({ length: 1 + rand(6) }, (_, i) => `L${i}`);
+      const side = (tag: string) => {
+        const out: string[] = [];
+        for (const l of base) {
+          const r = rand(5);
+          if (r === 0) out.push(`${l}${tag}`); // edit
+          else if (r === 1) continue; // delete
+          else if (r === 2) out.push(l, `new${tag}${rand(9)}`); // insert after
+          else out.push(l);
+        }
+        if (rand(3) === 0) out.push(`end${tag}`); // append
+        return out;
+      };
+      // Each text ends with or without a final newline, independently.
+      const text = (ls: string[]) => ls.join("\n") + (rand(2) ? "\n" : "");
+      const B = text(base);
+      const O = text(side("o"));
+      const T = text(side("t"));
+      if (![B, O, T].every((s) => s === "" || s.endsWith("\n"))) open++;
+      // "" too: an empty line is never two lines glued (and both sides
+      // deleting everything leaves exactly that).
+      const known = new Set(["", ...B.split("\n"), ...O.split("\n"), ...T.split("\n")]);
+      for (const line of mergeText(B, O, T).split("\n")) {
+        expect(known.has(line), `round ${round}: ${JSON.stringify(line)} from ${JSON.stringify([B, O, T])}`).toBe(true);
+      }
+    }
+    expect(open).toBeGreaterThan(1500);
+  });
+});

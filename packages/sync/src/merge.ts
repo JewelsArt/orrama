@@ -105,6 +105,20 @@ type Sided = Hunk & { theirs: boolean };
 export function mergeText(base: string, ours: string, theirs: string): string {
   if (ours === theirs || theirs === base) return ours;
   if (ours === base) return theirs;
+  // Hunks are whole lines, so every line must end in "\n" — and Obsidian
+  // writes no final newline. One side editing that last line while the other
+  // appended after it joined the two insertions with nothing between them:
+  // "- [ ] oat milk- [ ] milk" (audit STO-004). Give all three a final "\n",
+  // merge, and take exactly one back off.
+  const open = (s: string) => !s.endsWith("\n");
+  if (open(base) || open(ours) || open(theirs)) {
+    const merged = mergeLines(base + "\n", ours + "\n", theirs + "\n");
+    return merged.endsWith("\n") ? merged.slice(0, -1) : merged;
+  }
+  return mergeLines(base, ours, theirs);
+}
+
+function mergeLines(base: string, ours: string, theirs: string): string {
 
   const T: Sided[] = lineHunks(base, theirs).map((h) => ({ ...h, theirs: true }));
   const same = (h: Hunk) => T.some((t) => t.start === h.start && t.end === h.end && t.insert === h.insert);

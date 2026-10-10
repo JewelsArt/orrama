@@ -270,3 +270,21 @@ describe("a stamp changes one line (STO-005, STO-007)", () => {
     expect(bytes("Import/Long.md").toString("utf8")).toBe(withIdLine(before, idAt("Import/Long.md")!));
   });
 });
+
+describe("merging at a last line with no newline (STO-004)", () => {
+  it("a quick capture racing an Obsidian edit of the last line keeps both on their own lines", async () => {
+    const rel = "Personal/jules/Inbox.md";
+    fs.mkdirSync(path.dirname(abs(rel)), { recursive: true });
+    fs.writeFileSync(abs(rel), "---\ntitle: Inbox\n---\n# Inbox\n- [ ] milk"); // Obsidian writes no final newline
+    await until(() => !!idAt(rel));
+    await sleep(500);
+    const before = fs.readFileSync(abs(rel), "utf8");
+    // Obsidian saves, and the capture lands inside the watcher's debounce.
+    fs.writeFileSync(abs(rel), before.replace("- [ ] milk", "- [ ] oat milk"));
+    expect((await api("POST", "/api/capture", { text: "pay rent" })).status).toBe(200);
+    const lines = fs.readFileSync(abs(rel), "utf8").split("\n");
+    expect(lines).toContain("- [ ] oat milk");
+    expect(lines.some((l) => /^- \[ \] pay rent/.test(l))).toBe(true);
+    expect(lines.filter((l) => l.includes("milk"))).toEqual(["- [ ] oat milk"]);
+  });
+});
