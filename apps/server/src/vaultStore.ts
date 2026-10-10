@@ -28,7 +28,7 @@ import {
   type IndexedNote,
   type ProjectDef,
 } from "@basalt/core";
-import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, updateDocContent } from "@basalt/sync";
+import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, SpliceMismatchError, updateDocContent } from "@basalt/sync";
 import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
@@ -471,7 +471,7 @@ export class VaultStore {
       // edited, or it was replaced by a renamed note). The edit belongs to the
       // old note's history as it always did.
       const doc = this.doc(existing.id);
-      const update = updateDocContent(doc, content);
+      const update = this.splice(existing.id, doc, content);
       if (update) this.logUpdate(existing.id, update, null);
     } else {
       this.recordContent(note.id, content, null);
@@ -554,7 +554,7 @@ export class VaultStore {
       doc = docFromUpdates(log.map((r) => r.update));
       // Disk may have moved ahead of the log (edited outside Basalt) — reconcile.
       if (note && docContent(doc) !== note.content) {
-        const u = updateDocContent(doc, note.content);
+        const u = this.splice(noteId, doc, note.content);
         if (u) this.logUpdate(noteId, u, null);
       }
     } else {
@@ -563,6 +563,22 @@ export class VaultStore {
     }
     this.cacheDoc(noteId, doc);
     return doc;
+  }
+
+  /**
+   * `updateDocContent`, forgetting the doc if the splice does not land as
+   * asked (it throws rather than leave a doc that reads otherwise — audit
+   * STO-001). The bad splice is never logged, so the doc is rebuilt clean
+   * from the log next time it is needed.
+   */
+  private splice(noteId: string, doc: Y.Doc, content: string, origin?: unknown): string | null {
+    try {
+      return updateDocContent(doc, content, origin);
+    } catch (err) {
+      if (this.docs.get(noteId) === doc) this.docs.delete(noteId);
+      doc.destroy();
+      throw err;
+    }
   }
 
   private logUpdate(noteId: string, update: string, authorId: string | null): void {
@@ -587,7 +603,7 @@ export class VaultStore {
       return;
     }
     const doc = this.doc(noteId);
-    const update = updateDocContent(doc, content, authorId ?? undefined);
+    const update = this.splice(noteId, doc, content, authorId ?? undefined);
     if (update) this.logUpdate(noteId, update, authorId);
   }
 
@@ -788,7 +804,15 @@ export class VaultStore {
       const doc = this.doc(existing.id);
       // By here `content` already carries everyone's edits (merged above), so
       // one splice onto the live doc records it faithfully.
-      const update = updateDocContent(doc, finalContent, user.id);
+      let update: string | null;
+      try {
+        update = this.splice(existing.id, doc, finalContent, user.id);
+      } catch (err) {
+        // Nothing has been written yet, and nothing will be: refusing the
+        // save is recoverable, damaged text in the vault is not.
+        if (err instanceof SpliceMismatchError) throw new HttpError(500, "This edit could not be recorded exactly, so nothing was saved.");
+        throw err;
+      }
       if (update) this.logUpdate(existing.id, update, user.id);
       finalContent = docContent(doc);
     }
