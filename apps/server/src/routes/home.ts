@@ -20,7 +20,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { buildRules, financeNote, planSavings, statementsFor, typicalAround } from "./finance.js";
+import { buildRules, financeNote, netTotals, planSavings, statementsFor, typicalAround } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -245,7 +245,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        * reported, underneath, where it cannot be mistaken for the headline.
        */
       spending: (() => {
-        const { txns, complete } = statementsFor(store, user);
+        const { txns, complete, currency } = statementsFor(store, user);
         if (txns.length === 0) return null;
         const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
@@ -266,7 +266,8 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
           payslipNet: (slipNote ? parsePayslipTable(slipNote.content) : [])
             .map((r) => r.net)
             .filter((n): n is number => n !== null),
-          ledgerIncome: monthlyTotals(income).reduce((a, t) => a + t.monthly, 0),
+          ledger: monthlyTotals(income),
+          currency,
         });
 
         const month = finished[finished.length - 1]!;
@@ -324,14 +325,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         /** In minus out, per currency. Only currencies that appear on both sides
          *  can net honestly; one that appears on a single side is passed through
          *  as-is rather than being converted at a rate we do not have. */
-        net: (() => {
-          const by = new Map<string, number>();
-          for (const s of income) by.set(s.currency, (by.get(s.currency) ?? 0) + s.monthly);
-          for (const s of subscriptions) by.set(s.currency, (by.get(s.currency) ?? 0) - s.monthly);
-          return [...by]
-            .map(([currency, monthly]) => ({ currency, monthly: Math.round(monthly * 100) / 100 }))
-            .sort((a, b) => Math.abs(b.monthly) - Math.abs(a.monthly));
-        })(),
+        net: netTotals(income, subscriptions),
       },
     };
   });

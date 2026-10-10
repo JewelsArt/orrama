@@ -48,6 +48,13 @@ const svgButton = (label: string, act: () => void) => ({
 
 const eur = (n: number, currency = "EUR") =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency, signDisplay: n < 0 ? "always" : "auto" }).format(n);
+/**
+ * Ledger totals, one per currency, each in its own: "€1,500.00 · $500.00".
+ * Never summed — a $12 subscription is not €12, and there is no rate here to
+ * make it one (FIN-017).
+ */
+const perCurrency = (totals: { currency: string; monthly: number }[]) =>
+  totals.length === 0 ? eur(0) : totals.map((t) => eur(t.monthly, t.currency)).join(" · ");
 const monthName = (m: string) =>
   new Date(`${m}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "2-digit" });
 /** "3 Sept 2026" — a full date, for the ends of a range. */
@@ -1095,8 +1102,8 @@ function FinanceOverview({
           </div>
           <div className="fin-card fin-mini">
             <span className="fin-kpi-lbl">Net recurring</span>
-            <b className={d.summary.net < 0 ? "down" : ""}>{eur(d.summary.net)}</b>
-            <span className="fin-kpi-sub">{eur(d.summary.inPerMonth)} in · {eur(d.summary.outPerMonth)} out</span>
+            <b className={(d.summary.net[0]?.monthly ?? 0) < 0 ? "down" : ""}>{perCurrency(d.summary.net)}</b>
+            <span className="fin-kpi-sub">{perCurrency(d.income.totals)} in · {perCurrency(d.subscriptions.totals)} out</span>
           </div>
         </div>
       </div>
@@ -1164,7 +1171,7 @@ function FinanceOverview({
             <h2>Commitments</h2>
             <span className="fin-count">{d.subscriptions.count}</span>
           </span>
-          <b style={{ color: "var(--cat-azure)" }}>{eur(d.summary.outPerMonth)}</b>
+          <b style={{ color: "var(--cat-azure)" }}>{perCurrency(d.subscriptions.totals)}</b>
           <span className="fin-jump-sub">a month — subscriptions, rent and tuition</span>
           <NextUp items={d.subscriptions.items} />
           <span className="fin-hero-go">Open the calendar →</span>
@@ -1175,7 +1182,7 @@ function FinanceOverview({
             <h2>Income</h2>
             <span className="fin-count">{d.income.count}</span>
           </span>
-          <b style={{ color: "var(--fin-pos)" }}>{eur(d.summary.inPerMonth)}</b>
+          <b style={{ color: "var(--fin-pos)" }}>{perCurrency(d.income.totals)}</b>
           <span className="fin-jump-sub">a month, across {d.income.count} sources</span>
           <NextUp items={d.income.items} />
           <span className="fin-hero-go">Open the calendar →</span>
@@ -1630,7 +1637,6 @@ function LedgerPage({
   const ledger = income ? d.income : d.subscriptions;
   const tint = LEDGER_TINT[kind];
   const noteId = income ? d.notes.income : d.notes.subscriptions;
-  const monthly = ledger.totals.reduce((a, t) => a + t.monthly, 0);
   const dueIn = (items: Money[]) =>
     items.reduce((a, m) => a + chargeDays(month, m.next, m.cadence).length * m.amount, 0);
   const dueThis = dueIn(ledger.items);
@@ -1672,7 +1678,7 @@ function LedgerPage({
           <div>
             <h1 className="fin-h1">{LEDGER_LABEL[kind]}</h1>
             <p className="fin-sub">
-              {ledger.count} {income ? "sources" : "subscriptions, rent and tuition"} · {eur(monthly)} a month
+              {ledger.count} {income ? "sources" : "subscriptions, rent and tuition"} · {perCurrency(ledger.totals)} a month
             </p>
           </div>
         </div>

@@ -161,8 +161,11 @@ export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeo
  * off the coverage (fullMonths), never inferred from which months had
  * spending in them (FIN-008).
  */
-export function loadStatements(root: string, own: OwnAccount[] = []): { txns: ReturnType<typeof parseStatement>["rows"]; complete: string[] } {
-  const files = statements(root).files;
+export function loadStatements(
+  root: string,
+  own: OwnAccount[] = [],
+): { txns: ReturnType<typeof parseStatement>["rows"]; complete: string[]; currency: string } {
+  const { files, currency } = statements(root);
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
   for (const file of files) {
@@ -182,7 +185,11 @@ export function loadStatements(root: string, own: OwnAccount[] = []): { txns: Re
   // a refund to net off the deposit (ownAccounts.ts).
   // Each refund comes off the purchase it refunds, in that purchase's month,
   // or — bought before these statements begin — off nothing (spending.ts).
-  return { txns: settleRefunds(markOwnAccounts(rows, own)), complete: fullMonths(coverageOf(files.map((f) => f.rows))) };
+  return {
+    txns: settleRefunds(markOwnAccounts(rows, own)),
+    complete: fullMonths(coverageOf(files.map((f) => f.rows))),
+    currency,
+  };
 }
 
 /** The own-accounts list — a broker, a savings pot — from the note tagged #own-accounts. */
@@ -193,7 +200,9 @@ export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["r
 
 /** loadStatements with the reader's own-accounts list applied — what every endpoint wants. */
 export const statementsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
-  canReadFinanceFiles(store, user) ? loadStatements(store.vaultRoot, ownAccountsFor(store, user)) : { txns: [], complete: [] };
+  canReadFinanceFiles(store, user)
+    ? loadStatements(store.vaultRoot, ownAccountsFor(store, user))
+    : { txns: [], complete: [], currency: "EUR" };
 
 /** Just the transactions, for a page that never asks which months are complete. */
 export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) => statementsFor(store, user).txns;
@@ -403,6 +412,26 @@ export function savingsCategories(names: string[], finished: CategoryMonthOf[]):
 type CategoryMonthOf = ReturnType<typeof monthlyByCategory>[number];
 
 /**
+ * The ledgers' in minus out, per currency. A currency on one side only is
+ * passed through as it is rather than converted at a rate nobody has:
+ * monthlyTotals keeps currencies apart because "mixing EUR and USD into one
+ * number would be a lie", and summing its entries anyway put a $12
+ * subscription into "Net recurring" as €12 (audit FIN-017). Shared by the
+ * Finance tab and the Dashboard.
+ */
+export function netTotals(
+  income: { currency: string; monthly: number }[],
+  out: { currency: string; monthly: number }[],
+): { currency: string; monthly: number }[] {
+  const by = new Map<string, number>();
+  for (const s of income) by.set(s.currency, (by.get(s.currency) ?? 0) + s.monthly);
+  for (const s of out) by.set(s.currency, (by.get(s.currency) ?? 0) - s.monthly);
+  return [...by]
+    .map(([currency, monthly]) => ({ currency, monthly: Math.round(monthly * 100) / 100 }))
+    .sort((a, b) => Math.abs(b.monthly) - Math.abs(a.monthly));
+}
+
+/**
  * What one month is judged against: the median of the complete months around
  * it, ITSELF EXCLUDED — a month is not evidence for what is typical of it.
  * Every "this month against typical" comparison reads this: the month page,
@@ -432,7 +461,7 @@ export function typicalAround(complete: CategoryMonthOf[], month: string, catego
 export function planSavings(
   txns: ReturnType<typeof parseStatement>["rows"],
   finished: CategoryMonthOf[],
-  fallback: { payslipNet: number[]; ledgerIncome: number },
+  fallback: { payslipNet: number[]; ledger: { currency: string; monthly: number }[]; currency: string },
 ) {
   const outflow = new Map(outflowByMonth(inMainPocket(txns)).map((o) => [o.month, o.outflow]));
   const months = finished.map((m) => m.month);
@@ -444,7 +473,9 @@ export function planSavings(
     // derived from. Spend alone understates it by every standing transfer.
     outflowMonths: finished.map((m) => outflow.get(m.month) ?? m.total),
     payslipNet: fallback.payslipNet,
-    ledgerIncome: fallback.ledgerIncome,
+    // The income note in the statement's currency only: $500 a month is not
+    // €500 (FIN-017), and there is no rate here to convert it at.
+    ledgerIncome: fallback.ledger.find((t) => t.currency === fallback.currency)?.monthly ?? 0,
     drift: savingsDrift(txns, months),
   });
 }
@@ -494,14 +525,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const income = incomeNote ? parseSubscriptions(incomeNote.content, today) : [];
     const payslips = slipNote ? parsePayslipTable(slipNote.content) : [];
 
-    const sum = (t: { monthly: number }[]) => t.reduce((a, b) => a + b.monthly, 0);
-    const inPerMonth = sum(monthlyTotals(income));
-    const outPerMonth = sum(monthlyTotals(subscriptions));
-    const net = Math.round((inPerMonth - outPerMonth) * 100) / 100;
 
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
-    const { txns, complete } = statementsFor(store, user);
+    const { txns, complete, currency } = statementsFor(store, user);
     const filesReadable = canReadFinanceFiles(store, user);
     const { balance, balanceDate, skipped } = filesReadable
       ? balanceSpan(store.vaultRoot)
@@ -673,7 +700,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      */
     const savings = planSavings(txns, finished, {
       payslipNet: payslips.map((r) => r.net).filter((n): n is number => n !== null),
-      ledgerIncome: inPerMonth,
+      ledger: monthlyTotals(income),
+      currency,
     });
 
     let files: { name: string; size: number; mtimeMs: number; ext: string }[] = [];
@@ -712,9 +740,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       savings,
       recurring,
       summary: {
-        inPerMonth: Math.round(inPerMonth * 100) / 100,
-        outPerMonth: Math.round(outPerMonth * 100) / 100,
-        net,
+        /** In minus out per currency; the ledgers' own totals are on income/subscriptions. */
+        net: netTotals(income, subscriptions),
         balance: effectiveBalance,
         balanceDate,
         runwayMonths,

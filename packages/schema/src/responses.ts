@@ -520,9 +520,8 @@ export const financeResponse = o({
   savings: savingsSchema,
   recurring: z.array(recurringSchema),
   summary: o({
-    inPerMonth: z.number(),
-    outPerMonth: z.number(),
-    net: z.number(),
+    /** Income minus commitments, per currency — never summed across them. */
+    net: totals,
     balance: nnum,
     balanceDate: nstr,
     runwayMonths: nnum,

@@ -98,8 +98,13 @@ beforeAll(async () => {
     note(
       "Subscriptions",
       "subscriptions",
-      "| Service | Amount | Every | Next | Match |\n|---|---|---|---|---|\n| Pathe Unlimited | 24.99 | monthly | 2026-10-12 | pathe |\n| NS Flex | 99 | monthly | 2026-10-12 | =ns |\n| Döner Club | 12 | monthly | 2026-10-12 | |",
+      "| Service | Amount | Every | Next | Match |\n|---|---|---|---|---|\n| Pathe Unlimited | 24.99 | monthly | 2026-10-12 | pathe |\n| NS Flex | 99 | monthly | 2026-10-12 | =ns |\n| Döner Club | 12 | monthly | 2026-10-12 | |\n| GitHub | $12 | monthly | 2026-10-12 | github |",
     ),
+  );
+  // Income in two currencies: the dollars are never euros (FIN-017).
+  fs.writeFileSync(
+    path.join(FIN, "income.md"),
+    note("Income", "income", "| Source | Amount | Every | Next | Match |\n|---|---|---|---|---|\n| Salary | 1800 | monthly | 2026-10-01 | employer bv |\n| Freelance | $500 | monthly | 2026-10-15 | |"),
   );
   await import("../src/seed.js");
   app = (await buildServer()).app;
@@ -213,7 +218,7 @@ describe("one pocket's balance (FIN-002)", () => {
   const plan = (csv: string) => {
     const { txns, complete } = loadStatements(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
     const finished = completeMonths(monthlyByCategory(txns, []), complete);
-    return { txns, finished, savings: planSavings(txns, finished, { payslipNet: [], ledgerIncome: 0 }) };
+    return { txns, finished, savings: planSavings(txns, finished, { payslipNet: [], ledger: [], currency: "EUR" }) };
   };
 
   it("reads the trend off the main pocket, not whichever pocket moved last", () => {
@@ -434,5 +439,41 @@ describe("one typical for a month and the page it opens (FIN-014)", () => {
       const row = home.spending.categories.find((c: { category: string }) => c.category === "Groceries");
       expect(row.typical).toBe(groceries.typical);
     });
+  });
+});
+
+describe("ledger totals stay in their own currency (FIN-017)", () => {
+  it("nets in and out per currency on the Finance tab and the Dashboard alike", async () => {
+    const d = await get("/api/finance");
+    const home = await get("/api/home");
+    // EUR: 1,800 − (24.99 + 99 + 12); USD: 500 − 12. Not one "€2,152.01".
+    expect(d.summary.net).toEqual([
+      { currency: "EUR", monthly: 1664.01 },
+      { currency: "USD", monthly: 488 },
+    ]);
+    expect(home.finance.net).toEqual(d.summary.net);
+    expect(d.summary).not.toHaveProperty("inPerMonth");
+    expect(d.summary).not.toHaveProperty("outPerMonth");
+  });
+
+  it("gives the savings plan only the statement's currency from the income note", () => {
+    // No balance column, no payslips: the plan falls back to the income note.
+    const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "ledger-"));
+    fs.mkdirSync(path.join(root, "02-Areas/finance/files"), { recursive: true });
+    const rows = ["Type,Completed Date,Description,Amount,Fee,Currency,State"];
+    for (const m of ["2026-01", "2026-02", "2026-03"]) {
+      rows.push(`Card Payment,${m}-01 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED`);
+      rows.push(`Card Payment,${m}-${m === "2026-02" ? "28" : "31"} 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED`);
+    }
+    fs.writeFileSync(path.join(root, "02-Areas/finance/files/s.csv"), rows.join("\n"));
+    const { txns, complete, currency } = loadStatements(root);
+    const finished = completeMonths(monthlyByCategory(txns, []), complete);
+    const plan = planSavings(txns, finished, {
+      payslipNet: [],
+      ledger: [{ currency: "EUR", monthly: 1800 }, { currency: "USD", monthly: 500 }],
+      currency,
+    });
+    expect(plan.incomeSource).toBe("ledger");
+    expect(plan.incomeMonthly).toBe(1800);
   });
 });
