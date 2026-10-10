@@ -546,6 +546,8 @@ export const financeResponse = o({
           high: z.number(),
           months: z.number(),
           last: nnum,
+          /** What `last` is compared against: the months around it, itself excluded. */
+          lastTypical: z.number(),
           merchants: z.array(merchantTotal),
         }),
       ),

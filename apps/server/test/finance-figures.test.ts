@@ -404,3 +404,35 @@ describe("a ledger line's Match terms (FIN-010)", () => {
     });
   });
 });
+
+describe("one typical for a month and the page it opens (FIN-014)", () => {
+  // Groceries €300, €400, €500 and then a €900 September.
+  const { csv } = statement((row) => {
+    for (const [m, groceries] of [["2026-06", 300], ["2026-07", 400], ["2026-08", 500], ["2026-09", 900]] as const) {
+      row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1800);
+      row(`${m}-02`, "Transfer", "To Stichting DUWO", -609);
+      row(`${m}-10`, "Card Payment", "ALBERT HEIJN", -groceries);
+    }
+    row("2026-10-01", "Transfer", "Payment from EMPLOYER BV", 1800);
+  });
+
+  it("is the month page's figure on the top card and the Dashboard", async () => {
+    await withStatements({ "spike.csv": csv }, async () => {
+      const d = await get("/api/finance");
+      const home = await get("/api/home");
+      const page = await get("/api/finance/month/2026-09");
+      const groceries = await get("/api/finance/month/2026-09?category=Groceries");
+      expect(groceries.typical).toBe(400); // June–August; not 450 with September in it
+
+      const card = d.spending.categories.forecast.find((f: { category: string }) => f.category === "Groceries");
+      expect(card.last).toBe(900);
+      expect(card.lastTypical).toBe(groceries.typical);
+      expect(card.typical).toBe(450); // "a typical month" still spans every complete month
+
+      expect(home.spending.month).toBe("2026-09");
+      expect(home.spending.typical).toBe(page.typical);
+      const row = home.spending.categories.find((c: { category: string }) => c.category === "Groceries");
+      expect(row.typical).toBe(groceries.typical);
+    });
+  });
+});

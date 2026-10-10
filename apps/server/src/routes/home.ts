@@ -10,7 +10,6 @@ import type { FastifyInstance } from "fastify";
 import {
   completeMonths,
   recentMonths,
-  forecast,
   monthlyByCategory,
   monthlyTotals,
   parseCategoryRules,
@@ -21,7 +20,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { buildRules, financeNote, planSavings, statementsFor } from "./finance.js";
+import { buildRules, financeNote, planSavings, statementsFor, typicalAround } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -252,14 +251,13 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
         const catMonths = monthlyByCategory(txns, rules);
         const last = txns[txns.length - 1]!.date;
-        const finished = recentMonths(completeMonths(catMonths, complete)); // the same window as the Finance tab
-        const outlook = forecast(finished);
+        const allComplete = completeMonths(catMonths, complete);
+        const finished = recentMonths(allComplete); // the same window as the Finance tab
         // One typicalMonth(), shared with the Finance tab (audit). It answers
         // null under three complete months, which is the same threshold the
         // card's own empty state already tells the user about — so the card is
         // withheld rather than leading with "below a typical €0".
-        const typical = typicalMonth(finished);
-        if (typical === null) return null;
+        if (typicalMonth(finished) === null) return null;
 
         const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
         // The Finance tab's own planSavings, so the two screens cannot quote
@@ -272,6 +270,9 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         });
 
         const month = finished[finished.length - 1]!;
+        // The card leads with a month and opens that month's page, so it
+        // compares the way the page does: against the months around it,
+        // itself excluded (typicalAround).
         const running = catMonths.find((m) => m.month === last.slice(0, 7));
         const [y, mo, d] = last.split("-").map(Number) as [number, number, number];
         const colourOf = (name: string) => rules.find((r) => r.category === name)?.colour ?? null;
@@ -280,13 +281,13 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
           /** The last COMPLETE month — the one the card leads with. */
           month: month.month,
           total: month.total,
-          typical,
+          typical: typicalAround(allComplete, month.month, null),
           /** Its biggest categories, each a door to that month filtered. */
           categories: Object.entries(month.byCategory)
             .map(([category, total]) => ({
               category,
               total: Math.round(total * 100) / 100,
-              typical: outlook.find((f) => f.category === category)?.typical ?? 0,
+              typical: typicalAround(allComplete, month.month, category),
               colour: colourOf(category),
             }))
             .sort((a, b) => b.total - a.total)

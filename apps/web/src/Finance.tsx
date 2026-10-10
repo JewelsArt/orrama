@@ -1110,7 +1110,9 @@ function FinanceOverview({
       <div className="fin-tops">
         {top.map((f) => {
           const was = f.last ?? 0;
-          const delta = was - f.typical;
+          // Against the months around it, itself excluded — the typical the
+          // month page this card opens shows (FIN-014).
+          const delta = was - f.lastTypical;
           return (
             <button
               key={f.category}
@@ -1124,7 +1126,7 @@ function FinanceOverview({
               </span>
               <b>{eur(was)}</b>
               <span className="fin-top-sub">
-                {lastComplete ? monthName(lastComplete) : "last month"} · typically {eur(f.typical)}
+                {lastComplete ? monthName(lastComplete) : "last month"} · typically {eur(f.lastTypical)}
               </span>
               <span className={`fin-top-delta ${delta > 0 ? "over" : "under"}`}>
                 {delta === 0 ? "as usual" : `${delta > 0 ? "▲" : "▼"} ${eur(Math.abs(delta))}`}

@@ -86,10 +86,15 @@ describe("one typical month", () => {
     expect(fin.spending.categories.typical).toBe(300);
   });
 
-  it("is the same number on the dashboard as in the Finance tab", async () => {
-    const [fin, home] = await Promise.all([get("/api/finance"), get("/api/home")]);
+  it("is the month page's number on the dashboard, for the month the card leads with", async () => {
+    // The card compares one month, so it uses the month page's typical: the
+    // months around it, itself excluded (FIN-014) — April (600) against
+    // January to March, a month that happened, not the €150 sum of medians.
+    const home = await get("/api/home");
     expect(home.spending).not.toBeNull();
-    expect(home.spending.typical).toBe(fin.spending.categories.typical);
+    const page = await get(`/api/finance/month/${home.spending.month}`);
+    expect(home.spending.typical).toBe(page.typical);
+    expect(home.spending.typical).toBe(300);
   });
 
   it("is the same number on the month page, less the month being looked at", async () => {

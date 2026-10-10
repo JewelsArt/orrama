@@ -403,6 +403,23 @@ export function savingsCategories(names: string[], finished: CategoryMonthOf[]):
 type CategoryMonthOf = ReturnType<typeof monthlyByCategory>[number];
 
 /**
+ * What one month is judged against: the median of the complete months around
+ * it, ITSELF EXCLUDED — a month is not evidence for what is typical of it.
+ * Every "this month against typical" comparison reads this: the month page,
+ * the Finance tab's top cards and the Dashboard card that open it. The cards
+ * used to compare a month with a median that included it, so one click
+ * showed two typicals for the same month and a €900 spike was judged against
+ * €450 instead of €400 (audit FIN-014).
+ *
+ * No three-month floor, unlike the "a typical month" headline: that is an
+ * assertion about the data and wants evidence, while this is a comparison
+ * that simply gets weaker with fewer months.
+ */
+export function typicalAround(complete: CategoryMonthOf[], month: string, category: string | null): number {
+  return typicalMonth(monthsAround(complete, month), category, 1) ?? 0;
+}
+
+/**
  * The savings plan, as the Finance tab and the Dashboard both quote it. One
  * function, so the two screens cannot build its inputs differently — they
  * once did (a null drift on one side sent it down the payslip fallback) and
@@ -525,8 +542,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // partial month would drag every category's expectation down — and from
     // the last TYPICAL_WINDOW of them: "typical" means now, not a median
     // across every year on record.
-    const finished = recentMonths(completeMonths(catMonths, complete));
+    const allComplete = completeMonths(catMonths, complete);
+    const finished = recentMonths(allComplete);
     const outlook = forecast(finished);
+    const lastComplete = finished.length ? finished[finished.length - 1]!.month : null;
     const windowed = new Set(finished.map((m) => m.month));
     const merchants = merchantsByCategory(txns.filter((r) => windowed.has(r.date.slice(0, 7))), rules);
     const { spanMonths, drift } = balanceTrend(txns, finished.map((m) => m.month));
@@ -713,7 +732,13 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           noteId: rulesNote?.id ?? null,
           rules: rules.map((r) => ({ category: r.category, colour: r.colour })),
           months: catMonths,
-          forecast: outlook.map((f) => ({ ...f, merchants: merchants[f.category] ?? [] })),
+          forecast: outlook.map((f) => ({
+            ...f,
+            /** What `last` is compared against: the months around it, itself
+             *  excluded — the same figure the month page it opens shows. */
+            lastTypical: lastComplete ? typicalAround(allComplete, lastComplete, f.category) : 0,
+            merchants: merchants[f.category] ?? [],
+          })),
           /**
            * A typical month, computed HERE rather than summed from `forecast`
            * in the client. The web app used to add up each category's median,
@@ -724,7 +749,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
           completeMonths: finished.length,
           /** Last month the statement covers in full — anything after it is a
            *  part-month and must not be compared against the others. */
-          lastComplete: finished.length ? finished[finished.length - 1]!.month : null,
+          lastComplete,
         },
         txnCount: txns.length,
         skipped,
@@ -902,22 +927,12 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         byCategory.set(cat, at);
       }
       /**
-       * The complete months this one is being compared against — itself
-       * excluded, because a month is not evidence for what is typical of it.
-       * Both comparisons on this page (the header and each category row) read
-       * from here through the one `typicalMonth` in core.
-       *
-       * No three-month floor here, unlike the overview's headline. The two are
-       * different claims: "a typical month costs €X" is an assertion about the
-       * data and wants evidence behind it, while "this month against the
-       * others" is a comparison that simply gets weaker with fewer months. The
-       * floor also contradicts a release-blocking test — the category
-       * comparison at finance.test.ts has three complete months, so excluding
-       * the one being read leaves two.
+       * This month against the complete months around it, itself excluded
+       * (typicalAround) — for the header and each category row alike. No
+       * three-month floor: the category comparison finance.test.ts pins has
+       * three complete months, so excluding the one being read leaves two.
        */
-      // The months around this one, not every month on record (see monthsAround).
-      const others = monthsAround(finished, month);
-      const typicalOther = (category: string | null) => typicalMonth(others, category, 1) ?? 0;
+      const typicalOther = (category: string | null) => typicalAround(finished, month, category);
 
       const categories = [...byCategory]
         .map(([category, v]) => ({
