@@ -35,6 +35,7 @@ import {
   parseSubscriptions,
   payslipUsable,
   savingsPlan,
+  inMainPocket,
   subscriptionTerms,
   typicalMonth,
   usefulTerms,
@@ -190,7 +191,9 @@ export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable
 export function savingsDrift(txns: ReturnType<typeof parseStatement>["rows"], months: string[]): number | null {
   const { drift } = balanceTrend(txns, months);
   if (drift === null || months.length === 0) return drift;
-  const saved = ownSavedByMonth(txns);
+  // The same pocket as the balance: a deposit is added back onto the slope
+  // only if it came out of the account whose slope this is.
+  const saved = ownSavedByMonth(inMainPocket(txns));
   return drift + months.reduce((a, m) => a + (saved.get(m) ?? 0), 0) / months.length;
 }
 
@@ -267,7 +270,8 @@ export function balanceTrend(
   if (months.length === 0) return none;
   const start = months[0]!;
   const end = months[months.length - 1]!;
-  const priced = txns.filter((r) => r.balance !== null);
+  // One pocket's running balance: Savings' balance is not Current's (FIN-002).
+  const priced = inMainPocket(txns).filter((r) => r.balance !== null);
   const before = priced.filter((r) => r.date.slice(0, 7) < start).at(-1);
   const first = priced.find((r) => r.date.slice(0, 7) >= start);
   // Balance after a row = balance before + amount - fee, so before = after - amount + fee.
@@ -358,6 +362,36 @@ export function savingsCategories(names: string[], finished: CategoryMonthOf[]):
   return out;
 }
 type CategoryMonthOf = ReturnType<typeof monthlyByCategory>[number];
+
+/**
+ * The savings plan, as the Finance tab and the Dashboard both quote it. One
+ * function, so the two screens cannot build its inputs differently — they
+ * once did (a null drift on one side sent it down the payslip fallback) and
+ * quoted two targets from one set of numbers.
+ *
+ * Money out is read from the same pocket as the balance it is set against:
+ * the identity money in = money out + the balance change holds within one
+ * account, and a Savings→Current withdrawal is not money that left (FIN-002).
+ */
+export function planSavings(
+  txns: ReturnType<typeof parseStatement>["rows"],
+  finished: CategoryMonthOf[],
+  fallback: { payslipNet: number[]; ledgerIncome: number },
+) {
+  const outflow = new Map(outflowByMonth(inMainPocket(txns)).map((o) => [o.month, o.outflow]));
+  const months = finished.map((m) => m.month);
+  return savingsPlan({
+    categories: savingsCategories(forecast(finished).map((f) => f.category), finished),
+    months,
+    spendMonths: finished.map((m) => m.total),
+    // Everything that LEFT, transfers included — the identity money-in is
+    // derived from. Spend alone understates it by every standing transfer.
+    outflowMonths: finished.map((m) => outflow.get(m.month) ?? m.total),
+    payslipNet: fallback.payslipNet,
+    ledgerIncome: fallback.ledgerIncome,
+    drift: savingsDrift(txns, months),
+  });
+}
 
 const rowSchema = z.object({
   // Trimmed and length-capped: these land in a Markdown table a human reads.
@@ -579,17 +613,9 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      * model — it is deliberately derived from Jules's own months rather than
      * from a rule of thumb.
      */
-    const outflow = new Map(outflowByMonth(txns).map((o) => [o.month, o.outflow]));
-    const savings = savingsPlan({
-      categories: savingsCategories(outlook.map((f) => f.category), finished),
-      months: finished.map((m) => m.month),
-      spendMonths: finished.map((m) => m.total),
-      // Everything that LEFT, transfers included — the identity money-in is
-      // derived from. Spend alone understates it by every standing transfer.
-      outflowMonths: finished.map((m) => outflow.get(m.month) ?? m.total),
+    const savings = planSavings(txns, finished, {
       payslipNet: payslips.map((r) => r.net).filter((n): n is number => n !== null),
       ledgerIncome: inPerMonth,
-      drift: savingsDrift(txns, finished.map((m) => m.month)),
     });
 
     let files: { name: string; size: number; mtimeMs: number; ext: string }[] = [];

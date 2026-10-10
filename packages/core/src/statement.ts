@@ -285,12 +285,8 @@ export function parseStatement(csv: string): Statement {
 
   // The balance is whatever the last settled row says it was — the statement's
   // own arithmetic, not ours, so it cannot drift from the bank's. The running
-  // balance is per pocket, so it is read from the pocket most rows move: a
-  // Savings row's balance is not the current account's.
-  const pockets = new Map<string, number>();
-  for (const r of rows) if (r.balance !== null) pockets.set(r.product ?? "", (pockets.get(r.product ?? "") ?? 0) + 1);
-  const pocket = [...pockets.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
-  const withBalance = rows.filter((r) => r.balance !== null && (r.product ?? "") === pocket);
+  // balance is per pocket, so it is read from the main pocket (mainPocket).
+  const withBalance = inMainPocket(rows).filter((r) => r.balance !== null);
   const last = withBalance[withBalance.length - 1];
   const first = withBalance[0];
 
@@ -305,6 +301,36 @@ export function parseStatement(csv: string): Statement {
     skipped: skipped + foreign,
     otherCurrency: foreign,
   };
+}
+
+/**
+ * The pocket a statement's balances belong to: the one most rows WITH a
+ * balance move (Revolut's Product — Current, Savings…). Undefined when no row
+ * carries a balance.
+ *
+ * Revolut prints a running balance per pocket, so a transfer to savings shows
+ * up twice: on Current with Current's balance and on Savings with the
+ * Savings balance. Read across pockets, the "closing balance" was whichever
+ * moved last — €12,000 of savings as the current account's closing figure,
+ * and a drift of +€2,750 a month for an account growing by €300 (audit
+ * FIN-002). Every balance reading goes through this one choice: the Balance
+ * card, the trend behind burn and runway, and the savings plan's money in.
+ */
+export function mainPocket(rows: StatementRow[]): string | undefined {
+  const pockets = new Map<string, number>();
+  for (const r of rows) if (r.balance !== null) pockets.set(r.product ?? "", (pockets.get(r.product ?? "") ?? 0) + 1);
+  return [...pockets.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+}
+
+/**
+ * The rows of the main pocket — every row when no row carries a balance,
+ * because then there is no balance to keep consistent with. The savings
+ * identity (money in = money out + the balance change) only holds within one
+ * account: a Savings→Current withdrawal is not money that left.
+ */
+export function inMainPocket(rows: StatementRow[]): StatementRow[] {
+  const pocket = mainPocket(rows);
+  return pocket === undefined ? rows : rows.filter((r) => (r.product ?? "") === pocket);
 }
 
 /** Words too generic to identify a merchant on their own. */

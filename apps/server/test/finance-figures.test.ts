@@ -22,29 +22,47 @@ const VAULT = process.env.BASALT_VAULT_DIR;
 const FIN = path.join(VAULT, "02-Areas/finance");
 const note = (title: string, tag: string, body: string) => `---\ntitle: ${title}\ntags:\n  - ${tag}\n---\n\n${body}\n`;
 
-/** A Revolut-shaped export with a running balance on the Current pocket. */
-function statement(build: (row: (date: string, type: string, what: string, amount: number) => void) => void): string {
-  let balance = 1000;
+/**
+ * A Revolut-shaped export. Each pocket keeps its own running balance, the way
+ * Revolut prints it; `at` records Current's balance after every row so a test
+ * can read the true slope off it.
+ */
+function statement(build: (row: (date: string, type: string, what: string, amount: number, pocket?: string) => void) => void) {
+  const balance: Record<string, number> = { Current: 1000, Savings: 10_000 };
+  const current: { date: string; balance: number }[] = [];
   const lines = ["Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance"];
-  build((date, type, what, amount) => {
-    balance = Math.round((balance + amount) * 100) / 100;
-    lines.push(`${type},Current,${date} 10:00:00,${date} 10:00:00,${what},${amount.toFixed(2)},0.00,EUR,COMPLETED,${balance.toFixed(2)}`);
+  let tick = 0; // a second apiece, so same-day rows keep the order they were written in
+  build((date, type, what, amount, pocket = "Current") => {
+    balance[pocket] = Math.round((balance[pocket]! + amount) * 100) / 100;
+    if (pocket === "Current") current.push({ date, balance: balance[pocket]! });
+    const t = tick++;
+    const at = `${date} 10:${String(Math.floor(t / 60) % 60).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    lines.push(`${type},${pocket},${at},${at},${what},${amount.toFixed(2)},0.00,EUR,COMPLETED,${balance[pocket]!.toFixed(2)}`);
   });
-  return lines.join("\n");
+  /** Current's balance at the end of a day (or before any row: 1000). */
+  const currentAt = (date: string) => current.filter((c) => c.date <= date).at(-1)?.balance ?? 1000;
+  return { csv: lines.join("\n"), currentAt };
 }
 
 const MONTHS = ["2026-06", "2026-07", "2026-08", "2026-09"];
-const STATEMENT = statement((row) => {
+const { csv: STATEMENT, currentAt } = statement((row) => {
   for (const m of MONTHS) {
     row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1800);
     row(`${m}-02`, "Transfer", "To Stichting DUWO", -609); // rent, by transfer, claimed by the Home rule
     row(`${m}-10`, "Card Payment", "ALBERT HEIJN", -300);
     row(`${m}-12`, "Card Payment", "COOLBLUE", -200); // bought...
     row(`${m}-14`, "Card Refund", "COOLBLUE", 200); //    ...and returned
+    // A Savings pocket in the same export: the move is printed on both
+    // pockets, the Savings row last, with the Savings balance (FIN-002).
+    row(`${m}-28`, "Transfer", "To Savings", -200);
+    row(`${m}-28`, "Transfer", "From Current", 200, "Savings");
   }
   row("2026-07-20", "Card Payment", "ZALANDO", -100);
   row("2026-07-28", "Card Refund", "ZALANDO", 40); // part of it sent back
+  row("2026-08-15", "Transfer", "To Current", -150, "Savings"); // a withdrawal: not money that left
+  row("2026-08-15", "Transfer", "From Savings", 150);
   row("2026-09-30", "Card Payment", "ALBERT HEIJN", -1); // the export reaches September's last day
+  row("2026-09-30", "Transfer", "Savings interest", 3, "Savings");
   // October so far: rent and some groceries, export taken on the 9th.
   row("2026-10-01", "Transfer", "Payment from EMPLOYER BV", 1800);
   row("2026-10-02", "Transfer", "To Stichting DUWO", -609);
@@ -52,6 +70,8 @@ const STATEMENT = statement((row) => {
 });
 
 const { buildServer } = await import("../src/main.js");
+const { balanceTrend, loadTxns, planSavings } = await import("../src/routes/finance.js");
+const { completeMonths, mainPocket, monthlyByCategory, parseStatement } = await import("@basalt/core");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
 const get = async (url: string) => {
@@ -137,5 +157,73 @@ describe("what a month cost (FIN-001)", () => {
     const page = await get("/api/finance/merchant/COOLBLUE?year=2026");
     expect(page.direction).toBe("out");
     expect(page.stats.total).toBe(0);
+  });
+});
+
+describe("one pocket's balance (FIN-002)", () => {
+  /** A vault folder holding one statement, for the functions that read files. */
+  const rootWith = (csv: string) => {
+    const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "pockets-"));
+    fs.mkdirSync(path.join(root, "02-Areas/finance/files"), { recursive: true });
+    fs.writeFileSync(path.join(root, "02-Areas/finance/files/statement.csv"), csv);
+    return root;
+  };
+  // Current grows by €300 a month: 1,800 in, 1,000 spent, 500 to savings.
+  // The Savings pocket holds €10,000 and records the other side of each move.
+  const months = ["2026-01", "2026-02", "2026-03", "2026-04"];
+  const build = (withSavings: boolean) =>
+    statement((row) => {
+      for (const m of months) {
+        row(`${m}-01`, "Transfer", "Payment from EMPLOYER BV", 1800);
+        row(`${m}-10`, "Card Payment", "ALBERT HEIJN", -1000);
+        row(`${m}-28`, "Transfer", "To Savings", -500);
+        if (withSavings) row(`${m}-28`, "Transfer", "From Current", 500, "Savings");
+        // A broker deposit made from the Savings pocket: saved, but not out of
+        // the account whose slope the plan reads.
+        if (withSavings) row(`${m}-20`, "Transfer", "To Capital.com", -100, "Savings");
+      }
+      if (withSavings) row("2026-02-14", "Transfer", "To Current", -150, "Savings");
+      row("2026-02-14", "Transfer", "From Savings", 150);
+      row("2026-04-30", "Card Payment", "ALBERT HEIJN", -1);
+      if (withSavings) row("2026-04-30", "Transfer", "Savings interest", 9, "Savings");
+    }).csv;
+  const plan = (csv: string) => {
+    const txns = loadTxns(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
+    const finished = completeMonths(monthlyByCategory(txns, []), txns.at(-1)!.date);
+    return { txns, finished, savings: planSavings(txns, finished, { payslipNet: [], ledgerIncome: 0 }) };
+  };
+
+  it("reads the trend off the main pocket, not whichever pocket moved last", () => {
+    const { txns, finished } = plan(build(true));
+    expect(finished.map((m) => m.month)).toEqual(months);
+    // 4 × 300, plus the 150 withdrawn from savings, minus the €1 on the 30th.
+    expect(balanceTrend(txns, months).drift).toBe((4 * 300 + 150 - 1) / 4);
+  });
+
+  it("leaves the savings plan unchanged by the Savings pocket's own rows", () => {
+    const one = plan(build(false)).savings;
+    const two = plan(build(true)).savings;
+    expect(two).toEqual(one);
+    expect(two.incomeSource).toBe("balance");
+    expect(two.observed).toBe((4 * 300 + 150 - 1) / 4);
+  });
+
+  it("is one choice of pocket for the Balance card and the trend", () => {
+    const csv = build(true);
+    expect(mainPocket(parseStatement(csv).rows)).toBe("Current");
+    expect(parseStatement(csv).balance).toBe(1000 + 4 * 300 + 150 - 1);
+  });
+
+  it("gives the Finance tab and the Dashboard the same slope and plan", async () => {
+    const d = await get("/api/finance");
+    const home = await get("/api/home");
+    // Jun–Sep are complete; the slope is Current's own, before June to end of September.
+    const slope = (currentAt("2026-09-30") - currentAt("2026-05-31")) / 4;
+    expect(d.summary.drift).toBeCloseTo(slope, 2);
+    expect(d.summary.balance).toBe(currentAt("2026-10-09"));
+    expect(d.savings.observed).toBeCloseTo(slope, 2);
+    for (const k of ["target", "surplus", "trimmable", "observed", "targetRate"] as const) {
+      expect(home.spending.savings[k], k).toBe(d.savings[k]);
+    }
   });
 });

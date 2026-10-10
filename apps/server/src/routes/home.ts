@@ -12,18 +12,16 @@ import {
   recentMonths,
   forecast,
   monthlyByCategory,
-  outflowByMonth,
   monthlyTotals,
   parseCategoryRules,
   parseSubscriptions,
-  savingsPlan,
   typicalMonth,
   isoLocal,
   parsePayslipTable,
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { buildRules, financeNote, savingsCategories, savingsDrift, txnsFor } from "./finance.js";
+import { buildRules, financeNote, planSavings, txnsFor } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -264,24 +262,13 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         if (typical === null) return null;
 
         const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
-        const savings = savingsPlan({
-          categories: savingsCategories(outlook.map((f) => f.category), finished),
-          months: finished.map((m) => m.month),
-          spendMonths: finished.map((m) => m.total),
-          // Everything that LEFT, transfers included — read the same way the
-          // Finance tab reads it, or the two quote different targets.
-          outflowMonths: (() => {
-            const outflow = new Map(outflowByMonth(txns).map((o) => [o.month, o.outflow]));
-            return finished.map((m) => outflow.get(m.month) ?? m.total);
-          })(),
+        // The Finance tab's own planSavings, so the two screens cannot quote
+        // different targets from one set of numbers.
+        const savings = planSavings(txns, finished, {
           payslipNet: (slipNote ? parsePayslipTable(slipNote.content) : [])
             .map((r) => r.net)
             .filter((n): n is number => n !== null),
           ledgerIncome: monthlyTotals(income).reduce((a, t) => a + t.monthly, 0),
-          // Read from the same helper the Finance tab uses. Passing null here
-          // sent the plan down the payslip fallback and produced a different
-          // savings target on the two screens, from one set of numbers.
-          drift: savingsDrift(txns, finished.map((m) => m.month)),
         });
 
         const month = finished[finished.length - 1]!;
