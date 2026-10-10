@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { hash as argonHash, verify as argonVerify } from "@node-rs/argon2";
-import { and, eq, isNull } from "drizzle-orm";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import { and, eq, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
   generateAuthenticationOptions,
@@ -21,30 +21,57 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   const signIn = (userId: string, req: FastifyRequest) =>
     app.jwt.sign({ sub: userId, sid: openSession(db, userId, req.headers["user-agent"]) }, { expiresIn: `${SESSION_DAYS}d` });
 
+  // One per server, so each test suite's app starts with a clean count.
+  const logins = new LoginLimiter();
+  const registrations = new LoginLimiter();
+  const tooMany = (reply: FastifyReply, wait: number, what: string) =>
+    reply
+      .code(429)
+      .header("retry-after", String(Math.ceil(wait / 1000)))
+      .send({ error: `too many ${what} — try again in ${Math.ceil(wait / 60_000)} min` });
+
+  /** Why an invite cannot be used, or null when it can. Read-only: claiming it is the transaction's job. */
+  const inviteProblem = (tx: Pick<Db, "select">, token: string | undefined): string | null => {
+    // Not the first user: a valid invite is required (spec §4 auth).
+    if (!token) return "an invite is required to join this workspace";
+    const invite = tx.select().from(tables.invites).where(eq(tables.invites.token, token)).get();
+    if (!invite || invite.usedBy || invite.expiresAt < Date.now()) return "invite is invalid, used, or expired";
+    return null;
+  };
+  const hasUsers = (tx: Pick<Db, "select">) => tx.select({ id: tables.users.id }).from(tables.users).limit(1).all().length > 0;
+
   app.post("/api/auth/register", async (req, reply) => {
+    const wait = registrations.attempt(req.ip);
+    if (wait > 0) return tooMany(reply, wait, "sign-up attempts");
     const body = registerSchema.parse(req.body);
+    // Refuse what can be refused cheaply before paying for a hash. Anyone who
+    // reaches the port can call this, and on an established install every
+    // sign-up needs an invite: checking one is a lookup, a hash is the most
+    // expensive thing the server does on purpose (audit SEC-011).
+    if (hasUsers(db)) {
+      const problem = inviteProblem(db, body.inviteToken);
+      if (problem) throw new HttpError(403, problem);
+    }
     // Hash BEFORE deciding anything. The count used to be read, then the hash
     // awaited (~100 ms), then the row inserted with `isOwner: count === 0` — so
-    // two sign-ups on an empty server both saw 0 and both became owner. Every
-    // decision below is one synchronous transaction with no await inside, which
-    // no other request can interleave with.
+    // two sign-ups on an empty server both saw 0 and both became owner. The
+    // check above only turns requests away; every decision below is one
+    // synchronous transaction with no await inside, which no other request can
+    // interleave with, and it checks again.
     const passwordHash = await argonHash(body.password);
     const id = `u-${crypto.randomUUID().slice(0, 8)}`;
     const teamIds = db.transaction((tx) => {
-      const first = tx.select({ id: tables.users.id }).from(tables.users).limit(1).all().length === 0;
+      const first = !hasUsers(tx);
       let teams: string[] = [];
       if (!first) {
-        // Not the first user: a valid invite is required (spec §4 auth).
-        if (!body.inviteToken) throw new HttpError(403, "an invite is required to join this workspace");
-        const invite = tx.select().from(tables.invites).where(eq(tables.invites.token, body.inviteToken)).get();
-        if (!invite || invite.usedBy || invite.expiresAt < Date.now()) {
-          throw new HttpError(403, "invite is invalid, used, or expired");
-        }
+        const problem = inviteProblem(tx, body.inviteToken);
+        if (problem) throw new HttpError(403, problem);
+        const invite = tx.select().from(tables.invites).where(eq(tables.invites.token, body.inviteToken!)).get()!;
         // Claimed only if still unclaimed: one invite, one account.
         const claimed = tx
           .update(tables.invites)
           .set({ usedBy: body.email })
-          .where(and(eq(tables.invites.token, body.inviteToken), isNull(tables.invites.usedBy)))
+          .where(and(eq(tables.invites.token, invite.token), isNull(tables.invites.usedBy)))
           .run();
         if (claimed.changes !== 1) throw new HttpError(403, "invite is invalid, used, or expired");
         teams = JSON.parse(invite.teamIds);
@@ -65,27 +92,21 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     for (const teamId of teamIds) {
       db.insert(tables.memberships).values({ id: `m-${crypto.randomUUID().slice(0, 8)}`, userId: id, teamId }).run();
     }
+    registrations.succeed(req.ip);
     const token = signIn(id, req);
     return reply.send({ token, user: publicUser(db, store, id) });
   });
 
-  // One per server, so each test suite's app starts with a clean count.
-  const logins = new LoginLimiter();
-
   app.post("/api/auth/login", async (req, reply) => {
-    // Checked before the password: while an address is locked out, the right
-    // password must look exactly like a wrong one (loginLimit.ts).
-    const wait = logins.retryAfter(req.ip);
-    if (wait > 0) {
-      return reply
-        .code(429)
-        .header("retry-after", String(Math.ceil(wait / 1000)))
-        .send({ error: `too many failed sign-ins — try again in ${Math.ceil(wait / 60_000)} min` });
-    }
+    // Counted before the password is checked, in one synchronous step: while
+    // an address is locked out, the right password must look exactly like a
+    // wrong one, and a burst sent at once must not all slip under the limit
+    // and all cost a hash (loginLimit.ts).
+    const wait = logins.attempt(req.ip);
+    if (wait > 0) return tooMany(reply, wait, "failed sign-ins");
     const body = loginSchema.parse(req.body);
     const user = db.select().from(tables.users).where(eq(tables.users.email, body.email.toLowerCase())).get();
     if (!user || !(await argonVerify(user.passwordHash, body.password))) {
-      logins.fail(req.ip);
       throw new HttpError(401, "invalid email or password");
     }
     logins.succeed(req.ip);
@@ -187,24 +208,40 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     // the unlock screen must not become an account oracle.
     const reject = () => new HttpError(401, "incorrect passcode");
     if (!user || !user.passcodeHash) throw reject();
-    if (user.passcodeFails >= MAX_FAILS_BEFORE_DISABLE) {
-      throw new HttpError(403, "too many attempts — sign in with your password");
-    }
-    if (user.passcodeLockedUntil && user.passcodeLockedUntil > Date.now()) {
-      const secs = Math.ceil((user.passcodeLockedUntil - Date.now()) / 1000);
+    // Spend an attempt BEFORE checking the code, in one statement. The count
+    // used to be read here and written back after the awaited verify, so
+    // every request in a burst saw the same stale count: 300 guesses sent at
+    // once were all checked and the counter ended at 0 (audit SEC-001). Now
+    // the increment, the limits and the cooldown are one UPDATE, which no
+    // other request can interleave with; a request that cannot spend one is
+    // refused without ever reaching Argon2.
+    const now = Date.now();
+    const spent = db
+      .update(tables.users)
+      .set({
+        passcodeFails: sql`${tables.users.passcodeFails} + 1`,
+        passcodeLockedUntil: sql`case when (${tables.users.passcodeFails} + 1) % ${MAX_FAILS_BEFORE_COOLDOWN} = 0 then ${now + COOLDOWN_MS} else null end`,
+      })
+      .where(
+        and(
+          eq(tables.users.id, user.id),
+          isNotNull(tables.users.passcodeHash),
+          lt(tables.users.passcodeFails, MAX_FAILS_BEFORE_DISABLE),
+          or(isNull(tables.users.passcodeLockedUntil), lte(tables.users.passcodeLockedUntil, now)),
+        ),
+      )
+      .returning({ passcodeHash: tables.users.passcodeHash })
+      .get();
+    if (!spent?.passcodeHash) {
+      const cur = db.select().from(tables.users).where(eq(tables.users.id, user.id)).get();
+      if (!cur?.passcodeHash) throw reject(); // removed meanwhile
+      if (cur.passcodeFails >= MAX_FAILS_BEFORE_DISABLE) {
+        throw new HttpError(403, "too many attempts — sign in with your password");
+      }
+      const secs = Math.max(1, Math.ceil(((cur.passcodeLockedUntil ?? now) - now) / 1000));
       throw new HttpError(429, `too many attempts — try again in ${secs}s`);
     }
-    if (!(await argonVerify(user.passcodeHash, body.passcode))) {
-      const fails = user.passcodeFails + 1;
-      db.update(tables.users)
-        .set({
-          passcodeFails: fails,
-          passcodeLockedUntil: fails % MAX_FAILS_BEFORE_COOLDOWN === 0 ? Date.now() + COOLDOWN_MS : null,
-        })
-        .where(eq(tables.users.id, user.id))
-        .run();
-      throw reject();
-    }
+    if (!(await argonVerify(spent.passcodeHash, body.passcode))) throw reject(); // already counted
     db.update(tables.users)
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))

@@ -14,6 +14,12 @@
  *
  * In memory on purpose: a restart forgetting the count is fine — launchd
  * restarts are rare and an attacker cannot trigger one.
+ *
+ * Routes call `attempt` BEFORE the password is verified, never `retryAfter`
+ * then `fail` around it. The check used to be read, Argon2 awaited, and the
+ * failure recorded after — so forty requests sent at once all read "0 so far",
+ * all paid for a hash, and none was refused (audit SEC-003). `attempt` checks
+ * and counts in one synchronous call; a success then wipes the count.
  */
 export const MAX_FAILS = 5;
 export const WINDOW_MS = 15 * 60_000;
@@ -38,6 +44,18 @@ export class LoginLimiter {
     const kept = this.recent(key);
     if (kept.length < MAX_FAILS) return 0;
     return kept[kept.length - MAX_FAILS]! + WINDOW_MS - this.now();
+  }
+
+  /**
+   * Count one attempt now, before it is checked. Returns 0 when it may go
+   * ahead (and is already counted as a failure until `succeed` says
+   * otherwise), or the milliseconds to wait when it is refused (not counted).
+   */
+  attempt(key: string): number {
+    const wait = this.retryAfter(key);
+    if (wait > 0) return wait;
+    this.fail(key);
+    return 0;
   }
 
   fail(key: string): void {
