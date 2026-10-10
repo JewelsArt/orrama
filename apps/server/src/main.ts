@@ -8,7 +8,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
-import { assertProductionSecrets, assertValidEnv, env, vaultDir } from "./env.js";
+import { assertProductionSecrets, assertValidEnv, env } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
@@ -126,33 +126,12 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
     }
   };
 
-  const vaultRoot = vaultDir();
-  const mcpPath = path.join(vaultRoot, ".mcp.json");
-  if (!fs.existsSync(mcpPath)) {
-    fs.writeFileSync(mcpPath, JSON.stringify({
-      mcpServers: {
-        basalt: {
-          command: "node",
-          args: [path.resolve(import.meta.dirname, "../../mcp/dist/index.js")],
-          env: {
-            BASALT_TOKEN: "bslt_your_api_token_here",
-            BASALT_URL: "http://localhost:4623"
-          }
-        }
-      }
-    }, null, 2));
-  }
-
-  const claudeMdPath = path.join(vaultRoot, "CLAUDE.md");
-  if (!fs.existsSync(claudeMdPath)) {
-    fs.writeFileSync(claudeMdPath, `Edit notes through the Basalt MCP tools, not by writing files directly; direct file edits are absorbed by a watcher but lose granular history.
-    
-Vault layout:
-- Notes are plain markdown files.
-- Folders grant access.
-- \`#only/<team>\` tags restrict access.
-`);
-  }
+  // Boot writes nothing into the vault. It used to create a `.mcp.json`
+  // (a slot for a full-power API token, in the folder Obsidian syncs and
+  // backs up, aimed at a hard-coded port) and a `CLAUDE.md` whenever either
+  // was missing, so deleting them never stuck (audit AI-013, OPS-009). The
+  // MCP setup lives in apps/mcp/README.md and keeps the token in
+  // ~/.claude.json; a vault CLAUDE.md is the user's own file to write.
 
   /**
    * A second line behind the HTML scrubbers (.docx reader, mail): if markup
