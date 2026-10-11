@@ -9,12 +9,16 @@
  */
 import { noteLines, spliceNoteLines } from "./parse.js";
 
-/** Split a `| a | b |` row into trimmed cells, dropping the outer pipes. */
+/**
+ * Split a `| a | b |` row into trimmed cells, dropping the outer pipes. An
+ * escaped pipe `\|` is part of its cell, as in Obsidian: a link written in a
+ * table is `[[Note\|alias]]`, and splitting there cut one cell in two (COR-015).
+ */
 export const cells = (row: string): string[] =>
   row
     .replace(/^\s*\|/, "")
-    .replace(/\|\s*$/, "")
-    .split("|")
+    .replace(/(?<!\\)\|\s*$/, "")
+    .split(/(?<!\\)\|/)
     .map((c) => c.trim());
 
 /** `|---|:--:|` — the rule under a header, not data. */

@@ -8,8 +8,40 @@ import type {
   WikiLink,
 } from "./types.js";
 
-/** [[Target]] | [[Target|alias]] | [[Target#Heading]] | [[Target#Heading|alias]] */
-const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
+/**
+ * [[Target]] | [[Target|alias]] | [[Target#Heading]] | [[Target#Heading|alias]],
+ * and the alias pipe escaped as `\|`, which is how a link is written inside a
+ * table — the target used to keep the backslash and resolve to nothing (audit
+ * COR-015).
+ */
+const LINK_RE = /\[\[([^\[\]\|#]+?)(?:#([^\[\]\|]+?))?(?:\\?\|([^\[\]]+))?\]\]/g;
+/**
+ * A line without its inline code spans: a run of backticks, then anything up
+ * to the next run of the same length (CommonMark); a run with no partner is
+ * text. What is inside is code, not links or tags (COR-015). One pass over
+ * the runs, not a backtracking regex: a long line of unmatched runs of
+ * growing length is note text, and note text is untrusted.
+ */
+function stripCodeSpans(line: string): string {
+  if (!line.includes("`")) return line;
+  const runs = [...line.matchAll(/`+/g)].map((m) => ({ at: m.index, len: m[0].length }));
+  const partner = new Array<number>(runs.length).fill(-1);
+  const nextOfLen = new Map<number, number>();
+  for (let i = runs.length - 1; i >= 0; i--) {
+    partner[i] = nextOfLen.get(runs[i]!.len) ?? -1;
+    nextOfLen.set(runs[i]!.len, i);
+  }
+  let out = "";
+  let pos = 0;
+  for (let i = 0; i < runs.length; i++) {
+    const j = partner[i]!;
+    if (j < 0) continue;
+    out += line.slice(pos, runs[i]!.at);
+    pos = runs[j]!.at + runs[j]!.len;
+    i = j;
+  }
+  return out + line.slice(pos);
+}
 /**
  * Markdown-style links to other notes — `[text](Some Note.md)`, which Obsidian
  * treats as a link like any other. Skipped: anything with a scheme (http:,
@@ -333,12 +365,14 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   for (let i = bodyStart; i < lines.length; i++) {
     const line = lines[i]!;
     if (code[i - bodyStart]) continue; // no links/tags/tasks inside code blocks
+    // Nor inside inline code: `[[example]]` and `#not-a-tag` are code (COR-015).
+    const noCode = stripCodeSpans(line);
 
     const hm = HEADING_RE.exec(line);
     if (hm) headings.push({ level: hm[1]!.length, text: hm[2]!.trim(), line: i });
     if (conversation) continue; // headings only: no links, tags or tasks from a transcript
 
-    for (const m of line.matchAll(LINK_RE)) {
+    for (const m of noCode.matchAll(LINK_RE)) {
       links.push({
         target: m[1]!.trim(),
         heading: m[2]?.trim(),
@@ -348,7 +382,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
       });
     }
 
-    for (const m of line.matchAll(MD_LINK_RE)) {
+    for (const m of noCode.matchAll(MD_LINK_RE)) {
       const raw = m[3]!.replace(/^<|>$/g, "").trim();
       if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("#")) continue; // external or in-page
       const [pathPart, heading] = raw.split("#");
@@ -365,8 +399,6 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
       });
     }
 
-    // Strip inline code spans so `#not-a-tag` in code doesn't count.
-    const noCode = line.replace(/`[^`]*`/g, "");
     for (const m of noCode.matchAll(TAG_RE)) {
       tags.push({ tag: normalizeTag(m[2]!), line: i });
     }
