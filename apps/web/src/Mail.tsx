@@ -4,6 +4,7 @@ import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
 import type { MailAccount as Account, InboxItem, MailCategory, MailMessage, PendingDraft } from "@basalt/schema/responses";
 import { dateLabel, dateTimeLabel, timeLabel } from "./ui/dates.js";
+import { PlainText } from "./mail/plainText.js";
 
 type MailTab = MailCategory | "all";
 
@@ -453,56 +454,13 @@ function MessageBody({ message }: { message: MailMessage }) {
       </div>
     );
   }
-  if (message.text.trim()) return <div className="mail-body">{formatPlain(message.text)}</div>;
+  if (message.text.trim())
+    return (
+      <div className="mail-body">
+        <PlainText text={message.text} />
+      </div>
+    );
   return <div className="mail-body mail-hint">(no content)</div>;
-}
-
-const URL_RE = /https?:\/\/[^\s<>()\[\]]+/g;
-const IMAGE_URL = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i;
-
-/**
- * Make a plain-text mail readable: drop the lines that are nothing but an image
- * URL, and show every other link as its host rather than 300 characters of
- * tracking parameters. The href keeps the full URL — only the label is short.
- */
-function formatPlain(text: string): React.ReactNode[] {
-  const host = (url: string) => {
-    try {
-      return new URL(url).host.replace(/^www\./, "");
-    } catch {
-      return url;
-    }
-  };
-
-  return text
-    .split("\n")
-    .filter((line) => {
-      const bare = line.trim().replace(/^\[|\]$/g, "");
-      return !(URL_RE.test(bare) && IMAGE_URL.test(bare) && bare.replace(URL_RE, "").trim() === "");
-    })
-    .map((line, i) => {
-      const parts: React.ReactNode[] = [];
-      let last = 0;
-      for (const m of line.matchAll(URL_RE)) {
-        const start = m.index ?? 0;
-        const before = line.slice(last, start).replace(/\[$/, "");
-        if (before) parts.push(before);
-        parts.push(
-          <a key={`${i}-${start}`} href={m[0]} target="_blank" rel="noreferrer noopener" title={m[0]}>
-            {host(m[0])}
-          </a>,
-        );
-        last = start + m[0].length;
-        if (line[last] === "]") last++;
-      }
-      const rest = line.slice(last);
-      if (rest) parts.push(rest);
-      return (
-        <p key={i} className={line.trim() === "" ? "mail-gap" : undefined}>
-          {parts.length ? parts : "\u00a0"}
-        </p>
-      );
-    });
 }
 
 function Composer({
