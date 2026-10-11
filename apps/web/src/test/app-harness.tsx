@@ -33,15 +33,17 @@ const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => []
     );
   };
 
-vi.mock("../Dashboard.js", () => ({
-  Dashboard: stub("dashboard", (p) => [
-    ["open project", () => p.onOpenProject("thesis")],
-    ["open note", () => p.onOpenNote("n-1")],
-    ["open month", () => p.onOpenFinance({ month: "2026-09", category: "Groceries" })],
-    ["open area", () => p.onOpenCategory("work")],
-    ["open settings", () => p.onOpenSettings()],
-  ]),
-}));
+// Today goes to its addresses itself (navigate), as every redrawn screen does.
+vi.mock("../Today.js", async () => {
+  const { navigate } = await import("../ui/router.js");
+  return {
+    Today: stub("today", (p) => [
+      ["open project", () => navigate({ kind: "project", slug: "thesis" })],
+      ["open note", () => navigate({ kind: "notes", id: "n-1" })],
+      ["new task", () => p.onCapture()],
+    ]),
+  };
+});
 vi.mock("../Architecture.js", () => ({ Architecture: stub("architecture") }));
 vi.mock("../orrery/Orrery.js", () => {
   const Orrery = stub("orrery");
@@ -55,6 +57,7 @@ vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
 vi.mock("../Finance.js", () => ({
   Finance: stub("finance", (p) => [
     ["category Shopping", () => p.onOpenCategory("Shopping")],
+    ["month Groceries", () => p.onOpenMonth("2026-09", "Groceries")],
     ["merchant UNIQLO", () => p.onOpenMerchant("UNIQLO")],
     ["page savings", () => p.onOpenPage("savings")],
     ["back", () => p.onBack()],

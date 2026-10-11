@@ -6,7 +6,8 @@ import "./test/app-harness.js";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "./App.js";
+import { App, routeOfView } from "./App.js";
+import { routeHref } from "./ui/router.js";
 import { at, crash, ME, serve } from "./test/app-harness.js";
 import { dismissToast, toast, topLayer } from "./ui/overlays.js";
 
@@ -30,7 +31,7 @@ describe("addresses", () => {
   it("opens / on Today, and writes it as /today", async () => {
     at("/");
     render(<App />);
-    expect(await view()).toMatch(/^dashboard/);
+    expect(await view()).toMatch(/^today/);
     expect(path()).toBe("/today");
   });
 
@@ -49,7 +50,7 @@ describe("addresses", () => {
     expect(await view()).toMatch(/^project slug=thesis/);
     await back();
     expect(path()).toBe("/today");
-    expect(await view()).toMatch(/^dashboard/);
+    expect(await view()).toMatch(/^today/);
   });
 
   it("a note opened by its id gets its readable address once the tree knows its path", async () => {
@@ -76,9 +77,9 @@ describe("addresses", () => {
 
   it("Money's drill-down has addresses: a month of a category, a merchant, a page", async () => {
     const user = userEvent.setup();
-    at("/today");
+    at("/money");
     render(<App />);
-    await user.click(await screen.findByRole("button", { name: "open month" }));
+    await user.click(await screen.findByRole("button", { name: "month Groceries" }));
     expect(path()).toBe("/money/spending/Groceries?month=2026-09");
     expect(await view()).toMatch(/category=Groceries month=2026-09/);
     await user.click(screen.getByRole("button", { name: "merchant UNIQLO" }));
@@ -89,13 +90,8 @@ describe("addresses", () => {
     await waitFor(() => expect(path()).toBe("/money?merchant=UNIQLO"));
   });
 
-  it("a life area opens the Orrery zoomed to it", async () => {
-    const user = userEvent.setup();
-    at("/today");
-    render(<App />);
-    await user.click(await screen.findByRole("button", { name: "open area" }));
-    expect(path()).toBe("/orrery?area=work");
-    expect(await view()).toMatch(/^orrery area=work/);
+  it("a life area opens the Orrery zoomed to it", () => {
+    expect(routeHref(routeOfView({ kind: "architecture", category: "work" }))).toBe("/orrery?area=work");
   });
 
   it("Settings is a page at its address, with its section; Back returns to where you were", async () => {
@@ -115,7 +111,7 @@ describe("addresses", () => {
   it("an address this app does not know goes to Today", async () => {
     at("/dashboard");
     render(<App />);
-    expect(await view()).toMatch(/^dashboard/);
+    expect(await view()).toMatch(/^today/);
     expect(path()).toBe("/today");
   });
 });
@@ -487,7 +483,7 @@ describe("when a page breaks (WEB-011)", () => {
     expect(await screen.findByText("Settings hit an error.")).toBeTruthy();
     const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
     await user.click([...rail.querySelectorAll<HTMLElement>(".ri")].find((a) => a.textContent === "Today")!);
-    expect(await view()).toMatch(/^dashboard/);
+    expect(await view()).toMatch(/^today/);
     vi.restoreAllMocks();
   });
 

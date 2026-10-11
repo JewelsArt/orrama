@@ -5,7 +5,7 @@ import { AskPanel } from "./AskPanel.js";
 import { Contacts } from "./Contacts.js";
 import { Finance } from "./Finance.js";
 import { Project } from "./Project.js";
-import { Dashboard } from "./Dashboard.js";
+import { Today } from "./Today.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
@@ -204,7 +204,6 @@ export function App() {
     const p = placeOf(shown);
     historyBack(p === "money" ? { kind: "money" } : p === "projects" ? { kind: "projects" } : { kind: "today" });
   }, [shown]);
-  const openSettings = useCallback(() => go({ kind: "settings" }), []);
   // A note opened by its id gets its readable address as soon as the tree knows its path.
   useEffect(() => {
     if (route.kind !== "notes" || !route.id) return;
@@ -489,16 +488,7 @@ export function App() {
             <Orrery route={shown} onAsk={() => setAskOpen(true)} />
           </Suspense>
         ) : view.kind === "dashboard" ? (
-          <Dashboard
-            me={me}
-            onOpenNote={openNote}
-            onOpenProject={(slug) => navigate({ kind: "project", slug })}
-            onOpenOverview={() => navigate({ kind: "overview" })}
-            onOpenPlanning={() => navigate({ kind: "planning" })}
-            onOpenCategory={(category) => navigate({ kind: "architecture", category })}
-            onOpenFinance={(to) => navigate({ kind: "finance", ...to })}
-            onOpenSettings={openSettings}
-          />
+          <Today onCapture={() => setCaptureOpen(true)} />
         ) : view.kind === "architecture" ? (
           <Architecture me={me} noteId={view.noteId} category={view.category} />
         ) : view.kind === "planning" ? (
