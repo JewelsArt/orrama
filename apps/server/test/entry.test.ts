@@ -10,6 +10,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { isEntry } from "../src/entry.js";
+import { canSymlink } from "./helpers/platform.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-entry-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -21,12 +22,13 @@ describe("isEntry", () => {
   fs.writeFileSync(main, "");
   fs.writeFileSync(built, "");
   fs.writeFileSync(path.join(tmp, "domain.ts"), "");
-  fs.symlinkSync(main, path.join(tmp, "server"));
+  const links = canSymlink(tmp);
+  if (links) fs.symlinkSync(main, path.join(tmp, "server"));
 
   it("is the file being run, whatever it is called", () => {
     expect(isEntry(pathToFileURL(main).href, main)).toBe(true);
     expect(isEntry(pathToFileURL(built).href, built)).toBe(true); // the compiled build
-    expect(isEntry(pathToFileURL(main).href, path.join(tmp, "server"))).toBe(true); // via a symlink
+    if (links) expect(isEntry(pathToFileURL(main).href, path.join(tmp, "server"))).toBe(true); // via a symlink
     expect(isEntry(pathToFileURL(main).href, path.relative(process.cwd(), main))).toBe(true);
   });
 
@@ -38,7 +40,7 @@ describe("isEntry", () => {
 });
 
 describe("launching the server", () => {
-  it("under a name that is not main.ts, it still listens instead of exiting", async () => {
+  it.skipIf(!canSymlink(os.tmpdir()))("under a name that is not main.ts, it still listens instead of exiting (needs a symlink: skipped where they need admin)", async () => {
     // What a compiled build (dist/main.js) looks like to the old guard, without a build step.
     const link = path.join(tmp, "basalt-server.ts");
     fs.symlinkSync(path.resolve(import.meta.dirname, "../src/main.ts"), link);

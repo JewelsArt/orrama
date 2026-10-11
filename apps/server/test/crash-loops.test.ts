@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POSIX_MODES } from "./helpers/platform.js";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-boot-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
@@ -127,7 +128,8 @@ describe("boot survives what the vault can do", () => {
     await sleep(700);
   });
 
-  it.skipIf(process.getuid?.() === 0)("a folder the server cannot read costs that folder, not the boot", async () => {
+  // chmod 000 locks nothing out as root, or on Windows (POSIX modes).
+  it.skipIf(process.getuid?.() === 0 || !POSIX_MODES)("a folder the server cannot read costs that folder, not the boot", async () => {
     const dir = path.join(VAULT, "Sealed");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "Inside.md"), "---\nid: n-sealed0000000001\n---\n# Inside\n");
@@ -142,7 +144,7 @@ describe("boot survives what the vault can do", () => {
     }
   });
 
-  it.skipIf(process.getuid?.() === 0)("a file the server cannot read costs that file, not the boot", async () => {
+  it.skipIf(process.getuid?.() === 0 || !POSIX_MODES)("a file the server cannot read costs that file, not the boot", async () => {
     const rel = "Engineering/Locked.md";
     const abs = path.join(VAULT, rel);
     fs.writeFileSync(abs, "---\nid: n-locked0000000001\n---\n# Locked\n");

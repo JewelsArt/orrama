@@ -96,6 +96,17 @@ interface BootFile {
   mtimeMs: number;
 }
 
+/**
+ * Whether `file` is the vault-root CLAUDE.md, which is never indexed or
+ * stamped. Compared as resolved paths: on Windows chokidar reports
+ * `C:/…/vault/CLAUDE.md` while path.join gives `C:\…\vault\CLAUDE.md`, so a
+ * string compare never matched, and the user's guide was indexed and had an id
+ * written into it (audit OPS-003). `p` is there for the tests.
+ */
+export function isRootGuide(root: string, file: string, p: typeof path = path): boolean {
+  return p.resolve(file) === p.resolve(root, "CLAUDE.md");
+}
+
 export class VaultStore {
   index = new VaultIndex();
   /** Live-sync bus: "note-changed" (NoteChangedEvent) fired on every mutation. */
@@ -248,7 +259,7 @@ export class VaultStore {
       ignored: (filePath: string, stats?: fs.Stats) => {
         const basename = path.basename(filePath);
         if (basename.startsWith(".")) return true;
-        if (filePath === path.join(this.root, "CLAUDE.md")) return true;
+        if (isRootGuide(this.root, filePath)) return true;
         return linksIntoVault(this.realRoot, filePath);
       },
       ignoreInitial: true,

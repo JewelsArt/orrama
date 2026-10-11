@@ -14,6 +14,7 @@ import path from "node:path";
 import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
+import { POSIX_MODES } from "./helpers/platform.js";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-logs-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
@@ -147,7 +148,7 @@ describe("/api/ws authenticates with its first frame", () => {
 });
 
 describe("privateLogFiles", () => {
-  it("makes a world-readable log file owner-only, and leaves non-files alone", () => {
+  it.skipIf(!POSIX_MODES)("makes a world-readable log file owner-only, and leaves non-files alone (POSIX modes)", () => {
     const file = path.join(process.env.BASALT_DATA_DIR!, "server.log");
     fs.writeFileSync(file, "");
     fs.chmodSync(file, 0o644);

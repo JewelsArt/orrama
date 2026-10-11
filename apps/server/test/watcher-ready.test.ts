@@ -38,7 +38,7 @@ it("store.watching settles once every folder of the vault is watched", async () 
   await store.watching;
   try {
     const watcher = (store as unknown as { watcher: { getWatched(): Record<string, string[]> } }).watcher;
-    const watched = Object.keys(watcher.getWatched()).map((d) => path.relative(vault, d));
+    const watched = Object.keys(watcher.getWatched()).map((d) => path.relative(vault, d).split(path.sep).join("/"));
     for (const f of folders) expect(watched).toContain(f);
   } finally {
     await store.close();

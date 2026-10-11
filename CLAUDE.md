@@ -771,6 +771,14 @@ parsed before it is known to be a valid auth.
 - **Storage**: read and write through `apps/web/src/storage.ts`. The browser can
   refuse storage (the getter throws), and `guardStorage()` in `main.tsx` gives
   the older direct callers an in-memory one.
+- **The suite runs on macOS, Linux and Windows** (CI: Ubuntu and macOS on push,
+  `windows.yml` by hand; audit OPS-003). A test that needs POSIX permission bits,
+  symlinks or signal handlers says so through `test/helpers/platform.ts`
+  (`POSIX_MODES`, `canSymlink`, `SIGNAL_HANDLERS`) and skips only that part;
+  compare paths after `.split(path.sep).join("/")` or `path.resolve`; close
+  every database handle before deleting its folder. Package scripts never set
+  variables as `VAR=1 cmd` (cmd.exe cannot); `.gitattributes` keeps every
+  checkout LF.
 - **Web tests**: `*.test.ts(x)` run in Node; `*.dom.test.ts(x)` run in happy-dom
   with Testing Library (`src/test/dom-setup.ts`). `src/test/app-harness.tsx`
   mounts the whole App with its screens stubbed, for shell, address, key and

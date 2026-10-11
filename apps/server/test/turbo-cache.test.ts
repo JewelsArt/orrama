@@ -16,7 +16,8 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../../..");
-const turbo = path.join(root, "node_modules/.bin/turbo");
+// turbo's own launcher, run by node: .bin/turbo is a shell script Windows cannot exec.
+const turbo = path.join(root, "node_modules/turbo/bin/turbo");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-turbo-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
@@ -27,7 +28,7 @@ for (const f of execFileSync("git", ["ls-files", "-z", "-co", "--exclude-standar
 }
 
 function hashes(): Record<string, string> {
-  const out = execFileSync(turbo, ["run", "typecheck", "--dry=json"], {
+  const out = execFileSync(process.execPath, [turbo, "run", "typecheck", "--dry=json"], {
     cwd: tmp,
     encoding: "utf8",
     env: { ...process.env, TURBO_TELEMETRY_DISABLED: "1" },

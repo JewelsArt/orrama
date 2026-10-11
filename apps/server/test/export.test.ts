@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POSIX_MODES } from "./helpers/platform.js";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-export-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
@@ -85,8 +86,10 @@ afterAll(async () => {
 describe("basalt export", () => {
   it("writes a snapshot, a readable JSON and a README, owner-only", () => {
     expect(fs.readdirSync(exported).sort()).toEqual(["README.txt", "basalt.db", "export.json"]);
-    expect(fs.statSync(exported).mode & 0o777).toBe(0o700);
-    for (const f of fs.readdirSync(exported)) expect(fs.statSync(path.join(exported, f)).mode & 0o777).toBe(0o600);
+    if (POSIX_MODES) {
+      expect(fs.statSync(exported).mode & 0o777).toBe(0o700);
+      for (const f of fs.readdirSync(exported)) expect(fs.statSync(path.join(exported, f)).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("the JSON holds what only the database had", () => {

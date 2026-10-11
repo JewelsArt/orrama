@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { canSymlink, POSIX_MODES } from "./helpers/platform.js";
 
 process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-atomic-"));
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
@@ -51,12 +52,12 @@ describe("writeFileAtomic", () => {
       fs.chmodSync(f, mode);
       writeFileAtomic(f, "new");
       expect(fs.readFileSync(f, "utf8")).toBe("new");
-      expect(fs.statSync(f).mode & 0o777).toBe(mode);
+      if (POSIX_MODES) expect(fs.statSync(f).mode & 0o777).toBe(mode);
     }
     expect(leftovers(scratch)).toEqual([]);
   });
 
-  it("writes a symlinked note at its target, so the link survives", () => {
+  it.skipIf(!canSymlink(scratch))("writes a symlinked note at its target, so the link survives (skipped where symlinks need admin: Windows)", () => {
     const real = path.join(scratch, "real.md");
     const link = path.join(scratch, "link.md");
     fs.writeFileSync(real, "old");

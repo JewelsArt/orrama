@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { envProblems } from "../src/env.js";
+import { SIGNAL_HANDLERS } from "./helpers/platform.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-launchd-"));
@@ -40,7 +41,7 @@ describe("launchd template", () => {
     expect(envProblems({ BASALT_PUBLIC_ORIGINS: vars.BASALT_PUBLIC_ORIGINS })).toEqual([]);
   });
 
-  it("filled in, it boots on the vault it names and closes on SIGTERM", async () => {
+  it.skipIf(!SIGNAL_HANDLERS)("filled in, it boots on the vault it names and closes on SIGTERM (POSIX signals)", async () => {
     const data = path.join(tmp, "data");
     const vault = path.join(tmp, "My Vault");
     fs.mkdirSync(vault, { recursive: true });

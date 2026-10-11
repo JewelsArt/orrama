@@ -13,12 +13,18 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createDb, SCHEMA_VERSION, tables } from "../src/db.js";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-schema-"));
-afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+// Every handle closed first: Windows cannot delete an open database (EBUSY, OPS-003).
+const opened: { close(): void }[] = [];
+afterAll(() => {
+  for (const h of opened) h.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
 describe("schema", () => {
   const file = path.join(dir, "fresh.db");
-  createDb(file);
+  opened.push((createDb(file) as unknown as { $client: { close(): void } }).$client);
   const raw = new Database(file, { readonly: true });
+  opened.push(raw);
 
   it("every Drizzle table exists with exactly its columns", () => {
     const drizzleTables = (Object.values(tables) as unknown[]).filter((t): t is SQLiteTable => t instanceof SQLiteTable);

@@ -9,12 +9,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { SIGNAL_HANDLERS } from "./helpers/platform.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-shutdown-"));
+/** The WAL is removed when the last connection closes; give the close up to 5 s. */
+async function walGone(dir: string): Promise<boolean> {
+  for (let i = 0; i < 100 && fs.existsSync(path.join(dir, "basalt.db-wal")); i++) await new Promise((r) => setTimeout(r, 50));
+  return !fs.existsSync(path.join(dir, "basalt.db-wal"));
+}
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 describe("shutdown", () => {
-  it("SIGTERM closes the app and the database, and exits 0", async () => {
+  it.skipIf(!SIGNAL_HANDLERS)("SIGTERM closes the app and the database, and exits 0 (POSIX signals)", async () => {
     const child = spawn(process.execPath, ["--import", "tsx", path.resolve(import.meta.dirname, "../src/main.ts")], {
       cwd: path.resolve(import.meta.dirname, ".."),
       env: { ...process.env, BASALT_DATA_DIR: tmp, BASALT_VAULT_DIR: path.join(tmp, "vault"), PORT: "0", HOST: "127.0.0.1", BASALT_ALLOW_DEV_SECRETS: "1" },
@@ -32,7 +38,7 @@ describe("shutdown", () => {
     const result = await Promise.race([exited, new Promise<"hung">((r) => setTimeout(() => r("hung"), 15_000))]);
     expect(result, out.slice(-400)).toEqual({ code: 0, signal: null });
     expect(out).toMatch(/SIGTERM: closing/);
-    expect(fs.existsSync(path.join(tmp, "basalt.db-wal"))).toBe(false); // checkpointed on close
+    expect(await walGone(tmp)).toBe(true); // checkpointed on close
   }, 40_000);
 
   // The launchd agent does not run node: it runs `pnpm --dir apps/server
@@ -61,6 +67,8 @@ describe("shutdown", () => {
     await Promise.race([exited, new Promise((r) => setTimeout(r, 15_000))]);
     for (let i = 0; i < 100 && !/SIGTERM: closing/.test(out); i++) await new Promise((r) => setTimeout(r, 50));
     expect(out).toMatch(/SIGTERM: closing/);
-    expect(fs.existsSync(path.join(dir, "basalt.db-wal"))).toBe(false); // checkpointed on close
+    // pnpm can exit before node has finished closing: wait for the checkpoint
+    // rather than racing it (it failed ~1 run in 4 under load).
+    expect(await walGone(dir)).toBe(true); // checkpointed on close
   }, 40_000);
 });
