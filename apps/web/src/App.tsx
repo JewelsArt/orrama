@@ -6,6 +6,8 @@ import { Contacts } from "./Contacts.js";
 import { Finance } from "./Finance.js";
 import { Project } from "./Project.js";
 import { Today } from "./Today.js";
+import { useDraftsWaiting } from "./today/mailDot.js";
+import { todayTitle } from "./today/title.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
@@ -133,6 +135,8 @@ const MONEY_TITLES: Record<MoneyPage, string> = { spending: "Spending", document
  */
 export function titleOf(r: Route): string {
   switch (r.kind) {
+    case "today":
+      return todayTitle(); // the Today board's top bar: "Thursday 8 October"
     case "notes":
       return r.path ? words(r.path) : "Notes";
     case "notes-health":
@@ -442,6 +446,9 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [goBack]);
 
+  // The rail's Mail dot: Orr's drafts are waiting (R5, Jules 11 Oct), asked again on each move.
+  const draftsWaiting = useDraftsWaiting(!!me, routeHref(route));
+
   if (me === undefined || needsSetup === undefined) return <Boot />;
   if (me === null && needsSetup) return <Setup onDone={setMe} />;
   // A device that has signed in before gets the quick-unlock screen; it offers
@@ -460,6 +467,8 @@ export function App() {
       askOpen={askOpen}
       onFind={() => setPaletteOpen(true)}
       onAsk={() => setAskOpen((v) => !v)}
+      onNew={route.kind === "today" ? () => setCaptureOpen(true) : undefined}
+      mailDot={draftsWaiting}
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}

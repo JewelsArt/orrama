@@ -46,12 +46,16 @@ export interface ShellProps {
   askOpen: boolean;
   onFind: () => void;
   onAsk: () => void;
+  /** The page's New, beside Find on the phone's top bar (Today's board). */
+  onNew?: () => void;
+  /** How many of Orr's drafts wait for you: the rail's Mail dot (Jules, 11 Oct), never unread mail. */
+  mailDot?: number;
   children: ReactNode;
 }
 
 const YOU: Route = { kind: "settings", section: "you" };
 
-export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, children }: ShellProps) {
+export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, children }: ShellProps) {
   const here = placeOf(route);
   const [more, setMore] = useState(false);
   useEffect(() => {
@@ -79,6 +83,7 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, c
           >
             <Icon name={ICON[place]} />
             {label}
+            {place === "mail" && mailDot > 0 && <span className="dot" role="img" aria-label={`${mailDot} ${mailDot === 1 ? "draft" : "drafts"} waiting`} />}
           </a>
         ))}
         <div className="grow" />
@@ -114,6 +119,11 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, c
             </button>
           )}
           <h1>{title}</h1>
+          {onNew && (
+            <button type="button" className="ib" onClick={onNew} aria-label="New">
+              <Icon name="plus" />
+            </button>
+          )}
           <button type="button" className="ib" onClick={onFind} aria-label="Find">
             <Icon name="search" />
           </button>
