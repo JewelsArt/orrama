@@ -102,9 +102,16 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
     };
   }, [load]);
 
-  const patch = async (body: Record<string, unknown>) => {
-    await api("PATCH", `/api/projects/${encodeURIComponent(slug)}`, body);
-    await load();
+  // Header writes go one after another, so the last value set is the last
+  // one written — two in flight used to land in either order (WEB-023).
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
+  const patch = (body: Record<string, unknown>) => {
+    const run = writes.current.then(async () => {
+      await api("PATCH", `/api/projects/${encodeURIComponent(slug)}`, body);
+      await load();
+    });
+    writes.current = run.catch(() => {});
+    return run;
   };
 
   if (error) return <p className="empty" style={{ padding: 24 }}>{error}</p>;
@@ -149,11 +156,11 @@ export function Project({ me, slug, onBack, onOpenNote }: { me: Me; slug: string
           </select>
           <label className="proj-date">
             start
-            <input type="date" value={w.start} disabled={!w.canEdit} onChange={(e) => void patch({ start: e.target.value })} />
+            <DateField value={w.start} disabled={!w.canEdit} onCommit={(v) => patch({ start: v })} />
           </label>
           <label className="proj-date">
             deadline
-            <input type="date" value={w.deadline} disabled={!w.canEdit} onChange={(e) => void patch({ deadline: e.target.value })} />
+            <DateField value={w.deadline} disabled={!w.canEdit} onCommit={(v) => patch({ deadline: v })} />
           </label>
           {left !== null && (
             <span className={`proj-count ${left < 0 ? "over" : left <= 14 ? "soon" : ""}`}>
@@ -284,6 +291,43 @@ function Card({
       </header>
       {children}
     </section>
+  );
+}
+
+/**
+ * A front-matter date (WEB-023). Typing a year into a date field changes its
+ * value on every digit — 0002, 0020, 0202, 2026 — and each used to be written
+ * into the note. It is written once the typing pauses or the field is left,
+ * and never with a year before 1900, which only a half-typed year has.
+ */
+function DateField({ value, disabled, onCommit }: { value: string; disabled: boolean; onCommit: (v: string) => Promise<unknown> }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const whole = (v: string) => v === "" || Number(v.slice(0, 4)) >= 1900;
+  const commit = (v: string) => {
+    clearTimeout(timer.current);
+    if (v !== value && whole(v)) void onCommit(v).catch(() => setDraft(null));
+  };
+  // The note answered (or changed elsewhere): show it.
+  useEffect(() => setDraft(null), [value]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (
+    <input
+      type="date"
+      value={draft ?? value}
+      disabled={disabled}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => commit(v), 600);
+      }}
+      onBlur={() => {
+        if (draft === null) return;
+        if (whole(draft)) commit(draft);
+        else setDraft(null);
+      }}
+    />
   );
 }
 
