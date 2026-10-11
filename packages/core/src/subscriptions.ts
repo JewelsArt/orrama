@@ -30,6 +30,13 @@ export interface Subscription {
   cadence: Cadence;
   /** Next charge, YYYY-MM-DD. Rolled forward if the note has gone stale. */
   next: string | null;
+  /**
+   * The date the note itself says, NOT rolled forward. Every later and earlier
+   * charge is counted from here (`chargeDates`): `next` may already be a
+   * clamped date — the 30th standing in for a 31st — and stepping from it
+   * would carry the clamp into every month after (audit FIN-003).
+   */
+  anchor: string | null;
   /** Amount normalised to one month, for a total that can be summed. */
   monthly: number;
   /**
@@ -119,6 +126,38 @@ export function advanceBy(date: string, cadence: Cadence, n: number): string {
 /** Step a YYYY-MM-DD forward by one period. */
 export function advance(date: string, cadence: Cadence): string {
   return advanceBy(date, cadence, 1);
+}
+
+/**
+ * Every charge of a line between `from` and `to` (inclusive), each counted
+ * from the note's own date — never by chaining one step onto the last.
+ *
+ * Both calendars used to chain single steps, which is exactly the anchor loss
+ * `advanceBy` exists to avoid: rent due on the 31st went to the 30th after
+ * September and to the 28th after February, and walking BACK from a 31st
+ * through a 30-day month did the same (audit FIN-003). Here every date is
+ * `advanceBy(anchor, cadence, n)` for some whole n, negative included, so a
+ * range before the note's date still shows the charges in it.
+ */
+export function chargeDates(anchor: string, cadence: Cadence, from: string, to: string): string[] {
+  if (!ISO.test(anchor) || from > to || !(cadence in MONTHS_PER)) return [];
+  // Start a period or two before `from`, by estimate, then walk forward.
+  const days = (Date.parse(`${from}T00:00:00Z`) - Date.parse(`${anchor}T00:00:00Z`)) / 86_400_000;
+  let n =
+    cadence === "weekly"
+      ? Math.floor(days / 7) - 1
+      : Math.floor(
+          ((+from.slice(0, 4) - +anchor.slice(0, 4)) * 12 + (+from.slice(5, 7) - +anchor.slice(5, 7))) /
+            MONTHS_PER[cadence],
+        ) - 1;
+  const out: string[] = [];
+  // Bounded: a weekly line over a ten-year range is ~520 dates.
+  for (let i = 0; i < 1000; i++, n++) {
+    const d = advanceBy(anchor, cadence, n);
+    if (d > to) break;
+    if (d >= from) out.push(d);
+  }
+  return out;
 }
 
 /**
@@ -226,6 +265,7 @@ export function parseSubscriptions(content: string, today: string): Subscription
       currency: money.currency,
       cadence,
       next,
+      anchor: ISO.test(raw) ? raw : null,
       monthly: Math.round(money.amount * PER_MONTH[cadence] * 100) / 100,
       match: get("match")
         .split(",")

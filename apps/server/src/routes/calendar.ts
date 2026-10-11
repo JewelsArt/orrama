@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { advance, isoLocal, nextCharge, parseSubscriptions, projectName } from "@basalt/core";
+import { chargeDates, isoLocal, parseSubscriptions, projectName } from "@basalt/core";
 import { taskPlaceSchema } from "@basalt/schema";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
@@ -285,11 +285,11 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       const ledger = financeNote(store, user, kind === "charge" ? "subscriptions" : "income");
       if (!ledger) continue;
       for (const row of parseSubscriptions(ledger.content, from)) {
-        if (!row.next) continue;
-        // `nextCharge` rolls a hand-maintained date forward to the first charge
-        // that is not before `from`; `advance` walks the rest of the window.
-        for (let d = nextCharge(row.next, row.cadence, from), guard = 0; d <= to && guard < 64; d = advance(d, row.cadence), guard++) {
-          if (d < from) continue;
+        if (!row.anchor) continue;
+        // Every charge in the window, each counted from the note's own date —
+        // chaining `advance` lost a 31st after the first short month, and
+        // starting at `next` dropped the charges before it (audit FIN-003).
+        for (const d of chargeDates(row.anchor, row.cadence, from, to)) {
           out.push({
             id: `${kind}-${row.service}-${d}`,
             kind,

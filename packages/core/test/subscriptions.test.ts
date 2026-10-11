@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, appendMoneyRow, monthlyTotals, nextCharge, parseSubscriptions } from "../src/subscriptions.js";
+import { advance, appendMoneyRow, chargeDates, monthlyTotals, nextCharge, parseSubscriptions } from "../src/subscriptions.js";
 
 const NOTE = `---
 title: Subscriptions
@@ -169,5 +169,44 @@ describe("an explicit statement descriptor", () => {
       "2026-09-01",
     );
     expect(none[0]!.match).toEqual([]);
+  });
+});
+
+describe("chargeDates counts every charge from the note's own date (audit FIN-003)", () => {
+  it("keeps a 31st on the 31st after a 30-day month and after February", () => {
+    expect(chargeDates("2026-08-31", "monthly", "2026-09-01", "2027-03-31")).toEqual([
+      "2026-09-30",
+      "2026-10-31",
+      "2026-11-30",
+      "2026-12-31",
+      "2027-01-31",
+      "2027-02-28",
+      "2027-03-31",
+    ]);
+    expect(chargeDates("2026-08-31", "quarterly", "2026-09-01", "2027-06-30")).toEqual(["2026-11-30", "2027-02-28", "2027-05-31"]);
+  });
+
+  it("draws the note's own date in its own month, and walks back from it too", () => {
+    expect(chargeDates("2026-10-31", "monthly", "2026-10-01", "2026-10-31")).toEqual(["2026-10-31"]);
+    expect(chargeDates("2026-10-31", "monthly", "2026-08-01", "2026-08-31")).toEqual(["2026-08-31"]);
+    expect(chargeDates("2026-10-31", "monthly", "2027-03-01", "2027-03-31")).toEqual(["2027-03-31"]);
+    expect(chargeDates("2026-11-30", "quarterly", "2027-05-01", "2027-05-31")).toEqual(["2027-05-30"]);
+    expect(chargeDates("2028-02-29", "yearly", "2032-02-01", "2032-02-29")).toEqual(["2032-02-29"]);
+  });
+
+  it("finds the charges before the note's date that a range asks about", () => {
+    expect(chargeDates("2026-11-01", "monthly", "2026-09-01", "2026-10-31")).toEqual(["2026-09-01", "2026-10-01"]);
+    expect(chargeDates("2026-10-05", "weekly", "2026-09-21", "2026-10-04")).toEqual(["2026-09-21", "2026-09-28"]);
+  });
+
+  it("returns nothing for a range that is empty or a date that is not one", () => {
+    expect(chargeDates("2026-10-05", "weekly", "2026-10-10", "2026-10-01")).toEqual([]);
+    expect(chargeDates("soon", "monthly", "2026-10-01", "2026-10-31")).toEqual([]);
+  });
+
+  it("carries the note's date on every line, unrolled", () => {
+    const [rent] = parseSubscriptions("| Service | Amount | Every | Next |\n|---|---|---|---|\n| Rent | 609 | monthly | 2026-08-31 |", "2026-09-15");
+    expect(rent!.next).toBe("2026-09-30");
+    expect(rent!.anchor).toBe("2026-08-31");
   });
 });

@@ -449,6 +449,8 @@ export const moneyItemSchema = o({
   currency: z.string(),
   cadence: z.string(),
   next: nstr,
+  /** The date the note says, not rolled forward — what the calendars count from. */
+  anchor: nstr,
   monthly: z.number(),
   /** Statement descriptors this line answers to (its Match column). */
   match: z.array(z.string()),

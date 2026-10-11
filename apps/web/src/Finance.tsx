@@ -1,6 +1,7 @@
 import { rollUpYears } from "@basalt/core/spending";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isoLocal, monthKey, shiftMonth } from "@basalt/core/dates";
+import { chargeDates, type Cadence } from "@basalt/core/subscriptions";
 import type { FinancePage } from "./App.js";
 import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
@@ -1410,56 +1411,19 @@ function PayslipsCard({
    the two ledgers as a calendar, and the savings plan.
    ========================================================================== */
 
-/** ISO date arithmetic in UTC, so no DST shift moves a charge by a day. */
-const isoAdd = (iso: string, cadence: string): string => {
-  const d = new Date(`${iso}T00:00:00Z`);
-  if (cadence === "weekly") d.setUTCDate(d.getUTCDate() + 7);
-  else {
-    const months = cadence === "quarterly" ? 3 : cadence === "yearly" ? 12 : 1;
-    const day = d.getUTCDate();
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + months);
-    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    d.setUTCDate(Math.min(day, last));
-  }
-  return d.toISOString().slice(0, 10);
-};
-const isoSub = (iso: string, cadence: string): string => {
-  const d = new Date(`${iso}T00:00:00Z`);
-  if (cadence === "weekly") d.setUTCDate(d.getUTCDate() - 7);
-  else {
-    const months = cadence === "quarterly" ? 3 : cadence === "yearly" ? 12 : 1;
-    const day = d.getUTCDate();
-    d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() - months);
-    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-    d.setUTCDate(Math.min(day, last));
-  }
-  return d.toISOString().slice(0, 10);
-};
-
 /**
  * Which days of `month` this line charges on.
  *
- * The note records ONE date — the next charge — plus a cadence, so the calendar
- * has to project the rest. It winds back from that date to before the month
- * starts and then walks forward, which is what makes a yearly subscription show
- * up in its own month and in no other, and a weekly one show up four or five
- * times. Both loops are bounded: a yearly charge ten years out is ten steps,
- * and 400 cannot spin however stale the note is.
+ * The note records ONE date plus a cadence, so the calendar has to project
+ * the rest — and it does so with core's `chargeDates`, the same function the
+ * Planning band uses, counting every charge from the note's own date. This
+ * page used to keep its own copy of the date arithmetic, chained one step at a
+ * time: rent due on the 31st was drawn on the 30th, even in the month the note
+ * names, and on the 28th after February (audit FIN-003).
  */
-function chargeDays(month: string, next: string | null, cadence: string): number[] {
-  if (!next) return [];
-  const start = `${month}-01`;
-  let d = next;
-  for (let i = 0; i < 400 && d >= start; i++) d = isoSub(d, cadence);
-  const days: number[] = [];
-  for (let i = 0; i < 400; i++) {
-    d = isoAdd(d, cadence);
-    if (d.slice(0, 7) > month) break;
-    if (d.startsWith(month)) days.push(Number(d.slice(8, 10)));
-  }
-  return days;
+function chargeDays(month: string, anchor: string | null, cadence: string): number[] {
+  if (!anchor) return [];
+  return chargeDates(anchor, cadence as Cadence, `${month}-01`, `${month}-31`).map((d) => Number(d.slice(8, 10)));
 }
 
 const monthLong = (m: string) =>
@@ -1506,7 +1470,7 @@ function ChargeCalendar({
   const byDay = new Map<number, Money[][]>();
   series.forEach((s, si) => {
     for (const it of s.items)
-      for (const day of chargeDays(month, it.next, it.cadence)) {
+      for (const day of chargeDays(month, it.anchor, it.cadence)) {
         const at = byDay.get(day) ?? series.map(() => []);
         at[si] = [...at[si]!, it];
         byDay.set(day, at);
@@ -1640,7 +1604,7 @@ function LedgerPage({
   const tint = LEDGER_TINT[kind];
   const noteId = income ? d.notes.income : d.notes.subscriptions;
   const dueIn = (items: Money[]) =>
-    items.reduce((a, m) => a + chargeDays(month, m.next, m.cadence).length * m.amount, 0);
+    items.reduce((a, m) => a + chargeDays(month, m.anchor, m.cadence).length * m.amount, 0);
   const dueThis = dueIn(ledger.items);
   const otherLedger = income ? d.subscriptions : d.income;
   const dueOther = dueIn(otherLedger.items);

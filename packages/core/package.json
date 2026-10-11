@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./dates": "./src/dates.ts",
     "./money": "./src/money.ts",
-    "./spending": "./src/spending.ts"
+    "./spending": "./src/spending.ts",
+    "./subscriptions": "./src/subscriptions.ts"
   },
   "scripts": {
     "test": "vitest run",
