@@ -37,8 +37,8 @@ export interface EditorProps {
   /** Titles for [[ autocomplete, usernames for @, tags for #. */
   completions: { titles: string[]; users: string[]; tags: string[] };
   onChange: (content: string) => void;
-  /** Called when the user cmd+clicks a [[wiki link]] in the preview. */
-  onFollowLink?: (title: string) => void;
+  /** Called when the user cmd+clicks a [[wiki link]] in the preview, with the link's target as written (not its alias). */
+  onFollowLink?: (target: string) => void;
   /**
    * The note's sync. With it, other people's edits arrive through the sync
    * and are applied even while you type, and `content` is only the text to

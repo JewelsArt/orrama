@@ -24,6 +24,42 @@ import {
 } from "@codemirror/view";
 
 const LINK_RE = /\[\[([^\[\]\|#]+)(?:#([^\[\]\|]+))?(?:\|([^\[\]]+))?\]\]/g;
+
+/**
+ * The wiki links on one line, and how the preview draws each: everything but the label hidden,
+ * the label marked, and the link's own target kept for a cmd-click (WEB-007). The label is what
+ * you see — the alias when there is one — and used to be what the click asked for, so
+ * `[[Graduation Thesis|thesis]]` looked for a note called "thesis" and `[[folder/Note]]` for one
+ * titled with the whole path. The target is the note's name as written, before `#` and `|`,
+ * which is what the server resolved (NoteDetail.links[].target).
+ */
+export interface WikiLinkSpan {
+  /** Where the link starts and ends, `[[` to `]]`. */
+  from: number;
+  to: number;
+  /** The label shown, trimmed, and where it sits. */
+  label: string;
+  labelFrom: number;
+  labelTo: number;
+  /** The note named, as written. */
+  target: string;
+  heading?: string;
+}
+
+export function wikiLinks(text: string, offset = 0): WikiLinkSpan[] {
+  const out: WikiLinkSpan[] = [];
+  for (const m of text.matchAll(LINK_RE)) {
+    const from = offset + m.index!;
+    const raw = m[3] ?? m[1]!;
+    const label = raw.trim();
+    // Where the label's first character is: after `|` for an alias, after `[[` otherwise, then
+    // past any spaces the trim dropped — `[[Note| My alias]]` used to mark " My alia".
+    const rawFrom = m[3] !== undefined ? from + m[0].indexOf("|") + 1 : from + 2;
+    const labelFrom = rawFrom + (raw.length - raw.trimStart().length);
+    out.push({ from, to: from + m[0].length, label, labelFrom, labelTo: labelFrom + label.length, target: m[1]!.trim(), ...(m[2] ? { heading: m[2].trim() } : {}) });
+  }
+  return out;
+}
 /** `[/]` in progress and `[b]` blocked are open tasks too (see core parse.ts). */
 const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] /;
 const HEADING_RE = /^(#{1,6}) /;
@@ -265,17 +301,13 @@ export function livePreview(opts: Options): Extension {
             }
           }
 
-          // wiki links
-          for (const m of text.matchAll(LINK_RE)) {
-            const start = line.from + m.index!;
-            const end = start + m[0].length;
-            const cursorIn = active && sel.head >= start && sel.head <= end;
+          // wiki links: the label shows, the rest hides, the target rides along for the click
+          for (const l of wikiLinks(text, line.from)) {
+            const cursorIn = active && sel.head >= l.from && sel.head <= l.to;
             if (cursorIn) continue;
-            const label = (m[3] ?? m[1]!).trim();
-            const labelStart = m[3] ? start + m[0].indexOf("|") + 1 : start + 2;
-            decos.push({ from: start, to: labelStart, deco: Decoration.replace({}) });
-            decos.push({ from: labelStart, to: labelStart + label.length, deco: Decoration.mark({ class: "cm-wikilink" }) });
-            decos.push({ from: labelStart + label.length, to: end, deco: Decoration.replace({}) });
+            decos.push({ from: l.from, to: l.labelFrom, deco: Decoration.replace({}) });
+            decos.push({ from: l.labelFrom, to: l.labelTo, deco: Decoration.mark({ class: "cm-wikilink", attributes: { "data-target": l.target } }) });
+            decos.push({ from: l.labelTo, to: l.to, deco: Decoration.replace({}) });
           }
 
           // chips: tags, mentions, due dates, priorities
@@ -386,14 +418,14 @@ export function livePreview(opts: Options): Extension {
     });
   };
 
-  // Follow wiki links with cmd/ctrl+click.
+  // Follow wiki links with cmd/ctrl+click: the link's target, never its label (WEB-007).
   const linkClick = EditorView.domEventHandlers({
     mousedown(e, view) {
       if (!(e.metaKey || e.ctrlKey)) return false;
-      const target = (e.target as HTMLElement).closest(".cm-wikilink");
-      if (!target) return false;
-      const title = target.textContent ?? "";
-      view.dom.dispatchEvent(new CustomEvent("basalt-open-link", { bubbles: true, detail: title }));
+      const link = (e.target as HTMLElement).closest(".cm-wikilink");
+      if (!link) return false;
+      const target = link.getAttribute("data-target") ?? link.textContent ?? "";
+      view.dom.dispatchEvent(new CustomEvent("basalt-open-link", { bubbles: true, detail: target }));
       return true;
     },
   });

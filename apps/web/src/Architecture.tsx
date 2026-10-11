@@ -3,6 +3,7 @@ import { api, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type
 import { blankNote, createNote as createNoteAt } from "./newNote.js";
 import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
+import { noteForLink } from "./notes/links.js";
 import { FileTree } from "./FileTree.js";
 import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
@@ -355,9 +356,10 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               completions={completions}
               onChange={onEdit}
               sync={sync}
-              onFollowLink={(title) => {
-                const target = tree.find((n) => n.title.toLowerCase() === title.toLowerCase());
-                if (target) void openNote(target.id);
+              onFollowLink={(target) => {
+                // The link's own target, resolved the way the server did (WEB-007).
+                const id = noteForLink(target, open.links, tree);
+                if (id) void openNote(id);
               }}
             />
           </>
