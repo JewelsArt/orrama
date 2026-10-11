@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
+import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
 import type { MailAccount as Account, InboxItem, MailCategory, MailMessage, PendingDraft } from "@basalt/schema/responses";
 import { dateLabel, dateTimeLabel, timeLabel } from "./ui/dates.js";
@@ -101,8 +102,36 @@ export function Mail({ me }: { me: Me }) {
   // Click one message, then another: the first one's body must not land last.
   const [nextMessage] = useState(latestOnly);
 
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraftState] = useState<Draft | null>(null);
   const [pending, setPending] = useState<PendingDraft[]>([]);
+  /*
+   * Each draft gets its own composer (WEB-006). The composer copies its draft into its fields
+   * once, so a second draft shown in the same instance kept the first one's text under the
+   * second one's id and headers: Send mailed A's words threaded to B and deleted B unsent. A
+   * new key for every draft opened, even the same one again, starts a fresh composer.
+   */
+  const [composerKey, setComposerKey] = useState(0);
+  const setDraft = useCallback((d: Draft | null) => {
+    setDraftState(d);
+    if (d) setComposerKey((k) => k + 1);
+  }, []);
+  /** Whether the open composer holds something the user typed; it would be lost by leaving. */
+  const dirty = useRef(false);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  /** Leave the composer: straight away if nothing was typed, else only once the user says so. */
+  const leaveComposer = useCallback((go: () => void) => {
+    if (!dirty.current) return go();
+    setConfirm({
+      title: "Discard this message?",
+      body: "What you wrote here hasn't been sent or saved.",
+      confirmLabel: "Discard",
+      danger: true,
+      onConfirm: () => {
+        dirty.current = false;
+        go();
+      },
+    });
+  }, []);
 
   const loadDrafts = useCallback(async () => {
     setPending(await api<PendingDraft[]>("GET", "/api/mail/drafts").catch(() => []));
@@ -140,7 +169,7 @@ export function Mail({ me }: { me: Me }) {
     });
   }, [loadInbox, loadDrafts]);
 
-  const open = useCallback(async (uid: number) => {
+  const openNow = useCallback(async (uid: number) => {
     setSelected(uid);
     setMessage(null);
     setDraft(null);
@@ -159,7 +188,8 @@ export function Mail({ me }: { me: Me }) {
       // A newer message is loading: its spinner is not ours to stop.
       if (!signal.aborted) setLoadingMsg(false);
     }
-  }, [nextMessage]);
+  }, [nextMessage, setDraft]);
+  const open = useCallback((uid: number) => leaveComposer(() => void openNow(uid)), [leaveComposer, openNow]);
 
   const replyTo = (m: MailMessage) =>
     setDraft({
@@ -193,7 +223,7 @@ export function Mail({ me }: { me: Me }) {
         <header className="mail-list-head">
           <span className="mail-addr">{account.email}</span>
           <div className="mail-head-actions">
-            <button className="ghost" title="Compose" onClick={() => { setSelected(null); setMessage(null); setDraft({ to: "", subject: "", body: "" }); }}>
+            <button className="ghost" title="Compose" onClick={() => leaveComposer(() => { setSelected(null); setMessage(null); setDraft({ to: "", subject: "", body: "" }); })}>
               <IconSend />
             </button>
             <button className="ghost" title="Refresh" disabled={loadingList} onClick={() => void loadInbox()}>
@@ -212,19 +242,21 @@ export function Mail({ me }: { me: Me }) {
               <div key={p.id} className="mail-pending-row">
                 <button
                   className="mail-pending-open"
-                  onClick={() => {
-                    setSelected(null);
-                    setMessage(null);
-                    setDraft({
-                      to: p.to,
-                      subject: p.subject,
-                      body: p.body,
-                      inReplyTo: p.inReplyTo ?? undefined,
-                      references: p.references ?? undefined,
-                      id: p.id,
-                      createdBy: p.createdBy,
-                    });
-                  }}
+                  onClick={() =>
+                    leaveComposer(() => {
+                      setSelected(null);
+                      setMessage(null);
+                      setDraft({
+                        to: p.to,
+                        subject: p.subject,
+                        body: p.body,
+                        inReplyTo: p.inReplyTo ?? undefined,
+                        references: p.references ?? undefined,
+                        id: p.id,
+                        createdBy: p.createdBy,
+                      });
+                    })
+                  }
                 >
                   <span className="mail-pending-to">To {p.to}</span>
                   <span className="mail-pending-subject">{p.subject || "(no subject)"}</span>
@@ -292,10 +324,14 @@ export function Mail({ me }: { me: Me }) {
       <div className="mail-pane">
         {draft ? (
           <Composer
+            key={composerKey}
             draft={draft}
             from={account.email!}
-            onClose={() => setDraft(null)}
-            onSent={() => { setDraft(null); void loadInbox(); void loadDrafts(); }}
+            onDirty={(d) => {
+              dirty.current = d;
+            }}
+            onClose={() => { dirty.current = false; setDraft(null); }}
+            onSent={() => { dirty.current = false; setDraft(null); void loadInbox(); void loadDrafts(); }}
           />
         ) : loadingMsg ? (
           <div className="mail-empty">Opening…</div>
@@ -324,6 +360,7 @@ export function Mail({ me }: { me: Me }) {
           </div>
         )}
       </div>
+      <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
@@ -468,10 +505,26 @@ function formatPlain(text: string): React.ReactNode[] {
     });
 }
 
-function Composer({ draft, from, onClose, onSent }: { draft: Draft; from: string; onClose: () => void; onSent: () => void }) {
+function Composer({
+  draft,
+  from,
+  onDirty,
+  onClose,
+  onSent,
+}: {
+  draft: Draft;
+  from: string;
+  onDirty: (dirty: boolean) => void;
+  onClose: () => void;
+  onSent: () => void;
+}) {
   const [to, setTo] = useState(draft.to);
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
+  const changed = to !== draft.to || subject !== draft.subject || body !== draft.body;
+  useEffect(() => {
+    onDirty(changed);
+  }, [changed, onDirty]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -528,7 +581,7 @@ function Composer({ draft, from, onClose, onSent }: { draft: Draft; from: string
         <span>Subject</span>
         <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
       </label>
-      <textarea ref={bodyRef} className="mail-composer-body" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your message…" />
+      <textarea ref={bodyRef} className="mail-composer-body" aria-label="Message" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your message…" />
       {error && <p className="mail-list-error">{error}</p>}
       <div className="mail-composer-actions">
         <button className="primary" disabled={sending || sent || !to.trim()}>
