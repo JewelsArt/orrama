@@ -56,11 +56,6 @@ export function VisionEditor({
   const firstField = useRef<HTMLInputElement>(null);
 
   useEffect(() => firstField.current?.focus(), []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const setColor = (i: number, hex: string) =>
     setDraft((d) => ({ ...d, colors: d.colors.map((c, j) => (j === i ? hex : c)) }));
@@ -116,7 +111,7 @@ export function VisionEditor({
 
   return (
     <div className="vised-backdrop" onClick={onClose}>
-      <Dialog label="Edit colour profile" className="vised">
+      <Dialog label="Edit colour profile" className="vised" onEscape={onClose}>
         <header className="vised-head">
           <input
             ref={firstField}

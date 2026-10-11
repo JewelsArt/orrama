@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
 import { at, crash, serve } from "./test/app-harness.js";
+import { topLayer } from "./ui/overlays.js";
 
 const view = async () => (await screen.findByTestId("view")).textContent!;
 const path = () => location.pathname + location.search;
@@ -275,8 +276,89 @@ describe("keys", () => {
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("ask");
     fireEvent.keyDown(document.body, { key: "c" });
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("capture");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     fireEvent.keyDown(document.body, { key: ",", metaKey: true });
     expect(path()).toBe("/settings");
+  });
+});
+
+describe("overlays (WEB-018)", () => {
+  const open = () => screen.queryAllByTestId("view").map((v) => v.dataset.view);
+
+  it("Find, Capture and Settings are labelled dialogs, and Escape closes each", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+    expect(screen.getByRole("dialog", { name: "Find" }).getAttribute("aria-modal")).toBe("true");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(open()).not.toContain("search");
+    fireEvent.keyDown(document.body, { key: "c" });
+    expect(screen.getByRole("dialog", { name: "Capture" }).getAttribute("aria-modal")).toBe("true");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(open()).not.toContain("capture");
+    fireEvent.keyDown(document.body, { key: ",", metaKey: true });
+    expect(open()).toContain("settings");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(open()).not.toContain("settings"));
+    expect(path()).toBe("/today");
+  });
+
+  it("⌘K from Settings opens Find over it, and Escape closes Find alone", async () => {
+    at("/settings/you");
+    render(<App />);
+    await screen.findByRole("button", { name: "close settings" });
+    fireEvent.keyDown(document.activeElement!, { key: "k", metaKey: true });
+    expect(topLayer()?.kind).toBe("palette");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    expect(open()).not.toContain("search");
+    expect(open()).toContain("settings");
+    expect(path()).toBe("/settings/you");
+  });
+
+  it("what Settings opens goes over it, not in its place", async () => {
+    const user = userEvent.setup();
+    at("/settings/you");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "edit a profile" }));
+    expect(screen.getByRole("dialog", { name: "Edit colour profile" })).toBeTruthy();
+    expect(open()).toContain("settings");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Edit colour profile" })).toBeNull();
+    expect(open()).toContain("settings");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(open()).not.toContain("settings"));
+  });
+
+  it("closing Find gives focus back to what opened it", async () => {
+    const user = userEvent.setup();
+    at("/today");
+    render(<App />);
+    await view();
+    const find = screen.getAllByRole("button", { name: /^Find/ })[0]!;
+    await user.click(find);
+    expect(screen.getByRole("dialog", { name: "Find" }).contains(document.activeElement)).toBe(true);
+    await user.keyboard("{Escape}");
+    expect(document.activeElement).toBe(find);
+  });
+
+  it("Ask sits beside the page: the keys still work, and Escape closes it only from inside it", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    const onPage = screen.getByRole("button", { name: "open note" });
+    onPage.focus();
+    fireEvent.keyDown(onPage, { key: "j", metaKey: true });
+    expect(open()).toContain("ask");
+    expect(document.activeElement).toBe(onPage); // opening it leaves you where you were
+    fireEvent.keyDown(document.body, { key: "2" });
+    expect(path()).toBe("/planning/week");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(open()).toContain("ask");
+    const inside = screen.getByRole("button", { name: "close ask" });
+    inside.focus();
+    fireEvent.keyDown(inside, { key: "Escape" });
+    expect(open()).not.toContain("ask");
   });
 });
 

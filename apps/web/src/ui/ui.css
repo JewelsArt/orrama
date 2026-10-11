@@ -503,3 +503,7 @@ select.inp { appearance: none; padding-right: 32px; background-image: linear-gra
 .keys-list dd { margin: 0; color: var(--ink-2); }
 /* When a page or an overlay fails (ErrorBoundary): a notice where it was. */
 .error-page { padding: 32px 40px; max-width: 620px; background: transparent; }
+/* A panel whose content places itself (the Ask panel, until R12 draws the system's) is drawn
+   by that content alone: its wrappers make no box, so the page beside it stays clickable and
+   the panel keeps its own order among the older screens' overlays. */
+.ui-layer[data-kind="panel"]:has(> .ui-bare), .ui-layer[data-kind="panel"] > .ui-bare { display: contents; }

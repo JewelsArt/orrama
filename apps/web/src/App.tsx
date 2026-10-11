@@ -19,7 +19,7 @@ import { Setup } from "./Setup.js";
 import { readJson, readKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
 import { isTyping, shellKey } from "./ui/keys.js";
-import { anyLayerOpen } from "./ui/overlays.js";
+import { anyLayerOpen, Layer } from "./ui/overlays.js";
 import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, routeHref, useRoute, type MoneyPage, type Route } from "./ui/router.js";
 import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
@@ -492,47 +492,62 @@ export function App() {
         )}
       </ErrorBoundary>
 
+      {/* The overlays these screens draw themselves join the overlay stack (§1.4, WEB-018):
+          their place in the order (⌘K over Settings, not under it), Escape, dialog semantics
+          where they had none, focus kept inside and given back. Each screen moves to the
+          system's own Palette, Sheet or Panel in its wave. */}
       {askOpen && (
         <ErrorBoundary what="Ask Orr" onLeave={{ label: "Close", run: () => setAskOpen(false) }}>
-          <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />
+          <Layer kind="panel" label="Ask Orr" role={null} modal={false} trap={false} focus={false} onClose={() => setAskOpen(false)}>
+            <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />
+          </Layer>
         </ErrorBoundary>
       )}
       {paletteOpen && (
         <ErrorBoundary what="Find" onLeave={{ label: "Close", run: () => setPaletteOpen(false) }}>
-          <SearchPalette
-            onClose={() => setPaletteOpen(false)}
-            onPick={(id) => {
-              setPaletteOpen(false);
-              openNote(id);
-            }}
-          />
+          <Layer kind="palette" label="Find" onClose={() => setPaletteOpen(false)}>
+            <SearchPalette
+              onClose={() => setPaletteOpen(false)}
+              onPick={(id) => {
+                setPaletteOpen(false);
+                openNote(id);
+              }}
+            />
+          </Layer>
         </ErrorBoundary>
       )}
       {captureOpen && (
         <ErrorBoundary what="Capture" onLeave={{ label: "Close", run: () => setCaptureOpen(false) }}>
-          <QuickCapture onClose={() => setCaptureOpen(false)} />
+          <Layer kind="dialog" label="Capture" onClose={() => setCaptureOpen(false)}>
+            <QuickCapture onClose={() => setCaptureOpen(false)} />
+          </Layer>
         </ErrorBoundary>
       )}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
       {settingsOpen && (
         <ErrorBoundary what="Settings" onLeave={{ label: "Close", run: closeSettings }}>
-          <Settings
-            me={me}
-            theme={theme}
-            onTheme={changeTheme}
-            vision={vision}
-            onVision={setVision}
-            profiles={profiles}
-            onProfiles={setProfiles}
-            onUpdate={setMe}
-            onClose={closeSettings}
-            onSignOut={() => {
-              disconnectWs();
-              void signOut();
-              setMe(null);
-              go({ kind: "today" }, { replace: true });
-            }}
-          />
+          {/* Settings draws its own dialog (role, Tab trap): the layer adds Escape and the order.
+              It is a sheet in that order, so what it opens (the colour profile editor, a
+              confirm) goes over it instead of replacing it. */}
+          <Layer kind="sheet" label="Settings" role={null} trap={false} onClose={closeSettings}>
+            <Settings
+              me={me}
+              theme={theme}
+              onTheme={changeTheme}
+              vision={vision}
+              onVision={setVision}
+              profiles={profiles}
+              onProfiles={setProfiles}
+              onUpdate={setMe}
+              onClose={closeSettings}
+              onSignOut={() => {
+                disconnectWs();
+                void signOut();
+                setMe(null);
+                go({ kind: "today" }, { replace: true });
+              }}
+            />
+          </Layer>
         </ErrorBoundary>
       )}
     </Shell>

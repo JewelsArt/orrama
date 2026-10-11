@@ -11,6 +11,9 @@
  * closes the top one, and only that one. A modal layer takes focus when it opens, keeps Tab
  * inside, and gives focus back to whatever opened it when it closes.
  *
+ * A panel sits beside the page, and the page stays in use: the shell's keys keep working while
+ * one is open, and Escape closes it only from inside it (Escape in the page is the page's).
+ *
  * Before this there were eight overlay systems and ten modal styles, Escape worked in some and
  * not others, and ⌘K opened from Settings appeared under it (WEB-018).
  */
@@ -58,8 +61,9 @@ export function topLayer(): { id: number; kind: LayerKind } | undefined {
   return best && { id: best.id, kind: best.kind };
 }
 
-/** Is any overlay open? The shell's own keys stand down while one is. */
-export const anyLayerOpen = () => layers.size > 0;
+/** Is an overlay open over the page? The shell's own keys stand down while one is. A panel is
+ *  beside the page, not over it, and does not count. */
+export const anyLayerOpen = () => [...layers.values()].some((l) => l.kind !== "panel");
 
 /** Re-render when layers open or close. */
 export function useLayersOpen(): number {
@@ -86,6 +90,7 @@ function listen() {
       const entry = layers.get(top.id)!;
       if (e.key === "Escape") {
         if (e.defaultPrevented) return;
+        if (entry.kind === "panel" && !entry.box()?.contains(e.target as Node)) return;
         e.preventDefault();
         e.stopPropagation();
         entry.close();
@@ -162,6 +167,8 @@ interface LayerProps {
   role?: "dialog" | "alertdialog" | null;
   modal?: boolean;
   trap?: boolean;
+  /** Move focus in when it opens (default true). */
+  focus?: boolean;
 }
 
 /**
@@ -169,9 +176,9 @@ interface LayerProps {
  * search palette, quick capture, Settings) its place in the stack, its Escape and its focus
  * rules; Dialog, Sheet and Palette below are this with the system's boxes.
  */
-export function Layer({ kind, onClose, label, children, className, scrim = false, role = "dialog", modal = true, trap = modal }: LayerProps) {
+export function Layer({ kind, onClose, label, children, className, scrim = false, role = "dialog", modal = true, trap = modal, focus = true }: LayerProps) {
   const box = useRef<HTMLDivElement>(null);
-  useLayer({ kind, onClose, box, trap });
+  useLayer({ kind, onClose, box, trap, focus });
   return createPortal(
     <div className="ui-layer" data-kind={kind}>
       {scrim && <div className="ui-scrim" onClick={onClose} aria-hidden="true" />}

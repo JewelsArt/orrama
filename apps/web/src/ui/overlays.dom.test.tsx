@@ -3,11 +3,13 @@
  * one of a kind at a time; Escape closes the top one only; modal layers hold focus and give it
  * back.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { Dialog, Layer, Menu, Palette, Sheet, topLayer, toast, Toaster } from "./overlays.js";
+import { anyLayerOpen, Dialog, Layer, Menu, Palette, Sheet, topLayer, toast, Toaster } from "./overlays.js";
 
 describe("the stack", () => {
   it("puts a palette over a dialog over a sheet, and Escape closes from the top", async () => {
@@ -63,6 +65,16 @@ describe("the stack", () => {
       </>,
     );
     expect(closedA).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws the kinds in the order Escape closes them", () => {
+    const css = fs.readFileSync(path.join(import.meta.dirname, "ui.css"), "utf8");
+    const z = (kind: string) => Number(new RegExp(`\\.ui-layer\\[data-kind="${kind}"\\]\\s*\\{[^}]*z-index:\\s*(\\d+)`).exec(css)?.[1]);
+    const order = ["panel", "sheet", "dialog", "palette", "popover"];
+    const drawn = order.map(z);
+    expect(drawn.every(Number.isFinite)).toBe(true);
+    expect([...drawn].sort((a, b) => a - b)).toEqual(drawn);
+    expect(new Set(drawn).size).toBe(order.length);
   });
 
   it("stops Escape from reaching the page underneath", async () => {
@@ -135,6 +147,45 @@ describe("a modal layer", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1); // no dialog inside a dialog
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("a panel", () => {
+  it("sits beside the page: it does not stand the shell's keys down, and Escape is its own only from inside it", () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <button>On the page</button>
+        <Layer kind="panel" label="Ask Orr" role={null} modal={false} focus={false} onClose={onClose}>
+          <aside>
+            <input aria-label="Ask" />
+          </aside>
+        </Layer>
+      </>,
+    );
+    expect(topLayer()?.kind).toBe("panel");
+    expect(anyLayerOpen()).toBe(false);
+    const page = screen.getByRole("button", { name: "On the page" });
+    page.focus();
+    fireEvent.keyDown(page, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    const ask = screen.getByRole("textbox", { name: "Ask" });
+    ask.focus();
+    fireEvent.keyDown(ask, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes under a dialog, which still stands the keys down", () => {
+    render(
+      <>
+        <Layer kind="panel" label="Ask Orr" role={null} modal={false} onClose={() => {}}>
+          <aside />
+        </Layer>
+        <Dialog title="Delete?" onClose={() => {}} />
+      </>,
+    );
+    expect(topLayer()?.kind).toBe("dialog");
+    expect(anyLayerOpen()).toBe(true);
   });
 });
 

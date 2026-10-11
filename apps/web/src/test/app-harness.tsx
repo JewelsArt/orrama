@@ -3,14 +3,16 @@
  * overlays, the error boundary. Each stub renders its props and buttons for its callbacks.
  * Import this module before App (vi.mock calls are hoisted within it).
  */
+import { useState, type ReactNode } from "react";
 import { vi } from "vitest";
+import { Dialog } from "../dialog.js";
 
 type P = Record<string, unknown> & { [k: string]: any };
 
 /** Screens that throw when they render, for the error boundary's tests. */
 export const crash = new Set<string>();
 
-const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => []) =>
+const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => [], extra?: () => ReactNode) =>
   function Stub(p: P) {
     // A test can make a screen throw while rendering: crash.add("planning").
     if (crash.has(name)) throw new Error(`${name} fell over`);
@@ -26,6 +28,7 @@ const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => []
             {label}
           </button>
         ))}
+        {extra?.()}
       </div>
     );
   };
@@ -53,7 +56,22 @@ vi.mock("../Finance.js", () => ({
     ["back", () => p.onBack()],
   ]),
 }));
-vi.mock("../Settings.js", () => ({ Settings: stub("settings", (p) => [["close settings", () => p.onClose()]]) }));
+/** A box Settings opens over itself, the way its colour profile editor does. */
+function ProfileEditor() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={() => setOpen(true)}>edit a profile</button>
+      {open && (
+        <Dialog label="Edit colour profile" onEscape={() => setOpen(false)}>
+          <input aria-label="Profile name" />
+        </Dialog>
+      )}
+    </>
+  );
+}
+
+vi.mock("../Settings.js", () => ({ Settings: stub("settings", (p) => [["close settings", () => p.onClose()]], () => <ProfileEditor />) }));
 vi.mock("../AskPanel.js", () => ({ AskPanel: stub("ask", (p) => [["close ask", () => p.onClose()]]) }));
 vi.mock("../SearchPalette.js", () => ({ SearchPalette: stub("search", (p) => [["pick n-1", () => p.onPick("n-1")]]) }));
 vi.mock("../QuickCapture.js", () => ({ QuickCapture: stub("capture") }));
