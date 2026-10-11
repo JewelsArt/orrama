@@ -227,4 +227,18 @@ describe("the note's menu and links", () => {
     const matches = within(screen.getByLabelText("Notes matching the filter"));
     expect(matches.getAllByRole("link").map((a) => a.textContent)).toEqual([expect.stringContaining("Research plan"), expect.stringContaining("Ideas")]);
   });
+
+  it("a life area filters the tree, and the menu puts it back to all notes", async () => {
+    render(<Routed />);
+    await flush();
+    fireEvent.click(within(screen.getByRole("group", { name: "Life areas" })).getByText("Work"));
+    await flush();
+    const tree = within(screen.getByRole("complementary", { name: "Notes" }));
+    fireEvent.click(tree.getByRole("button", { name: /Contacts/ }));
+    fireEvent.click(tree.getByRole("button", { name: /Companies/ }));
+    expect(tree.getByText("Kade Social")).toBeTruthy();
+    expect(tree.queryByRole("button", { name: /^Me\s*\d+$/ })).toBeNull(); // Ines is Personal
+    fireEvent.click(tree.getByRole("button", { name: /Show all notes/ }));
+    expect(tree.getByRole("button", { name: /^Me\s*\d+$/ })).toBeTruthy();
+  });
 });

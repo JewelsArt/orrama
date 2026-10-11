@@ -40,6 +40,7 @@
   color: var(--ink-3);
   cursor: pointer;
 }
+.cm-props { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 24px; }
 .cm-props:hover { color: var(--ink); border-color: var(--ink-3); }
 .cm-props:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
