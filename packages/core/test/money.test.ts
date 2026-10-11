@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseMoney, parseMoneyWithCurrency } from "../src/money.js";
 import { parseStatement } from "../src/statement.js";
-import { parsePayslipTable } from "../src/payslip.js";
+import { parsePayslip, parsePayslipTable } from "../src/payslip.js";
 import { parseSubscriptions } from "../src/subscriptions.js";
 
 describe("parseMoney", () => {
@@ -46,6 +46,81 @@ describe("parseMoney", () => {
     expect(parseMoneyWithCurrency("£9.99")).toEqual({ amount: 9.99, currency: "GBP" });
     expect(parseMoneyWithCurrency("9,99")).toEqual({ amount: 9.99, currency: "EUR" });
     expect(parseMoneyWithCurrency("free")).toBeNull();
+  });
+});
+
+describe("parseMoney on hand-written ledger cells (audit FIN-005)", () => {
+  it("reads a lone separator before exactly three digits as grouping, never as 1.2", () => {
+    expect(parseMoney("€1.200")).toBe(1200);
+    expect(parseMoney("1,200")).toBe(1200);
+    expect(parseMoney("€2.530")).toBe(2530);
+    expect(parseMoney("12,345")).toBe(12345);
+    // A leading zero is never grouped, and two or four digits stay decimals.
+    expect(parseMoney("0.125")).toBe(0.125);
+    expect(parseMoney(".125")).toBe(0.125);
+    expect(parseMoney("1,25")).toBe(1.25);
+    expect(parseMoney("15,0000")).toBe(15);
+  });
+
+  it("reads one number, not every digit in the cell", () => {
+    expect(parseMoney("€29.99 (was 24.99)")).toBe(29.99);
+    expect(parseMoney("€9,99 (was €7,99)")).toBe(9.99);
+    expect(parseMoney("€17.99 (6 people)")).toBe(17.99);
+    expect(parseMoney("€10,99 (2 users)")).toBe(10.99);
+    expect(parseMoney("€ 9,99/mo")).toBe(9.99);
+  });
+
+  it("refuses a cell that still holds two numbers rather than guessing", () => {
+    expect(parseMoney("10.99 EUR / 12 months")).toBeNull();
+    expect(parseMoney("1e3")).toBeNull();
+    expect(parseMoney("1.2.3")).toBeNull();
+  });
+
+  it("reads every way of writing minus", () => {
+    expect(parseMoney("\u221212.00")).toBe(-12); // U+2212
+    expect(parseMoney("\u2013 12,00")).toBe(-12); // en dash
+    expect(parseMoney("\u2014 12,00")).toBe(-12); // em dash
+    expect(parseMoney("12.00-")).toBe(-12);
+    expect(parseMoney("12,00 -")).toBe(-12);
+    expect(parseMoney("12,00 - EUR")).toBe(-12);
+    expect(parseMoney("€-12,50")).toBe(-12.5);
+    expect(parseMoney("EUR -12,50")).toBe(-12.5);
+    expect(parseMoney("+12.00")).toBe(12);
+  });
+
+  it("keeps the Dutch whole-euro dash positive", () => {
+    expect(parseMoney("€ 25,-")).toBe(25);
+    expect(parseMoney("1.200,-")).toBe(1200);
+  });
+
+  it("still reads space and apostrophe grouping", () => {
+    expect(parseMoney("1 234,56")).toBe(1234.56);
+    expect(parseMoney("1\u00a0234,56")).toBe(1234.56);
+    expect(parseMoney("1'234.56")).toBe(1234.56);
+  });
+
+  it("reads a format the caller names without guessing", () => {
+    expect(parseMoney("13,250", ",")).toBe(13.25);
+    expect(parseMoney("1.057,06", ",")).toBe(1057.06);
+    expect(parseMoney("-75,17", ",")).toBe(-75.17);
+  });
+
+  it("puts what was written on the ledger, not 299,924.99", () => {
+    const subs = parseSubscriptions(
+      [
+        "| Service | Amount | Every |",
+        "|---|---|---|",
+        "| Tuition | €2.530 | yearly |",
+        "| Spotify | €17,99 (6 people) | monthly |",
+        "| Gym | €29.99 (was 24.99) | monthly |",
+      ].join("\n"),
+      "2026-10-02",
+    );
+    expect(subs.map((s) => [s.service, s.amount, s.monthly])).toEqual([
+      ["Tuition", 2530, 210.83],
+      ["Spotify", 17.99, 17.99],
+      ["Gym", 29.99, 29.99],
+    ]);
   });
 });
 
@@ -108,6 +183,12 @@ describe("the payslip ledger uses it (audit B4)", () => {
     expect(rows.map((r) => r.tax)).toEqual([156.56, 156.56]);
     expect(rows.map((r) => r.rate)).toEqual([13.25, 13.25]);
     expect(rows.map((r) => r.effectiveNet)).toEqual([11.26, 11.26]);
+  });
+
+  it("reads a PDF's three-decimal rate as a decimal comma, not as grouping (FIN-005)", () => {
+    const p = parsePayslip("Verl. per. 09/2026 BRUTO 1.057,06 9.000,00 NETTOLOON 900,50 8.000,00 UURLOON 13,250 UREN GEWERKT 80,00 700,00");
+    expect(p.hourlyRate).toBe(13.25);
+    expect(p.gross).toBe(1057.06);
   });
 });
 

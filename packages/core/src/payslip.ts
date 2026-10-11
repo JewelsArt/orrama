@@ -39,7 +39,7 @@ export interface Payslip {
  * carries a comma decimal, so the shared "last separator wins" rule reads them
  * identically to the hand-rolled Dutch one this replaced — one parser, not two.
  */
-const dutch = parseMoney;
+const dutch = (raw: string) => parseMoney(raw, ",");
 
 const NUMBER = /-?\d{1,3}(?:\.\d{3})*,\d+|-?\d+,\d+/g;
 
