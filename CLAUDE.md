@@ -15,7 +15,7 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
 - **The app is already running.** A launchd agent
   (`~/Library/LaunchAgents/dev.basalt.server.plist`, KeepAlive) serves the API on
   **:4623** *and* the built web bundle from `apps/web/dist`. The desktop app is a
-  Tauri window pointed at :4623. `pnpm --dir apps/web dev` (:4625) is for
+  Tauri window that shows :4623 once it answers as Basalt. `pnpm --dir apps/web dev` (:4625) is for
   iterating; the desktop app does not see it.
 - **After changing web code, run `pnpm ship`** — typecheck, tests, build, and
   restart the agent. Editing source alone changes nothing in the desktop app,
@@ -81,7 +81,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter, the shelves) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity page's shared pieces: header, status vocabulary, dates as text, relations, Orr's warnings), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` open a Sheet until the entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
-| `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
+| `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Basalt isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Basalt (`is_basalt`, `src/lib.rs`). Building needs a Rust toolchain |
 
 ## Permission model (memorize this)
 
@@ -975,9 +975,10 @@ on a shipped commit, with an entry in `CHANGELOG.md`:
 
 1. Move the `## [Unreleased]` notes under `## [X.Y.Z] — YYYY-MM-DD`, leave an
    empty `[Unreleased]` above, and add the compare/tag links at the bottom.
-2. Bump the version in all twelve places — every `package.json`,
+2. Bump the version in all thirteen places — every `package.json`,
    `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/Cargo.toml`
-   and the MCP server's handshake in `apps/mcp/src/index.ts`.
+   and its `Cargo.lock` (`cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`
+   rewrites it), and the MCP server's handshake in `apps/mcp/src/index.ts`.
    `test/release.test.ts` fails until they agree and the changelog has the entry.
 3. Commit, `pnpm ship`, then `git tag -a vX.Y.Z -m "Basalt X.Y.Z"` and push the
    tag and `main`.

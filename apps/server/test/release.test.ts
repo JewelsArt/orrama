@@ -1,7 +1,7 @@
 /**
  * One version, written down in one changelog (CHANGELOG.md, CLAUDE.md
  * "Releases"). The version lives in twelve places — nine package.json files,
- * the Tauri config, Cargo.toml and the MCP server's handshake — and a release
+ * the Tauri config, Cargo.toml (and its lock) and the MCP server's handshake — and a release
  * bumps all of them; this fails the moment one is missed, or the version has
  * no dated changelog entry.
  */
@@ -24,8 +24,11 @@ describe("release", () => {
     }
     found["apps/desktop/src-tauri/tauri.conf.json"] = (JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json")) as { version?: string }).version;
     found["apps/desktop/src-tauri/Cargo.toml"] = /^version\s*=\s*"([^"]+)"/m.exec(read("apps/desktop/src-tauri/Cargo.toml"))?.[1];
+    // Cargo.lock follows Cargo.toml only on the next cargo build; desktop.yml
+    // runs `cargo check --locked`, which fails when they disagree (OPS-010).
+    found["apps/desktop/src-tauri/Cargo.lock"] = /name = "basalt-desktop"\nversion = "([^"]+)"/.exec(read("apps/desktop/src-tauri/Cargo.lock"))?.[1];
     found["apps/mcp/src/index.ts"] = /name: "basalt-mcp",\s*version: "([^"]+)"/.exec(read("apps/mcp/src/index.ts"))?.[1];
-    expect(Object.keys(found).length).toBe(11);
+    expect(Object.keys(found).length).toBe(12);
     expect(Object.entries(found).filter(([, v]) => v !== version)).toEqual([]);
   });
 

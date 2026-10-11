@@ -1,0 +1,16 @@
+/* The page the desktop window shows until Basalt's server answers (lib.rs).
+   Values copied from packages/ui/src/tokens.css (paper by day, night blue after
+   dark: --ground, --surface, --card-line, --ink, --ink-2) — this page cannot
+   load them from the server it is waiting for. System font: nothing loads from
+   elsewhere. */
+:root { color-scheme: light dark; --ground: #F3EFE8; --surface: #FFFFFF; --card-line: #E5DED2; --ink: #1B1813; --ink-2: #4E473D; }
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #090E1A; --surface: #131A2B; --card-line: #252F46; --ink: #EEF1F7; --ink-2: #B6BDCB; }
+}
+html, body { height: 100%; margin: 0; }
+body { display: grid; place-items: center; background: var(--ground); color: var(--ink); font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+main { max-width: 30rem; margin: 1.5rem; padding: 2rem; background: var(--surface); border: 1px solid var(--card-line); border-radius: 12px; }
+h1 { margin: 0 0 0.75rem; font-size: 1.25rem; font-weight: 600; }
+p { margin: 0 0 0.75rem; }
+.hint { margin: 0; color: var(--ink-2); font-size: 13px; }
+code { font: 12px ui-monospace, monospace; user-select: all; }

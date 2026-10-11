@@ -16,13 +16,6 @@ importers:
         version: 5.9.3
 
   apps/desktop:
-    dependencies:
-      '@basalt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@basalt/sync':
-        specifier: workspace:*
-        version: link:../../packages/sync
     devDependencies:
       '@tauri-apps/cli':
         specifier: ^2.5.0

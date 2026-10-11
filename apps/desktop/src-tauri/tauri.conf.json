@@ -4,16 +4,14 @@
   "version": "0.1.0",
   "identifier": "dev.basalt.app",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../web dev",
-    "beforeBuildCommand": "pnpm --dir ../web build",
-    "devUrl": "http://localhost:4625",
-    "frontendDist": "../../web/dist"
+    "frontendDist": "fallback"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Basalt",
-        "url": "http://localhost:4623",
+        "url": "index.html",
         "width": 1280,
         "height": 820,
         "minWidth": 900,
@@ -22,7 +20,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https:; img-src 'self' data: blob: https: http:; connect-src 'self' http://localhost:4623 ws://localhost:4623; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+      "csp": "default-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     }
   },
   "bundle": {
