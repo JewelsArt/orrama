@@ -3,7 +3,7 @@
  * overlays, the error boundary. Each stub renders its props and buttons for its callbacks.
  * Import this module before App (vi.mock calls are hoisted within it).
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { vi } from "vitest";
 import { Dialog } from "../dialog.js";
 
@@ -51,7 +51,20 @@ vi.mock("../orrery/Orrery.js", () => {
 });
 vi.mock("../Planning.js", () => ({ Planning: stub("planning") }));
 vi.mock("../Overview.js", () => ({ Overview: stub("overview") }));
-vi.mock("../Project.js", () => ({ Project: stub("project", (p) => [["back", () => p.onBack()]]) }));
+/** How many times the project page was mounted: its tabs are addresses, not new pages. */
+const counts = vi.hoisted(() => ({ project: 0 }));
+export const mounted = counts;
+vi.mock("../Project.js", () => {
+  const Stub = stub("project");
+  return {
+    Project: (p: P) => {
+      useEffect(() => {
+        counts.project++;
+      }, []);
+      return <Stub {...p} />;
+    },
+  };
+});
 vi.mock("../Contacts.js", () => ({ Contacts: stub("contacts") }));
 vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
 vi.mock("../Finance.js", () => ({

@@ -23,6 +23,7 @@ describe("addresses", () => {
     ["/orrery?area=work", { kind: "orrery", area: "work" }],
     ["/orrery?topic=forecasting", { kind: "orrery", topic: "forecasting" }],
     ["/projects", { kind: "projects" }],
+    ["/projects?area=school", { kind: "projects", area: "school" }],
     ["/projects/graduation-thesis", { kind: "project", slug: "graduation-thesis" }],
     ["/projects/graduation-thesis/timeline", { kind: "project", slug: "graduation-thesis", tab: "timeline" }],
     ["/projects/graduation-thesis/documents", { kind: "project", slug: "graduation-thesis", tab: "documents" }],

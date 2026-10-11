@@ -476,8 +476,19 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      {/* Notes is one page whichever note it shows: moving between notes must not remount it. */}
-      <ErrorBoundary key={shown.kind === "orrery" ? "/orrery" : shown.kind === "planning" ? "/planning" : shown.kind === "notes" ? "/notes" : routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
+      {/* One page, one key: moving inside the Orrery, Planning, Notes or a project (its tabs)
+          must not remount the page. */}
+      <ErrorBoundary
+        key={
+          shown.kind === "orrery" ? "/orrery"
+          : shown.kind === "planning" ? "/planning"
+          : shown.kind === "notes" ? "/notes"
+          : shown.kind === "project" ? routeHref({ kind: "project", slug: shown.slug })
+          : routeHref(shown)
+        }
+        what={route.kind === "settings" ? "Settings" : undefined}
+        onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}
+      >
         {route.kind === "settings" ? (
           <Settings
             me={me}
@@ -511,7 +522,7 @@ export function App() {
         ) : view.kind === "overview" ? (
           <Overview me={me} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "project" ? (
-          <Project me={me} slug={view.slug} onBack={goBack} onOpenNote={openNote} />
+          <Project me={me} slug={view.slug} tab={(shown.kind === "project" && shown.tab) || "overview"} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
           <Contacts me={me} onOpenNote={openNote} />
         ) : view.kind === "mail" ? (

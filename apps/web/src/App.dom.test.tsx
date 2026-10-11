@@ -8,7 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, routeOfView } from "./App.js";
 import { routeHref } from "./ui/router.js";
-import { at, crash, ME, serve } from "./test/app-harness.js";
+import { at, crash, ME, mounted, serve } from "./test/app-harness.js";
 import { dismissToast, toast, topLayer } from "./ui/overlays.js";
 
 const view = async () => (await screen.findByTestId("view")).textContent!;
@@ -106,6 +106,21 @@ describe("addresses", () => {
     act(() => void window.history.replaceState({ depth: 0 }, "", "/projects/thesis"));
     await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["project"]);
+  });
+
+  it("a project's tab is its address, and moving between tabs keeps the same page (R8)", async () => {
+    at("/projects/thesis/timeline");
+    render(<App />);
+    expect(await view()).toMatch(/^project slug=thesis tab=timeline/);
+    const before = mounted.project;
+    act(() => void window.history.pushState({ depth: 1 }, "", "/projects/thesis/todo"));
+    await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(await view()).toMatch(/^project slug=thesis tab=todo/);
+    act(() => void window.history.pushState({ depth: 2 }, "", "/projects/thesis"));
+    await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(await view()).toMatch(/^project slug=thesis tab=overview/);
+    // The page, its loaded workspace and its scroll stay; only the tab changes.
+    expect(mounted.project).toBe(before);
   });
 
   it("an address this app does not know goes to Today", async () => {

@@ -35,7 +35,8 @@ export type Route =
   | { kind: "notes"; path?: string; id?: string }
   | { kind: "notes-health" }
   | { kind: "orrery"; center?: string; area?: string; topic?: string }
-  | { kind: "projects" }
+  /** The board, filtered to one life area (`?area=school`). */
+  | { kind: "projects"; area?: string }
   | { kind: "project"; slug: string; tab?: ProjectTab }
   | { kind: "people"; q?: string }
   | { kind: "person"; slug: string }
@@ -92,7 +93,7 @@ export function parseRoute(pathname: string, search = ""): Route | null {
       return r;
     }
     case "projects":
-      if (!rest[0]) return { kind: "projects" };
+      if (!rest[0]) return opt("area") ? { kind: "projects", area: opt("area") } : { kind: "projects" };
       return rest[1] && PROJECT_TABS.has(rest[1] as ProjectTab) ? { kind: "project", slug: rest[0], tab: rest[1] as ProjectTab } : { kind: "project", slug: rest[0] };
     case "people":
       if (rest[0]) return { kind: "person", slug: rest[0] };
@@ -141,7 +142,7 @@ export function routeHref(r: Route): string {
     case "orrery":
       return `/orrery${query({ center: r.center, area: r.area, topic: r.topic })}`;
     case "projects":
-      return "/projects";
+      return `/projects${query({ area: r.area })}`;
     case "project":
       return `/projects/${enc(r.slug)}${r.tab ? `/${r.tab}` : ""}`;
     case "people":
