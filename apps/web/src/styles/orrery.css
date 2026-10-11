@@ -15,7 +15,7 @@
 .o-find input { border: 0; outline: none; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); width: 100%; min-width: 0; }
 .o-find input::placeholder { color: var(--ink-3); }
 .o-find .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
-.o-results { position: absolute; left: 0; right: -60px; top: 38px; z-index: 20; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-2); box-shadow: var(--shadow-pop); }
+.o-results { position: absolute; right: 0; width: max(100%, 340px); top: 38px; z-index: 20; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-2); box-shadow: var(--shadow-pop); }
 .o-results li { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 8px; align-items: center; min-height: 40px; padding: 4px 8px; border-radius: var(--r-1); cursor: pointer; }
 .o-results li.on { background: var(--hover); }
 .o-results li svg { grid-row: span 2; }
@@ -104,7 +104,7 @@
   .o-top h1 { display: none; }
   .o-meta { margin-top: 0; font-size: 13.5px; }
   .o-find { width: 100%; order: 5; }
-  .o-results { right: 0; }
+  .o-results { width: 100%; }
   .o-body { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; }
   .o-stage { aspect-ratio: 1 / 1.02; flex: none; }
   .o-legend { display: none; }
