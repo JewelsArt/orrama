@@ -111,7 +111,6 @@
   /* ---- Architecture ----
      The force-graph canvas is sized in JS from the desktop panel width. */
   .graph-canvas,
-  .graph-backdrop canvas,
   canvas {
     max-width: 100%;
   }

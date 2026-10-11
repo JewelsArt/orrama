@@ -82,10 +82,6 @@ kbd {
   color: var(--danger);
   border-color: var(--danger);
 }
-.badge.progress-badge {
-  color: var(--accent);
-  border-color: var(--accent);
-}
 
 /* scope tabs (Architecture / Planning / Overview headers) */
 .view-head {
@@ -120,23 +116,6 @@ kbd {
   background: var(--panel-strong);
   color: var(--text);
   box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-.scope-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--team, var(--accent));
-}
-.scope-pct {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-.scope-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  margin-left: 8px;
 }
 .scope-new {
   margin-left: auto;
@@ -173,8 +152,6 @@ kbd {
 }
 .confirm h2 { margin: 0; font-size: 16px; font-weight: 750; letter-spacing: -0.01em; }
 .confirm p { margin: 9px 0 0; font-size: 13px; line-height: 1.55; color: var(--text-dim); }
-.confirm-actions { display: flex; gap: 8px; margin-top: 18px; }
-.confirm-actions .ct-btn { flex: 1; }
 
 /* A dialog box that takes focus itself (it has no controls yet) shows no ring. */
 [role="dialog"][tabindex="-1"]:focus,

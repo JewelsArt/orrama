@@ -71,71 +71,6 @@
   border-right: 1px solid var(--border);
   overflow: hidden;
 }
-.graph-backdrop {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.arch-files-inner {
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 10px;
-}
-.arch-files-inner .scope-tabs {
-  width: 100%;
-  flex-wrap: wrap;
-}
-.arch-files-inner .scope-tab {
-  padding: 4px 9px;
-  font-size: 12.5px;
-}
-.arch-tree {
-  flex: 1;
-  overflow: auto;
-  margin-top: 10px;
-}
-.tree-folder {
-  margin-bottom: 2px;
-}
-.tree-folder-name {
-  width: 100%;
-  font-weight: 650;
-  font-size: 12.5px;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-}
-.tree-note {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px 4px 26px;
-  font-size: 13.5px;
-  color: var(--text-dim);
-}
-.tree-note.active {
-  background: var(--accent-dim);
-  color: var(--text);
-}
-.tree-note-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tree-note-count {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0 4px;
-  flex: none;
-}
 
 .editor-pane {
   display: flex;
@@ -209,12 +144,6 @@
   min-height: 0;
   overflow: auto;
   padding: 4px 22px 0;
-}
-.editor-empty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  color: var(--text-faint);
 }
 
 .side {
