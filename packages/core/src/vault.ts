@@ -8,8 +8,25 @@ import type {
   ProjectProgress,
   VaultFile,
   VaultTask,
+  WikiLink,
 } from "./types.js";
-import { filterReadable } from "./acl.js";
+import { filterReadable, foldPath } from "./acl.js";
+
+/**
+ * `target` read relative to `folder` (`..` and `.` segments applied), or null
+ * when it climbs out of the vault.
+ */
+function relativeTo(folder: string, target: string): string | null {
+  const out = folder === "" ? [] : folder.split("/");
+  for (const seg of target.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") {
+      if (out.length === 0) return null;
+      out.pop();
+    } else out.push(seg);
+  }
+  return out.join("/");
+}
 
 function folderOf(path: string): string {
   const idx = path.lastIndexOf("/");
@@ -123,7 +140,9 @@ export class VaultIndex {
   private linkKeys(note: IndexedNote): Map<string, number> {
     const keys = new Map<string, number>();
     const add = (k: string, rank: number) => {
-      const key = k.toLowerCase();
+      // NFC as well as lower case: macOS tools store `Résumé.md` decomposed,
+      // and `[[Résumé]]` is typed composed (audit COR-016).
+      const key = foldPath(k);
       keys.set(key, Math.min(rank, keys.get(key) ?? rank));
     };
     add(note.path, 0);
@@ -175,10 +194,12 @@ export class VaultIndex {
 
   /**
    * Resolve a link target to a note by title, alias, filename or vault path —
-   * case-insensitively, with or without the `.md`, and tolerant of the `./` and
-   * `%20` forms Obsidian writes into markdown-style links.
+   * case- and Unicode-normalisation-insensitively, with or without the `.md`,
+   * and tolerant of the `./` and `%20` forms Obsidian writes into
+   * markdown-style links. `fromFolder`: also try the target as a path
+   * relative to that folder, first — see resolveLinkOf.
    */
-  resolveLink(target: string): IndexedNote | undefined {
+  resolveLink(target: string, fromFolder?: string): IndexedNote | undefined {
     let key = target.trim();
     if (key.includes("%")) {
       try {
@@ -187,13 +208,38 @@ export class VaultIndex {
         // leave the raw string: a stray % is not our problem to fix
       }
     }
+    if (fromFolder !== undefined) {
+      const rel = relativeTo(fromFolder, key.replace(/\/+$/, ""));
+      const note = rel === null ? undefined : (this.byPathKey(rel) ?? this.byPathKey(`${rel}.md`));
+      if (note) return note;
+    }
     key = key.replace(/^\.\//, "").replace(/\/+$/, "");
     const tries = [key, key.replace(/\.md$/i, "")];
     for (const t of tries) {
-      const note = this.byLinkKey(t.toLowerCase());
+      const note = this.byLinkKey(foldPath(t));
       if (note) return note;
     }
     return undefined;
+  }
+
+  /**
+   * The note a link in `src` names. A markdown link may be written relative
+   * to its note (`[up](../Up.md)`, `[c](sub/Child.md)`: Obsidian's "Relative
+   * path to file"), so it is tried from the note's folder first, then as any
+   * link; a wiki link is never relative (audit COR-016).
+   */
+  resolveLinkOf(src: { folder: string }, link: WikiLink): IndexedNote | undefined {
+    return this.resolveLink(link.target, /^!?\[\[/.test(link.raw) ? undefined : src.folder);
+  }
+
+  /** The note at exactly this vault path (folded), by the path key alone. */
+  private byPathKey(p: string): IndexedNote | undefined {
+    let best: IndexedNote | undefined;
+    for (const [id, rank] of this.byKey.get(foldPath(p)) ?? []) {
+      const note = this.notes.get(id);
+      if (rank === 0 && note && (!best || note.path > best.path)) best = note;
+    }
+    return best;
   }
 
   all(): IndexedNote[] {
@@ -207,7 +253,7 @@ export class VaultIndex {
     for (const src of sources) {
       if (src.id === id) continue;
       for (const link of src.links) {
-        if (this.resolveLink(link.target)?.id === id) {
+        if (this.resolveLinkOf(src, link)?.id === id) {
           const context = src.content.split("\n")[link.line]?.trim() ?? "";
           out.push({ fromId: src.id, fromTitle: src.title, fromPath: src.path, line: link.line, context });
         }

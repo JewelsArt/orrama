@@ -41,7 +41,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     // canRead on the one target — it used to filter the WHOLE vault through
     // the ACL (and re-read the grants from the DB) once per link.
     const links = note.links.map((l) => {
-      const target = store.index.resolveLink(l.target);
+      const target = store.index.resolveLinkOf(note, l);
       const readable = target ? canRead(user, target, grants) : false;
       return { ...l, targetId: readable && target ? target.id : null, locked: !!target && !readable };
     });
@@ -154,7 +154,7 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const edges: { from: string; to: string; relation?: string; implied?: true }[] = [];
     for (const n of readable) {
       for (const l of n.links) {
-        const t = store.index.resolveLink(l.target);
+        const t = store.index.resolveLinkOf(n, l);
         if (t && ids.has(t.id) && t.id !== n.id) edges.push({ from: n.id, to: t.id });
       }
     }
