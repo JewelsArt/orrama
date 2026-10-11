@@ -79,3 +79,39 @@ export function sameFile(a: string, b: string): boolean {
     return false;
   }
 }
+
+/** Whether `real` is the vault root or inside it (both already real paths). */
+function insideRoot(realRoot: string, real: string): boolean {
+  return real === realRoot || real.startsWith(realRoot + path.sep);
+}
+
+/**
+ * Whether `abs` is a symlink that leads back into the vault, or up its own
+ * tree (audit STO-010).
+ * A folder linked in from elsewhere — a synced folder — is part of the vault
+ * and is followed, as Obsidian follows it. A link to somewhere the vault
+ * already holds is only a second name for notes that have one: following it
+ * indexed each such note twice (and a link up the tree, forever), and a
+ * write through it would be judged by the link's folder while landing in
+ * the target's. Such links are left out everywhere: boot, watcher, writes.
+ */
+export function linksIntoVault(realRoot: string, abs: string): boolean {
+  try {
+    if (!fs.lstatSync(abs).isSymbolicLink()) return false;
+    const real = fs.realpathSync(abs);
+    // Into the vault, or up its own tree (a synced folder linking to itself).
+    return insideRoot(realRoot, real) || insideRoot(real, fs.realpathSync(path.dirname(abs)));
+  } catch {
+    return false;
+  }
+}
+
+/** Whether any segment of `rel` is such a link. */
+export function throughVaultLink(root: string, realRoot: string, rel: string): boolean {
+  let abs = root;
+  for (const seg of rel.split("/")) {
+    abs = path.join(abs, seg);
+    if (linksIntoVault(realRoot, abs)) return true;
+  }
+  return false;
+}

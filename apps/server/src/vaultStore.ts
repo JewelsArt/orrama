@@ -33,7 +33,7 @@ import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
 import { writeFileAtomic } from "./atomicWrite.js";
-import { AmbiguousPathError, listedExactly, onDisk, sameFile } from "./diskPath.js";
+import { AmbiguousPathError, linksIntoVault, listedExactly, onDisk, sameFile, throughVaultLink } from "./diskPath.js";
 
 /** How long after a folder appears it is read again (lookAgainLater). The
  *  gap it covers is microseconds wide; this is margin for a busy event loop. */
@@ -68,6 +68,15 @@ function readNote(abs: string): { content: string; utf8: boolean } {
   return { content: buf.toString("utf8"), utf8: isUtf8(buf) };
 }
 
+/** Whether a path is a folder once links are followed (false if it is gone). */
+function isFolder(abs: string): boolean {
+  try {
+    return fs.statSync(abs).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 const NOT_UTF8 = "is not UTF-8 text, so Basalt reads it but will not write to it. Save it as UTF-8 to edit it here.";
 
 /** One vault file as boot reads it, before anything is indexed. */
@@ -94,6 +103,8 @@ export class VaultStore {
   private docs = new Map<string, Y.Doc>();
   private readonly docCacheSize: number;
   private root = vaultDir();
+  /** The vault folder with links resolved; set by load(). */
+  private realRoot = this.root;
   /** Where the vault lives on disk. Read-only on purpose: mutations still go
    *  through write/move so the ACL and the index stay in the loop. Project
    *  documents (non-.md, so outside resolvePath) are laid out against this. */
@@ -172,14 +183,32 @@ export class VaultStore {
         return [];
       }
     };
-    const walk = (dir: string): string[] =>
-      entries(dir).flatMap((e) => {
+    // A folder linked in from elsewhere is part of the vault (audit STO-010):
+    // Obsidian follows it, the watcher follows it and resolvePath writes
+    // through it, and a walk that took only real directories (a symlink's
+    // Dirent is not one) dropped its notes at every restart. A link back into
+    // the vault is a second name for notes it already has and is skipped
+    // (linksIntoVault); each real folder is walked once besides.
+    this.realRoot = fs.realpathSync(this.root);
+    const walked = new Set<string>();
+    const walk = (dir: string): string[] => {
+      let real: string;
+      try {
+        real = fs.realpathSync(dir);
+      } catch {
+        return [];
+      }
+      if (walked.has(real)) return [];
+      walked.add(real);
+      return entries(dir).flatMap((e) => {
         if (e.name.startsWith(".")) return [];
         if (dir === this.root && e.name === "CLAUDE.md") return [];
         const full = path.join(dir, e.name);
-        if (e.isDirectory()) return walk(full);
+        if (e.isSymbolicLink() && linksIntoVault(this.realRoot, full)) return [];
+        if (e.isDirectory() || (e.isSymbolicLink() && isFolder(full))) return walk(full);
         return e.name.toLowerCase().endsWith(".md") ? [full] : [];
       });
+    };
     // One file must not be able to stop the server booting. Under launchd's
     // KeepAlive a throw here is not an error page, it is a crash loop: the
     // agent restarts, meets the same file, and the whole app is down until
@@ -214,7 +243,7 @@ export class VaultStore {
         const basename = path.basename(filePath);
         if (basename.startsWith(".")) return true;
         if (filePath === path.join(this.root, "CLAUDE.md")) return true;
-        return false;
+        return linksIntoVault(this.realRoot, filePath);
       },
       ignoreInitial: true,
     }).on("all", (event, absPath) => {
@@ -397,13 +426,26 @@ export class VaultStore {
     // file after a case-only rename — THIS file. Reading it "confirmed" a copy,
     // and restamping each spelling as a copy of the other ran forever (audit
     // STO-012). The holder is elsewhere only if the directory still lists its
-    // name and that name is another file.
+    // name and that name is another file (a second name for the same file is
+    // sameNameElsewhere's case).
     if (!listedExactly(this.root, holder.path) || sameFile(holderAbs, path.join(this.root, rel))) return undefined;
     try {
       return carriedId(fs.readFileSync(holderAbs, "utf8")) === id ? holder : undefined;
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * The note the index holds under `id` when `rel` is a second name for the
+   * very same file — two links to one folder, a hard link — and the first
+   * name is still there. One file is one note: the second name is left out,
+   * or each event would move the note from one name to the other.
+   */
+  private sameNameElsewhere(id: string, rel: string): IndexedNote | undefined {
+    const holder = this.index.get(id);
+    if (!holder || holder.path === rel) return undefined;
+    return listedExactly(this.root, holder.path) && sameFile(path.join(this.root, holder.path), path.join(this.root, rel)) ? holder : undefined;
   }
 
   /** Index one file at boot, stamping an id if it has none, or its own if it
@@ -500,6 +542,7 @@ export class VaultStore {
    */
   private ingest(relPath: string, absPath: string, content: string, utf8: boolean): void {
     const parsed = parseNote(content, titleFromPath(relPath));
+    if (parsed.id && this.sameNameElsewhere(parsed.id, relPath)) return;
     const owner = parsed.id ? this.ownerElsewhere(parsed.id, relPath) : undefined;
     // The id this path already has: a note that cannot be stamped keeps it
     // across every save (audit STO-003), and one whose id: line was removed
@@ -797,6 +840,9 @@ export class VaultStore {
       throw new HttpError(400, "invalid path");
     }
     if (!given.toLowerCase().endsWith(".md")) throw new HttpError(400, "only .md files live in the vault");
+    // Through a link back into the vault, the folder the ACL would judge is
+    // not the folder the bytes land in (rule 6).
+    if (throughVaultLink(this.root, this.realRoot, given)) throw new HttpError(400, "that path goes through a link to another part of the vault");
     let disk: { rel: string; found: boolean };
     try {
       disk = onDisk(this.root, given);
