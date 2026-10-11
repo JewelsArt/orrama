@@ -418,8 +418,13 @@ export function App() {
   /* The keys (structure.md §1.5), decided by shellKey (ui/keys.ts). ⌘R is main.tsx's,
      outside React, so it still reloads when a view has crashed (WEB-011). */
   const [keysOpen, setKeysOpen] = useState(false);
+  // Only once you're in: at the door the digits are the lock's passcode, not places (R3). Read
+  // when the key comes, so the listener is there from the first render on.
+  const signedIn = useRef(false);
+  signedIn.current = !!me;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (!signedIn.current) return;
       const action = shellKey(e, isTyping(e.target), anyLayerOpen());
       if (!action) return;
       e.preventDefault();
