@@ -61,13 +61,13 @@ import {
   type OwnAccount,
   recentMonths,
 } from "@basalt/core";
-import { extractText, getDocumentProxy } from "unpdf";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
 import { officeRefusal, readOfficeFile, TooLargeError, XLSX_CAPS } from "../zip.js";
+import { readPdfText } from "../pdfText.js";
 
 export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } as const;
 
@@ -1365,14 +1365,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     }
     if (!name.toLowerCase().endsWith(".pdf")) return { ok: true, name: keep(), stored: true, parsed: null, filed: false };
 
-    let parsed = null;
-    try {
-      const doc = await getDocumentProxy(new Uint8Array(data));
-      const { text } = await extractText(doc, { mergePages: true });
-      parsed = parsePayslip(text);
-    } catch {
-      return { ok: true, name: keep(), stored: true, parsed: null, filed: false, reason: "could not read the PDF's text" };
-    }
+    // In a worker, with a page cap and a time limit (pdfText.ts).
+    const read = await readPdfText(data);
+    if ("reason" in read) return { ok: true, name: keep(), stored: true, parsed: null, filed: false, reason: read.reason };
+    const parsed = parsePayslip(read.text);
     if (!payslipUsable(parsed)) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "unfamiliar payslip layout" };
 
     const slipNote = ledgerNote(store, user, "payslips");
