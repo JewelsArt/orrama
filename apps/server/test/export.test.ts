@@ -51,6 +51,21 @@ beforeAll(async () => {
   SECRETS.apiToken = tok.json.token;
   const hook = await call("POST", "/api/webhooks", { url: "http://127.0.0.1:9/hook", events: ["note.changed"] });
   SECRETS.webhookSecret = hook.json.secret;
+  // A receiver whose URL is the credential, put in directly (creating it
+  // through the API would resolve the host). Neither its path token nor its
+  // query token may reach export.json (STO-008).
+  SECRETS.slackPathToken = "T0SLACK/B0HOOK/abcDEFghiJKLmno7xQ9";
+  SECRETS.slackQueryToken = "q-token-0123456789";
+  built.db.insert(tables.webhooks).values({
+    id: "wh-slack",
+    ownerId: built.db.select().from(tables.users).all().find((u) => u.username === "jules")!.id,
+    url: `https://hooks.slack.com/services/${SECRETS.slackPathToken}?token=${SECRETS.slackQueryToken}&x=7xQ9`,
+    secret: "unused",
+    events: JSON.stringify(["note.changed"]),
+    active: true,
+    createdAt: Date.now(),
+  }).run();
+  SECRETS.slackUrlTail = "services/T0SLACK";
   SECRETS.aiKey = "g-secret-ai-key-0123456789";
   expect((await call("POST", "/api/admin/ai", { provider: "google", model: "gemini-2.5-flash", apiKey: SECRETS.aiKey })).status).toBe(200);
   expect((await call("POST", "/api/admin/ai/instructions", { instructions: "Exported instructions: be direct." })).status).toBe(200);
@@ -82,7 +97,7 @@ describe("basalt export", () => {
     expect(task.comments.map((c: { author: string; body: string }) => `${c.author}: ${c.body}`)).toEqual(["jules: Exported comment: ask Erin about pagination."]);
     expect(data.workspace.ai).toMatchObject({ provider: "google", model: "gemini-2.5-flash", keyStored: true, instructions: "Exported instructions: be direct." });
     expect(data.apiTokens.map((t: { label: string }) => t.label)).toEqual(["Shortcuts"]);
-    expect(data.webhooks.map((h: { url: string }) => h.url)).toEqual(["http://127.0.0.1:9/hook"]);
+    expect(data.webhooks.map((h: { destination: string }) => h.destination).sort()).toEqual(["http://127.0.0.1:9/…hook", "https://hooks.slack.com/…7xQ9"]);
     expect(data.accounts.map((a: { username: string }) => a.username).sort()).toEqual(["erin", "jules", "mara"]);
   });
 

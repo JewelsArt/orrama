@@ -13,8 +13,9 @@
  *   basalt.db     an exact snapshot (SQLite's online backup, safe while the
  *                 server runs) — restoring it brings all of the above back
  *   export.json   the same data readable, minus every secret: no password or
- *                 passcode hashes, no token hashes, no webhook secrets, no
- *                 feed tokens, nothing encrypted
+ *                 passcode hashes, no token hashes, no webhook secrets or
+ *                 webhook URLs (only their host), no feed tokens, nothing
+ *                 encrypted
  *   README.txt    what is where and how to restore
  *
  * Owner-only (folder 0700, files 0600): the snapshot holds hashes and
@@ -28,6 +29,22 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { tables } from "./db.js";
 import { SCHEMA_VERSION } from "./db.js";
 import { dbPath, env, vaultDir } from "./env.js";
+
+/**
+ * Where a webhook goes, without the part that lets anyone post to it: for
+ * Slack, Discord, Zapier, Make or IFTTT the URL's path or query IS the
+ * credential (audit STO-008). Its origin, and the last four characters of the
+ * rest so two hooks to one host can be told apart.
+ */
+export function webhookHint(url: string): string {
+  try {
+    const u = new URL(url);
+    const rest = `${u.pathname}${u.search}`.replace(/^\/$/, "");
+    return rest ? `${u.origin}/…${rest.slice(-4)}` : u.origin;
+  } catch {
+    return "(unreadable URL)";
+  }
+}
 import { isEntry } from "./entry.js";
 
 export const EXPORT_FORMAT = { name: "basalt-export", version: 1 } as const;
@@ -133,7 +150,7 @@ export async function exportBasalt(opts: { into?: string; db?: string; vault?: s
       mailDrafts: db.select().from(tables.mailDrafts).all().map((d) => ({ user: who.get(d.userId) ?? d.userId, to: d.to, subject: d.subject, body: d.body, inReplyTo: d.inReplyTo, createdBy: d.createdBy, createdAt: d.createdAt })),
       calendarFeeds: db.select().from(tables.icsFeeds).all().map((f) => ({ owner: who.get(f.ownerId) ?? f.ownerId, label: f.label, createdAt: f.createdAt })),
       apiTokens: db.select().from(tables.apiTokens).all().map((t) => ({ user: who.get(t.userId) ?? t.userId, label: t.label, prefix: t.prefix, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })),
-      webhooks: db.select().from(tables.webhooks).all().map((h) => ({ owner: who.get(h.ownerId) ?? h.ownerId, url: h.url, events: JSON.parse(h.events) as string[], active: h.active })),
+      webhooks: db.select().from(tables.webhooks).all().map((h) => ({ owner: who.get(h.ownerId) ?? h.ownerId, destination: webhookHint(h.url), events: JSON.parse(h.events) as string[], active: h.active })),
       touchIdDevices: db.select().from(tables.webauthnCredentials).all().map((c) => ({ user: who.get(c.userId) ?? c.userId, label: c.label, createdAt: c.createdAt, lastUsedAt: c.lastUsedAt })),
       history: { revisions: db.select({ id: tables.ydocUpdates.id }).from(tables.ydocUpdates).all().length },
     };
@@ -179,9 +196,11 @@ What is here
                 instructions, API tokens, webhooks, calendar feeds, Touch ID
                 devices, note history.
   export.json   The same, readable. Every secret is left out: password and
-                passcode hashes, token hashes, webhook secrets, calendar-feed
-                tokens, and everything stored encrypted (mail password, AI key,
-                feed URLs) — those exist only inside basalt.db.
+                passcode hashes, token hashes, webhook secrets, webhook URLs
+                (a Slack or Discord hook's URL is its password: only the host
+                and the last four characters are shown), calendar-feed tokens,
+                and everything stored encrypted (mail password, AI key, feed
+                URLs) — those exist only inside basalt.db.
 
 What is not here
   Your notes. They are the Markdown files in ${vault}, and are backed up with
