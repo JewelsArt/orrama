@@ -64,6 +64,9 @@ export const dashboardTaskSchema = taskLineSchema.extend({
   object: taskObjectSchema.nullable(),
 });
 
+/** GET /api/tasks: every task the caller can read, with its promoted object (Today's Due). */
+export const tasksResponse = z.array(dashboardTaskSchema);
+
 const teamBase = { id: z.string(), slug: z.string(), name: z.string(), color: z.string(), icon: z.string() };
 export const teamSchema = o(teamBase);
 

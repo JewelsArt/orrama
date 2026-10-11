@@ -130,6 +130,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/finance/month/:x", () => "/api/finance/month/2026-02", R.financeMonthResponse],
   ["/api/finance/merchant/:x", () => "/api/finance/merchant/UNIQLO", R.financeMerchantResponse],
   ["/api/home", () => "/api/home", R.homeResponse],
+  ["/api/tasks", () => "/api/tasks", R.tasksResponse],
   ["/api/mail/account", () => "/api/mail/account", R.mailAccountResponse],
   ["/api/mail/drafts", () => "/api/mail/drafts", R.mailDraftsResponse],
   ["/api/tokens", () => "/api/tokens", R.tokensResponse],
