@@ -77,11 +77,15 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
 .ent-sub .ui-nm { color: var(--ink); }
 .ent-pacts { display: none; }
 
-/* two columns: the main one and the side; the note under the main one */
-.ent-cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "main side" "note side"; grid-template-rows: auto 1fr; gap: 0 16px; align-items: start; }
+/* two columns: the main one and the side; the note under the main one. The side sizes its
+   own column (360px and the gap) and leaves when empty, so the main one takes the width.
+   Not `.ent-cols:has(> .ent-side:empty)`: WebKit never re-checks it when the side fills in
+   after the page has drawn, and the side then dropped under the note. */
+.ent-cols { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main side" "note side"; grid-template-rows: auto 1fr; gap: 0; align-items: start; }
 .ent-cols-doc { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "note"; }
 .ent-main { grid-area: main; min-width: 0; }
-.ent-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ent-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; width: 360px; margin-left: 16px; }
+.ent-side:empty { display: none; }
 .ent-notecol { grid-area: note; min-width: 0; }
 .ent-side > .ent-warnbox { margin: 0; }
 
@@ -182,7 +186,7 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   .ent-pacts { display: flex; gap: 8px; margin: -4px 0 18px; }
   .ent-pacts > * { flex: 1; justify-content: center; }
   /* One column: warnings, facts, relations, activity, then the note. */
-  .ent-cols { display: flex; flex-direction: column; }
+  .ent-cols { display: flex; flex-direction: column; align-items: stretch; }
   .ent-side { display: contents; }
   .ent-side > .ent-warnbox { order: 0; margin-bottom: 16px; }
   .ent-main { order: 1; }
@@ -198,5 +202,3 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   .ent-turns li { grid-template-columns: 1fr; gap: 2px; }
   .doc-reader.inline .doc-frame { height: 70vh; }
 }
-/* Nothing on the side (no warnings, nothing going on): the main column takes the width. */
-.ent-cols:has(> .ent-side:empty) { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "note"; }
