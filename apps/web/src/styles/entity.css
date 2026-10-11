@@ -102,6 +102,19 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
 .ent-facts dd b { font-weight: 600; }
 .ent-facts a.ent-v, .ent-facts .ui-nm { font-weight: 600; color: var(--ink); }
 .ent-facts a.ent-v:hover { color: var(--accent); }
+/* The main column is a container: with Ask Orr open beside the page it is ~460px, and the
+   facts go two across there as on the phone (four across read "Othe" and broke the address). */
+.ent-main { container-type: inline-size; }
+@container (max-width: 620px) {
+  .ent-facts, .ent-facts[data-n="3"], .ent-facts[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ent-facts > div:not(:nth-child(4n + 1)) { padding-left: 0; border-left: 0; }
+  .ent-facts > div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--line); }
+  .ent-facts > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+}
+/* The header's actions sit at the page's right edge: their tips open below, right-aligned,
+   not to the right (ui.css's default), where an unseen tip widened the page past its scroller
+   (a sideways scrollbar with Ask Orr open). */
+.ent-head .ent-acts [data-tip]::after { left: auto; right: 0; top: calc(100% + 6px); transform: none; }
 .ent-facts .ent-list { display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .ent-facts select.ent-sector { height: 30px; margin-top: 1px; font-weight: 600; }
 .ent-fail { display: block; margin-top: 4px; color: var(--late); font-size: 12.5px; line-height: 17px; }
