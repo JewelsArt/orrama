@@ -105,7 +105,8 @@
   .people .pp-az {
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 1px;
     position: fixed;
     right: 0;
     top: 172px;
@@ -117,8 +118,7 @@
     user-select: none;
   }
   /* Above the shell's 44px touch target: the rail is one target, scrubbed by a finger. */
-  .people .pp-az .l.l.l { flex: 1; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 10.5px; line-height: 1; font-weight: 700; color: var(--accent); cursor: pointer; }
-  .people .pp-az .l.l.off { color: var(--ink-3); opacity: .45; cursor: default; }
+  .people .pp-az .l.l.l { flex: none; height: 21px; min-height: 0; padding: 0; border: 0; background: none; font: inherit; font-size: 10.5px; line-height: 1; font-weight: 700; color: var(--accent); cursor: pointer; }
   .people .pp-az .l:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
   .people .pp-bubble { position: absolute; right: calc(100% + 10px); top: 50%; transform: translateY(-50%); width: 52px; height: 52px; display: grid; place-items: center; border-radius: var(--r-3); background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop); color: var(--ink); font-size: 24px; font-weight: 750; pointer-events: none; }
   .pp-pair { grid-template-columns: minmax(0, 1fr); }

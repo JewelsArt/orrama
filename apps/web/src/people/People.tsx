@@ -488,10 +488,12 @@ function AZRail({ show }: { show: Show }) {
     const to = rows.find((r) => LETTERS.indexOf(r.dataset.letter!) >= from) ?? rows[rows.length - 1];
     to?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
   };
+  // Only the letters the list holds, as on the board; a drag maps the finger onto them.
+  const letters = LETTERS.filter((l) => present.includes(l));
   const at = (y: number) => {
     const r = rail.current?.getBoundingClientRect();
-    if (!r) return LETTERS[0]!;
-    return LETTERS[Math.max(0, Math.min(LETTERS.length - 1, Math.floor(((y - r.top) / r.height) * LETTERS.length)))]!;
+    if (!r || letters.length === 0) return LETTERS[0]!;
+    return letters[Math.max(0, Math.min(letters.length - 1, Math.floor(((y - r.top) / r.height) * letters.length)))]!;
   };
   return (
     <div
@@ -520,8 +522,8 @@ function AZRail({ show }: { show: Show }) {
         setScrub(null);
       }}
     >
-      {LETTERS.map((l) => (
-        <button key={l} type="button" className={present.includes(l) ? "l" : "l off"} tabIndex={present.includes(l) ? 0 : -1} aria-label={`Jump to ${l}`} onClick={() => jump(l, true)}>
+      {letters.map((l) => (
+        <button key={l} type="button" className="l" aria-label={`Jump to ${l}`} onClick={() => jump(l, true)}>
           {l}
         </button>
       ))}
