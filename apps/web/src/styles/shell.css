@@ -187,7 +187,7 @@
      whose height is free to grow. A blanket rule stretched the round task
      checkbox into an ellipse and bloated inline labels, so anything with a
      fixed shape or an inline role opts out and gets the treatment below. */
-  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj),
+  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj):not(.cb),
   select,
   summary,
   [role="button"] {
