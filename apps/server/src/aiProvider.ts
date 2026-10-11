@@ -70,7 +70,12 @@ export async function resolveModel(c: AiConfig): Promise<LanguageModel> {
     const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
     return createGoogleGenerativeAI({ apiKey: c.apiKey })(c.model);
   }
-  // openai-compatible: custom baseUrl (e.g. Gemini's OpenAI-compat endpoint), else env, else OpenAI.
+  // openai-compatible: custom baseUrl (e.g. Gemini's OpenAI-compat endpoint),
+  // else env, else OpenAI. Chat Completions, always: it is the API every
+  // "compatible" server implements (Gemini's compat URL, Ollama, LM Studio,
+  // vLLM, Groq), and OpenAI serves it too. Calling the provider function
+  // directly gives a Responses model (`POST /responses`), which those servers
+  // answer with 404 (audit AI-004).
   const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey: c.apiKey, baseURL: c.baseUrl || process.env.BASALT_OPENAI_BASE_URL })(c.model);
+  return createOpenAI({ apiKey: c.apiKey, baseURL: c.baseUrl || process.env.BASALT_OPENAI_BASE_URL }).chat(c.model);
 }
