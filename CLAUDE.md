@@ -21,10 +21,12 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
   took down an unrelated app).
 - **The launchd agent carries the real secrets** (`BASALT_JWT_SECRET`,
   `BASALT_SECRET_KEY`) in its plist, which is `chmod 600`. The server refuses to
-  boot on the shipped placeholders regardless of `NODE_ENV`; `pnpm --dir
-  apps/server dev` opts out with `BASALT_ALLOW_DEV_SECRETS=1`. Changing
-  `BASALT_SECRET_KEY` orphans the stored mail password and AI key — run
-  `pnpm --dir apps/server rotate-secret-key` with the server stopped.
+  boot on the shipped placeholders, or on a secret that is empty or under 32
+  characters, regardless of `NODE_ENV`; `pnpm --dir apps/server dev` opts out
+  with `BASALT_ALLOW_DEV_SECRETS=1`. Changing `BASALT_SECRET_KEY` orphans every
+  stored credential (mail password, AI key, ChatGPT sign-in, webhook secrets,
+  calendar feed URLs) — run `pnpm --dir apps/server rotate-secret-key` with the
+  server stopped.
 - **Log in as** `you@example.com` (single user; the team model underneath
   still exists but has no UI). The seeded `jules@basalt.dev` / `basalt-demo`
   account is what `pnpm --dir apps/server seed` creates and what the tests use —
@@ -66,13 +68,15 @@ readable `export.json` with every secret left out, and a README — to
 | `packages/core/src/vault.ts` | `VaultIndex`: link resolution, backlinks, tag index, project progress, search |
 | `packages/core/src/tasks.ts` | Text transforms: toggle checkbox, promote (`^t-xxxxxx` block id), append |
 | `packages/core/src/related.ts` | "Suggested links" TF-IDF scorer (embeddings will replace scorer, same interface) |
+| `packages/core/src/ontology.ts` | The vault's ontology as data: parses the `#vault-ontology` tables; `typeOfNote` |
+| `packages/core/src/graph.ts` | `buildGraph`: typed facts with provenance, inverses, derived relations, warnings. Pure index; takes a `readable` filter that restricts BOTH ends of a fact |
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React, left-rail shell in `App.tsx`: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Settings` (character `avatars.tsx`; the AI provider, key, model and agent instructions live under Settings → AI, owners only), `AskPanel`, `icons.tsx` (no emoji chrome), `ws.ts` |
+| `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Settings` (your Orr: `avatars.tsx`, drawn by `Avatar` in `ui/orr`; the AI provider, key, model and agent instructions live under Settings → AI, owners only), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -184,11 +188,27 @@ lives outside `~/Documents`: that folder is iCloud-synced (rewriting ~600 files
 would churn the sync, and evicted files download one at a time) and is a
 TCC-protected location a background agent may not be allowed to read.
 
-**First index stamps every note**: any note without `id: n-…` front-matter gets
-one written into the file. That is what keeps renames link-safe (task objects key
-on the note id), and it means pointing Basalt at a fresh vault modifies every
-file in it once. `scripts/merge-vaults.mjs` is the one-off that folded Basalt's
-old copy into the Obsidian vault (newest-wins per file, carrying ids across).
+**First index stamps every note** — when it can do so without changing anything
+else: any note without `id: n-…` front-matter gets one line, `id: n-…`, added
+after its opening fence (or a new block, CRLF and BOM kept). `stampId`
+(`packages/core/src/frontmatter.ts`) refuses, and the note is indexed as it is,
+when the front matter does not parse, is not a mapping (prose between two `---`
+rules, a bare list), carries the user's own non-text `id:`, or the file is not
+UTF-8. Such a note keeps the id its path already had (the notes table at boot,
+the index live), so task objects stay attached; it is not rename-safe outside
+Basalt. A file that is not UTF-8 is never written at all: `write()` answers 409.
+That is what keeps renames link-safe (task objects key on the note id), and it
+means pointing Basalt at a fresh vault modifies every file in it once.
+`scripts/merge-vaults.mjs` is the one-off that folded Basalt's old copy into the
+Obsidian vault (newest-wins per file, carrying ids across).
+
+**Nothing else is written into the vault at boot.** Basalt used to create a
+`.mcp.json` (a slot for an API token, in the folder Obsidian Sync, iCloud or git
+copies elsewhere) and a `CLAUDE.md` whenever they were missing. The MCP server is
+registered with `claude mcp add --scope user`, which keeps the token in
+`~/.claude.json` (`apps/mcp/README.md`); a vault `CLAUDE.md` is the user's own
+file. `test/vault-untouched.test.ts` boots against a vault and compares every
+byte.
 
 **One id, one file.** A note copied outside Basalt (Obsidian's "Make a copy",
 Finder's Duplicate, `cp`, a sync conflict copy) carries the original's id. The
@@ -246,19 +266,34 @@ cancellation moves it.
 **A statement is read in one currency and one pocket, in time order.** Rows sort
 by their completed timestamp (`byTime`), not the date — exports come newest-
 first as well as oldest-first, and the closing balance is the day's last
-movement. The currency most rows use is the statement's; other-currency rows
-are left out of every total and counted (`otherCurrency`), and a file in
-another currency is left out of the merge (`statements()` in `finance.ts`).
-The running balance is Revolut's per pocket, so it is read from the pocket
-most rows move (Current), never from a Savings row that happens to come last.
+movement. The currency most rows use is the statement's; other-currency rows are
+left out of every total and counted (`otherCurrency`), and a file in another
+currency is left out of the merge (`statements()` in `finance.ts`). The running
+balance is Revolut's per pocket, so it is read from the pocket most rows move
+(Current), never from a Savings row that happens to come last. The main pocket
+is `mainPocket` in `statement.ts`, and everything that reads a balance — the
+Balance card, the trend behind burn and runway, the savings plan's outflow and
+own-account savings — reads that pocket only. **Complete months come from
+coverage, not from spending**: each export covers its first row to its last, two
+exports join when they overlap, touch, or the running balance carries across the
+gap (`coverageOf`), and a month is complete only when covered from its first day
+to its last (`fullMonths`). A covered month with nothing spent is a €0 month;
+the drift is measured per contiguous run of complete months.
 
-`loadTxns` (reached through `txnsFor`, which applies the reader's own-accounts
-list) and `buildRules` are shared by all four endpoints and the Dashboard on purpose: three
-copies of a de-duplication rule is three chances for two pages to disagree about
-what a month cost. When a month view is filtered to a category, its "typical"
-must be that category's median, not the whole month's — comparing €250 of
-shopping against a €1,000 all-category median is the bug the finance tests
-exist to catch.
+`loadStatements` (reached through `statementsFor`, which applies the reader's
+own-accounts list; `txnsFor` is its rows alone) and `buildRules` are shared by
+all four endpoints and the Dashboard on purpose: three copies of a
+de-duplication rule is three chances for two pages to disagree about what a
+month cost. **One quantity, one function**: what a month cost is `costOf`
+through `monthlyByCategory` (the hero, the month page, the category page and the
+Dashboard all read it); the savings plan is `planSavings`; "this month against
+typical" is `typicalAround` (the complete months around it, itself excluded —
+the month page, the top cards and the Dashboard card); whether a ledger line
+matches a description is `matchesTerms`; in-minus-out of the ledgers is
+`netTotals`, per currency, never summed across currencies. When a month view is
+filtered to a category, its "typical" must be that category's median, not the
+whole month's — comparing €250 of shopping against a €1,000 all-category median
+is the bug the finance tests exist to catch.
 
 Charts are hand-drawn SVG with no chart library, and they sit on the page
 ground rather than inside a card (`.fin-plot`), with rounded gridlines
@@ -269,7 +304,7 @@ why green is status-only rather than a category.
 
 **Finance is a documented exception to the flat design language** — elevation,
 gradient surfaces and larger radii are allowed inside `.fin` and nowhere else.
-The block in `app.css` says so; do not "fix" it to match the rest of the app,
+The block in `styles/money.css` says so; do not "fix" it to match the rest of the app,
 and do not copy it outward.
 
 ## The Planning tab
@@ -397,20 +432,27 @@ open-source and locally run apps. Its rules shape the code:
 The agent reads text nobody vetted — inbox messages, notes any teammate can
 write — while holding the vault's contents and a live SMTP session. So the send
 is gated in code, not in the prompt: `draft_email` (in-app agent) and the MCP
-`draft_email` both stage a `mail_drafts` row, `POST /api/mail/send` refuses API
-tokens outright, and the Mail view surfaces staged drafts under "Waiting for
-you" — opening one loads it into the normal composer, so what goes out is what
-the user just read. There is deliberately no "send this stored draft" endpoint:
-one send path means one place that requires a session. Adding another outbound
-channel (Slack, SMS, a webhook the agent can aim)? It gets the same treatment.
+`draft_email` both stage a `mail_drafts` row, `POST /api/mail/send` is
+session-only (see **API tokens are the weaker credential**), and the Mail view
+surfaces staged drafts under "Waiting for you" — opening one loads it into the
+normal composer, so what goes out is what the user just read. There is
+deliberately no "send this stored draft" endpoint: one send path means one place
+that requires a session. Adding another outbound channel (Slack, SMS, a webhook
+the agent can aim)? It gets the same treatment.
 
 ## Live sync
 
 `VaultStore.events` emits `note-changed` on every mutation → `routes/ws.ts`
 broadcasts to connected clients **after a per-recipient `canRead` check**. Clients
-(`apps/web/src/ws.ts`) auto-reconnect; Notes view refetches the open note (editor
-only swaps content when unfocused), Dashboard reloads debounced. Presence =
-`{type:"editing", noteId}` pings, rebroadcast only to users who can read that note.
+(`apps/web/src/ws.ts`) reconnect with backoff (2 s doubling to 30 s, jittered);
+after a reconnect every view gets a `note-changed` with `resync: true` and
+refetches; a 4001 close (the session ended) signs out instead of retrying;
+Notes view refetches the open note (editor only swaps content when unfocused),
+Dashboard reloads debounced. Presence = `{type:"editing", noteId}` pings,
+rebroadcast only to users who can read that note. Frames from a client are
+capped at 16 KiB (`WS_MAX_FRAME`, `main.ts`): a client only sends its auth frame
+and presence pings, and the first frame is parsed before it is known to be a
+valid auth.
 
 ## Conventions & gotchas
 
@@ -435,13 +477,23 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   feeds, webhooks): http(s) only, every resolved address public (checked in the
   socket's own `lookup`, so DNS rebinding is caught), redirects re-checked hop
   by hop (GET only), and callers report a coarse outcome — never the far end's
-  status or error text. A private target that is really wanted (a NAS, a
-  tailnet host) is named in `BASALT_FETCH_ALLOW` (hosts or CIDRs). Anything new
-  that fetches a URL a user supplied uses it too.
-- **Touch ID trusts only known origins.** Set `BASALT_PUBLIC_ORIGINS` (comma-
-  separated, e.g. `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the
-  launchd plist; unset, the `Origin` must equal the address the request was
-  sent to, which blocks cross-site use but is the weaker of the two.
+  status or error text. A private target that is really wanted (a NAS, a tailnet
+  host) is named in `BASALT_FETCH_ALLOW` (hosts or CIDRs). Anything new that
+  fetches a URL a user supplied uses it too. A connection `safeFetch` cannot
+  make itself (IMAP/SMTP to a user-typed mail server) checks the host with
+  `assertPermittedHost` first — same rule and allow-list, checked before
+  connecting rather than in the socket.
+- **The server answers only to its own names.** Every request — API, static
+  files, the WebSocket upgrade — must carry a `Host` of `localhost`,
+  `127.0.0.1`, `[::1]` or a host in `BASALT_PUBLIC_ORIGINS` (any port), or it
+  gets a 421 before any route runs (`allowedHost`, `main.ts`). CORS cannot stop
+  DNS rebinding: a page that re-points its own name at 127.0.0.1 is
+  same-origin, but its browser still sends its own name as `Host`. So set
+  `BASALT_PUBLIC_ORIGINS` (comma-separated, e.g.
+  `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the launchd plist
+  for every name Basalt is reached by — a bare LAN or tailnet IP included.
+  Touch ID trusts only those origins too; unset, the `Origin` must equal the
+  address the request was sent to.
 - **A task's status is its checkbox**: `[ ]` todo, `[/]` in progress, `[b]`
   blocked, `[x]` done (`ParsedTask.status`; the Obsidian Tasks convention).
   Every surface reads `status`, every route writes it with `setTaskStatus`, and
@@ -476,6 +528,13 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   and a crash in between leaves a note empty in the folder Obsidian has open.
   Because a save renames over the note, the watcher's `unlink` checks the file
   is really gone before dropping it.
+- **Never rewrite bytes that were not parsed.** `updateFrontmatter` edits only
+  the lines of the keys it changes and reads its result back; if it would not
+  read back as exactly the new data with the body byte-identical, the note is
+  returned unchanged. Splices (`diffSplice`) are bounded on whole code points —
+  Yjs turns a split surrogate pair into U+FFFD — and `updateDocContent` throws
+  rather than leave a doc that reads otherwise. `mergeText` merges with every
+  line terminated (Obsidian writes no final newline).
 - **The agent's log rotates itself** (`rotateLogIfLarge`, `logging.ts`): past
   5 MB at boot or on the hourly check, `~/.basalt-run/server.log` moves to
   `server.log.1` (owner-only) and starts again — only when stdout really is
@@ -487,9 +546,44 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
   → Signed in revokes the others, and a revoked session's socket is closed at
   once. Anything new that issues a session token goes through `signIn` in
   `routes/auth.ts`. A token without a `sid` is refused.
-- **Sign-in is throttled** (`loginLimit.ts`): five wrong passwords from one
-  address inside 15 minutes → 429 until the oldest ages out, even for the
-  right password. In memory; a restart clears it.
+- **API tokens are the weaker credential.** A `bslt_` token may read and write
+  what its owner can and stage mail drafts — what the MCP server does — but
+  never create, change or reveal a credential, or decide where one is sent. A
+  route says so in its config, `{ preHandler: [app.authenticate], config:
+  sessionOnly("why") }` (`routes/auth.ts`), and `authenticate` refuses the token
+  with that reason. Today: passcode, Touch ID, logout and sessions, revoke-all,
+  tokens, webhooks, mail send and mail account, the ICS feed token, all of
+  `/api/admin/*`. `test/token-gate.test.ts` lists them; a new credential route
+  opts in and gets a row there. A password change and Settings → Sign out
+  everywhere end every session, token and Touch ID device and clear the
+  passcode and feed link (`revokeEverything`, `sessions.ts`).
+- **Attempts are counted before they are checked.** Five wrong passwords from
+  one address inside 15 minutes → 429 until the oldest ages out, even for the
+  right password (`loginLimit.ts`, in memory). `LoginLimiter.attempt` checks and
+  counts in one synchronous call BEFORE Argon2 — the old "check, await the hash,
+  record the failure" let a burst sent at once all through. Sign-up has its own
+  limiter and refuses a bad invite before hashing. The passcode spends an
+  attempt in one `UPDATE … RETURNING` (5 then a minute's cooldown, 10 then
+  password only). An unknown address is verified against a dummy hash, so
+  timing does not say who has an account. Anything new that checks a secret
+  counts first, then verifies.
+- **Addresses** (`apps/web/src/ui/router.ts`): every place and thing has a URL
+  (structure.md §1.2), `parseRoute`/`routeHref` round-trip it, and the server
+  answers any non-API path with the app, so reloads and deep links work.
+  Screens still on the old `View` callbacks go through App's shim
+  (`routeOfView`/`viewOfRoute`) until their wave reads the address.
+- **The first frame**: `apps/web/public/boot-theme.js`, a plain script from our
+  own origin (the CSP allows no inline script), puts the stored theme and
+  colour-vision mode on `<html>` before anything paints; `ui/theme.ts` holds the
+  same rule and a test runs the file against it. The account keeps light or
+  dark; "Match this device" is a per-device key, `basalt-theme-device`.
+- **Storage**: read and write through `apps/web/src/storage.ts`. The browser can
+  refuse storage (the getter throws), and `guardStorage()` in `main.tsx` gives
+  the older direct callers an in-memory one.
+- **Web tests**: `*.test.ts(x)` run in Node; `*.dom.test.ts(x)` run in happy-dom
+  with Testing Library (`src/test/dom-setup.ts`). `src/test/app-harness.tsx`
+  mounts the whole App with its screens stubbed, for shell, address, key and
+  overlay tests.
 
 - Team **slugs** (not ids) are the `TeamId` in core ACL and what `#only/#share` match.
 - Note ids live in front-matter (`id: n-…`), assigned on first index; renames are
@@ -526,23 +620,48 @@ only swaps content when unfocused), Dashboard reloads debounced. Presence =
 
 ## Design rules
 
-**Flat, light-first design language** (replaced the frosted-glass one in Aug 2026;
-the old `~/basalt-dash-mock` glass mocks are historical). Solid surfaces, 1px
-hairline `--border` separators, generous whitespace, and colour only where it
-carries information. No blur, no gradients, no glow: `--blur` is `none`,
-`--card-shadow` is `none`, and `--glass*` survive only as aliases of the flat
-surface tokens so older rules keep working — reach for `--surface` / `--panel` /
-`--border` in new work. Two themes from one design: `:root`/`[data-theme="light"]`
-is paper white (the design target, and the default), `[data-theme="command"]` is
-the same language inverted onto near-black. Primary buttons are `--solid`
-(near-black on light, near-white on dark), not accent-filled; the violet
-`--accent` is for links, focus, selection and the active node in the map.
-Floating things use `--shadow-pop` and sit on `--scrim`; everything else
-separates by border alone. Radii: `--radius` 12 / `--radius-sm` 8 / `--radius-lg`
-16. Type is Plus Jakarta Sans (`--font-ui`) + JetBrains Mono for numbers, paths
-and micro-labels. No emoji as icons (use `icons.tsx`). **Token-first**:
-everything reads `var(--…)` from `packages/ui/src/tokens.css` — retint there,
-never in components.
+**Orrama's design language** (October 2026, replacing the flat violet one; the
+boards in `~/orrama-redesign/mockups` are the reference). Warm paper by day, night
+blue after dark: `:root`/`[data-theme="light"]` and `[data-theme="dark"]`
+(accounts store dark as `command`, read as an alias). Content sits in white boxes
+(`--surface`, `--card-line`, `--shadow-card`) on the deeper `--ground`; only what
+floats (menus, the palette, sheets, a dragged block) takes `--shadow-pop` over
+`--scrim`. One accent, Morpho ultramarine `--accent`, for links, focus and
+selection only. Orr's orange (`--orr-*`) is the main button (his gradient, dark
+text), progress, and the current rail item and tab; "now" is `--sun`. Five
+category colours, `--c1`…`--c5` (work, personal, school, tools, knowledge), in
+that order and never cycled. Status is `--ok`/`--warn`/`--late`, always with a
+word and never a category, and a red fill is the key deadline's alone
+(`--deadline`). Colour-vision profiles (`vision.css`) override the five and the
+status trio. Type is Figtree (`--font`), served from `packages/ui` with no font
+host, with tabular figures for times and money; the system mono (`--mono`) is for
+code in notes only. Three radii (`--r-1` 6, `--r-2` 8, `--r-3` 12), spacing
+`--s-1`…`--s-7`. **Token-first**: everything reads `var(--…)` from
+`packages/ui/src/tokens.css`; retint there, never in components. The legacy names
+at its end alias the old ones for screens not yet redrawn: delete each once
+nothing reads it.
+
+**Build from the system** in `apps/web/src/ui` (styles in `ui/ui.css`; every
+piece is on `/dev/ui` in the dev server): Button, Tabs, Segmented, Chip,
+DeadlineChip, Status, Checkbox, Ring/Square/ProgressRing, Bar, PageHeader, Crumbs,
+Module, Card, Row/RowList, Field and its controls, EmptyState, Notice, Skeleton,
+Progress, and the overlays. Icons are `ui/Icon` (70 line icons on a 20-unit grid,
+in currentColor): no glyphs (✕ × ‹ ›) and no emoji. Orr is `<Orr pose size>` (16
+poses; below 48 px he is Hello, below 20 px the head mark), your Orr is
+`<Avatar>`, the logo's O is `<HeadMark>`; Orr never appears in an error. A
+screen's own styles go in its area's file, `styles/<area>.css`, never in a shared
+one.
+
+**One of each pattern.** Overlays go through one stack (`ui/overlays.tsx`):
+palette over dialog over sheet over panel, popovers above; one of a kind at a
+time; Escape closes the top one only; a modal layer takes focus, keeps Tab inside
+and gives focus back; a panel sits beside the page and leaves it in use. Never
+`window.prompt`, `alert` or `confirm`: use `Confirm`, `Dialog` or `NameDialog`.
+Dates and times come from `ui/dates.ts` ("Fri 9 Oct", "Thu 8 Oct, 10:01",
+24-hour), never `toLocale*` or a sliced ISO date. Every place and thing has an
+address (`ui/router.ts`): go there with a link or `navigate()`, not with state.
+Keys are decided in `ui/keys.ts`; no keycaps on screen (the ? sheet and tooltips
+list them).
 
 **Why a Basalt graph looks sparser than the same vault in Obsidian**: Obsidian's
 graph draws *tags* as nodes by default (and attachments, and ghost nodes for
@@ -569,7 +688,11 @@ one-line description in a readout bottom-right — `/api/vault/graph` sends a
 it has one, else its first real sentence. It is **monochrome on
 purpose** — a node's radius is `3 + √degree · 1.9`, so size is the only signal
 and the shape of the vault is what you read. Colour still lives in the file list
-and the category filter, where it labels things. A gear opens the settings panel
+and the category filter, where it labels things. Typed relations (`relation` on
+`/api/vault/graph` edges) are told in weight and words, not colour: a typed edge
+is heavier, one no link spells out (`implied`) is dashed, the pointed node's
+long-enough typed edges carry their name, and the readout lists its relations.
+The Relations switch in the map settings (default on) goes back to plain links. A gear opens the settings panel
 (link distance, repel, centre pull, node size — live-retuned on the running
 simulation, not a rebuild) and **local graph**: the last-opened note plus
 everything within N hops, `onShown` reporting the real count back so the hint
@@ -591,6 +714,22 @@ phrases or `/regex/` against a note's path and tags, first row wins
 can read and sends `category` on every `/api/vault/tree` note; the web only
 colours and counts. Without the note, only the PARA folders are known.
 
+**The vault is also a knowledge graph**, defined by the vault itself: a note
+tagged `#vault-ontology` holds Types / Relations / Statuses / Rules tables
+(`packages/core/src/ontology.ts`; without it nothing is typed). `buildGraph`
+(`graph.ts`) reads typed facts off the notes every time — front matter, `key::
+value` fields, the `## People` section and `project/<key>` tags — with
+provenance, inverses, derived relations and constraint warnings; nothing is
+stored, so deleting the DB loses nothing. A project's note is the conventional
+`04-Projects/<slug>.md`. The ACL applies to BOTH ends of a fact: a relation to a
+note the reader cannot see does not exist for them. `GET /api/graph/{schema,
+entities,relations,path,summaries}` (`routes/graph.ts`) and five tools of the
+same names on the MCP server and the in-app agent (`vault_schema`,
+`find_entities`, `get_relations`, `find_path`, `list_summaries`) answer from it;
+their descriptions tell a model to query first and read last. Jules's live vault
+has no ontology note yet: the note and the backfill (`~/basalt-kg`) wait for
+Jules's go.
+
 The **Dashboard** (`Dashboard.tsx`, the default tab) is a card grid: white
 (or near-black) cards, hairline borders, no tints. Six cards: hero stat, this-week/last-week activity line chart, In Focus
 tasks, Schedule (mini calendar + agenda), Today's Tasks checklist, Analytics
@@ -606,7 +745,7 @@ as widgets and chips, tables render as tables, `---` as a rule, fenced code as a
 slab, and the active line always shows raw source. **Block decorations must come
 from a StateField, never a ViewPlugin** — CodeMirror throws otherwise, which is
 why `frontmatterCollapse` and `blockPreview` are fields while the per-line pass
-is a plugin. Esc (or the ✕ in the note header) closes a note back to the map.
+is a plugin. Esc (or the close button in the note header) closes a note back to the map.
 
 ## Releases
 
@@ -633,6 +772,7 @@ pnpm install
 pnpm --dir apps/server seed   # demo: jules/erin/mara @basalt.dev, pw basalt-demo
 pnpm --dir apps/server dev    # :4623 (delete apps/server/data to reseed)
 pnpm --dir apps/web dev       # :4625, proxies /api (ws included)
+# /dev/ui on :4625 shows every component of the design system (dev server only)
 pnpm test                     # core + sync + server — permission tests are release-blocking
 ```
 
