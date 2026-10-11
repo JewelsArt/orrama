@@ -18,18 +18,16 @@ import { SearchField, Select } from "../ui/fields.js";
 import { Group, RowList } from "../ui/layout.js";
 import { Menu } from "../ui/overlays.js";
 import { EmptyState, Notice, Skeleton } from "../ui/states.js";
-import { goBack, navigate, useRoute, type Route } from "../ui/router.js";
+import { navigate, useRoute, type Route } from "../ui/router.js";
 import { readKey, writeKey } from "../storage.js";
 import {
   byName,
   byRecent,
-  bySlug,
   companiesWithoutNote,
   companyFor,
   groupsOf,
   letterOf,
   matches,
-  peopleAt,
   sameSector,
   sectorsIn,
   slugOf,
@@ -38,7 +36,6 @@ import {
 } from "./model.js";
 import { NewCompany, NewPerson } from "./NewDialogs.js";
 import { CompanyRow, GhostRow, PersonRow } from "./rows.js";
-import { CompanySheet, NotFound, PersonSheet } from "./Sheets.js";
 
 type Person = Contact & { slug: string };
 type Firm = Company & { slug: string };
@@ -188,11 +185,6 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
     return sort.companies === "recent" ? byRecent(list, name, (x) => (x.ghost ? undefined : at(x.firm.id))) : byName(list, name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firms, ghosts, q, sector, sort.companies, entries]);
-
-  /* ---- the open person or company ---- */
-  const close = () => goBack(listAddress({ q, sector }));
-  const openPerson = route?.kind === "person" ? bySlug(people, route.slug) : undefined;
-  const openFirm = route?.kind === "company" ? bySlug(firms, route.slug) : undefined;
 
   const total = { people: people.length, companies: firms.length };
   const filtering = !!q.trim() || !!sector;
@@ -441,26 +433,6 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
         />
       )}
 
-      {data && route?.kind === "person" &&
-        (openPerson ? (
-          <PersonSheet key={openPerson.id} person={openPerson} company={companyOf(openPerson)} onClose={close} onOpenNote={onOpenNote} onChanged={load} />
-        ) : (
-          <NotFound kind="person" onClose={close} />
-        ))}
-      {data && route?.kind === "company" &&
-        (openFirm ? (
-          <CompanySheet
-            key={openFirm.id}
-            company={openFirm}
-            people={peopleAt(openFirm, people) as Person[]}
-            routeOf={routeOf}
-            onClose={close}
-            onOpenNote={onOpenNote}
-            onChanged={load}
-          />
-        ) : (
-          <NotFound kind="company" onClose={close} />
-        ))}
     </div>
   );
 }

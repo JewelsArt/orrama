@@ -216,7 +216,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -356,17 +356,33 @@
 - **Exports**: DoorAttempt, DoorError, waitOf, doorError, cancelled
 - **Imports**: ../api.js
 
+### `apps/web/src/entity/ConversationPage.tsx`
+- **Exports**: dateOf, ConversationPage
+- **Imports**: @basalt/schema/responses, ../ui/Icon.js, ../ui/controls.js, ../ui/dates.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js, ../notes/read.js
+
 ### `apps/web/src/entity/Dates.tsx`
 - **Exports**: DateSlot, rangeLabel, DatesButton
 - **Imports**: react, ../ui/dates.js, ../ui/overlays.js, ./dateInput.js
+
+### `apps/web/src/entity/DocumentPage.tsx`
+- **Exports**: DocumentPage
+- **Imports**: @basalt/schema/responses, ../api.js, ../DocViewer.js, ../notes/read.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/states.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js
 
 ### `apps/web/src/entity/EntityHeader.tsx`
 - **Exports**: EntityHeader
 - **Imports**: react, ../ui/layout.js
 
+### `apps/web/src/entity/EntityPage.tsx`
+- **Exports**: EntityRoute, titleFor, EntityPage
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../people/CompanyEdit.js, ../people/model.js, ../people/NewDialogs.js, ../orrery/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ./activity.js, ./ConversationPage.js, ./shared.js, ./DocumentPage.js, ./EntityHeader.js, ./known.js, ./links.js, ./model.js, ./title.js, ./parts.js, ./relations.js
+
 ### `apps/web/src/entity/StatusMenu.tsx`
 - **Exports**: statusLook, StatusMenu
 - **Imports**: react, ../ui/overlays.js, ./status.js
+
+### `apps/web/src/entity/activity.tsx`
+- **Exports**: useActivitySources, Sources, default, ActivityModule
+- **Imports**: @basalt/schema/responses, ../api.js, ../ProjectViews.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/layout.js, ../ui/overlays.js, ../ui/router.js, ./links.js, ./known.js, ./model.js
 
 ### `apps/web/src/entity/dateInput.ts`
 - **Exports**: parseDateInput
@@ -380,13 +396,28 @@
 - **Exports**: slugOf, Kind, Known, NOTHING_KNOWN, kindOf, notePath, routeOf, bySlug, linkTo, anchor
 - **Imports**: react, ../ui/router.js
 
+### `apps/web/src/entity/model.ts`
+- **Exports**: Brief, relationWord, Group, relationGroups, ContextEntry, worksWith, youOf, PathStep, pathWorthSaying, names, domainOf, siteDomain, companyDomains, Who, InboxItem, activityOf, Turn, turnsOf, wordsIn, DocumentAt, documentAt, sizeLabel, fileType
+
+### `apps/web/src/entity/parts.tsx`
+- **Exports**: useHref, useAreaColor, Mark, Named, FactItem, Facts, RelationsBlock, PathBlock, useNote, NoteBlock, Turns
+- **Imports**: react, @basalt/sync/client, ../api.js, ../categories.js, ../Editor.js, ../noteSync.js, ../notes/links.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ws.js, ./known.js, ./links.js, ./model.js
+
 ### `apps/web/src/entity/relations.tsx`
 - **Exports**: Related, RelationsState, useRelations, roleWord, rolesOf, RelationItem, RelationRows, OrrWarnings
 - **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/Icon.js, ../ui/layout.js, ../ui/orr/Orr.js
 
+### `apps/web/src/entity/shared.tsx`
+- **Exports**: Missing, useOwnWarnings, WarningsBox, plainLinks, orreryRoute
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../noticed/fixes.js, ../noticed/model.js, ../orrery/model.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./known.js, ./links.js, ./model.js
+
 ### `apps/web/src/entity/status.ts`
 - **Exports**: StatusId, STATUS_IDS, STATUS_WORD, statusOf, Shelf, shelfOf, statusProblems
 - **Imports**: ../categories.js, ../ui/controls.js
+
+### `apps/web/src/entity/title.ts`
+- **Exports**: usePageTitle, usePageTitleFor
+- **Imports**: react
 
 ### `apps/web/src/icons.tsx`
 - **Exports**: IconSearch, IconAsk, IconPlus, IconX, IconGear, IconSun, IconMoon, IconGroceries, IconEating, IconTransport, IconBoulder, IconHealth, IconSoftware, IconShopping, IconGoingOut, IconCash, IconOther, IconSignOut, IconMail, IconSend, IconReply, IconChevron, IconLock, IconPromote, IconWand
@@ -560,17 +591,17 @@
 ### `apps/web/src/palette.ts`
 - **Exports**: hexToRgb, rgbToHex, toLch, lchToHex, contrast, deriveInk, deltaE, closestPair, PALETTE_SLOTS, BRAND_SLOT, VisionProfile, profileVars, PROFILE_VAR_NAMES, CUSTOM_PREFIX, isCustom, customId
 
+### `apps/web/src/people/CompanyEdit.tsx`
+- **Exports**: CompanyEdit
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/states.js, ./NewDialogs.js
+
 ### `apps/web/src/people/NewDialogs.tsx`
 - **Exports**: SECTOR_SUGGESTIONS, failureOf, NewPerson, NewCompany
 - **Imports**: react, ../api.js, ../newNote.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js
 
 ### `apps/web/src/people/People.tsx`
 - **Exports**: People, default
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js, ./Sheets.js
-
-### `apps/web/src/people/Sheets.tsx`
-- **Exports**: PersonSheet, CompanySheet, NotFound
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ./model.js, ./NewDialogs.js, ./rows.js
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
 
 ### `apps/web/src/people/model.ts`
 - **Exports**: Entry, Brief, linkText, slugOf, bySlug, companyFor, peopleAt, companiesWithoutNote, phraseOf, KeyRelation, keyRelation, letterOf, groupsOf, byName, byRecent, matches, sectorsIn, sameSector

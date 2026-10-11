@@ -54,3 +54,149 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   button.status.ent-status, .ent-link { min-height: 0; }
 }
 .ent-head .crumbs a { color: inherit; }
+
+/* ==== The entity page (R11): a person, a company, a conversation, a document ================
+   From mockups/screens/notes-entity.html (Ines Vermaat), desktop and phone: the header with a
+   big ring or square, the facts in one box, the relations in words, how you know them, the note;
+   Orr's warnings and "With …" on the side. Phone: one column, warnings, facts, relations,
+   activity, then the note (structure.md §2.6). */
+
+.ent-page { padding: 22px 44px 48px; display: flex; flex-direction: column; }
+.ent-page > * { max-width: 1120px; width: 100%; }
+
+/* the header: a 72 px ring or square, the title, one line about them */
+.ent-page .ent-head { margin: 0 0 22px; }
+.ent-page .ent-id { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 18px; margin-top: 4px; }
+.ent-page .ent-lead, .ent-page .ent-lead > .ring, .ent-page .ent-lead > .sq, .ent-page .ent-lead > .ent-badge { width: 72px; height: 72px; }
+.ent-page .ent-lead > .ring, .ent-page .ent-lead > .sq { font-size: 24px; font-weight: 750; border-width: 2px; }
+.ent-page .ent-lead > .sq { border-radius: 14px; }
+.ent-badge { display: grid; place-items: center; border-radius: 14px; border: 1.6px solid var(--line-2); background: var(--surface); color: var(--ink-2); }
+.ent-page .ent-x h1 { font-size: 32px; line-height: 38px; }
+.ent-page .ent-meta { margin-top: 2px; }
+.ent-sub { color: var(--ink-2); font-size: 16px; line-height: 22px; }
+.ent-sub .ui-nm { color: var(--ink); }
+.ent-pacts { display: none; }
+
+/* two columns: the main one and the side; the note under the main one */
+.ent-cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "main side" "note side"; grid-template-rows: auto 1fr; gap: 0 16px; align-items: start; }
+.ent-cols-doc { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "note"; }
+.ent-main { grid-area: main; min-width: 0; }
+.ent-side { grid-area: side; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ent-notecol { grid-area: note; min-width: 0; }
+.ent-side > .ent-warnbox { margin: 0; }
+
+/* the facts: the front matter that says who this is, four across */
+.ent-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 16px; padding: 0 16px; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.ent-facts[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.ent-facts[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ent-facts[data-n="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ent-facts > div { padding: 12px 12px 12px 0; min-width: 0; }
+.ent-facts > div:not(:nth-child(4n + 1)) { padding-left: 14px; border-left: 1px solid var(--line); }
+.ent-facts > div:nth-child(n + 5) { border-top: 1px solid var(--line); }
+.ent-facts dt { color: var(--ink-3); font-size: 12.5px; font-weight: 600; }
+.ent-facts dd { margin: 0; overflow-wrap: anywhere; }
+.ent-facts dd b { font-weight: 600; }
+.ent-facts a.ent-v, .ent-facts .ui-nm { font-weight: 600; color: var(--ink); }
+.ent-facts a.ent-v:hover { color: var(--accent); }
+.ent-facts .ent-list { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.ent-facts select.ent-sector { height: 30px; margin-top: 1px; font-weight: 600; }
+.ent-fail { display: block; margin-top: 4px; color: var(--late); font-size: 12.5px; line-height: 17px; }
+
+/* a white block: relations, the path, the note, the conversation */
+.ent-block { margin: 0 0 16px; padding: 12px 18px; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.ent-block > h2 { margin: 0 0 8px; font-size: 18px; line-height: 26px; font-weight: 750; letter-spacing: -0.01em; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ent-block > h2 .c { color: var(--ink-3); font-size: 13px; font-weight: 450; letter-spacing: 0; }
+.ent-block > h2 .c.late { color: var(--late); }
+
+/* relations, in words: the word, then what it names */
+.ent-rels { display: flex; flex-direction: column; }
+.ent-rel-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 11px 8px; margin: 0 -8px; }
+.ent-rel-row + .ent-rel-row { border-top: 1px solid var(--line); }
+.ent-rel-row .k { font-size: 14px; color: var(--ink-2); font-weight: 600; line-height: 22px; }
+.ent-rel-row .v { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; min-width: 0; font-size: 15px; line-height: 22px; }
+.ent-rel-item { display: inline-flex; flex-direction: column; min-width: 0; }
+.ent-rel-item small { color: var(--ink-3); font-size: 13px; line-height: 18px; }
+.ent-named { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+.ent-named .ring.sm, .ent-named .sq.sm { width: 20px; height: 20px; font-size: 8.5px; }
+.ent-named svg.i { color: var(--ink-3); }
+.ent-more { border: 0; background: none; padding: 0 4px; margin: 0 -4px; border-radius: 5px; font: inherit; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.ent-more:hover { background: var(--hover); color: var(--ink); }
+.ent-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* how you know them: a path of names and words */
+.ent-path { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--r-2); border: 1px solid var(--line-2); background: var(--surface); }
+.ent-step { display: inline-flex; align-items: center; gap: 10px; }
+.ent-step .arrow { color: var(--ink-3); font-size: 13px; }
+
+/* the note */
+.ent-note > h2 { flex-wrap: wrap; }
+.ent-path-link { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 4px; min-width: 0; }
+.ent-path-link:hover { color: var(--accent); }
+.ent-editor { font-size: 16px; line-height: 27px; min-height: 120px; }
+
+/* a conversation, as turns */
+.ent-turns ol { list-style: none; margin: 0; padding: 0; }
+.ent-turns li { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 14px; padding: 12px 0; }
+.ent-turns li + li { border-top: 1px solid var(--line); }
+.ent-turns .ent-who { font-weight: 700; font-size: 13.5px; line-height: 24px; color: var(--ink-2); }
+.ent-turns li.ent-you .ent-who { color: var(--ink); }
+.ent-turns .ent-said { min-width: 0; font-size: 15.5px; line-height: 24px; overflow-wrap: anywhere; }
+.ent-turns .ent-said p { margin: 0 0 8px; }
+.ent-turns .ent-said p:last-child { margin-bottom: 0; }
+.ent-turns .ent-said p.li { padding-left: 16px; position: relative; }
+.ent-turns .ent-said p.li::before { content: ""; position: absolute; left: 4px; top: 10px; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); }
+.ent-turns .ent-said blockquote { margin: 0 0 8px; padding: 2px 0 2px 12px; border-left: 3px solid var(--line-2); color: var(--ink-2); }
+.ent-turns .ent-said code { font-family: var(--mono); font-size: 13.5px; background: var(--panel); padding: 1px 4px; border-radius: 4px; }
+.ent-turns .ent-said pre { margin: 0 0 8px; padding: 10px 12px; overflow-x: auto; background: var(--panel); border-radius: var(--r-2); }
+.ent-turns .ent-said pre code { background: none; padding: 0; }
+.ent-turns .ent-wl { font-weight: 600; }
+
+/* Orr's warnings on the side, and "With …" */
+.ent-warn-one + .ent-warn-one { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--orr-edge); }
+.ent-warn-one .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.ent-warn-all { margin: 10px 0 0; font-size: 13px; }
+.row.ent-task { cursor: default; }
+.row.ent-task > a.x { color: inherit; text-decoration: none; border-radius: var(--r-1); }
+.row.ent-task > a.x:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.row.ent-task:hover { background: var(--hover); }
+
+/* a company's card, edited in a sheet (R9's form) */
+.ent-edit .ui-sheet-body { display: flex; flex-direction: column; gap: 14px; }
+
+/* the document reader in the page */
+.doc-reader.inline { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); overflow: hidden; }
+.doc-reader.inline .doc-inline-head { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.doc-reader.inline .doc-body { max-height: none; }
+.doc-reader.inline .doc-frame { width: 100%; height: 78vh; border: 0; }
+
+@media (max-width: 760px) {
+  .ent-page { padding: 0 12px 24px; }
+  .ent-page .ent-head { margin-bottom: 14px; }
+  .ent-page .ent-id { grid-template-columns: 56px minmax(0, 1fr); gap: 14px; align-items: center; }
+  .ent-page .ent-lead, .ent-page .ent-lead > .ring, .ent-page .ent-lead > .sq, .ent-page .ent-lead > .ent-badge { width: 56px; height: 56px; margin-top: 0; }
+  .ent-page .ent-lead > .ring, .ent-page .ent-lead > .sq { font-size: 19px; }
+  /* The top bar already says the name (as on the project page). */
+  .ent-page .ent-x h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ent-page .ent-acts { display: none; }
+  .ent-sub { font-size: 15px; line-height: 21px; }
+  .ent-pacts { display: flex; gap: 8px; margin: -4px 0 18px; }
+  .ent-pacts > * { flex: 1; justify-content: center; }
+  /* One column: warnings, facts, relations, activity, then the note. */
+  .ent-cols { display: flex; flex-direction: column; }
+  .ent-side { display: contents; }
+  .ent-side > .ent-warnbox { order: 0; margin-bottom: 16px; }
+  .ent-main { order: 1; }
+  .ent-side > .ent-act { order: 2; margin-bottom: 16px; }
+  .ent-notecol { order: 3; }
+  .ent-facts, .ent-facts[data-n="3"], .ent-facts[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ent-facts > div:not(:nth-child(4n + 1)) { padding-left: 0; border-left: 0; }
+  .ent-facts > div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--line); }
+  .ent-facts > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .ent-facts a.ent-v { font-size: 14px; }
+  .ent-rel-row { grid-template-columns: 112px minmax(0, 1fr); }
+  .ent-hide-phone { display: none; }
+  .ent-turns li { grid-template-columns: 1fr; gap: 2px; }
+  .doc-reader.inline .doc-frame { height: 70vh; }
+}
+/* Nothing on the side (no warnings, nothing going on): the main column takes the width. */
+.ent-cols:has(> .ent-side:empty) { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "note"; }

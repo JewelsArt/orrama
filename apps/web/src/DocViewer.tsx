@@ -126,6 +126,7 @@ export function DocViewer({
   base,
   name,
   onClose,
+  inline,
 }: {
   /**
    * The collection this file lives in, as an API path with no trailing slash —
@@ -137,6 +138,8 @@ export function DocViewer({
   base: string;
   name: string;
   onClose: () => void;
+  /** In the page (a document's entity page, R11) rather than in a sheet over it. */
+  inline?: boolean;
 }) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
   const [url, setUrl] = useState<string | null>(null);
@@ -216,8 +219,9 @@ export function DocViewer({
     [".txt", ".md", ".csv", ".json"].includes(ext) ||
     ext.match(/\.(png|jpe?g|gif|webp)$/);
 
+  const Frame = inline ? InPage : SheetLayer;
   return (
-    <SheetLayer
+    <Frame
       title={name}
       onClose={onClose}
       className="doc-reader"
@@ -257,6 +261,16 @@ export function DocViewer({
           {url && ext.match(/\.(png|jpe?g|gif|webp)$/) && <img className="doc-img" src={url} alt={name} />}
           {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="doc-none">Opening…</p>}
         </div>
-    </SheetLayer>
+    </Frame>
+  );
+}
+
+/** The reader's frame inside a page: its head (type, Download) above the body, no layer. */
+function InPage({ title, head, className, children }: { title: string; onClose: () => void; head?: React.ReactNode; className?: string; children?: React.ReactNode }) {
+  return (
+    <section className={`${className ?? ""} inline`} aria-label={title}>
+      <header className="doc-inline-head">{head}</header>
+      {children}
+    </section>
   );
 }

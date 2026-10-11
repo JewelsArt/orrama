@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
 import { Noticed } from "./noticed/Noticed.js";
+import { EntityPage } from "./entity/EntityPage.js";
+import { usePageTitleFor } from "./entity/title.js";
 import { AskPanel } from "./AskPanel.js";
 import { Money } from "./Finance.js";
 import { People } from "./people/People.js";
@@ -455,6 +457,9 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [goBack]);
 
+  // An entity page names its thing once it has loaded (the address has only a slug).
+  const pageTitle = usePageTitleFor(routeHref(route));
+
   // The rail's Mail dot: Orr's drafts are waiting (R5, Jules 11 Oct), asked again on each move.
   const draftsWaiting = useDraftsWaiting(!!me, routeHref(route));
 
@@ -470,7 +475,7 @@ export function App() {
   return (
     <Shell
       route={route}
-      title={titleOf(route)}
+      title={pageTitle ?? titleOf(route)}
       me={me}
       updateReady={updateReady}
       askOpen={askOpen}
@@ -481,15 +486,15 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      {/* One page, one key: moving inside the Orrery, Planning, Notes, People or a project
-          (its tabs) must not remount the page. */}
+      {/* One page, one key: moving inside the Orrery, Planning, Notes, People's list or a
+          project (its tabs) must not remount the page. Each entity page is its own. */}
       <ErrorBoundary
         key={
           shown.kind === "orrery" ? "/orrery"
           : shown.kind === "planning" ? "/planning"
           : shown.kind === "notes" ? "/notes"
           : shown.kind === "project" ? routeHref({ kind: "project", slug: shown.slug })
-          : placeOf(shown) === "people" ? "/people"
+          : shown.kind === "people" ? "/people"
           : routeHref(shown)
         }
         what={route.kind === "settings" ? "Settings" : undefined}
@@ -521,6 +526,8 @@ export function App() {
           </Suspense>
         ) : shown.kind === "notes-health" ? (
           <Noticed me={me} />
+        ) : shown.kind === "person" || shown.kind === "company" || shown.kind === "conversation" || shown.kind === "document" ? (
+          <EntityPage me={me} route={shown} />
         ) : shown.kind === "money" ? (
           <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (

@@ -1,7 +1,7 @@
 /**
  * People (structure.md §2.7): rows say who someone is and how they relate to you, every name
- * opens its thing, search and sector live in the address, a person opens at their address, and
- * the sector is changed by the server, never by rewriting the note in the browser (WEB-022).
+ * opens its thing, search and sector live in the address, and a person opens at their address
+ * (the entity page; a person's sector, WEB-022, is tested there: entity/EntityPage.dom.test.tsx).
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -142,10 +142,8 @@ describe("People: the rows", () => {
     const user = userEvent.setup();
     render(<People me={me} onOpenNote={() => {}} />);
     await user.click(await rowOf("Ines Vermaat"));
-    expect(location.pathname).toBe("/people/ines-vermaat");
-    expect(await screen.findByRole("dialog", { name: "Ines Vermaat" })).toBeTruthy();
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(location.pathname).toBe("/people"));
+    expect(location.pathname).toBe("/people/ines-vermaat"); // her entity page (R11), App's to show
+    history.replaceState(null, "", "/people");
     const link = within(await rowOf("Ines Vermaat")).getByRole("link", { name: "Graduation thesis" });
     await user.click(link);
     expect(location.pathname).toBe("/projects/graduation-thesis");
@@ -178,31 +176,6 @@ describe("People: search and sector", () => {
     render(<People me={me} onOpenNote={() => {}} />);
     await rowOf("Bram de Wit");
     expect(within(section("People")).queryByRole("button", { name: starts("Ines Vermaat") })).toBeNull();
-  });
-});
-
-describe("People: a person's sector (WEB-022)", () => {
-  it("is set by the server, and the page never writes the note's text", async () => {
-    history.replaceState(null, "", "/people/ines-vermaat");
-    const sent = stub();
-    const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
-    const sheet = await screen.findByRole("dialog", { name: "Ines Vermaat" });
-    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Sector" }), "Finance");
-    await waitFor(() => expect(sent.some((r) => r.method === "PATCH")).toBe(true));
-    expect(sent.filter((r) => r.method !== "GET")).toEqual([{ method: "PATCH", url: "/api/contacts/n-inesvermaat", body: { sector: "Finance" } }]);
-  });
-
-  it("says why when the server refuses, and keeps the old sector", async () => {
-    history.replaceState(null, "", "/people/ines-vermaat");
-    stub(TYPED, { "PATCH /api/contacts/n-inesvermaat": () => json({ error: "this note's front matter could not be read, so its sector was not changed; fix it in the note" }, 409) });
-    const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
-    const sheet = await screen.findByRole("dialog", { name: "Ines Vermaat" });
-    const select = within(sheet).getByRole("combobox", { name: "Sector" }) as HTMLSelectElement;
-    await user.selectOptions(select, "Finance");
-    expect((await within(sheet).findByRole("alert")).textContent).toContain("front matter could not be read");
-    expect(select.value).toBe("University");
   });
 });
 
