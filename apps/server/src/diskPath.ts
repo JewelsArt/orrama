@@ -49,7 +49,14 @@ export function onDisk(root: string, rel: string): { rel: string; found: boolean
       const matches = listed.filter((n) => foldPath(n) === want);
       if (matches.length > 1) throw new AmbiguousPathError(`"${rel}" matches ${matches.length} files that differ only in case`);
       if (matches.length === 1) pick = matches[0]!;
-      else found = false;
+      else {
+        // The volume folds more than `foldPath` does — APFS reads `Perſonal`
+        // (U+017F) as `Personal` — so ask it: a name it resolves is the entry
+        // with that inode, spelled as listed (the ACL-001 repro, wave B).
+        const same = sameEntry(dir, seg, listed);
+        if (same) pick = same;
+        else found = false;
+      }
     } else if (!listed) {
       found = false;
     }
@@ -57,6 +64,28 @@ export function onDisk(root: string, rel: string): { rel: string; found: boolean
     dir = path.join(dir, pick);
   }
   return { rel: out.join("/"), found };
+}
+
+/**
+ * The listed name the filesystem itself takes `seg` to mean, when it folds
+ * names in ways no string rule here mirrors; null when `seg` names nothing.
+ */
+function sameEntry(dir: string, seg: string, listed: string[]): string | null {
+  let st: fs.Stats;
+  try {
+    st = fs.lstatSync(path.join(dir, seg));
+  } catch {
+    return null;
+  }
+  for (const n of listed) {
+    try {
+      const o = fs.lstatSync(path.join(dir, n));
+      if (o.ino === st.ino && o.dev === st.dev) return n;
+    } catch {
+      // gone since the listing: not this one
+    }
+  }
+  throw new AmbiguousPathError(`"${seg}" names a file its folder does not list`);
 }
 
 /** Whether every segment of `rel` is listed, spelled exactly so, in its folder. */

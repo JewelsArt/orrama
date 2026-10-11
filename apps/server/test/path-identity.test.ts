@@ -108,6 +108,26 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     }
   });
 
+  it.runIf(CASE_INSENSITIVE)("a spelling only the volume folds (ſ for s) is still another user's personal note, and is refused", async () => {
+    // APFS reads `Perſonal` (U+017F, long s) as `Personal`; NFC and toLowerCase
+    // leave it alone. The audit's repro wrote erin's inbox through it (ACL-001).
+    // mara edits the vault root, as in the repro; Personal/ is never hers.
+    const mkt = b.db.select().from(tables.teams).where(eq(tables.teams.slug, "marketing")).get()!;
+    const rootGrant = and(eq(tables.folderGrants.teamId, mkt.id), eq(tables.folderGrants.folder, ""));
+    b.db.update(tables.folderGrants).set({ role: "editor" }).where(rootGrant).run();
+    try {
+      const real = "Personal/jules/Private.md";
+      expect((await put("jules", { path: real, content: "---\ntitle: Private\n---\nmine\n" })).status).toBe(200);
+      const before = read(real);
+      const res = await put("mara", { path: "Perſonal/jules/Private.md", content: "mara was here\n" });
+      expect(res.status).toBe(403);
+      expect(read(real)).toBe(before);
+      expect(fs.readdirSync(VAULT)).not.toContain("Perſonal");
+    } finally {
+      b.db.update(tables.folderGrants).set({ role: "viewer" }).where(rootGrant).run();
+    }
+  });
+
   it("an owner write to a case variant edits that note — same id, merged, one index entry", async () => {
     const real = "Shared/Meeting Notes 2026-07-01.md";
     const note = b.store.index.getByPath(real)!;
