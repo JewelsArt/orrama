@@ -15,13 +15,14 @@ folder live.
 
 | Surface | What it is |
 |---|---|
-| **Dashboard** | The first screen. Everything the vault knows about today — tasks due, project progress, what changed |
-| **Architecture** | The vault itself: file tree, Markdown editor (CodeMirror), backlinks, and a force-directed graph of the link structure |
-| **Planning** | Week and month calendar — dated notes as a band, time-blocks on a grid, events, ICS feeds in and out, auto-scheduling |
-| **Overview** | Project board grouped by life-area, with a Gantt view; drills into a per-project workspace whose goals, decisions and inbox are `##` sections of one note |
-| **Contacts** | People and companies side by side, both derived from `#contact` notes and their front-matter |
-| **Mail** | Gmail over IMAP/SMTP, in-app |
-| **Finance** | Bank statements, payslips, spending categories, subscriptions and savings — parsed in `packages/core`, rules authored as Markdown tables in the vault |
+| **Today** | The first screen: the day's timetable, what is due or late, unread mail and Orr's drafts, people you will see, what is coming up, projects, money against a typical month |
+| **Notes** | The vault itself: file tree, the live-preview Markdown editor (CodeMirror), pins, backlinks |
+| **Orrery** | A map of the vault: every file around Orr, in rings by kind and slices by life area, or one thing at the centre with what is one step away |
+| **Planning** | Week, day and month — dated tasks, deadlines and money as a band, time-blocks and events, ICS feeds in and out, "Plan my week" proposals |
+| **Projects** | One row per project; each opens a workspace whose goals, decisions and inbox are `##` sections of one note, with a timeline, documents and a to-do list |
+| **People** | People and companies side by side, from `#contact` and `#company` notes and their front-matter |
+| **Mail** | Gmail over IMAP/SMTP, in-app; the agent drafts, only you send |
+| **Money** | Bank statements, payslips, spending categories, subscriptions and savings — parsed in `packages/core`, rules authored as Markdown tables in the vault |
 
 Plus a command palette, quick capture, and **Ask** — retrieval over the vault using
 your own AI provider key.
@@ -127,7 +128,7 @@ Honest state of things:
   builds and boots the Docker image, reports dependency advisories, checks the
   desktop crate when it changes, and runs on Windows when started by hand.
 - **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
-- The original build spec (`~/basalt-prompt.md`) planned a team product for 5–50
+- The original build spec ([docs/spec.md](docs/spec.md)) planned a team product for 5–50
   person startups. What got built and used daily is this: a personal tool. The README
   now describes the latter.
 

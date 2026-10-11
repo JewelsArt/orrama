@@ -1,7 +1,9 @@
 # Basalt — codebase guide
 
-Jules's personal knowledge tool on plain Markdown files. Product spec (locked
-decisions, do not re-litigate): `~/basalt-prompt.md`.
+Jules's personal knowledge tool on plain Markdown files. The original product
+spec is `docs/spec.md` (its locked decisions still hold where the product kept
+them; it was written for a team product, and Basalt is now single-user — "One
+user, one vault").
 
 ## Start here (read this first in a new session)
 
@@ -77,7 +79,7 @@ readable `export.json` with every secret left out, and a README — to
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
-| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder for Settings → Notes), notesHome (Notes home's pins and counts) — one file each |
+| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, projects (the project workspace, its files and board), finance (Money), mail, graph (the knowledge graph), contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder for Settings → Notes), notesHome (Notes home's pins and counts) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter, the shelves) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity page's shared pieces: header, status vocabulary, dates as text, relations, Orr's warnings), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` open a Sheet until the entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
@@ -274,8 +276,9 @@ stale path can never delete the note it used to name.
 ## The Finance area
 
 `Finance.tsx` (web: the screen called Money, its state and every request; the
-pages in `money/`) + `routes/finance.ts` (server) + four core modules
-(`statement.ts`, `spending.ts`, `subscriptions.ts`, `payslip.ts`, `savings.ts`).
+pages in `money/`) + `routes/finance.ts` (server) + the core modules
+(`statement.ts`, `spending.ts`, `subscriptions.ts`, `payslip.ts`, `savings.ts`,
+`money.ts` for amounts, `recurring.ts` for charges that repeat, `ownAccounts.ts`).
 Same rule as everywhere else: **nothing lives only in the database.** The
 ledgers are Markdown tables in notes found by tag (`#income`, `#subscriptions`,
 `#payslips`, `#spending-categories`, `#own-accounts`), and statements and
@@ -788,8 +791,10 @@ parsed before it is known to be a valid auth.
   metadata ops so links never break. `VaultStore.write` preserves the existing id.
 - Unreadable link targets render as locked stubs: author's text only, 404 on fetch —
   never confirm existence (§5.4).
-- Web saves send full content + `baseHash`; server rebases as a splice against the
-  live Y.Doc. Desktop clients will exchange raw Y updates instead.
+- Saves send the full text with the base it was edited from (`baseContent` +
+  `baseHash`); the server 3-way merges it against the note as it is now
+  (`mergeText`, `packages/sync/src/merge.ts`) and applies the result to the live
+  Y.Doc as a splice (`VaultStore.write`). No client exchanges Y updates.
 - **History** (`GET /api/vault/note/:id/history`, `apps/server/src/history.ts`)
   replays the Yjs log ONCE per request and pages newest first (`?limit=`,
   `?before=<seq>`, `?content=1` for text); one revision is

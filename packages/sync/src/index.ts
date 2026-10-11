@@ -1,9 +1,11 @@
 /**
  * Sync engine (spec §10). Each note is a Y.Doc holding a Y.Text("content") of the
- * Markdown source; the file on disk is the render of the Y.Doc. Desktop clients
- * exchange raw Y.Doc updates (true CRDT merge). The thin web client sends full
- * content + the base hash it edited from; the server rebases that edit onto the
- * live doc as a minimal splice — same update log, same history, same convergence.
+ * Markdown source; the file on disk is the render of the Y.Doc. No client
+ * exchanges Y updates: the editor (NoteSync, client.ts) sends the full text with
+ * the base it edited from (`baseContent` + `baseHash`); the server 3-way merges
+ * it line by line against what the note holds now (`mergeText`, merge.ts) and
+ * applies the result to the live doc as a minimal splice — one update log, one
+ * history.
  */
 import * as Y from "yjs";
 import { canRead, type AclUser, type AclNote, type FolderGrant } from "@basalt/core";
