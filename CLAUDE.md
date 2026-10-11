@@ -56,9 +56,18 @@ a *partial checkout*: unreadable notes are filtered server-side before transport
 never reach the wire. The dashboard is a pure view over checkbox tasks in the notes —
 delete the DB, re-index the Markdown, and it rebuilds: task status is the checkbox,
 time blocks and events are calendar notes (`test/rebuild.test.ts` does exactly
-this). Still DB-only: task comments and descriptions, an assignee set through
-`PATCH /api/tasks/:id` over the line's `@user`, the legacy `planned_date`, a
-project's hidden flag, and accounts/settings. `pnpm --dir apps/server export`
+this). **Still DB-only** — gone for good if the database is deleted, so never
+"just rebuild it": accounts, teams, memberships and folder grants; sessions,
+passkeys (Touch ID), invites and API tokens; the workspace's AI settings and
+key, the mail account and the ChatGPT sign-in (`meta`); task comments and
+descriptions, an assignee set through `PATCH /api/tasks/:id` over the line's
+`@user`, the legacy `planned_date`; a project's hidden flag; staged mail drafts;
+webhooks and calendar feeds; and **note history** (`ydoc_updates`, the Yjs log),
+the only copy of a note's text before it was overwritten. History has no screen
+and no MCP tool: it is API-only (`GET /api/vault/note/:id/history?content=1`,
+`…/history/:seq`, for anyone who can read the note, with a session or an API
+token) — that is how text lost to a bad write is recovered today. `test/db-only.test.ts` holds this list against the
+tables in `db.ts`. `pnpm --dir apps/server export`
 (`src/export.ts`) writes all of it out: a restorable `basalt.db` snapshot, a
 readable `export.json` with every secret left out, and a README — to
 `<data dir>/exports/` by default, never into the vault. Run it with the agent's
