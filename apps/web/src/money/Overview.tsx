@@ -56,8 +56,9 @@ export function Overview({
   const typical = cats.typical ?? 0;
   const pace = current ? monthPace(d.spending.dataThrough) : null;
   const projected = projectedSpend(soFar, pace);
-  const byCategory = cats.months.find((m) => m.month === month)?.byCategory ?? {};
-  const rows = useMemo(() => monthByCategory(byCategory, cats), [byCategory, cats]);
+  // The month's split is looked up inside the memo: `?? {}` outside made a new object every
+  // render, so the memo never held (found by react-hooks/exhaustive-deps, REG-016).
+  const rows = useMemo(() => monthByCategory(cats.months.find((m) => m.month === month)?.byCategory ?? {}, cats), [cats, month]);
   const noStatements = d.spending.txnCount === 0;
 
   return (

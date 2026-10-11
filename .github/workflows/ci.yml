@@ -60,6 +60,10 @@ jobs:
       # Every package with a typecheck script, apps/mcp among them.
       - run: pnpm typecheck
 
+      # The React hooks rules on apps/web (eslint.config.js), so a hook's
+      # dependency list cannot go stale unnoticed.
+      - run: pnpm lint
+
       # Every package's tests: core, sync, server, web and mcp. Caching is off
       # for this task in turbo.json — a replayed log is not a test run.
       - run: pnpm test

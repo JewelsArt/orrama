@@ -13,6 +13,7 @@
     "test": "turbo run test",
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
     "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {

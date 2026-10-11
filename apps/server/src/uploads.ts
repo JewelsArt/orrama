@@ -67,5 +67,4 @@ export function contentDisposition(kind: "inline" | "attachment", name: string):
 
 /** Characters no filename of ours may hold: C0 and C1 controls, DEL, and the
  *  Unicode line and paragraph separators. */
-// eslint-disable-next-line no-control-regex
 export const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;

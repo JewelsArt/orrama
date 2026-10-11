@@ -1,13 +1,14 @@
 {
   "name": "@basalt/web",
   "version": "0.1.0",
-  "description": "Basalt web client \u2014 the same workspace in the browser (spec \u00a72).",
+  "description": "Basalt web client — the same workspace in the browser (spec §2).",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
@@ -36,7 +37,10 @@
     "@types/d3-force": "^3.0.10",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/parser": "^8.71.1",
     "@vitejs/plugin-react": "^4.4.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "happy-dom": "^20.14.6",
     "typescript": "^5.8.0",
     "vite": "^6.3.0",

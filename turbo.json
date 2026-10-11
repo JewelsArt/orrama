@@ -6,13 +6,15 @@
       "dependsOn": ["^transit"]
     },
     "build": {
-      "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
     "test": {
       "cache": false
     },
     "typecheck": {
+      "dependsOn": ["transit"]
+    },
+    "lint": {
       "dependsOn": ["transit"]
     },
     "dev": {

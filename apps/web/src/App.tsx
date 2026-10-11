@@ -219,6 +219,8 @@ export function App() {
     if (route.kind !== "notes" || !route.id) return;
     const path = notes.pathOf(route.id);
     if (path) go({ kind: "notes", path }, { replace: true });
+    // pathOf is the dependency: `notes` is a new object each render, its pathOf is not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route, notes.pathOf]);
   // The account's theme ("light" or "command"), and whether this device follows its system
   // instead: Match this device (ui/theme.ts). The page shows what the two resolve to.

@@ -67,7 +67,6 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
     const lo = Math.min(...(ds.length ? ds : [today])) - 3;
     const hi = Math.max(...(ds.length ? ds : [today]), today) + 8;
     return { min: lo, days: hi - lo + 1 };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, today]);
 
   const width = days * DAY_PX;

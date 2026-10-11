@@ -145,6 +145,9 @@ export function useLayer({ kind, onClose, box, trap = false, focus = true, resto
       // Only when focus would otherwise be lost: inside the closing layer, or nowhere. If a
       // newer layer already has it, leave it there.
       const at = document.activeElement;
+      // box.current is read now, at close, on purpose: whatever the layer holds as it goes. A
+      // node already detached fails `at.isConnected` first.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       const lost = !at || at === document.body || !at.isConnected || !!entry.box()?.contains(at) || !!box.current?.contains(at);
       if (lost) entry.opener.focus();
     };

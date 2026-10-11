@@ -476,6 +476,9 @@ function AZRail({ show }: { show: Show }) {
   // The letters the list on show holds, read after each render; set only when they change.
   const [present, setPresent] = useState("");
   const list = () => document.querySelector<HTMLElement>(show === "people" ? ".people .pp-people" : ".people .pp-firms");
+  // After every render on purpose: the letters are read from the DOM the list just drew. It
+  // settles at once — the state changes only when the letters do.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const now = [...(list()?.querySelectorAll<HTMLElement>("[data-letter]") ?? [])].map((x) => x.dataset.letter!).join("");
     if (now !== present) setPresent(now);
