@@ -43,6 +43,9 @@
 .cm-props { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; line-height: 24px; }
 .cm-props:hover { color: var(--ink); border-color: var(--ink-3); }
 .cm-props:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* The content is a flex item of the scroller: left at min-width auto, a long properties row
+   (it never wraps) set its width, and every line ran past a phone's screen. */
+.cm-content.cm-lineWrapping { min-width: 0; }
 
 /* The task checkbox: the system's round box, at the text's size. */
 .cm-task-box {
