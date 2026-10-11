@@ -218,15 +218,55 @@ function decodeTarget(s: string): string {
   }
 }
 
-function frontmatterStrings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
+/**
+ * A front-matter list as Obsidian reads it (audit COR-018): a YAML list, or a
+ * string of items split on `split` — `tags: project/thesis, active` is two
+ * tags, as `tags: project/thesis active` is. Taking the string whole made it
+ * one tag that failed the grammar, and the note lost every tag: its project,
+ * its ledger, its `#only/<team>`.
+ */
+function frontmatterList(value: unknown, split: RegExp): string[] {
+  if (typeof value === "string") return value.split(split).map((s) => s.trim()).filter(Boolean);
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
   return [];
 }
 
+/** `tags:` and the singular `tag:`, both of which Obsidian reads. */
+const frontmatterTags = (data: Record<string, unknown>) => [...frontmatterList(data["tags"], /[,\s]+/), ...frontmatterList(data["tag"], /[,\s]+/)];
+/** `aliases:` and `alias:`; a string splits on commas only, since an alias has spaces. */
+const frontmatterAliases = (data: Record<string, unknown>) => [...frontmatterList(data["aliases"], /,/), ...frontmatterList(data["alias"], /,/)];
+
+/**
+ * The team an `#only/` restriction names when it cannot be read: no team has
+ * this slug (slugs are `[a-z0-9-]`), so the note is for owners only.
+ */
+export const OWNERS_ONLY = "(unreadable)";
+
+/** `only/<team>` anywhere in a front-matter block's text, not inside a longer word or path. */
+const RAW_ONLY_RE = /(?<![\p{L}\p{N}_\/.-])#?only\/([^\s,\[\]{}'"#|]*)/giu;
+
+/**
+ * The `#only/` teams a front-matter block names when YAML cannot parse it
+ * (audit ACL-006). One unquoted colon — `title: Q3 Review: Ops`, which
+ * Obsidian tolerates — empties the parsed data, and a restriction read only
+ * from the parsed tags fell back to the folder grant: readable by everyone the
+ * folder lets in. So the raw text is read for `only/<team>` instead, and a
+ * mention whose team cannot be made out restricts the note to owners. Never
+ * `share/`: a share widens who reads, and a block that does not parse is no
+ * ground for that.
+ */
+function onlyTeamsOfRaw(raw: string): string[] {
+  const teams: string[] = [];
+  for (const m of raw.matchAll(RAW_ONLY_RE)) {
+    const team = normalizeTag(m[1]!);
+    teams.push(team && WHOLE_TAG.test(team) ? team : OWNERS_ONLY);
+  }
+  return teams;
+}
+
 /** Title = front-matter `title` if present, else derived by the caller from the filename. */
 export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNote {
-  const { data, bodyStart } = parseFrontmatter(content);
+  const { data, bodyStart, raw, malformed } = parseFrontmatter(content);
   const lines = content.split("\n");
 
   const links: WikiLink[] = [];
@@ -235,7 +275,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   const headings: Heading[] = [];
   const blockIds = new Set<string>();
 
-  for (const t of frontmatterStrings(data["tags"])) {
+  for (const t of frontmatterTags(data)) {
     const tag = frontmatterTag(t);
     if (tag) tags.push({ tag, line: 0 });
   }
@@ -298,16 +338,17 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
     }
   }
 
-  const onlyTeams: string[] = [];
+  const onlyTeams: string[] = malformed ? onlyTeamsOfRaw(raw) : [];
   const shareTeams: string[] = [];
   for (const { tag } of tags) {
-    if (tag.startsWith("only/") && tag.length > 5) onlyTeams.push(tag.slice(5));
+    // A front-matter `only/` naming no team still restricts: to owners.
+    if (tag.startsWith("only/")) onlyTeams.push(tag.slice(5) || OWNERS_ONLY);
     else if (tag.startsWith("share/") && tag.length > 6) shareTeams.push(tag.slice(6));
   }
 
   const id = typeof data["id"] === "string" ? (data["id"] as string) : undefined;
   const title = typeof data["title"] === "string" ? (data["title"] as string) : fallbackTitle;
-  const aliases = frontmatterStrings(data["aliases"]);
+  const aliases = frontmatterAliases(data);
 
   return {
     id,
