@@ -144,8 +144,12 @@ describe("addresses", () => {
 
   it("opening a shelf or picking an area keeps the board mounted (F1)", async () => {
     at("/projects");
+    // The count runs across the file, and the board mounts in an effect once
+    // sign-in has resolved: wait for this render's one mount before moving.
+    const start = mounted.overview;
     render(<App />);
     await view();
+    await waitFor(() => expect(mounted.overview).toBe(start + 1));
     const before = mounted.overview;
     act(() => void window.history.pushState({ depth: 1 }, "", "/projects?shelf=done"));
     await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
