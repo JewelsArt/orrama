@@ -42,7 +42,7 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { Architecture } = await import("./Architecture.js");
+const { Notes } = await import("./Notes.js");
 const { resetNoteSyncs } = await import("./noteSync.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 const settle = (ms = 0) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
@@ -62,7 +62,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("saving, on the Notes screen (WEB-002)", () => {
   it("a failing save is said on its own note, with the reason, and not on the next one", async () => {
-    const { rerender } = render(<Architecture me={me} noteId="a" />);
+    const { rerender } = render(<Notes me={me} noteId="a" />);
     await settle();
     server.down = 403;
     fireEvent.change(screen.getByLabelText("editor a"), { target: { value: "alpha\n#only/finance\n" } });
@@ -70,7 +70,7 @@ describe("saving, on the Notes screen (WEB-002)", () => {
     expect(screen.getByText("not saved")).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("you can't make this note unreadable to yourself");
 
-    rerender(<Architecture me={me} noteId="b" />);
+    rerender(<Notes me={me} noteId="b" />);
     await settle(3000);
     expect(screen.getByLabelText("editor b")).toBeTruthy();
     expect(screen.queryByText("not saved")).toBeNull();
@@ -80,7 +80,7 @@ describe("saving, on the Notes screen (WEB-002)", () => {
 
   it("typing a closed page never saved is offered back, and Restore saves it", async () => {
     localStorage.setItem("basalt-draft:a", JSON.stringify({ content: "alpha\nlost line\n", base: "alpha\n", at: Date.now() - 60_000 }));
-    render(<Architecture me={me} noteId="a" />);
+    render(<Notes me={me} noteId="a" />);
     await settle();
     expect(screen.getByText(/wasn't saved\./)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
@@ -92,7 +92,7 @@ describe("saving, on the Notes screen (WEB-002)", () => {
 
   it("a draft the note already holds is dropped without asking", async () => {
     localStorage.setItem("basalt-draft:a", JSON.stringify({ content: "alpha\n", base: "", at: Date.now() }));
-    render(<Architecture me={me} noteId="a" />);
+    render(<Notes me={me} noteId="a" />);
     await settle();
     expect(screen.queryByText(/wasn't saved\./)).toBeNull();
     expect(localStorage.getItem("basalt-draft:a")).toBeNull();

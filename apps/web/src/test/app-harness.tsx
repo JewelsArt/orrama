@@ -44,7 +44,7 @@ vi.mock("../Today.js", async () => {
     ]),
   };
 });
-vi.mock("../Architecture.js", () => ({ Architecture: stub("architecture") }));
+vi.mock("../Notes.js", () => ({ Notes: stub("notes") }));
 vi.mock("../orrery/Orrery.js", () => {
   const Orrery = stub("orrery");
   return { Orrery: (p: P) => <Orrery area={p.route.area} center={p.route.center} topic={p.route.topic} /> };

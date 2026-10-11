@@ -51,7 +51,7 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { Architecture } = await import("./Architecture.js");
+const { Notes } = await import("./Notes.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 const flush = () => act(async () => {});
 
@@ -63,7 +63,7 @@ beforeEach(() => {
 
 describe("the side panel's tasks (WEB-004)", () => {
   it("show what your own save wrote, and a tick names the task it was drawn for", async () => {
-    render(<Architecture me={me} noteId="n-1" />);
+    render(<Notes me={me} noteId="n-1" />);
     await flush();
     expect(screen.getByLabelText("Call bank")).toBeTruthy();
 
@@ -82,7 +82,7 @@ describe("the side panel's tasks (WEB-004)", () => {
   });
 
   it("a tick sent from a panel the server has moved past still says which task it meant", async () => {
-    render(<Architecture me={me} noteId="n-1" />);
+    render(<Notes me={me} noteId="n-1" />);
     await flush();
     // The note changes and no word of it reaches this view (the socket was down).
     server.content = "---\nid: n-1\n---\n\n- [ ] Book dentist\n- [ ] Pay rent\n- [ ] Call bank\n";

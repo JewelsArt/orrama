@@ -41,14 +41,14 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { Architecture } = await import("./Architecture.js");
+const { Notes } = await import("./Notes.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 const flush = () => act(async () => {});
 /** What App does: the address decides the note, and following a link goes to its address. */
 function Routed() {
   const r = useRoute();
   const n = r?.kind === "notes" ? r : null;
-  return <Architecture me={me} noteId={n?.id} notePath={n?.path} />;
+  return <Notes me={me} noteId={n?.id} notePath={n?.path} />;
 }
 
 describe("following a link from the editor (WEB-007)", () => {

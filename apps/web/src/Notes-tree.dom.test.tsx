@@ -3,7 +3,7 @@
  * (the save's own hook, then its live-sync echo) with no cancelling, so an older reply landing
  * last could put old titles and counts back.
  */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Msg = { type: string; noteId?: string; authorId?: string };
@@ -50,7 +50,7 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { Architecture, TREE_RELOAD_MS } = await import("./Architecture.js");
+const { Notes, TREE_RELOAD_MS } = await import("./Notes.js");
 const { resetNoteSyncs } = await import("./noteSync.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 const settle = (ms = 0) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
@@ -70,7 +70,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("the tree while you type (WEB-009)", () => {
   it("a burst of saves and their echoes reloads the tree once, and never asks for the graph", async () => {
-    render(<Architecture me={me} noteId="n0" />);
+    render(<Notes me={me} noteId="n0" />);
     await settle();
     net.log = [];
     await changed(); // your autosave comes back
@@ -84,7 +84,7 @@ describe("the tree while you type (WEB-009)", () => {
 
   it("one autosave, with its echo, is one tree request", async () => {
     net.canEdit = true;
-    render(<Architecture me={me} noteId="n0" />);
+    render(<Notes me={me} noteId="n0" />);
     await settle();
     net.log = [];
     fireEvent.change(screen.getByLabelText("editor"), { target: { value: "typed\n" } });
@@ -97,17 +97,18 @@ describe("the tree while you type (WEB-009)", () => {
 
   it("an older tree reply landing last is never shown", async () => {
     net.hold = true;
-    render(<Architecture me={me} noteId="n0" />);
+    render(<Notes me={me} noteId="n0" />);
     await settle();
     await changed();
     await settle(TREE_RELOAD_MS + 50);
     expect(net.held).toHaveLength(2);
     net.held[1]!.resolve(); // the newer reply first
     await settle();
-    expect(screen.getByText("Note v2")).toBeTruthy();
+    const tree = () => within(screen.getByRole("list", { name: "tree" }));
+    expect(tree().getByText("Note v2")).toBeTruthy();
     net.held[0]!.resolve(); // then the older one
     await settle();
-    expect(screen.queryByText("Note v1")).toBeNull();
-    expect(screen.getByText("Note v2")).toBeTruthy();
+    expect(tree().queryByText("Note v1")).toBeNull();
+    expect(tree().getByText("Note v2")).toBeTruthy();
   });
 });

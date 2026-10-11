@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
-import { Architecture } from "./Architecture.js";
+import { Notes } from "./Notes.js";
 import { AskPanel } from "./AskPanel.js";
 import { Contacts } from "./Contacts.js";
 import { Finance } from "./Finance.js";
@@ -505,7 +505,7 @@ export function App() {
         ) : view.kind === "dashboard" ? (
           <Today onCapture={() => setCaptureOpen(true)} />
         ) : view.kind === "architecture" ? (
-          <Architecture me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} />
+          <Notes me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} />
         ) : view.kind === "planning" ? (
           <Planning me={me} route={route.kind === "planning" ? route : undefined} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "overview" ? (

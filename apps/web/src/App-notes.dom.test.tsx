@@ -21,7 +21,7 @@ describe("moving between notes", () => {
     at("/notes/04-Projects/thesis/Graduation%20thesis");
     render(<App />);
     const first = await screen.findByTestId("view");
-    expect(first.dataset.view).toBe("architecture");
+    expect(first.dataset.view).toBe("notes");
     await act(async () => navigate({ kind: "notes", path: "Inbox/Other" }));
     expect(screen.getByTestId("view")).toBe(first);
     await act(async () => navigate({ kind: "notes" }));

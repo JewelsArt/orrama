@@ -36,18 +36,18 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { Architecture, LAST_NOTE_KEY } = await import("./Architecture.js");
+const { Notes, LAST_NOTE_KEY } = await import("./Notes.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 
 /** What App does: the address decides the note. */
 function Routed() {
   const r = useRoute();
   const n = r?.kind === "notes" ? r : null;
-  return <Architecture me={me} noteId={n?.id} notePath={n?.path} />;
+  return <Notes me={me} noteId={n?.id} notePath={n?.path} />;
 }
 const flush = () => act(async () => {});
 const path = () => decodeURIComponent(location.pathname + location.search);
-const title = () => document.querySelector(".editor-title")?.textContent ?? null;
+const title = () => document.querySelector(".nt-doc h1")?.textContent ?? null;
 
 beforeEach(() => {
   gets.length = 0;

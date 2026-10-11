@@ -1,151 +1,140 @@
-/* Notes (Architecture.tsx, FileTree.tsx): the files column, tree, side panel, category filter.
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+/* Notes (Notes.tsx, notes/parts.tsx, FileTree.tsx; structure.md §2.3), drawn from the Notes
+   boards (mockups/screens/notes.html): the tree on the paper ground, the note in a white box
+   with its reading width capped, and the side panel as white boxes, Relations first. On a phone
+   the note fills the page, the side panel runs below it, and the tree is a sheet. */
 
-/* ---- category picker (Architecture files header) ---- */
-.cat-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cat-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  padding: 0 4px 0 10px;
-}
-.cat-picker-label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
-.cat-select {
-  flex: 1;
-  min-width: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  padding: 7px 22px 7px 0;
-  cursor: pointer;
-  /* chevron */
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-faint) 50%),
-    linear-gradient(135deg, var(--text-faint) 50%, transparent 50%);
-  background-position:
-    right 9px center,
-    right 4px center;
-  background-size:
-    5px 5px,
-    5px 5px;
-  background-repeat: no-repeat;
-}
-.cat-select:focus {
-  outline: none;
-}
-.cat-select option {
-  background: var(--panel-strong);
-  color: var(--text);
-}
+.nt { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100%; min-height: 0; }
+.nt.has-note { grid-template-columns: 248px minmax(0, 1fr) 320px; }
 
-/* ---- architecture ---- */
-.arch {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  height: 100%;
-  min-height: 0;
-}
-/* The context panel only exists when a note is open — reserve its column then. */
-.arch:has(.side) {
-  grid-template-columns: 300px 1fr 280px;
-}
-.arch-files {
-  position: relative;
-  border-right: 1px solid var(--border);
-  overflow: hidden;
-}
+/* ---- the tree ----------------------------------------------------------------------------- */
+.nt-tree { display: flex; flex-direction: column; min-height: 0; padding: 18px 10px 14px; }
+.nt-tree-h { display: flex; align-items: center; gap: 8px; padding: 0 6px 10px; }
+.nt-tree-title { flex: 1; font-size: 18px; font-weight: 750; color: var(--ink); border-radius: var(--r-1); }
+.nt-tree-title:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.nt-tree-title:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.nt-filter { display: flex; align-items: center; gap: 4px; margin: 0 2px 8px; }
+.nt-filter .inp { flex: 1; min-width: 0; height: 34px; font-size: 13.5px; padding: 0 8px 0 10px; color: var(--ink-3); }
+.nt-filter .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.nt-filter input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); padding: 0; }
+.nt-filter input::placeholder { color: var(--ink-3); }
+.nt-x { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: var(--r-1); background: none; color: var(--ink-3); cursor: pointer; }
+.nt-x:hover { background: var(--hover); color: var(--ink); }
+.nt-area.on { color: var(--accent); background: var(--accent-wash); }
+.nt-area-chip { align-self: flex-start; margin: 0 2px 8px; height: 26px; }
+.nt-tree-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; margin: 0 -4px; padding: 0 4px 12px; }
+.nt-tree .tsec { font-size: 12.5px; font-weight: 650; color: var(--ink-3); padding: 12px 8px 4px; }
+.nt-tree .tsec:first-child { padding-top: 2px; }
 
-.editor-pane {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-.editor-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 22px 8px;
-}
-.editor-title {
-  margin: 0;
-  font-size: 17px;
-}
-.editor-path {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-}
-.editor-presence {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.presence-badge {
-  font-size: 11.5px;
-  color: var(--ok);
-}
-.presence-badge::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ok);
-  margin-right: 5px;
-  vertical-align: 1px;
-}
-.make-project {
-  padding: 4px 11px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent);
-  font: 600 11.5px var(--font-ui);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.make-project:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-.is-project-badge {
-  font: 600 11px var(--font-mono);
-  color: var(--accent);
-  white-space: nowrap;
-}
-.save-state {
-  font-size: 11.5px;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
-.save-state.error {
-  color: var(--danger);
-}
-.editor-host {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 4px 22px 0;
+.ti { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; min-height: 30px; padding: 0 8px; border: 0; border-radius: var(--r-1); background: none; font: inherit; font-size: 14px; color: var(--ink-2); text-align: left; cursor: pointer; text-decoration: none; }
+.ti:hover { background: var(--hover); color: var(--ink); }
+.ti:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ti.on { background: var(--surface); color: var(--ink); font-weight: 650; box-shadow: inset 0 0 0 1px var(--line-2); }
+.ti svg.i { width: 15px; height: 15px; color: var(--ink-3); }
+.ti > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ti small { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ti-file { font-style: normal; font-weight: 450; color: var(--ink-3); font-size: 12px; }
+.nt-filetree { display: flex; flex-direction: column; gap: 1px; }
+.nt-filetree [role="group"] { display: flex; flex-direction: column; gap: 1px; }
+.nt-none { margin: 8px; color: var(--ink-3); font-size: 13.5px; }
+
+/* ---- the note's box ------------------------------------------------------------------------ */
+.nt-ed { min-width: 0; min-height: 0; overflow-y: auto; padding: 12px 8px; }
+.nt:not(.has-note) .nt-ed { padding-right: 16px; }
+.nt-box { min-height: 100%; padding: 18px 48px 40px; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.nt-box > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+.nt-top { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+.nt-top .crumbs { margin: 0; min-width: 0; flex-wrap: wrap; }
+.nt-top .sp { flex: 1; }
+.nt-top .nt-tree-btn { display: none; }
+
+.nt-doc h1 { margin: 0 0 4px; font-size: 34px; line-height: 40px; font-weight: 750; letter-spacing: -0.022em; color: var(--ink); overflow-wrap: anywhere; }
+.nt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; color: var(--ink-3); font-size: 13.5px; }
+.nt-meta .chip { height: 24px; font-size: 12.5px; text-decoration: none; }
+.nt-meta .chip:hover { border-color: var(--ink-3); color: var(--ink); }
+.nt-flag { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-weight: 600; }
+.nt-flag svg.i { width: 14px; height: 14px; }
+.nt-save { margin-left: auto; font-size: 12.5px; }
+.nt-save.error { color: var(--late); font-weight: 650; }
+.nt-doc .notice { margin: 0 0 14px; }
+
+/* ---- Notes home ---------------------------------------------------------------------------- */
+.nt-home { display: flex; flex-direction: column; gap: 14px; }
+.nt-home-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 12px; }
+.nt-home-h h1 { margin: 0; font-size: 34px; line-height: 40px; font-weight: 750; letter-spacing: -0.022em; }
+.nt-home-h .sp { flex: 1; }
+.nt-home-h .btn { align-self: center; }
+.nt-counts { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 4px; color: var(--ink-3); font-size: 14px; font-variant-numeric: tabular-nums; }
+.nt-counts a { color: var(--accent); font-weight: 600; border-radius: 4px; }
+.nt-counts a:hover { background: var(--accent-wash); box-shadow: 0 0 0 3px var(--accent-wash); }
+.nt-mods { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; align-items: start; }
+/* Inside the note's white box the modules are sections, not boxes on boxes. */
+.nt-home .mod { box-shadow: none; border-color: var(--line); padding: 10px 14px 8px; }
+.nt-home .row .lead svg.i { width: 16px; height: 16px; color: var(--ink-3); }
+.nt-home .row .lead .ui-dot { width: 9px; height: 9px; }
+.nt-hint { margin: 4px 0 8px; color: var(--ink-3); font-size: 13.5px; line-height: 20px; }
+.nt-phone-tree { display: none; }
+
+/* ---- the side panel ------------------------------------------------------------------------ */
+.nt-side { min-height: 0; overflow-y: auto; padding: 12px 12px 30px 8px; display: flex; flex-direction: column; gap: 12px; }
+.nt-side > section { background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); padding: 12px 14px 10px; }
+.nt-side h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--ink-3); display: flex; align-items: center; gap: 8px; }
+.nt-side h3 .hd { width: 14px; height: 14px; }
+.nt-side h3 .c { font-weight: 450; font-variant-numeric: tabular-nums; }
+.nt-side .rel { grid-template-columns: 92px minmax(0, 1fr); }
+.nt-side .rel .v a svg.i { width: 15px; height: 15px; color: var(--ink-3); }
+.nt-side .ring.sm, .nt-side .sq.sm { width: 20px; height: 20px; font-size: 8.5px; }
+.nt-via { font-weight: 450; font-size: 12.5px; }
+.nt-link.row { grid-template-columns: minmax(0, 1fr); min-height: 0; padding: 7px 8px; text-decoration: none; color: var(--ink); }
+.nt-link.row .t { font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.nt-link.row .m { white-space: normal; display: block; }
+.nt-link.locked, .nt-link.missing { cursor: default; color: var(--ink-3); }
+.nt-link.locked:hover, .nt-link.missing:hover { background: none; }
+.nt-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.nt-tasks li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 5px 0; font-size: 14px; line-height: 20px; }
+.nt-tasks li + li { border-top: 1px solid var(--line); }
+.nt-tasks .cb { width: 18px; height: 18px; margin-top: 1px; }
+.nt-tasks li.done .nt-task-t { color: var(--ink-3); text-decoration: line-through; }
+.nt-tasks .btn { margin: -4px 0; }
+.nt-promoted { display: grid; place-items: center; width: 28px; height: 20px; color: var(--accent); }
+.nt-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.nt-tags button { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink-2); padding: 3px 8px; border-radius: var(--r-1); border: 1px solid var(--line-2); background: var(--surface); cursor: pointer; }
+.nt-tags button:hover { border-color: var(--ink-3); color: var(--ink); }
+.nt-tags button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* The tree as a sheet (a phone, from the note's top row). */
+.nt-tree-sheet .ui-sheet-body { padding: 0; }
+.nt-tree-sheet .nt-tree { padding: 6px 10px 20px; }
+.nt-tree-sheet .nt-tree-h { display: none; }
+
+/* ---- a narrower window: the side panel goes under the note ------------------------------- */
+@media (max-width: 1180px) and (min-width: 761px) {
+  .nt.has-note { grid-template-columns: 232px minmax(0, 1fr); grid-template-rows: auto auto; overflow-y: auto; }
+  .nt.has-note .nt-tree { grid-row: span 2; position: sticky; top: 0; height: 100%; max-height: 100vh; }
+  .nt.has-note .nt-ed { overflow: visible; }
+  .nt.has-note .nt-side { overflow: visible; padding: 0 16px 30px 8px; }
 }
 
+/* ---- phone ------------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  .nt, .nt.has-note { display: block; height: auto; }
+  .nt > .nt-tree { display: none; }
+  .nt-ed { padding: 0 12px 12px; overflow: visible; }
+  .nt-box { padding: 16px 16px 20px; min-height: 0; }
+  .nt-top .nt-tree-btn { display: inline-flex; margin-left: -6px; }
+  .nt-top .nt-orrery { display: none; }
+  .nt-top { margin-bottom: 10px; }
+  .nt-doc h1 { font-size: 27px; line-height: 33px; }
+  .nt-home-h h1 { display: none; }
+  .nt-side { padding: 0 12px 16px; overflow: visible; }
+  .nt-phone-tree { display: block; }
+  .ti { min-height: 44px; font-size: 15px; }
+  .nt-tree-sheet .nt-tree { display: flex; }
+  /* The note's title is in its box: the top bar keeps the Back and Find around it (the board). */
+  .frame:has(.nt.has-note) > .ptop h1 { visibility: hidden; }
+}
+
+/* ---- kept for another screen ----------------------------------------------------------------
+   Project.tsx's right column is `.proj-col.side` and still takes these from here (R8 redraws it). */
 .side {
   border-left: 1px solid var(--border);
   overflow: auto;
@@ -161,280 +150,4 @@
   letter-spacing: 0.08em;
   color: var(--text-faint);
   font-family: var(--font-mono);
-}
-.side-tasks {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.side-tasks li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.side-tasks li > span:not(.promoted-mark) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.side-tasks input {
-  accent-color: var(--accent);
-}
-.promote,
-.promoted-mark {
-  color: var(--text-faint);
-  display: inline-flex;
-}
-.promoted-mark {
-  color: var(--accent);
-}
-.side-link {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  gap: 1px;
-  font-size: 13px;
-  padding: 5px 6px;
-}
-.side-link-title {
-  font-weight: 600;
-}
-.side-link-ctx {
-  color: var(--text-faint);
-  font-size: 11.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.side-link.locked {
-  color: var(--text-faint);
-  cursor: not-allowed;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-}
-.side-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.tag-chip {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border-radius: 3px;
-  padding: 2px 7px;
-}
-
-@media (max-width: 980px) {
-  .arch {
-    grid-template-columns: 260px 1fr;
-  }
-  .side {
-    display: none;
-  }
-}
-
-/* ---- file tree (nested + filter) ---- */
-.filetree {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  margin-top: 10px;
-}
-.ft-filter {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 5px 8px;
-  color: var(--text-faint);
-  background: var(--panel);
-}
-.ft-filter input {
-  flex: 1;
-  border: none;
-  background: none;
-  outline: none;
-  color: var(--text);
-  font-size: 13px;
-  min-width: 0;
-}
-.ft-scroll {
-  flex: 1;
-  overflow: auto;
-  margin-top: 8px;
-}
-.ft-folder {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 6px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-.ft-folder:hover {
-  background: var(--panel-strong);
-  color: var(--text);
-}
-.ft-folder-name {
-  flex: 1;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ft-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 13px;
-  padding: 3.5px 6px;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-}
-.ft-note:hover {
-  background: var(--panel-strong);
-  color: var(--text);
-}
-.ft-note.active {
-  background: var(--accent-dim);
-  color: var(--text);
-}
-.ft-note-title {
-  /* Left, filling the row like .ft-folder-name — the row is space-between,
-     so without this a short title floated between the dot and the count. */
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ft-note-path {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-  flex: none;
-}
-.ft-match {
-  padding-left: 8px !important;
-}
-.ft-count {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: 0 4px;
-  flex: none;
-}
-.ft-map {
-  margin-top: 8px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-
-/* ---- map stage ---- */
-.arch-files {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 10px;
-}
-
-.editor-close {
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text-faint);
-  border-radius: var(--radius-sm);
-  width: 26px;
-  height: 26px;
-  line-height: 1;
-  cursor: pointer;
-}
-.editor-close:hover { color: var(--text); border-color: var(--border-strong); }
-.cat-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 2px 4px;
-}
-.legend-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  background: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-size: 11.5px;
-}
-.legend-chip:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-.legend-chip.active {
-  border-color: var(--cat);
-  color: var(--text);
-  background: color-mix(in srgb, var(--cat) 12%, transparent);
-}
-.legend-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--cat);
-  flex: none;
-}
-.ft-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex: none;
-  margin-right: 2px;
-  opacity: 0.9;
-}
-
-/* ═══ Phone layout ═══════════════════════════════════════════════════════════
-   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
-   hands rather than pixels: a side rail puts navigation under the far edge of a
-   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
-   costs 16% of a 375px screen to show seven icons.
-
-   Everything here is additive. The desktop rules are untouched; this block only
-   reorders the same markup, so no component knows it is on a phone. */
-@media (max-width: 760px) {
-  /* Architecture is a 300px sidebar + editor + 280px context grid. None of
-     those fit beside each other at 375px. */
-  .arch,
-  .arch:has(.side) {
-    grid-template-columns: 1fr;
-  }
-  .arch-files {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    max-height: 45vh;
-  }
 }
