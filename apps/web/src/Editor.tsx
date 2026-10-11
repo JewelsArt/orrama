@@ -11,20 +11,23 @@ import type { NoteSync } from "@basalt/sync/client";
 import { useEffect, useRef } from "react";
 import { livePreview } from "./livePreview.js";
 
-/** Markdown highlight tuned to the theme tokens; live-preview styling, source stays visible. */
+/**
+ * Markdown highlight on Orrama's tokens and the Notes board's type: headings at 26/20/17 px on
+ * a 16 px body, ink for text, ultramarine for links, the system mono for code only.
+ */
 const mdHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.9em", fontWeight: "800", lineHeight: "1.25" },
-  { tag: tags.heading2, fontSize: "1.45em", fontWeight: "750", lineHeight: "1.3" },
-  { tag: tags.heading3, fontSize: "1.2em", fontWeight: "700" },
-  { tag: tags.heading4, fontSize: "1.05em", fontWeight: "700" },
+  { tag: tags.heading1, fontSize: "1.625em", fontWeight: "750", lineHeight: "1.3", letterSpacing: "-0.015em" },
+  { tag: tags.heading2, fontSize: "1.25em", fontWeight: "750", lineHeight: "1.4" },
+  { tag: tags.heading3, fontSize: "1.0625em", fontWeight: "700" },
+  { tag: tags.heading4, fontSize: "1em", fontWeight: "700" },
   { tag: tags.strong, fontWeight: "700" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.link, color: "var(--accent)" },
   { tag: tags.url, color: "var(--accent)" },
-  { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em" },
-  { tag: tags.quote, color: "var(--text-dim)", fontStyle: "italic" },
-  { tag: tags.meta, color: "var(--text-faint)" },
-  { tag: tags.processingInstruction, color: "var(--text-faint)" },
+  { tag: tags.monospace, fontFamily: "var(--mono)", fontSize: "0.88em" },
+  { tag: tags.quote, color: "var(--ink-2)", fontStyle: "italic" },
+  { tag: tags.meta, color: "var(--ink-3)" },
+  { tag: tags.processingInstruction, color: "var(--ink-3)" },
 ]);
 
 /** Marks a change that came from someone else, so it is not reported as typing. */
@@ -113,20 +116,28 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
           EditorView.updateListener.of((u) => {
             if (u.docChanged && !u.transactions.some((t) => t.annotation(remoteEdit))) onChangeRef.current(u.state.doc.toString());
           }),
+          // The note's type (the Notes board: 16 px on 27 px). The page decides the width and the
+          // room below; the editor adds no frame of its own.
           EditorView.theme({
-            "&": { height: "100%", fontSize: "15.5px" },
-            ".cm-scroller": { fontFamily: "var(--font-ui)", lineHeight: "var(--editor-line-height)", padding: "0 16px 40vh" },
-            ".cm-content": { caretColor: "var(--accent)", maxWidth: "720px", margin: "0 auto", paddingTop: "6px" },
+            "&": { height: "100%", fontSize: "16px", color: "var(--ink)" },
+            ".cm-scroller": { fontFamily: "var(--font)", lineHeight: "var(--editor-line-height)", padding: "0" },
+            ".cm-content": { caretColor: "var(--accent)", padding: "0 0 8px" },
+            ".cm-line": { padding: "0" },
             "&.cm-focused": { outline: "none" },
-            ".cm-cursor": { borderLeftColor: "var(--accent)" },
+            ".cm-cursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "2px" },
             ".cm-activeLine": { background: "transparent" },
+            ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": { background: "var(--accent-wash)" },
+            ".cm-placeholder": { color: "var(--ink-3)" },
             ".cm-tooltip": {
-              background: "var(--bg-raised)",
-              border: "1px solid var(--border)",
-              borderRadius: "8px",
-              boxShadow: "var(--shadow)",
+              background: "var(--surface)",
+              border: "1px solid var(--line-2)",
+              borderRadius: "var(--r-2)",
+              boxShadow: "var(--shadow-pop)",
+              color: "var(--ink)",
+              fontFamily: "var(--font)",
             },
-            ".cm-tooltip-autocomplete ul li[aria-selected]": { background: "var(--accent-dim)", color: "var(--text)" },
+            ".cm-tooltip-autocomplete ul li": { padding: "4px 10px" },
+            ".cm-tooltip-autocomplete ul li[aria-selected]": { background: "var(--accent-wash)", color: "var(--ink)" },
           }),
         ],
       }),

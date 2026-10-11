@@ -7,10 +7,13 @@
  *  - [[wiki links]] conceal their brackets and show the alias
  *  - #tags, @mentions, due: dates, !p priorities and ^block-ids become chips
  *  - heading markers (##) hide until you edit the line
+ *  - **bold**, *italic* and `code` hide their marks, a list's dash is a bullet (§2.3: "the live
+ *    preview finishes its job")
+ *  - a due date reads as words ("today", "3 days late"); a done task is never late
  *  - tables render as tables, `---` as a rule, fenced code gets a slab
  */
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
-import { isoLocal } from "@basalt/core/dates";
+import { daysTo, isoLocal } from "@basalt/core/dates";
 // One tag grammar for the index and the chips: a chip drawn over half a tag
 // would show a different tag from the one the note is filed under.
 import { TAG_RE } from "@basalt/core";
@@ -70,6 +73,113 @@ const BLOCK_ID_RE = /\s\^[\w-]+\s*$/;
 const FENCE_RE = /^(```|~~~)/;
 
 const TABLE_SEP_RE = /^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
+/** A list item that is not a task: its dash, star or plus becomes a bullet. */
+const BULLET_RE = /^(\s*)([-*+]) (?!\[[ xX/b]\] )/;
+const CODE_SPAN_RE = /(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/g;
+/** `**strong**` / `__strong__`: the marks hug the words, never spaces. */
+const STRONG_RE = /(\*\*|__)(?=\S)([\s\S]*?\S)\1/g;
+/** `*em*` / `_em_`, not inside a word (snake_case stays as written). */
+const EM_RE = /(?<![\w*])(\*|_)(?=[^\s*_])([^*_]*?[^\s*_])\1(?![\w*])/g;
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/**
+ * A due date as the Notes board says it: "today", "tomorrow", "3 days late", a weekday within
+ * the week ahead, else "19 Oct". A done task is never late: it says its day (§2.3, "Done tasks
+ * lose their red overdue chip").
+ */
+export function dueWords(date: string, done: boolean, today: string = isoLocal()): { text: string; late: boolean } {
+  const d = daysTo(today, date);
+  const [y, m, day] = date.split("-").map(Number) as [number, number, number];
+  const when = new Date(y, m - 1, day);
+  const short = `${day} ${MONTHS[m - 1]}${String(y) === today.slice(0, 4) ? "" : ` ${y}`}`;
+  if (!done && d < 0) return { text: `${-d} ${d === -1 ? "day" : "days"} late`, late: true };
+  if (d === 0) return { text: "today", late: false };
+  if (d === 1) return { text: "tomorrow", late: false };
+  if (Math.abs(d) <= 6) return { text: DAYS[when.getDay()]!, late: false };
+  return { text: short, late: false };
+}
+
+/**
+ * Where the preview hides marks and marks text on one line of prose: strong, emphasis and
+ * code spans, plus a list's bullet. Pure, so each rule has a test; ranges are line offsets.
+ */
+export interface InlineMarks {
+  hide: [number, number][];
+  marks: { from: number; to: number; cls: string }[];
+  bullet?: [number, number];
+}
+
+export function inlineMarks(text: string): InlineMarks {
+  const hide: [number, number][] = [];
+  const marks: InlineMarks["marks"] = [];
+  const code: [number, number][] = [];
+  for (const m of text.matchAll(CODE_SPAN_RE)) {
+    const from = m.index!;
+    const to = from + m[0].length;
+    code.push([from, to]);
+    hide.push([from, from + m[1]!.length], [to - m[1]!.length, to]);
+    marks.push({ from: from + m[1]!.length, to: to - m[1]!.length, cls: "cm-code-span" });
+  }
+  const inCode = (i: number) => code.some(([a, b]) => i >= a && i < b);
+  const pair = (re: RegExp, cls: string) => {
+    for (const m of text.matchAll(re)) {
+      const from = m.index!;
+      const to = from + m[0].length;
+      const w = m[1]!.length;
+      if (inCode(from) || inCode(to - 1)) continue;
+      hide.push([from, from + w], [to - w, to]);
+      marks.push({ from: from + w, to: to - w, cls });
+    }
+  };
+  pair(STRONG_RE, "cm-strong");
+  // Emphasis is looked for where strong is not: `**a**` is not two empty emphases.
+  const strongless = text.replace(STRONG_RE, (all) => " ".repeat(all.length));
+  for (const m of strongless.matchAll(EM_RE)) {
+    const from = m.index!;
+    const to = from + m[0].length;
+    if (inCode(from) || inCode(to - 1)) continue;
+    hide.push([from, from + 1], [to - 1, to]);
+    marks.push({ from: from + 1, to: to - 1, cls: "cm-em" });
+  }
+  const b = BULLET_RE.exec(text);
+  return { hide, marks, ...(b ? { bullet: [b[1]!.length, b[1]!.length + 1] as [number, number] } : {}) };
+}
+
+/** A list's dash, drawn as a bullet. */
+class BulletWidget extends WidgetType {
+  override eq() {
+    return true;
+  }
+  toDOM() {
+    const b = document.createElement("span");
+    b.className = "cm-bullet";
+    b.textContent = "•";
+    return b;
+  }
+}
+
+/** A due date in words; the source (`due:2026-10-19`) is one click away on its line. */
+class DueWidget extends WidgetType {
+  constructor(
+    private readonly text: string,
+    private readonly late: boolean,
+    private readonly date: string,
+  ) {
+    super();
+  }
+  override eq(other: DueWidget) {
+    return other.text === this.text && other.late === this.late && other.date === this.date;
+  }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = this.late ? "cm-due late" : "cm-due";
+    el.textContent = this.text;
+    el.title = `Due ${this.date}`;
+    return el;
+  }
+}
 const HR_RE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 
 /** Split a markdown row on unescaped pipes, dropping the outer ones. */
@@ -279,6 +389,7 @@ export function livePreview(opts: Options): Extension {
 
           // checkbox
           const tm = TASK_RE.exec(text);
+          const done = !!tm && (tm[2] === "x" || tm[2] === "X");
           if (tm) {
             const boxStart = line.from + tm[1]!.length;
             const checked = tm[2] === "x" || tm[2] === "X";
@@ -321,21 +432,34 @@ export function livePreview(opts: Options): Extension {
           }
           for (const m of text.matchAll(DUE_RE)) {
             const start = line.from + m.index! + m[1]!.length;
-            // Local, not UTC: for the first hour or two of a day in Amsterdam the
-            // UTC date is still yesterday, and a task due today read as overdue.
-            const overdue = m[3]! < isoLocal();
-            if (!active) {
-              decos.push({ from: start, to: start + 4, deco: Decoration.replace({}) }); // hide "due:"
+            const end = start + 4 + m[3]!.length;
+            if (active) {
+              // Being edited: the source, marked, so you can see what you are changing.
+              decos.push({ from: start, to: end, deco: Decoration.mark({ class: "cm-due-src" }) });
+              continue;
             }
-            decos.push({
-              from: start + (active ? 0 : 4),
-              to: start + 4 + m[3]!.length,
-              deco: Decoration.mark({ class: `cm-due ${overdue ? "overdue" : ""}` }),
-            });
+            // Local, not UTC (dueWords counts local days): for the first hour or two of a day in
+            // Amsterdam the UTC date is still yesterday, and a task due today read as overdue.
+            const w = dueWords(m[3]!, done);
+            decos.push({ from: start, to: end, deco: Decoration.replace({ widget: new DueWidget(w.text, w.late, m[3]!) }) });
           }
           for (const m of text.matchAll(PRIO_RE)) {
             const start = line.from + m.index! + m[1]!.length;
             decos.push({ from: start, to: start + 3, deco: Decoration.mark({ class: `cm-prio p${m[2]}` }) });
+          }
+
+          // A list item or a task wraps under its own text, not under its bullet or box.
+          if (tm || BULLET_RE.test(text)) {
+            const depth = (tm ? tm[1]! : BULLET_RE.exec(text)![1]!).replace(/\t/g, "  ").length;
+            decos.push({ from: line.from, to: line.from, deco: Decoration.line({ class: tm ? "cm-li cm-li-task" : "cm-li", attributes: { style: `--li-depth:${depth}` } }) });
+          }
+
+          // strong, emphasis, code spans and a list's bullet: marks hidden off the active line
+          if (!active) {
+            const im = inlineMarks(text);
+            for (const [a, b] of im.hide) decos.push({ from: line.from + a, to: line.from + b, deco: Decoration.replace({}) });
+            for (const mk of im.marks) if (mk.to > mk.from) decos.push({ from: line.from + mk.from, to: line.from + mk.to, deco: Decoration.mark({ class: mk.cls }) });
+            if (im.bullet) decos.push({ from: line.from + im.bullet[0], to: line.from + im.bullet[1], deco: Decoration.replace({ widget: new BulletWidget() }) });
           }
 
           decos.sort((a, b) => a.from - b.from || a.to - b.to);
