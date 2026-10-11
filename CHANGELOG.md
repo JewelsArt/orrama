@@ -54,6 +54,50 @@ one is in CLAUDE.md, "Releases".
   and what Orr noticed.
 - Find a setting, at the top of Settings.
 - Settings → This device says whether a passcode is set.
+- **Today** replaces the Dashboard (wave C of the redesign). People today:
+  who's in today's calendar or wrote to you today, and how you know them.
+  Coming up: the next three weeks of events, key deadlines and project dates.
+  Orr noticed: how many things in your notes' graph need a look, the first
+  said in words. New on Today: a task, a note, an event, a project, a
+  subscription or income.
+- Planning's week, month and day have addresses (`/planning/week/2026-10-12`,
+  `/planning/month/2026-11`, `/planning/day/2026-10-09`); ← and → step through
+  them.
+- Drag a block, an event or a due step to another day in Planning's lanes or
+  month; its note changes with it.
+- An empty day in a Planning lane or the month adds a step due that day to
+  your inbox.
+- A calendar feed that failed is named at the top of Planning, with Retry.
+- On a phone, Planning's week stands up, days down the screen, and the month
+  is a compact grid.
+- Pin a note to Notes home from its ··· menu; the pin is a `pinned: true` line
+  in the note's own front matter, so it shows on every device and in Obsidian.
+- Show in the Orrery on every note.
+- A tag in a note's side panel filters the tree to the notes carrying it.
+- Each project tab has its own address
+  (`/projects/graduation-thesis/timeline`), and the Projects board's area
+  filter too (`/projects?area=school`).
+- Add a step, from the project's header, its To-do tab or an empty week on its
+  Timeline, with a typed due date.
+- People & companies on a project shows who supervises it, from the knowledge
+  graph, and the project's conversations.
+- Orr points out a project with no status, or a status outside the vault's
+  words; when every step is done he offers to archive it.
+- Every person and company has an address (`/people/ines-vermaat`,
+  `/companies/kade-social`); searches and the sector filter are in the address
+  too.
+- People and companies sort A–Z or by most recently mentioned.
+- A company your contacts work at but that has no note yet is listed in
+  People, and one click creates it.
+- On the phone, People is one list with a People / Companies switch and an A–Z
+  rail.
+- Money's "Looks recurring" asks: Add it writes the charge into your
+  subscriptions note; It's not recurring hides it on this device (Undo on the
+  Subscriptions page).
+- Drop a bank export or payslip anywhere on Money to add it.
+- ↑ ↓ move between rows on Money; Enter opens one.
+- Orr can read a whole note (`read_note`), add lines to one (`append_to_note`)
+  or rewrite one section (`replace_section`) without resending the rest.
 
 ### Changed
 
@@ -102,6 +146,79 @@ one is in CLAUDE.md, "Releases".
   wait.
 - Notes no longer opens on the map: with no note open it offers "Open the
   Orrery". "Back to the map" reads "Close note".
+- The Dashboard is now **Today**: today's timetable on top, with Orr standing
+  on the present minute (he reads while you work, points when a meeting is
+  near, sits in a free hour, dozes when the day is done), then Due, Mail,
+  People today, Coming up, Projects, Money and Orr noticed.
+- Due on Today leads with the next key deadline, then what's due or booked
+  today, then what's late (least late first); ticking a box ticks the line in
+  its note.
+- Money on Today shows what this month has cost so far against a typical
+  month; it opens that month under Spending.
+- Customise (at the foot of Today) switches modules on and off; cards no
+  longer drag or wobble.
+- On a phone, Today's top bar shows the date, with New beside Find.
+- The Mail dot in the rail now means Orr's drafts are waiting for you, not
+  unread mail.
+- Planning is redrawn: the week runs as lanes, one per life area, with
+  deadlines and money above a horizon where Orr stands at now, and the next
+  three weeks down the right. Hours shows the same week by the hour, with To
+  plan beside it to drag from; the choice is remembered. Month and a single
+  Day are tabs beside Week.
+- One look for every time item in Planning: booked time, events, subscribed
+  calendars (dashed), due days (a diamond), key deadlines (red) and Orr's
+  proposals (hatched, with his head). Only late items are red.
+- The task card opens beside what you clicked and takes a day, a time and a
+  length by keyboard: type "sat 11:00" and press Enter. People are rings,
+  companies squares.
+- Planning's hour grid opens on the day's first item, and Plan my week says
+  what it proposes in Orr's words, with Book and Not now.
+- Notes is redrawn: the tree on the left with Pinned, Recent and your folders,
+  the note in a white box, and beside it what the note is about, starting with
+  its relations in words.
+- With no note open, Notes shows Notes home: recent notes, pinned notes, your
+  inbox, your counts (notes, conversations, open and done tasks) and your life
+  areas. Notes opens on the note you had open last until you close it.
+- The editor reads like the boards: bold and italic without their stars,
+  bullets for list dashes, due dates as "today" or "3 days late", wide tables
+  scroll sideways.
+- Make this a project is offered on ordinary notes only, in the note's ···
+  menu.
+- The document reader slides in from the right like the other sheets.
+- Overview is now **Projects**: one row per project with its next step,
+  status, next date, key deadline and people; filter by life area; paused,
+  cancelled, completed and archived projects sit on shelves under the board.
+- A project's status uses the vault's seven words (planned, on track, at risk,
+  paused, completed, archived, cancelled). Older words in a note (sleeping,
+  planning, done, blocked…) are read as the word they mean.
+- The project page has a new header: status as a menu, dates as text you can
+  type ("19 Jan 2027"), the days left, the area and the steps, Add a step, and
+  a ⋯ menu with Show in the Orrery.
+- A project's Overview is one scroll: the note on the left; decisions, inbox,
+  next steps, goals, people, conversations, documents and the prompt on the
+  right.
+- The Gantt moved from the Projects board into each project's Timeline ("Show
+  the Gantt").
+- Orr's suggested links on a project's Documents board are asked about one at
+  a time: Link or No.
+- Contacts is now **People**: people and companies side by side as rows, each
+  with their role, company and how they relate to you ("supervises Graduation
+  thesis"), and the last note that mentions them.
+- One sector menu replaces People's row of sector chips, and lists only the
+  sectors your contacts use.
+- New person and New company say what went wrong under the form, and keep what
+  you typed.
+- Finance is now **Money**, in the new look: the overview shows this month's
+  spending against a typical month, this month by category, saving, the
+  month's commitments and income, with arrows (and ← →) to other months.
+- Money's pages are tabs: Overview, Spending, Subscriptions, Income, Savings,
+  Documents. Payslips are on Income.
+- A spending category shows its year as columns; click a month to see where it
+  went, shop by shop, and its purchases below.
+- Spending categories take the five category colours in the order your
+  spending-categories note lists them; the rest are grey "Other". The note's
+  Colour column is no longer read.
+- Months read "Sep 2026", not "Sep 26".
 
 ### Removed
 
@@ -118,6 +235,18 @@ one is in CLAUDE.md, "Releases".
 - Team words in Settings ("workspace owner", team names).
 - The ↻ refresh glyphs in Settings and Mail (now a line icon; in Mail, "Check
   now").
+- The Dashboard's Vault overview, In focus, By category (the donut), Notes
+  written, Saving and Money in and out cards (Money keeps saving and the
+  ledgers; the counts moved to Notes home and Orr noticed).
+- Planning's five stat tiles; "N due · N late" in the header opens To plan
+  instead.
+- The map's "Show" category select and its five chips in Notes (one life-area
+  menu instead).
+- The Projects board's per-project Gantt switch and its Sleep, Wake and Cancel
+  buttons (now the ⋯ menu on a row and on the project page), and the P1 chip
+  on a project's steps.
+- The A–Z letter rail on the desktop People page (it stays on the phone).
+- Finance's purple card and its own colours.
 
 ### Fixed
 
@@ -301,6 +430,67 @@ one is in CLAUDE.md, "Releases".
   it.
 - After ten wrong passcodes the lock switches to your password by itself.
 - Cancelling Touch ID in Safari no longer shows an error.
+- Asking Orr to add to a long note no longer cuts everything after its first
+  2,000 characters. He reads the whole note before replacing it, and adds
+  lines or rewrites one section without resending the rest. Claude Code's
+  `edit_note` follows the same rules.
+- The "OpenAI-compatible" provider works with Chat-Completions servers
+  (Gemini's OpenAI URL, Ollama, LM Studio, vLLM, Groq) instead of answering
+  "Not Found".
+- "Put it on Wednesday" from Claude Code now books a block you can see in
+  Planning, on Today and on the project's Timeline.
+- Closing the Ask panel stops Orr's run on the server, and a provider that
+  hangs stops after 2 minutes with a message. The digest gives up after one
+  failed try.
+- A stored AI key that can no longer be read (after a secret-key change) turns
+  AI off instead of breaking Planning.
+- Orr's search finds your longest notes.
+- Orr can no longer write "due:next friday" (or a line break) into a task.
+- A note with a stray `%` in a markdown link (`growth%.png`, `Budget 100%
+  final.pdf`) vanished from the index and could not be saved; it is indexed
+  and saves normally.
+- Front-matter `tags: a, b` (or `a b`), `tag:`, `aliases: A, B` and `alias:`
+  are read like Obsidian reads them.
+- Notes with Windows (CRLF) line endings show their tasks and headings, and
+  task and section edits keep CRLF.
+- Tasks, tags and headings inside nested code fences (a ```` ``` ```` example
+  inside `~~~` or ```` ```` ````) are no longer indexed.
+- Checkboxes in `*`/`+` bullets, numbered lists (`1.`, `1)`) and
+  callouts/blockquotes are tasks, as in Obsidian.
+- `[[Note\|alias]]` inside a table links to Note; a `[[link]]` inside inline
+  code is no longer a link.
+- Life-area rules with a `/…/g` regex or a comma inside a regex categorise
+  correctly.
+- Today's timetable shows every block in your calendar, including blocks on
+  tasks without an @mention.
+- "Plan my week" no longer proposes work inside subscribed-calendar events
+  that cross midnight or began before the week.
+- Planning's at-risk flags no longer treat your @-mentioned and unmentioned
+  tasks as two people working in parallel.
+- Every row on Today can be opened from the keyboard.
+- Planning a step for a day from its task card did nothing for a step that had
+  never been booked.
+- Typing is no longer lost when a save fails (for instance while Orrama
+  restarts after an update): it is retried on its own, kept if you move to
+  another note, kept on the device if the page closes, and offered back the
+  next time you open the note. Reloading sends what you just typed.
+- A note renamed or deleted in Obsidian while open no longer comes back as a
+  duplicate under its old name when you type.
+- Cmd-click on a link with an alias (`[[Note|label]]`) or a path opens the
+  right note.
+- Find can always reopen a note, also the one you arrived on after you moved
+  on or closed it.
+- Saving a note no longer reloads the whole note list twice.
+- A project's next date on the Projects board is its next open step's, not the
+  earliest date of any step, done or not.
+- On a phone, task checkboxes were stretched into ovals.
+- Dates no longer show as 08/31/2026 in the desktop app.
+- `[[Kade Social]]` in a contact's company shows as Kade Social.
+- Changing a contact's sector no longer writes into the note's body when the
+  note has no front matter, and says so when the front matter can't be read.
+- "de" names get the right initials ("Bram de Wit" → BW).
+- A spending category with nothing in it no longer draws a chart of "Invalid"
+  months.
 
 ### Security
 
@@ -336,6 +526,21 @@ one is in CLAUDE.md, "Releases".
 - A finance ledger is only ever a note you can edit, and never one in another
   user's Personal folder: new rows can no longer land in a note another
   account keeps.
+- Orr and API tokens (Claude Code over MCP) can no longer write CLAUDE.md,
+  AGENTS.md or `.claude/`, or change a project's Prompt: the instructions
+  agents follow are yours to write.
+- The vault's CLAUDE.md reaches Orr only for someone who can read it, and as
+  your note, not as system instructions.
+- A failed digest no longer writes your latest notes into server.log, and no
+  error log carries what was sent to or received from a provider.
+- An `#only/<team>` restriction is kept when the front matter has a YAML error
+  (e.g. an unquoted colon in the title), uses `tags: a, only/x` or `tag:`, or
+  follows a one-line ```` ```js``` ```` or an indented ```` ``` ````; a
+  restriction that cannot be read limits the note to owners instead of opening
+  it.
+- A `/regex/` in the life-area rules note can no longer freeze the server (it
+  runs in a matcher that takes time linear in the text; backreferences and
+  lookaround are not supported and are ignored).
 
 ### Internal
 
@@ -367,6 +572,20 @@ one is in CLAUDE.md, "Releases".
   canvas, reads CSS or reads layout in a frame, and strokes links in two
   passes; it loads lazily, when you first go there. About 3 ms a frame while
   dragging at 10,000 files in WebKit.
+- Planning's AI estimate cache keeps at most 200 task lists.
+- The MCP server's tools live in `apps/mcp/src/tools.ts`, testable from the
+  server's tests; a fake Chat-Completions provider
+  (`test/helpers/fakeChat.ts`) stands in for a model. `BASALT_AI_TIMEOUT_MS`
+  (120 s) bounds an Ask run and the digest.
+- New reads for the redesigned screens, each with a schema and a contract row:
+  `GET /api/tasks` is typed, `GET /api/notes/overview` (Notes home's pins and
+  counts), `GET /api/people/context` (each person's and company's relations
+  and newest mention). `PATCH /api/contacts/:id` sets a contact's sector
+  through core's front-matter writer.
+- The contract test's scan for the web app's GETs reads every folder of
+  `apps/web/src`, not only its top level.
+- Finance's own tokens (`--fin-ground/-surface/-pos/-neg`, the `--cat-*` ramp)
+  and three blocks of CSS no screen reads any more are gone.
 
 ### Upgrading
 
