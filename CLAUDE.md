@@ -73,10 +73,10 @@ readable `export.json` with every secret left out, and a README — to
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
-| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks) — one file each |
+| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for the Dashboard), admin, ai, ws, plan, calendar, contacts, ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder for Settings → Notes) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `GraphCanvas` + `Editor`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Settings` (your Orr: `avatars.tsx`, drawn by `Avatar` in `ui/orr`; the AI provider, key, model and agent instructions live under Settings → AI, owners only), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
+| `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Dashboard` (default tab, `/api/home`), `Architecture` (scoped files + `Editor`), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (week/month calendar: dated band + grid time-blocks, events, ICS overlay, auto-schedule; `/api/plan`, `/api/calendar/markers`), `Overview` (project board by life-area, `Gantt.tsx`) → `Project.tsx` (per-project workspace), `Contacts` (split view: people list left, `Companies.tsx` right — A–Z card wall with a phone-style letter rail; one search + sector filter drives both halves), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
 | `apps/desktop/` | Tauri 2 scaffold; building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -101,6 +101,15 @@ readable `export.json` with every secret left out, and a README — to
    `noteWriteSchema`'s no-`..` regex is a second line, not the first — `store.write`
    is also called directly (the AI `write_note` tool passes a model-supplied
    string). Never derive a folder from an unresolved path.
+   The path is also spelled the way the disk spells it: `resolvePath` maps each
+   segment to the entry the directory holds, exact first, then case- and
+   NFC-insensitively (`apps/server/src/diskPath.ts`), so on APFS
+   `shared/eng secret.md` IS `Shared/Eng Secret.md` — that note, its `#only`
+   tags and its folder's grant, merged into, never replaced by a new file.
+   Folder grants compare folded too (`foldPath`, acl.ts). The watcher believes a
+   spelling only when the directory lists it exactly (`listedExactly`):
+   `existsSync` says yes to every spelling of a file, and trusting it turned a
+   case-only rename in Obsidian into an endless restamp loop (audit STO-012).
 
 ## The project workspace is the note
 
@@ -132,6 +141,14 @@ quick-capture inbox. **Timeline**, **Documents** and **To-do** live in
 people are real `[[links]]` the picker writes into `## People`, steps are the
 note's checkboxes, and `status`/`start`/`deadline` are front-matter. Delete the
 DB, re-index, and the workspace comes back — same rule as the dashboard.
+
+A slot is a `##` heading (a closed `## Goals ##` too; a `### Goals` inside
+another section is not it), and writing one replaces its body between its first
+and last non-blank line and no other byte (`sections.ts`). Goals are edited as
+source: `GET /api/projects/:slug` sends `goalsSource`, the section as the note
+has it, and the editor saves that; `goals` is display items only and is never
+written back. The people picker writes `[[<path>|<title>]]`, because a bare
+`[[title]]` resolves to any note with that filename first.
 
 Documents are the one exception to "the vault is Markdown": uploads land in
 `04-Projects/<slug>/files/` as real files, so they are visible in Finder and
@@ -168,7 +185,7 @@ from a cold session.
 
 ## Projects are bound by tag, not by folder
 
-A note joins a project through a `project/<key>` tag in its frontmatter. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`). Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals.
+A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project is named by its project note's `title:` (`projectName(projectNoteFor(…))`), else by the name it was registered under — never by whichever tagged note was indexed first. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals.
 
 ## One shared vault with Obsidian
 
@@ -178,7 +195,13 @@ The vault is `~/Obsidian Vault` — the *same folder* Obsidian opens, not a copy
 read and write the same Markdown: Obsidian saves whole files and the chokidar
 watcher re-indexes them; Basalt writes through `VaultStore.write`. Editing the
 *same note* in both at once is the one thing to avoid — last writer wins on the
-overlapping region.
+overlapping region. A folder linked in from elsewhere (a symlink to a synced
+folder) is part of the vault: followed at boot, by the watcher and for writes,
+as Obsidian follows it. A link back into the vault, or up its own tree, is only
+a second name for notes that have one and is left out everywhere; a write
+through one is a 400 (`linksIntoVault`, diskPath.ts). One file is one note: a
+second name for a file the index holds under a name that still exists is not
+indexed.
 
 On this machine the server runs as a launchd agent
 (`~/Library/LaunchAgents/dev.basalt.server.plist`, `KeepAlive`), which is where
@@ -229,6 +252,25 @@ Same rule as everywhere else: **nothing lives only in the database.** The
 ledgers are Markdown tables in notes found by tag (`#income`,
 `#subscriptions`, `#payslips`, `#spending-categories`, `#own-accounts`), and
 statements and payslips are real files in `02-Areas/finance/files/`.
+
+**Which note is a ledger.** Every finance singleton (`#subscriptions`,
+`#income`, `#payslips`, `#spending-categories`, `#own-accounts`, and the
+`#finance` area note) goes through `ledgerNote` in `routes/finance.ts`: only
+notes the reader can edit, never one in another user's `Personal/` folder,
+ranked the finance area first (`02-Areas/finance.md`, `02-Areas/finance/…`),
+then the reader's own places (`01-Me/`, `Personal/<me>/`), then the note made
+first, then path. "The first readable tagged note" was index order, and a save
+moves its note to the end of it, so two tagged notes alternated on every write
+(ACL-011). Two candidates for one ledger tag are reported (`ledgerConflicts`)
+and the Finance page says which one is used.
+
+**A ledger row is read or reported, never guessed.** `parseLedger` returns the
+rows it could not read (`unreadable`: line, field, cell): an amount that is not
+ONE number (`parseMoney` takes one number per cell, drops parenthesised asides,
+reads a lone separator before three digits as grouping and every minus sign),
+or a cadence it does not know. Cadences are `CADENCES` (a whole number of weeks
+or months each; an empty cell is monthly, "bimonthly" is deliberately not
+read).
 
 **Own accounts** (`packages/core/src/ownAccounts.ts`) are Jules's money held
 elsewhere — Capital.com, a savings pot. A statement row matching the
@@ -293,7 +335,13 @@ matches a description is `matchesTerms`; in-minus-out of the ledgers is
 `netTotals`, per currency, never summed across currencies. When a month view is
 filtered to a category, its "typical" must be that category's median, not the
 whole month's — comparing €250 of shopping against a €1,000 all-category median
-is the bug the finance tests exist to catch.
+is the bug the finance tests exist to catch. Loading is asynchronous and cached
+in memory: each statement file's parse is kept while its inode, size and mtime
+are unchanged, and the merged result while the files and the own-accounts list
+are (FIN-015). Statements are `*.csv` (comma, `;` or tab, read off the header)
+and `*.xlsx` (first sheet, via exceljs); a file that gives no rows, or is in
+another currency, is listed in `spending.excluded` with the reason, and the
+upload answers with the same summary.
 
 Charts are hand-drawn SVG with no chart library, and they sit on the page
 ground rather than inside a card (`.fin-plot`), with rounded gridlines
@@ -321,8 +369,9 @@ None of those own a time of day, so they are not grid items — they are the
 /api/calendar/markers`), carrying the same four sources the Dashboard agenda
 unifies: `due` (an open task's `due:`), `milestone` (a project's
 `start:`/`deadline:` front-matter), `charge` and `income` (the ledgers, expanded
-across the range with `advance`, because `next` is one date and a month view
-spans six weeks). A due chip opens the task's own `TaskCard`, so the deadline
+across the range with `chargeDates` from the note's own date — `anchor`, not the
+rolled-forward `next` — so a 31st stays the 31st and a range before `next` still
+shows its charges; the Finance ledger calendar uses the same function). A due chip opens the task's own `TaskCard`, so the deadline
 band is a way *into* the work rather than a label on it.
 
 **The hour window follows the content.** The day opens on 07:00–23:00 and
@@ -388,17 +437,24 @@ under Updates. Anything unclaimed is Primary; a server without `X-GM-EXT-1`, or 
 Primary and the tabs collapse to just "All". The list adds an **All** tab Gmail
 does not have, and defaults to it — Gmail's tabs *hide* mail, and this inbox was
 one flat list before. The window is 60 messages rather than 30 because personal
-mail is a thin slice: Jules's last 60 contain zero Primary.
+mail is a thin slice: Jules's last 60 contain zero Primary. Tabs that don't
+fit go into More, measured against the strip (`mail/tabs.ts`), and the current
+tab always stays in the row.
 
 `MessageBody` prefers the **HTML** part and falls back to text — the other way
 round (what it used to do) means every marketing mail renders as its plain-text
 alternative, which is a wall of bracketed tracking URLs. HTML goes into an
-iframe with `sandbox="allow-popups allow-popups-to-escape-sandbox"`: no scripts,
-no access to our origin, but links still open in the real browser. `allow-same-origin` is present *only* so the parent can measure
-`contentDocument.scrollHeight` and size the frame to the message — one scrollbar,
-no dead box — which is safe because `allow-scripts` is absent, so nothing inside
-can execute and use that origin. Images load by default like any mail client;
-"Block images" flips the CSP to `img-src data:` and the preference sticks
+iframe (`mail/MessageBody.tsx`, `SANDBOX`) with
+`sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"`: no
+scripts, but links still open in the real browser. `allow-same-origin` is
+present *only* so the parent can measure the message's body and size the frame
+to it — one scrollbar, no dead box — which is safe because `allow-scripts` is
+absent, so nothing inside can execute and use that origin;
+`MessageBody.dom.test.tsx` holds both. Measure the **body**, never the
+document: a document's scrollHeight is never less than its frame, so measuring
+it (plus a margin) grew the frame at every re-measure and it could never
+shrink. Images load by default like any mail client; Block images (the
+message's ··· menu) flips the CSP to `img-src data:` and the preference sticks
 (`basalt-mail-images`). Inject as little CSS as possible: `img`/`table` get
 `max-width:100%`, and nothing else — a universal `max-width` forces email tables
 into a stacked mobile layout (it quadrupled one message's height). The text
@@ -407,7 +463,7 @@ on the href.
 
 ## The agent's model
 
-Settings → AI (owners) picks it: a key for Anthropic, Gemini or an
+Settings → Orr & AI (owners) picks it: a key for Anthropic, Gemini or an
 OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan**
 — Sign in with ChatGPT, so a Plus or Pro plan pays instead of a key
 (`apps/server/src/chatgpt.ts`, from OpenAI's documented protocol; their DevKit
@@ -434,8 +490,11 @@ write — while holding the vault's contents and a live SMTP session. So the sen
 is gated in code, not in the prompt: `draft_email` (in-app agent) and the MCP
 `draft_email` both stage a `mail_drafts` row, `POST /api/mail/send` is
 session-only (see **API tokens are the weaker credential**), and the Mail view
-surfaces staged drafts under "Waiting for you" — opening one loads it into the
-normal composer, so what goes out is what the user just read. There is
+surfaces staged drafts under "Waiting for you" (`/mail/waiting`, and a box
+above the list). Opening one loads it into the normal composer; a draft that
+answers a message also sits under that message, whole, recipient address
+included, and its Send posts exactly the text on the card. Either way, what
+goes out is what the user just read, through the same session-only send. There is
 deliberately no "send this stored draft" endpoint: one send path means one place
 that requires a session. Adding another outbound channel (Slack, SMS, a webhook
 the agent can aim)? It gets the same treatment.
@@ -502,6 +561,17 @@ valid auth.
   with the database (audit B10); `migrations.ts` moved the old rows into their
   lines once — a `meta` row records it, because re-running it would overwrite
   a box cleared in Obsidian while the server was down.
+- **A task is named, not pointed at.** Every task edit — `/api/tasks/check`,
+  `/status`, `/dates`, `/promote`, `/schedule`, `/blocks`, the agent's and MCP's
+  task tools — says which task by its `blockId`, or by its `text` (the display
+  text or the raw line) with the line it was seen on as a hint. `locateTask`
+  (`packages/core/src/tasks.ts`) reads the note with the index's own parser and
+  returns the task or null: a block id never falls back to the line, a line
+  alone names nothing (the schemas answer 400), and a text that matches no task
+  or several is a 409. The note moves under a client — an Obsidian edit, a
+  decision appended above — and an edit by line ticked whatever task slid into
+  place. A `^t-` id copied onto a second line belongs to the first; the copy is
+  a task of its own until promoting gives it its own id.
 - **Time blocks and events are Markdown** — one note per person per month,
   `01-Me/Calendar/2026-10.md` (`Personal/<u>/Calendar/` for a user who cannot
   edit 01-Me), a table `| Date | Start | End | What | Task | id |`; a row with a
@@ -528,6 +598,16 @@ valid auth.
   and a crash in between leaves a note empty in the folder Obsidian has open.
   Because a save renames over the note, the watcher's `unlink` checks the file
   is really gone before dropping it.
+- **A create never replaces.** `PUT /api/vault/note` with `create: true` answers
+  409 when a note is at the path in any spelling; every New … flow sends it
+  (`apps/web/src/newNote.ts`) — without it PUT is an upsert. Uploads go through
+  `storeUpload` (`apps/server/src/uploads.ts`): the same bytes are that file, a
+  different file with a used name becomes `name (2).ext`, and the answer names
+  the file stored. `writeFileAtomic(…, { exclusive: true })` links instead of
+  renaming, so a file that appeared since the check is not lost. Files are
+  served under their own name with `contentDisposition` (same file): an ASCII
+  fallback plus RFC 5987 `filename*` — a raw name above U+00FF in a header
+  throws outside every handler and stops the process.
 - **Never rewrite bytes that were not parsed.** `updateFrontmatter` edits only
   the lines of the keys it changes and reads its result back; if it would not
   read back as exactly the new data with the body byte-identical, the note is
@@ -546,6 +626,11 @@ valid auth.
   → Signed in revokes the others, and a revoked session's socket is closed at
   once. Anything new that issues a session token goes through `signIn` in
   `routes/auth.ts`. A token without a `sid` is refused.
+- **Settings asks before anything it can't undo.** Removing, disconnecting,
+  revoking, rotating or signing out goes through `Confirm` with the consequence
+  in its body, and the trigger is labelled with what it does
+  (`Settings.dom.test.tsx` lists each one). A new irreversible control in
+  Settings gets a row there.
 - **API tokens are the weaker credential.** A `bslt_` token may read and write
   what its owner can and stage mail drafts — what the MCP server does — but
   never create, change or reveal a credential, or decide where one is sent. A
@@ -567,6 +652,14 @@ valid auth.
   password only). An unknown address is verified against a dummy hash, so
   timing does not say who has an account. Anything new that checks a secret
   counts first, then verifies.
+- **The door** (`Login.tsx`, `Lock.tsx`, `Setup.tsx`, `door/`): before the
+  server says yes it shows nothing of the vault, not a name, not a count; the
+  halo's 520 dots are a fixed number. Once in, `door/shape.ts` asks the tree,
+  projects and contacts for the gather's slices, and `useEnter` opens the app
+  `HOLD_MS` (2 s, Jules's call) after the server's yes, at once with reduced
+  motion. Errors go through `door/voice.ts`: the server's words are never
+  shown, only its status and the wait it names. The shell's keys (App.tsx)
+  stand down while signed out, so the lock's digits are only a passcode.
 - **Addresses** (`apps/web/src/ui/router.ts`): every place and thing has a URL
   (structure.md §1.2), `parseRoute`/`routeHref` round-trip it, and the server
   answers any non-API path with the app, so reloads and deep links work.
@@ -583,7 +676,9 @@ valid auth.
 - **Web tests**: `*.test.ts(x)` run in Node; `*.dom.test.ts(x)` run in happy-dom
   with Testing Library (`src/test/dom-setup.ts`). `src/test/app-harness.tsx`
   mounts the whole App with its screens stubbed, for shell, address, key and
-  overlay tests.
+  overlay tests. happy-dom follows a link clicked through a child element even
+  when the click was prevented (a browser does not): in a DOM test, click the
+  link itself.
 
 - Team **slugs** (not ids) are the `TeamId` in core ACL and what `#only/#share` match.
 - Note ids live in front-matter (`id: n-…`), assigned on first index; renames are
@@ -666,37 +761,41 @@ list them).
 **Why a Basalt graph looks sparser than the same vault in Obsidian**: Obsidian's
 graph draws *tags* as nodes by default (and attachments, and ghost nodes for
 unresolved links). On Jules's vault the note→note links number ~198 while a tag
-layer adds ~319 edges — most of the density is tags, not links. Hence the "Tags
-as nodes" switch in the graph panel, built client-side from the `tags` each node
-already carries. Links themselves are parsed from `[[wiki]]` *and* markdown
+layer adds ~319 edges — most of the density is tags, not links. Links themselves are parsed from `[[wiki]]` *and* markdown
 `[text](note.md)` form, and resolve by title, alias, filename, or vault path
-(with or without `.md`, `%20`-decoded). When notes share a key, the strongest
+(with or without `.md`, `%20`-decoded). A markdown link is tried relative to
+its own note first (`[up](../Up.md)`, Obsidian's "Relative path to file";
+`VaultIndex.resolveLinkOf`), a wiki link never is; keys fold case and Unicode
+normalisation (NFC), so `[[Résumé]]` finds a name macOS stored decomposed.
+When notes share a key, the strongest
 kind wins — path, then filename, then title, then alias — and within one kind
 the greatest path; which note was indexed last never matters (a copy's
 `title:` used to take over links to its original).
 
-The map (`GraphCanvas`) is a live d3-force graph on canvas, Obsidian-style:
-repulsion + `forceCollide` (nodes never overlap), link springs, drag a node to
-move it (pointer sets `fx/fy`, release settles), wheel-zoom, background-pan,
-pointing at a row in the file tree spotlights it on the map — one node for a
-file, the whole subtree for a folder (`FileTree`'s `onSpotlight` → `GraphCanvas`'s
-`spotlight` prop), which is the same gesture as the category chips but per file;
-hover lights the neighbourhood and labels **only** the node under the pointer
-(a neighbourhood of labels is unreadable), with the full title, folder and a
-one-line description in a readout bottom-right — `/api/vault/graph` sends a
-`description` per node: the note's own `description:`/`summary:` front-matter if
-it has one, else its first real sentence. It is **monochrome on
-purpose** — a node's radius is `3 + √degree · 1.9`, so size is the only signal
-and the shape of the vault is what you read. Colour still lives in the file list
-and the category filter, where it labels things. Typed relations (`relation` on
-`/api/vault/graph` edges) are told in weight and words, not colour: a typed edge
-is heavier, one no link spells out (`implied`) is dashed, the pointed node's
-long-enough typed edges carry their name, and the readout lists its relations.
-The Relations switch in the map settings (default on) goes back to plain links. A gear opens the settings panel
-(link distance, repel, centre pull, node size — live-retuned on the running
-simulation, not a rebuild) and **local graph**: the last-opened note plus
-everything within N hops, `onShown` reporting the real count back so the hint
-never lies. Settings persist in `localStorage` under `basalt-graph`.
+**The Orrery** (`apps/web/src/orrery/`, `/orrery`, rail 4) is the vault's map: Orr's head
+in the middle, every readable file around him. **Kind** puts files in rings by kind
+(projects, then people and companies, then notes and conversations, reviews and templates on
+the rim) and slices by life area, a slice growing by count^0.8; **Steps**
+(`?center=<slug>`) puts one thing in the middle with everything one step away grouped by
+relation and, beyond, what several of those share. `model.ts` builds it from
+`/api/vault/graph`, `/api/vault/tree`, `/api/projects` and `/api/graph/schema`: a project is
+a note the Projects board lists, a person a `#contact` note, a company a `#company` note (as
+People shows them), a conversation a saved chat, and weekly reviews and templates are told
+by folder, tag or name and hidden until the panel's switch. A topic is where notes gather: a
+project's notes, else the first folder below the top one; a conversation sits with what its
+`about` names. Inside its slice and ring each file is part of a live web (`physics.ts`: link
+springs, short-range repulsion, soft walls, a faint pull home; a link to another ring pulls
+along it), settled off screen before it is shown and cached per data fingerprint; a drag
+reheats only the neighbourhood. Only the strongest ~1,200 links are drawn (typed relations
+count more); a file's own links appear when you point at it or click it, typed solid, plain
+links dashed. Nothing decorative moves (no Orbit, no breathing), dragged files are not
+remembered, and with reduced motion every change is instant. **The engine is one object
+the page calls** (`engine.ts`), never a closure a render captured: a frame never sizes the
+canvas, reads CSS (colours are re-read when `data-theme`/`data-vision` change) or reads
+layout (the page hands in its controls' boxes), and links go out in two strokes, dots in a
+few batched fills — `engine.dom.test.ts` counts it (WEB-016, WEB-008). The address is the
+level (`?area=`, `&topic=`, `?center=`); Esc, Back and Orr step out one level. Measured in
+WebKit at 10,000 files: ~3 ms a frame while dragging.
 
 **Saved conversations are their own kind of note.** A note with front matter
 `type: claude-session` (or `type: conversation`) is a transcript: it is indexed,
@@ -704,8 +803,7 @@ searchable, linkable and readable by the agent and MCP like any note, but its
 text adds no links, tags or tasks (`ParsedNote.kind`, `packages/core/src/parse.ts`)
 — transcripts quote file paths, spreadsheet errors and colours, and once made
 up 87% of the vault and almost all of its unresolved links and junk tags. The
-map hides them unless "Conversations" is ticked in its settings, and the hint
-says how many it left out.
+Orrery shows them as open circles in the topic of what they are `about`.
 
 **Life-areas (School / Work / Knowledge / Claude & tools / Personal) are vault
 data.** A note tagged `#vault-categories` holds `| Category | Matches |` rows —
@@ -745,7 +843,7 @@ as widgets and chips, tables render as tables, `---` as a rule, fenced code as a
 slab, and the active line always shows raw source. **Block decorations must come
 from a StateField, never a ViewPlugin** — CodeMirror throws otherwise, which is
 why `frontmatterCollapse` and `blockPreview` are fields while the per-line pass
-is a plugin. Esc (or the close button in the note header) closes a note back to the map.
+is a plugin. Esc (or the close button in the note header) closes the note.
 
 ## Releases
 

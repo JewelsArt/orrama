@@ -35,6 +35,25 @@ one is in CLAUDE.md, "Releases".
   Relations switch in the map settings turns them off.
 - Settings → Signed in: **Sign out everywhere** ends every session, API token
   and Touch ID device, and clears the passcode and the calendar feed link.
+- **The Orrery** (key 4; on the phone under More): everything you keep around
+  Orr, in rings by kind (projects, then people and companies, then notes and
+  conversations) and slices by life area, as a live web you can drag. Click a
+  file for all of its links and its relations in words; double-click, Enter
+  or "Put in the middle" for Steps, with that thing in the middle. Zoom into a
+  life area or a topic; Find flies to a file; weekly reviews and templates are
+  a switch away. Every level has its address (`/orrery?area=work`,
+  `/orrery?center=…`), so Back and links work.
+- Every message has an address (`/mail/<id>`), and so does Waiting for you
+  (`/mail/waiting`): reload, Back and links work.
+- Orr's reply to a message waits right under it, whole, with Send, Edit and
+  Discard.
+- Forward, in Mail.
+- Theme: Match this device, which follows this device's light or dark setting
+  while your other devices keep yours.
+- Settings → Notes shows which folder the notes are read from, the life areas
+  and what Orr noticed.
+- Find a setting, at the top of Settings.
+- Settings → This device says whether a passcode is set.
 
 ### Changed
 
@@ -50,6 +69,39 @@ one is in CLAUDE.md, "Releases".
 - Dates read "Fri 9 Oct" and times use the 24-hour clock everywhere.
 - New note asks for its path in a dialog, and says under the field what was
   wrong.
+- Settings is a page with eight sections (You, Appearance, Orr & AI, Notes,
+  Connections, This device, Signed in, Developer), each at its own address and
+  each saying whether it lives on this device, your account or this server.
+  On a phone, More → Settings lists the sections with where each stands, and
+  each section is its own screen.
+- Orr & AI saves with one button and says what you changed; a stored key
+  shows as stored, and Replace asks for a new one.
+- Mail is redrawn: the list and the message side by side, Orr's drafts in his
+  warm box with his head. On a phone the list, the message and the reply are
+  each their own screen, with Back.
+- In Mail, the sender's name opens their page in People, with a line saying
+  how you know them.
+- Mail's category tabs that don't fit go into a More menu; the tab you're on
+  always stays visible.
+- Block images moved to the message's ··· menu; while images are blocked a
+  line above the message says so, with Show images.
+- Mail's errors say what failed and offer Retry; with no mail account,
+  Connect Gmail opens Settings.
+- A new door: sign-in, lock and first run show Orr's head in a halo of dots
+  that answer your pointer and your keys. Getting in gathers them into your
+  notes, one slice per life area, and Today (or wherever you were) opens two
+  seconds later. With reduced motion it opens at once.
+- The lock shows the time and no name: Touch ID on a computer that has it, the
+  keypad on a phone or a computer without it, and your password one click
+  away, in place.
+- First run asks for your name, email and password (with Show instead of a
+  second password field), then counts what it found in your notes and offers
+  the Orrery or Today.
+- Starting up shows Orr rising over the horizon.
+- Wrong passwords, passcodes and lockouts are said plainly, with how long to
+  wait.
+- Notes no longer opens on the map: with no note open it offers "Open the
+  Orrery". "Back to the map" reads "Close note".
 
 ### Removed
 
@@ -59,6 +111,13 @@ one is in CLAUDE.md, "Releases".
   start. Register the MCP server with `claude mcp add` instead (see
   `apps/mcp/README.md`); an old placeholder `.mcp.json` in the vault can be
   deleted.
+- The map's settings panel: link distance, repel, centre pull, node size,
+  local graph, tags as nodes, the Relations switch and the Conversations
+  switch (conversations now sit in the topic of what they are about), and the
+  map spotlight when pointing at the file list.
+- Team words in Settings ("workspace owner", team names).
+- The ↻ refresh glyphs in Settings and Mail (now a line icon; in Mail, "Check
+  now").
 
 ### Fixed
 
@@ -157,6 +216,91 @@ one is in CLAUDE.md, "Releases".
 - After the server restarts, open pages catch up by themselves; reconnects
   back off; a session ended elsewhere stops retrying.
 - The app no longer goes blank when the browser refuses storage.
+- Fixing a note's capitalisation in Obsidian or Finder no longer makes Basalt
+  undo the rename and rewrite the note over and over; the note keeps its id
+  and its bytes.
+- A path that differs from an existing note only in letter case or Unicode
+  form now means that note: a save to it edits it instead of replacing it.
+- New note, New contact and New company no longer replace a note that already
+  exists at that path; they say where it is. Names with `:` or quotes no
+  longer break the note's front matter.
+- Uploading a payslip, a statement or a project document whose name is
+  already used keeps both files (`payslip (2).pdf`); a payslip refused as
+  already filed is not stored.
+- Opening a document named with a curly apostrophe, an en dash or a macOS
+  screenshot's narrow space no longer stops the server.
+- Notes in a folder linked into the vault from elsewhere are there after a
+  restart, not only after their next edit.
+- Markdown links written relative to their note (`[up](../Up.md)`) and links
+  to names stored decomposed (`Résumé`) resolve in the map, backlinks and the
+  note's links.
+- A project tagged `project/my_thesis` (an underscore, another script) opens.
+  Two projects whose notes share a title stay two projects. A note that only
+  mentions `#project/x` in its text no longer adds its tasks to x, and the
+  board and the project's page count the same tasks.
+- Ticking, blocking, re-dating, scheduling or booking a task after the note
+  changed elsewhere (an Obsidian edit, a decision logged above it) could
+  change a different task. Every task edit now names the task by its block id
+  or its text, and is refused when that task is no longer there.
+- The side panel of an open note showed its tasks as they were when the note
+  opened, so ticking one after typing above it ticked its neighbour. The panel
+  now follows your saves.
+- A promoted task line copied in Obsidian (with its `^t-` id) made both lines
+  one task. The copy is now a task of its own and gets its own id when it is
+  scheduled or promoted.
+- Saving "Edit goals" without changing anything turned checkbox goals into
+  plain bullets, flattened sub-items and bulletised prose. The editor now
+  opens on the section's own text.
+- Logging a decision, capturing a thought or linking a person collapsed blank
+  lines everywhere in the project note, code blocks included.
+- The project page read and wrote a `### Goals` (or Decisions, People) nested
+  in another section, and missed `## Goals ##`, adding a second heading.
+- Linking a person whose name matched another note's filename linked that
+  note instead; the person never appeared, each click added another line, and
+  Remove could not delete it.
+- Renaming a box on the Documents board and switching tab straight away lost
+  the rename.
+- Typing a year into a project's start or deadline wrote every half-typed
+  year (0002, 0020, 0202) into the note.
+- Hand-typed amounts in the ledgers read as written: `€1.200` is twelve
+  hundred (it was 1.2), `€29.99 (was 24.99)` is 29.99 (it was 299,924.99), and
+  `−12.00`, `– 12,00` and `12.00-` are negative. A cell holding two numbers is
+  not guessed.
+- Ledger cadences beyond the four: biweekly/fortnightly, 4-weekly
+  (vierwekelijks), every 2 months, half-yearly/per semester, and "every N
+  weeks/months". A cadence or amount the ledger cannot read is listed on the
+  Commitments/Income page ("2 rows are not counted") instead of being counted
+  as monthly.
+- Rent due on the 31st stays on the 31st in Planning and on the Finance ledger
+  calendar (it drifted to the 30th, then the 28th), and Planning shows the
+  charges before a ledger line's next date.
+- `.xlsx` statements and CSVs re-saved by Excel (semicolons, decimal commas,
+  day-month-year dates) are read. Uploading a statement says how many
+  transactions it added, or why it adds none; statement files left out of the
+  figures are listed on the Finance page.
+- "€X more than expected" on yearly, quarterly and weekly ledger cards no
+  longer invents overcharges.
+- "Looks recurring" calls a weekly charge weekly with its real total, and no
+  longer lists deposits into your own accounts.
+- A category or merchant with "%" in its name opens instead of failing.
+- With two notes carrying the same ledger tag, Finance always uses the same
+  one (the one in `02-Areas/finance/` first) and says so, instead of
+  alternating between them on every save.
+- Removing a calendar, disconnecting mail, changing or stopping the published
+  planning link, revoking a token, deleting a webhook, removing a Touch ID
+  device, signing a device out and deleting a colour profile now ask first.
+- Deleting a colour profile from its editor no longer closes the editor before
+  you've decided.
+- Opening a second draft Orr staged while the first was open kept the first
+  one's text, then deleted the wrong draft on Send.
+- Opening a message while writing threw the text away; now it asks first.
+- Plain-text mail kept tracking-image lines after a line with a link.
+- HTML mail no longer ends in a strip of white, and the frame shrinks again
+  after Block images.
+- Typing a passcode on the lock no longer moves you to another place behind
+  it.
+- After ten wrong passcodes the lock switches to your password by itself.
+- Cancelling Touch ID in Safari no longer shows an error.
 
 ### Security
 
@@ -185,6 +329,13 @@ one is in CLAUDE.md, "Releases".
   address as for a wrong password.
 - Webhook signing secrets are now stored encrypted, like the other
   credentials.
+- A folder editor could overwrite an `#only/<team>` note, or a note in a
+  subfolder whose grant excludes them, by changing one letter of its path's
+  case. Writes now resolve to the note on disk and are judged by it; folder
+  grants compare case- and Unicode-insensitively.
+- A finance ledger is only ever a note you can edit, and never one in another
+  user's Personal folder: new rows can no longer land in a note another
+  account keeps.
 
 ### Internal
 
@@ -200,6 +351,22 @@ one is in CLAUDE.md, "Releases".
   in the dev server); `app.css` is split into one file per area under
   `apps/web/src/styles/`, and 68 dead classes are gone.
 - Web tests get a DOM: happy-dom with Testing Library (`*.dom.test.tsx`).
+- `PUT /api/vault/note` takes `create: true` (409 when a note is at the path
+  in any spelling). Both upload routes answer with the name the file was
+  stored under.
+- `POST /api/tasks/{check,status,dates,promote,schedule,blocks}` take `text`
+  and refuse a request naming neither `blockId` nor `text` (400); the agent's
+  and MCP's task tools take `text` too.
+- Statement files are read asynchronously and parsed once per version of the
+  file (memory cache keyed by inode, size and mtime); category matching folds
+  each rules set once. /api/finance and /api/home no longer block the event
+  loop for hundreds of milliseconds.
+- `GET /api/settings/server` (owners): the notes folder, the note count and
+  the version, for Settings → Notes. `GET /api/members` has a schema.
+- The Orrery replaces `GraphCanvas`: one engine object that never resizes the
+  canvas, reads CSS or reads layout in a frame, and strokes links in two
+  passes; it loads lazily, when you first go there. About 3 ms a frame while
+  dragging at 10,000 files in WebKit.
 
 ### Upgrading
 
@@ -210,6 +377,10 @@ one is in CLAUDE.md, "Releases".
   `BASALT_PUBLIC_ORIGINS`.
 - A Touch ID passkey created as non-discoverable (unlikely on macOS) needs
   enrolling again.
+- Project names now come from the project note's `title:` (unchanged when it
+  has none). On the live vault three cards are renamed: Basalt → "Basalt —
+  team knowledge tool", School Resits → "School Resits — June/July 2026",
+  Graduation Internship → "Graduation Internship Search".
 
 ## [0.1.0] — 2026-10-01
 
