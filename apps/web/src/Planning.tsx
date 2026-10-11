@@ -5,6 +5,7 @@ import { IconWand } from "./icons.js";
 import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
 import type { CalEvent, DayMarker, PlanData, PlanTask, TimeBlock } from "@basalt/schema/responses";
+import { dateLabel, dayMonthLabel, monthLabel, weekdayLabel } from "./ui/dates.js";
 
 /* ---------- data shapes ---------- */
 
@@ -250,8 +251,8 @@ export function Planning({
             </button>
             <button className="ghost week-today" onClick={() => setWeekStart(mondayOf(new Date()))}>
               {mode === "week"
-                ? `${days[0]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })} – ${days[6]!.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
-                : weekStart.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                ? `${dayMonthLabel(days[0]!)} – ${dayMonthLabel(days[6]!)}`
+                : monthLabel(weekStart)}
             </button>
             <button
               className="ghost"
@@ -391,7 +392,7 @@ export function Planning({
                   {t.scheduledHours > 0 ? ` left of ${hoursLabel(t.estimateHours)}` : ""}
                 </span>
                 {t.project && <span className="cal-task-project">{t.project}</span>}
-                {t.due && <span className={`cal-task-due ${t.due < today ? "overdue" : ""}`}>{t.due.slice(5)}</span>}
+                {t.due && <span className={`cal-task-due ${t.due < today ? "overdue" : ""}`}>{dateLabel(t.due)}</span>}
               </span>
             </div>
           ))}
@@ -629,7 +630,7 @@ function WeekGrid({
           const load = loadOf(day);
           return (
             <div key={day} className={`cal-col-head ${day === today ? "today" : ""}`}>
-              <span className="cal-day-name">{d.toLocaleDateString(undefined, { weekday: "short" })}</span>
+              <span className="cal-day-name">{weekdayLabel(d)}</span>
               <span className="cal-day-num">{d.getDate()}</span>
               {load > 0 && <span className="cal-col-hours">{fmtH(load)}</span>}
               <span className={`cal-col-load ${load > hoursPerDay * 60 ? "over" : ""}`} aria-hidden>

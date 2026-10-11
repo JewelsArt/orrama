@@ -1,4 +1,5 @@
 import { IconChevron } from "./icons.js";
+import { dateLabel } from "./ui/dates.js";
 
 /**
  * One project's header row on the Overview board.
@@ -69,7 +70,7 @@ export function OverviewHead({
       {parked ? (
         <span className="ov-state">{sleeping ? "sleeping" : "cancelled"}</span>
       ) : (
-        <span className="ov-due">{nextDue ? `due ${nextDue.slice(5)}` : "no due date"}</span>
+        <span className="ov-due">{nextDue ? `due ${dateLabel(nextDue)}` : "no due date"}</span>
       )}
       <button className={`ov-gantt-sw ${gantt ? "on" : ""}`} role="switch" aria-checked={gantt} onClick={inner(onToggleGantt)}>
         <i aria-hidden />

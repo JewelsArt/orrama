@@ -6,6 +6,7 @@ import { CANCEL_STATES, DOMAIN_COLOR, SLEEP_STATES } from "./categories.js";
 import { Gantt } from "./Gantt.js";
 import { OverviewHead } from "./OverviewHead.js";
 import { onWs } from "./ws.js";
+import { dateLabel } from "./ui/dates.js";
 
 type Domain = "personal" | "professional" | "academic";
 const DOMAINS: { id: Domain; label: string; color: string }[] = [
@@ -427,7 +428,7 @@ function Step({
         {t.text}
       </span>
       <span className="ov-tl">
-        {t.due ? <span className={`ov-tl-pill ${cur.cls}`}>{t.due.slice(5)}</span> : <span className="ov-tl-none">—</span>}
+        {t.due ? <span className={`ov-tl-pill ${cur.cls}`}>{dateLabel(t.due)}</span> : <span className="ov-tl-none">—</span>}
       </span>
       <button className="ov-docs" onClick={() => onOpen(t.noteId)} title={t.notePath}>
         {t.noteTitle}

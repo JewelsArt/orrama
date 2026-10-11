@@ -6,6 +6,7 @@ import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
 import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
 import { VisionEditor } from "./VisionEditor.js";
 import type { AiConfig, ApiToken as ApiTokenRow, Feed, MailAccount, Webhook as WebhookRow } from "@basalt/schema/responses";
+import { dateLabel } from "./ui/dates.js";
 
 /** A token row; `token` only on the one answer that creates it, shown once. */
 type ApiToken = ApiTokenRow & { token?: string };
@@ -268,7 +269,7 @@ function Sessions() {
     window.dispatchEvent(new Event(SESSION_ENDED));
   };
 
-  const when = (ms: number | null) => (ms ? new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "—");
+  const when = (ms: number | null) => (ms ? dateLabel(ms) : "—");
 
   return (
     <section>
@@ -722,7 +723,7 @@ function TokensSection() {
           <span className="integr-main">
             {t.label}
             <span className="integr-sub">
-              {t.prefix}… · {t.lastUsedAt ? `used ${new Date(t.lastUsedAt).toLocaleDateString()}` : "never used"}
+              {t.prefix}… · {t.lastUsedAt ? `used ${dateLabel(t.lastUsedAt)}` : "never used"}
             </span>
           </span>
           <button

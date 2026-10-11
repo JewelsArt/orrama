@@ -7,6 +7,7 @@ import { CATEGORIES, DOMAIN_COLOR, categoryOf, daysTo, isProjectActive, isSessio
 import { iconFor, paletteFor } from "./Finance.js";
 import { onWs } from "./ws.js";
 import type { AgendaItem, DeadlineItem, FocusItem, HomeData, HomeLedger as Ledger, ProjectRow, MoneyItem as SubscriptionItem } from "@basalt/schema/responses";
+import { dateLabel, minutesLabel } from "./ui/dates.js";
 export type { ProjectRow };
 
 /** What each card is called, for the remove button's label and the picker. */
@@ -353,19 +354,13 @@ function useBentoReorder(ids: string[]) {
  *  This was `toISOString().slice(0, 10)`, which pre-filled the date picker
  *  with yesterday for the first hour or two of every day (audit). */
 const iso = isoLocal;
-const fmtTime = (m: number) => {
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  const ap = h < 12 ? "AM" : "PM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(mm).padStart(2, "0")} ${ap}`;
-};
+const fmtTime = minutesLabel;
 /** "Today" / "Tomorrow" / "Fri 5 Sep" — the week list is read by day, not date. */
 const dayLabel = (date: string): string => {
   const d = daysTo(date);
   if (d === 0) return "Today";
   if (d === 1) return "Tomorrow";
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  return dateLabel(date);
 };
 
 /** Rows the "Next 7 days" card shows before "N more this week". */
@@ -680,7 +675,7 @@ export function Dashboard({
                   </span>
                 </div>
                 {(f.priority || f.due) && (
-                  <span className="dh-fcard-badge">{f.due ? f.due.slice(5) : `P${f.priority}`}</span>
+                  <span className="dh-fcard-badge">{f.due ? dateLabel(f.due) : `P${f.priority}`}</span>
                 )}
                 <span className="dh-fcard-star">{ic.star}</span>
               </li>

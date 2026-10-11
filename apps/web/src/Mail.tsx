@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
 import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
 import type { MailAccount as Account, InboxItem, MailCategory, MailMessage, PendingDraft } from "@basalt/schema/responses";
+import { dateLabel, dateTimeLabel, timeLabel } from "./ui/dates.js";
 
 type MailTab = MailCategory | "all";
 
@@ -73,9 +74,7 @@ const fmtDate = (iso: string | null) => {
   const d = new Date(iso);
   const today = new Date();
   const sameDay = d.toDateString() === today.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return sameDay ? timeLabel(d) : dateLabel(d);
 };
 
 export function Mail({ me }: { me: Me }) {
@@ -309,7 +308,7 @@ export function Mail({ me }: { me: Me }) {
                   <strong>{message.fromName || message.from}</strong>
                   {message.fromName && <span className="mail-msg-addr">&lt;{message.from}&gt;</span>}
                 </span>
-                <span className="mail-msg-date">{message.date ? new Date(message.date).toLocaleString() : ""}</span>
+                <span className="mail-msg-date">{message.date ? dateTimeLabel(message.date) : ""}</span>
               </div>
               <div className="mail-msg-to">to {message.to}</div>
               <button className="primary mail-reply-btn" onClick={() => replyTo(message)}>
