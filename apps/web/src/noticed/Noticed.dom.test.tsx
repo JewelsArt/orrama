@@ -44,7 +44,7 @@ vi.mock("../api.js", async (orig) => {
                 mostConnected: [],
                 warnings: [],
               }
-            : { notes: 60, types: [], relations: [], derived: [], statuses: [], mostConnected: [], warnings: [] };
+            : { notes: 60, types: [{ id: "note", count: 61, description: "any other note" }], relations: [], derived: [], statuses: [], mostConnected: [], warnings: [] }; // as the server sends it
         case "/api/notes/overview":
           return { pinned: [], notes: 60, conversations: 2, openTasks: 43, doneTasks: 19 };
         case "/api/contacts":
@@ -148,6 +148,9 @@ describe("Orr noticed", () => {
     await show();
     expect(screen.getByText(/Your notes have no ontology yet/)).toBeTruthy();
     expect(screen.queryByRole("list", { name: "What needs a look" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Your notes at a glance" }).textContent).not.toContain("Types");
+    const glance = screen.getByRole("region", { name: "Your notes at a glance" }).textContent;
+    expect(glance).not.toContain("Types");
+    expect(glance).not.toContain("Relations");
+    expect(glance).not.toContain("other notes");
   });
 });

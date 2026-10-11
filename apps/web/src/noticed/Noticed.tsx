@@ -84,7 +84,8 @@ export function Noticed({ me }: { me: Me }) {
 function Glance({ schema, warnings, overview }: { schema: Load<GraphSchema>; warnings: Load<GraphWarnings>; overview: Load<NotesOverview> }) {
   const ont = warnings.state === "ok" ? warnings.data.ontology : null;
   const s = schema.state === "ok" ? schema.data : null;
-  const typed = !!s && s.types.length > 0;
+  // Typed when the vault has an ontology note; the schema still counts every note as "note" without one.
+  const typed = !!s && warnings.state === "ok" && warnings.data.typed;
   const placeOfType: Record<string, Route> = { person: { kind: "people" }, company: { kind: "people" }, project: { kind: "projects" } };
   return (
     <aside className="noti-side">
@@ -123,7 +124,7 @@ function Glance({ schema, warnings, overview }: { schema: Load<GraphSchema>; war
                   </li>
                 ))}
             </ul>
-            <h3 className="noti-h">Relations</h3>
+            {s.relations.length > 0 && <h3 className="noti-h">Relations</h3>}
             <ul className="noti-tally">
               {s.relations.map((r) => (
                 <li key={r.id}>
