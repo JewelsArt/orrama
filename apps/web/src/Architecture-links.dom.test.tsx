@@ -4,6 +4,7 @@
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { useRoute } from "./ui/router.js";
 
 const gets = vi.hoisted(() => [] as string[]);
 vi.mock("./ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
@@ -33,7 +34,7 @@ vi.mock("./api.js", async (orig) => {
       if (method === "GET" && m) {
         gets.push(m[1]!);
         const links = m[1] === "src" ? [{ target: "Graduation Thesis", alias: "thesis", raw: "[[Graduation Thesis|thesis]]", line: 3, targetId: "thesis", locked: false }] : [];
-        return { id: m[1], path: `${m[1]}.md`, title: m[1], content: "", hash: "h", tags: [], tasks: [], links, backlinks: [], canEdit: false };
+        return { id: m[1], path: tree.find((t) => t.id === m[1])!.path, title: m[1], content: "", hash: "h", tags: [], tasks: [], links, backlinks: [], canEdit: false };
       }
       return [];
     },
@@ -43,18 +44,26 @@ vi.mock("./api.js", async (orig) => {
 const { Architecture } = await import("./Architecture.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules" } as never;
 const flush = () => act(async () => {});
+/** What App does: the address decides the note, and following a link goes to its address. */
+function Routed() {
+  const r = useRoute();
+  const n = r?.kind === "notes" ? r : null;
+  return <Architecture me={me} noteId={n?.id} notePath={n?.path} />;
+}
 
 describe("following a link from the editor (WEB-007)", () => {
   it("opens the note the server resolved for an aliased link, and the note at a path", async () => {
-    render(<Architecture me={me} noteId="src" />);
+    history.replaceState(null, "", "/notes?id=src");
+    const { unmount } = render(<Routed />);
     await flush();
     fireEvent.click(screen.getByText("follow aliased"));
     await flush();
     expect(gets.at(-1)).toBe("thesis");
-    gets.length = 0;
-    render(<Architecture me={me} noteId="src" />);
+    unmount();
+    history.replaceState(null, "", "/notes?id=src");
+    render(<Routed />);
     await flush();
-    fireEvent.click(screen.getAllByText("follow path").at(-1)!);
+    fireEvent.click(screen.getByText("follow path"));
     await flush();
     expect(gets.at(-1)).toBe("budget");
   });

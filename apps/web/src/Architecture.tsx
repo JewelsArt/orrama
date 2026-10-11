@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type TreeNote } from "./api.js";
+import { api, ApiError, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type TreeNote } from "./api.js";
+import { readKey, removeKey, writeKey } from "./storage.js";
+import { anyLayerOpen } from "./ui/overlays.js";
 import { blankNote, createNote as createNoteAt } from "./newNote.js";
 import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
@@ -16,16 +18,23 @@ import { EmptyState, Notice } from "./ui/states.js";
 import { dateTimeLabel } from "./ui/dates.js";
 import { navigate } from "./ui/router.js";
 
+/** The note open when you left Notes, which /notes opens on next time (structure.md §2.3). */
+export const LAST_NOTE_KEY = "basalt-notes-last";
+/** A note's address is its vault path without ".md". */
+export const addressOf = (path: string) => path.replace(/\.md$/i, "");
+
 /** Tree reloads asked for within this long of each other are one reload (WEB-009). */
 export const TREE_RELOAD_MS = 500;
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
-export function Architecture({ me, noteId, category: initialCategory }: { me: Me; noteId?: string; category?: string }) {
-  const [tree, setTree] = useState<TreeNote[]>([]);
-  // Seeded from the route so the Dashboard's category donut can open this view
-  // already scoped to the slice that was clicked.
-  const [category, setCategory] = useState(initialCategory ?? "all");
+export function Architecture({ me, noteId, notePath }: { me: Me; noteId?: string; notePath?: string }) {
+  const [tree, setTree] = useState<TreeNote[] | null>(null);
+  const treeRef = useRef<TreeNote[]>([]);
+  treeRef.current = tree ?? [];
+  const [category, setCategory] = useState("all");
+  /** An address naming a note this vault doesn't have (or you can't read). */
+  const [missing, setMissing] = useState<string | null>(null);
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
@@ -80,17 +89,34 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   }, [nextOpen]);
   useEffect(() => () => retire(syncRef.current?.sync ?? null), []);
 
-  // Esc closes the note and drops you back on the map — the way every editor works.
+  /*
+   * Which note is open is the address (WEB-024). Every way of opening one — the tree, a link,
+   * a backlink, a new note — goes to its address, and closing goes to /notes; the page then
+   * follows the address. Opening used to be this screen's own state, so App still held the
+   * note you arrived on: after moving on or closing it, ⌘K back to that note changed nothing.
+   */
+  const go = useCallback((id: string) => {
+    const n = treeRef.current.find((t) => t.id === id);
+    navigate(n ? { kind: "notes", path: addressOf(n.path) } : { kind: "notes", id });
+  }, []);
+  /** Close the open note: Notes home, which /notes also opens on until you open another. */
+  const leave = useCallback(() => {
+    removeKey(LAST_NOTE_KEY);
+    navigate({ kind: "notes" });
+  }, []);
+
+  // Esc closes the note — the way every editor works. Not while typing, and not under an overlay
+  // (its own Escape closes it).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || anyLayerOpen()) return;
       const el = document.activeElement;
       const typing = el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA)$/.test(el.tagName) || !!el.closest(".cm-editor"));
-      if (!typing) closeNote();
+      if (!typing && openRef.current) leave();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeNote]);
+  }, [leave]);
 
   const openNote = useCallback(
     async (id: string) => {
@@ -102,8 +128,15 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       } catch (e) {
         if (isAbort(e)) return;
         if (wantRef.current === id) wantRef.current = openRef.current?.id ?? null;
+        if (e instanceof ApiError && (e.status === 404 || e.status === 403)) {
+          if (syncRef.current?.id === id) closeNote(); // the open note is gone
+          setMissing(treeRef.current.find((t) => t.id === id)?.path ?? id);
+          return;
+        }
         throw e;
       }
+      setMissing(null);
+      writeKey(LAST_NOTE_KEY, id);
       if (syncRef.current?.id === id) {
         // The same note again (a toggle, a live-sync event): refresh the header
         // and let the sync merge the text into whatever is being typed.
@@ -119,8 +152,11 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               setStatus(s);
               setWhy(reason);
             },
-            // Renamed elsewhere: the header shows where it is now (WEB-005).
-            moved: (path) => setOpen((o) => (o && o.id === id ? { ...o, path } : o)),
+            // Renamed elsewhere: the header and the address show where it is now (WEB-005).
+            moved: (path) => {
+              setOpen((o) => (o && o.id === id ? { ...o, path } : o));
+              if (wantRef.current === id) navigate({ kind: "notes", path: addressOf(path) }, { replace: true });
+            },
             gone: () => setGone(true),
           })
         : null;
@@ -137,16 +173,39 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       setDraft(text ? { text, at: d!.at } : null);
       api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`, undefined, { signal }).then(setRelated, unlessAborted);
     },
-    [nextOpen],
+    [nextOpen, closeNote],
   );
 
   useEffect(() => {
     void loadTree();
   }, [loadTree]);
 
+  // Follow the address. A path is looked up in the tree (App's copy of it may predate a note
+  // just made); bare /notes opens the note you had open last, until you close it.
+  const treeLoaded = tree !== null;
+  const wanted = noteId ?? (notePath !== undefined ? (tree ?? []).find((n) => addressOf(n.path) === notePath)?.id : undefined);
   useEffect(() => {
-    if (noteId) void openNote(noteId);
-  }, [noteId, openNote]);
+    if (wanted) {
+      if (wanted !== wantRef.current) void openNote(wanted);
+      return;
+    }
+    if (notePath !== undefined) {
+      if (treeLoaded) {
+        closeNote();
+        setMissing(`${notePath}.md`);
+      }
+      return;
+    }
+    setMissing(null);
+    const last = readKey(LAST_NOTE_KEY);
+    if (last && treeLoaded && treeRef.current.some((n) => n.id === last)) go(last);
+    else if (wantRef.current || openRef.current) closeNote();
+  }, [wanted, notePath, treeLoaded, openNote, closeNote, go]);
+  // Opened by its id: once the tree knows the path, the address says it (replacing, not adding).
+  useEffect(() => {
+    if (!noteId || notePath !== undefined || !open || open.id !== noteId) return;
+    navigate({ kind: "notes", path: addressOf(open.path) }, { replace: true });
+  }, [noteId, notePath, open]);
 
   useEffect(() => {
     const off = onWs((msg) => {
@@ -189,7 +248,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     // Create-only: an existing note at this path is a 409, said under the field, never replaced.
     const res = await createNoteAt(path, blankNote(path.split("/").pop()!.replace(/\.md$/, "")));
     await loadTree();
-    await openNote(res.id);
+    go(res.id);
   };
 
   // A task is named by its block id or its text, the line only a hint: if the
@@ -221,12 +280,12 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   };
 
   const scoped = useMemo(
-    () => (category === "all" ? tree : tree.filter((n) => categoryOf(n) === category)),
+    () => (category === "all" ? treeRef.current : treeRef.current.filter((n) => categoryOf(n) === category)),
     [tree, category],
   );
   const catCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const n of tree) m.set(categoryOf(n), (m.get(categoryOf(n)) ?? 0) + 1);
+    for (const n of tree ?? []) m.set(categoryOf(n), (m.get(categoryOf(n)) ?? 0) + 1);
     return m;
   }, [tree]);
 
@@ -234,7 +293,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   // colour-coded consistently everywhere.
   const noteColor = useMemo(() => {
     const m = new Map<string, string>();
-    for (const n of tree) m.set(n.id, categoryColor(categoryOf(n)));
+    for (const n of tree ?? []) m.set(n.id, categoryColor(categoryOf(n)));
     return m;
   }, [tree]);
   // Goes to the file tree (DOM), never to the graph canvas — the canvas reads
@@ -243,9 +302,9 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
 
   const completions = useMemo(
     () => ({
-      titles: tree.map((n) => n.title),
+      titles: (tree ?? []).map((n) => n.title),
       users: [me.username],
-      tags: [...new Set(tree.flatMap((n) => n.tags))],
+      tags: [...new Set((tree ?? []).flatMap((n) => n.tags))],
     }),
     [tree, me.username],
   );
@@ -262,7 +321,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               onChange={(e) => setCategory(e.target.value)}
               aria-label="Filter notes by category"
             >
-              <option value="all">All notes · {tree.length}</option>
+              <option value="all">All notes · {tree?.length ?? 0}</option>
               {CATEGORIES.filter((c) => (catCounts.get(c.id) ?? 0) > 0).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.label} · {catCounts.get(c.id)}
@@ -297,9 +356,9 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             </button>
           ))}
         </div>
-        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} />
+        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={go} />
         {open && (
-          <button className="ft-map ghost" onClick={closeNote}>
+          <button className="ft-map ghost" onClick={leave}>
             Close note
           </button>
         )}
@@ -314,7 +373,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                 <span className="editor-path">{open.path}</span>
               </div>
               <span className="editor-presence">
-                <button className="editor-close" onClick={closeNote} title="Close note (Esc)" aria-label="Close note">
+                <button className="editor-close" onClick={leave} title="Close note (Esc)" aria-label="Close note">
                   <Icon name="x" size={14} />
                 </button>
                 {open.canEdit && !isProject && (
@@ -376,11 +435,13 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               sync={sync}
               onFollowLink={(target) => {
                 // The link's own target, resolved the way the server did (WEB-007).
-                const id = noteForLink(target, open.links, tree);
-                if (id) void openNote(id);
+                const id = noteForLink(target, open.links, treeRef.current);
+                if (id) go(id);
               }}
             />
           </>
+        ) : missing ? (
+          <Notice title={`Can't open “${missing}”.`} text="It isn't in your notes, or it isn't yours to read." />
         ) : (
           // The map left Notes for its own place, the Orrery (§8 #3); R7 redraws this page.
           <EmptyState
@@ -443,7 +504,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             <h3>Backlinks</h3>
             {open.backlinks.length === 0 && <p className="empty">No backlinks yet</p>}
             {open.backlinks.map((b, i) => (
-              <button key={i} className="side-link ghost" onClick={() => openNote(b.fromId)}>
+              <button key={i} className="side-link ghost" onClick={() => go(b.fromId)}>
                 <span className="side-link-title">{b.fromTitle}</span>
                 <span className="side-link-ctx">{b.context}</span>
               </button>
@@ -458,7 +519,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                   <IconLock /> {l.alias ?? l.target}
                 </span>
               ) : (
-                <button key={i} className="side-link ghost" disabled={!l.targetId} onClick={() => l.targetId && openNote(l.targetId)}>
+                <button key={i} className="side-link ghost" disabled={!l.targetId} onClick={() => l.targetId && go(l.targetId)}>
                   {l.alias ?? l.target}
                   {!l.targetId && <span className="side-link-ctx">not created yet</span>}
                 </button>
@@ -469,7 +530,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             <section>
               <h3>Possibly related</h3>
               {related.map((r) => (
-                <button key={r.id} className="side-link ghost" onClick={() => openNote(r.id)}>
+                <button key={r.id} className="side-link ghost" onClick={() => go(r.id)}>
                   {r.title}
                 </button>
               ))}
