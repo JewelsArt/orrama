@@ -19,7 +19,7 @@ import { Setup } from "./Setup.js";
 import { readJson, readKey, removeKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
 import { isTyping, shellKey } from "./ui/keys.js";
-import { anyLayerOpen, Layer } from "./ui/overlays.js";
+import { anyLayerOpen, Layer, Toaster } from "./ui/overlays.js";
 import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, routeHref, useRoute, type MoneyPage, type Route } from "./ui/router.js";
 import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
@@ -538,6 +538,7 @@ export function App() {
         </ErrorBoundary>
       )}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
+      <Toaster />
       {settingsOpen && (
         <ErrorBoundary what="Settings" onLeave={{ label: "Close", run: closeSettings }}>
           {/* Settings draws its own dialog (role, Tab trap): the layer adds Escape and the order.

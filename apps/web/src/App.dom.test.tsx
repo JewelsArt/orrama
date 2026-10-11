@@ -8,7 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
 import { at, crash, ME, serve } from "./test/app-harness.js";
-import { topLayer } from "./ui/overlays.js";
+import { dismissToast, toast, topLayer } from "./ui/overlays.js";
 
 const view = async () => (await screen.findByTestId("view")).textContent!;
 const path = () => location.pathname + location.search;
@@ -328,6 +328,16 @@ describe("overlays (WEB-018)", () => {
     expect(open()).toContain("settings");
     await user.keyboard("{Escape}");
     await waitFor(() => expect(open()).not.toContain("settings"));
+  });
+
+  it("toasts show in the app: the shell mounts the one place they appear", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    let id = 0;
+    act(() => void (id = toast("Moved to Friday")));
+    expect(screen.getByRole("status").textContent).toContain("Moved to Friday");
+    act(() => dismissToast(id));
   });
 
   it("closing Find gives focus back to what opened it", async () => {

@@ -13,3 +13,6 @@ export { Layer, Dialog, Sheet, Palette, Popover, Menu, Toaster, toast, dismissTo
 export type { LayerKind, MenuItem, ToastItem } from "./overlays.js";
 export { Orr, Avatar, HeadMark, AVATAR_NAMES, ORR_POSES, avatarName, type OrrPose, type AvatarName } from "./orr/Orr.js";
 export { OrramaMark, OrramaWordmark, OrramaLogo } from "./orr/logo.js";
+export { NameDialog } from "./NameDialog.js";
+export { dateLabel, dateTimeLabel, dayMonthLabel, monthLabel, weekdayLabel, timeLabel, minutesLabel, toDate, type When } from "./dates.js";
+export { resolveTheme, shownOf, accountTheme, useSystemDark, systemIsDark, type Shown, type ThemeChoice } from "./theme.js";
