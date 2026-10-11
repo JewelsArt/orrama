@@ -118,7 +118,11 @@ vi.mock("../Settings.js", () => ({
   ),
 }));
 vi.mock("../AskPanel.js", () => ({ AskPanel: stub("ask", (p) => [["close ask", () => p.onClose()]]) }));
-vi.mock("../SearchPalette.js", () => ({ SearchPalette: stub("search", (p) => [["pick n-1", () => p.onPick("n-1")]]) }));
+vi.mock("../find/Find.js", async () => {
+  const { Palette } = await import("../ui/overlays.js");
+  const Search = stub("search", (p) => [["ask instead", () => p.onAsk()]]);
+  return { Find: (p: P) => <Palette label="Find" onClose={p.onClose}><Search {...p} /></Palette> };
+});
 vi.mock("../QuickCapture.js", () => ({ QuickCapture: stub("capture") }));
 vi.mock("../Login.js", () => ({ Login: stub("login") }));
 vi.mock("../Lock.js", () => ({ Lock: stub("lock") }));

@@ -15,6 +15,8 @@ export interface KnownData {
   companies: Company[];
   projects: ProjectRow[];
   nodes: GraphData["nodes"];
+  /** The links between them, a typed relation's id on each that has one. */
+  edges: GraphData["edges"];
   /** Every readable note's path and life area. */
   tree: TreeNote[];
 }
@@ -44,7 +46,7 @@ export function useKnown(): { data: KnownData | null; known: Known | null; faile
         api<GraphData>("GET", "/api/vault/graph", undefined, opts),
         api<TreeNote[]>("GET", "/api/vault/tree", undefined, opts),
       ]);
-      setData({ contacts, companies, projects, nodes: graph.nodes, tree });
+      setData({ contacts, companies, projects, nodes: graph.nodes, edges: graph.edges, tree });
       setFailed(false);
     } catch (e) {
       if (!isAbort(e)) setFailed(true);

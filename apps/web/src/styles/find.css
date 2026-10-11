@@ -1,39 +1,56 @@
-/* Find (SearchPalette.tsx): the palette.
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
-.palette {
-  width: min(620px, 90vw);
-  overflow: hidden;
-}
-.palette input {
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 15px 16px;
-  font-size: 15px;
-  outline: none;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-}
-.palette ul {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  max-height: 40vh;
-  overflow: auto;
-}
-.palette li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.palette li.sel {
-  background: var(--accent-dim);
-}
-.hit-path {
-  color: var(--text-faint);
-  font-size: 12px;
-  font-family: var(--font-mono);
+/* Find (find/Find.tsx, structure.md §2.12): the palette, from mockups/screens/find.html. The box
+   is the system's Palette (ui/ui.css .ui-palette); this file draws what is inside it: the field
+   with its type chip, the grouped rows (a ring, square, progress ring or icon; the name with its
+   match underlined; one line; the type), and the keys at the foot. Phone: full screen, Cancel in
+   the field, no foot. */
+
+.find-in { display: flex; align-items: center; gap: 10px; height: 58px; padding: 0 16px 0 18px; border-bottom: 1px solid var(--line); flex: none; }
+.find-in > svg.i { color: var(--ink-3); flex: none; }
+.find-in input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; outline: none; font: inherit; font-size: 18px; color: var(--ink); }
+.find-in input::placeholder { color: var(--ink-3); }
+.find-type { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--panel); font: inherit; font-size: 13px; font-weight: 650; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.find-type:hover { color: var(--ink); }
+.find-type:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.find-type .kbd { background: var(--surface); }
+.find-cancel { display: none; }
+
+.find-res { flex: 1 1 auto; min-height: 0; max-height: 560px; overflow-y: auto; padding: 6px 8px 8px; }
+.find-h { display: flex; align-items: baseline; gap: 8px; padding: 10px 10px 4px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
+.find-h span { font-weight: 450; }
+.find-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 44px; padding: 6px 10px; border-radius: var(--r-2); cursor: pointer; }
+.find-row:hover { background: var(--hover); }
+.find-row.sel { background: var(--accent-wash); }
+.find-row .lead { width: 28px; height: 28px; display: grid; place-items: center; color: var(--ink-2); }
+.find-row .lead .ring, .find-row .lead .sq { width: 26px; height: 26px; font-size: 10px; }
+.find-row .lead .pr { width: 26px; height: 26px; }
+.find-row .lead .ic { display: grid; place-items: center; }
+.find-row .x { min-width: 0; }
+.find-row .x .t { display: block; font-weight: 600; font-size: 14.5px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-row .x .t mark { background: transparent; color: inherit; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-color: var(--accent); }
+.find-row .x .m { display: block; font-size: 13px; line-height: 18px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.find-folder { color: var(--ink-3); }
+.find-row .ty { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.find-row .ty .kbd { background: var(--surface); }
+
+.find-hello { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: end; padding: 6px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 2px; }
+.find-hello .orrbox { height: 50px; width: 56px; overflow: visible; }
+.find-hello span { color: var(--ink-2); font-size: 14px; line-height: 20px; padding-bottom: 6px; }
+.find-none { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 16px 26px; text-align: center; }
+.find-none p { margin: 0; color: var(--ink-2); }
+
+.find-ft { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 12.5px; flex: none; }
+.find-ft > span { display: inline-flex; align-items: center; gap: 6px; }
+.find-ft .sp { flex: 1; }
+.find-ft button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; font: inherit; color: inherit; cursor: pointer; }
+.find-ft button:hover { color: var(--ink); background: var(--hover); }
+
+@media (max-width: 760px) {
+  .find-in { height: calc(64px + env(safe-area-inset-top)); padding-top: calc(8px + env(safe-area-inset-top)); padding-right: 12px; }
+  .find-in input { font-size: 17px; }
+  .find-type .kbd { display: none; }
+  .find-cancel { display: inline; border: 0; background: none; padding: 8px 4px; font: inherit; font-size: 15px; font-weight: 600; color: var(--accent); cursor: pointer; }
+  .find-res { max-height: none; }
+  .find-row { min-height: 52px; grid-template-columns: 28px minmax(0, 1fr); }
+  .find-row .ty { display: none; }
+  .find-ft { display: none; }
 }

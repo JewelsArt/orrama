@@ -19,7 +19,7 @@ import { PROFILE_VAR_NAMES, customId, isCustom, profileVars, type VisionProfile 
 import { Planning } from "./Planning.js";
 import { planningTitle } from "./planning/title.js";
 import { QuickCapture } from "./QuickCapture.js";
-import { SearchPalette } from "./SearchPalette.js";
+import { Find } from "./find/Find.js";
 import { Settings } from "./Settings.js";
 import { SECTIONS as SETTINGS_SECTIONS } from "./settings/parts.js";
 import { Setup } from "./Setup.js";
@@ -560,15 +560,20 @@ export function App() {
       )}
       {paletteOpen && (
         <ErrorBoundary what="Find" onLeave={{ label: "Close", run: () => setPaletteOpen(false) }}>
-          <Layer kind="palette" label="Find" onClose={() => setPaletteOpen(false)}>
-            <SearchPalette
-              onClose={() => setPaletteOpen(false)}
-              onPick={(id) => {
-                setPaletteOpen(false);
-                openNote(id);
-              }}
-            />
-          </Layer>
+          <Find
+            me={me}
+            shown={themeShown === "dark" ? "dark" : "light"}
+            onClose={() => setPaletteOpen(false)}
+            onTheme={changeTheme}
+            onCapture={() => {
+              setPaletteOpen(false);
+              setCaptureOpen(true);
+            }}
+            onAsk={() => {
+              setPaletteOpen(false);
+              setAskOpen(true);
+            }}
+          />
         </ErrorBoundary>
       )}
       {captureOpen && (

@@ -216,7 +216,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -289,10 +289,6 @@
 ### `apps/web/src/QuickCapture.tsx`
 - **Exports**: QuickCapture
 - **Imports**: react, ./api.js, ./ui/Icon.js
-
-### `apps/web/src/SearchPalette.tsx`
-- **Exports**: SearchPalette
-- **Imports**: react, ./api.js, @basalt/schema/responses
 
 ### `apps/web/src/Settings.tsx`
 - **Exports**: default, SettingsProps, Settings
@@ -418,6 +414,18 @@
 ### `apps/web/src/entity/title.ts`
 - **Exports**: usePageTitle, usePageTitleFor
 - **Imports**: react
+
+### `apps/web/src/find/Find.tsx`
+- **Exports**: FindProps, Find
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
+
+### `apps/web/src/find/build.ts`
+- **Exports**: Lists, Setting, ActionDef, placeItems, settingItems, actionItems, entityItems, noteItems
+- **Imports**: @basalt/schema/responses, ../entity/status.js, ../entity/links.js, ../people/model.js, ../notes/read.js, ../ui/dates.js, ../ui/router.js, ./model.js
+
+### `apps/web/src/find/model.ts`
+- **Exports**: FindType, TYPES, TYPE_WORD, Lead, Item, Group, fold, parseQuery, isFilterQuery, scoreOf, markOf, withFolders, groupsOf, flat, nextType, Recent, RECENT_MAX, remember
+- **Imports**: ../ui/router.js
 
 ### `apps/web/src/icons.tsx`
 - **Exports**: IconSearch, IconAsk, IconPlus, IconX, IconGear, IconSun, IconMoon, IconGroceries, IconEating, IconTransport, IconBoulder, IconHealth, IconSoftware, IconShopping, IconGoingOut, IconCash, IconOther, IconSignOut, IconMail, IconSend, IconReply, IconChevron, IconLock, IconPromote, IconWand
