@@ -140,12 +140,15 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
         }
       }
     }
-    // Pack under the budget, most recent last-touched first among the rest.
+    // Pack under the budget, charged for what is sent — the excerpt, not the
+    // whole note. Charging full length dropped every note past 24k however
+    // well it matched (audit AI-007).
     const out: IndexedNote[] = [];
     let used = 0;
     for (const n of picked.values()) {
-      if (used + n.content.length > budgetChars) continue;
-      used += n.content.length;
+      const cost = Math.min(n.content.length, EXCERPT_CHARS);
+      if (used + cost > budgetChars) continue;
+      used += cost;
       out.push(n);
     }
     return out;
