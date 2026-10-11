@@ -15,6 +15,7 @@ import { sanitizeDocHtml } from "../docHtml.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
+import { storeUpload } from "../uploads.js";
 
 export const PROJECTS_DIR = "04-Projects";
 export const DOMAINS = ["personal", "professional", "academic"] as const;
@@ -169,9 +170,10 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     if (!name || name.length > 120) throw new HttpError(400, "name required (max 120)");
     const slug = slugify(name);
     const relPath = `${PROJECTS_DIR}/${slug}.md`;
-    if (store.index.getByPath(relPath)) throw new HttpError(409, "a project note with that name already exists");
     const user = store.aclUser(req.userId);
-    const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(body.domain)));
+    // Create-only, so `04-Projects/Thesis.md` is not replaced by the scaffold
+    // for "thesis" (slugify lower-cases; an exact-case check missed it).
+    const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(body.domain)), undefined, undefined, { create: true });
     return { ok: true, noteId: note.id, path: note.path, slug, key: `project/${slug}` };
   });
 
@@ -512,11 +514,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       if (data.length > MAX_UPLOAD) throw new HttpError(413, "file too large (25 MB max)");
 
       const dir = filesDirFor(store.vaultRoot, req.params.slug);
-      fs.mkdirSync(dir, { recursive: true });
-      const abs = path.join(dir, name);
-      if (path.dirname(abs) !== dir) throw new HttpError(400, "invalid filename");
-      writeFileAtomic(abs, data);
-      return { ok: true, name, size: data.length };
+      if (path.dirname(path.join(dir, name)) !== dir) throw new HttpError(400, "invalid filename");
+      // Never over an existing document: a second report.docx is kept as
+      // "report (2).docx", and the answer says so (uploads.ts).
+      const stored = storeUpload(dir, name, data);
+      return { ok: true, name: stored.name, unchanged: stored.unchanged, size: data.length };
     },
   );
 

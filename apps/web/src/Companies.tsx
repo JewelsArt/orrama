@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dialog } from "./dialog.js";
 import { api, type Me } from "./api.js";
+import { companyNote, createNote } from "./newNote.js";
 import { ContactSheet, initials as sheetInitials, useColleagues, type ContactRecord } from "./cards.js";
 import { IconPlus } from "./icons.js";
 import { onWs } from "./ws.js";
@@ -558,26 +559,22 @@ function AddCompany({ me, onClose, onSaved }: { me: Me; onClose: () => void; onS
     const val = (k: string) => String(f.get(k) ?? "").trim();
     const positions = val("positions").split(",").map((p) => p.trim()).filter(Boolean);
     const priv = f.get("private") === "on";
-    const content = [
-      "---",
-      `title: ${name}`,
-      "tags: [company]",
-      `sector: ${val("sector") || "Other"}`,
-      `description: ${JSON.stringify(val("description"))}`,
-      `linkedin: "${val("linkedin")}"`,
-      `website: "${val("website")}"`,
-      `careers: "${val("careers")}"`,
-      `location: "${val("location")}"`,
-      `positions: [${positions.map((p) => JSON.stringify(p)).join(", ")}]`,
-      "---",
-      `# ${name}`,
-      "",
-    ].join("\n");
+    const content = companyNote({
+      name,
+      sector: val("sector"),
+      description: val("description"),
+      linkedin: val("linkedin"),
+      website: val("website"),
+      careers: val("careers"),
+      location: val("location"),
+      positions,
+    });
     setBusy(true);
     setError("");
     try {
       const path = priv ? `Personal/${me.username}/Companies/${name}.md` : `Contacts/Companies/${name}.md`;
-      await api<{ id: string }>("PUT", "/api/vault/note", { path, content });
+      // Create-only: a company with this name already there is a 409, said below, never replaced.
+      await createNote(path, content);
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed");

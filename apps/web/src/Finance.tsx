@@ -971,7 +971,7 @@ function FinanceOverview({
         let bin = "";
         const bytes = new Uint8Array(buf);
         for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        const res = await api<{ filed: boolean; reason?: string; parsed: { month: string | null } | null }>(
+        const res = await api<{ name: string; stored: boolean; filed: boolean; reason?: string; parsed: { month: string | null } | null }>(
           "POST",
           "/api/finance/payslip",
           { name: file.name, dataBase64: btoa(bin) },
@@ -979,7 +979,9 @@ function FinanceOverview({
         setFlash(
           res.filed
             ? `Filed ${res.parsed?.month ?? file.name}.`
-            : `Stored ${file.name}, but the figures were not filed — ${res.reason ?? "unknown reason"}.`,
+            : res.stored
+              ? `Stored ${res.name}, but the figures were not filed — ${res.reason ?? "unknown reason"}.`
+              : `Not stored — ${res.reason ?? "unknown reason"}.`,
         );
       } catch (e) {
         setFlash(e instanceof Error ? e.message : `Could not upload ${file.name}`);

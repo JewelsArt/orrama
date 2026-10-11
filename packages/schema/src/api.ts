@@ -68,6 +68,12 @@ export const noteWriteSchema = z.object({
     .max(512)
     .regex(/^(?!\/)(?!.*\.\.)[^\0]+\.md$/, "vault-relative .md path, no traversal"),
   content: z.string().max(2_000_000),
+  /**
+   * Create only: when a note already sits at the path (in any spelling the
+   * disk folds together), answer 409 and write nothing. Every "New …" flow
+   * sends it; without it PUT is an upsert and replaces the note (audit WEB-001).
+   */
+  create: z.boolean().optional(),
   /** Hash of the text the client's buffer started from (as the server reported it). */
   baseHash: z.string().optional(),
   /**

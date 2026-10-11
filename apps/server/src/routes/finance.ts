@@ -59,7 +59,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { writeFileAtomic } from "../atomicWrite.js";
+import { storeUpload } from "../uploads.js";
 
 export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } as const;
 
@@ -1145,12 +1145,14 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     if (data.length > MAX_UPLOAD) throw new HttpError(413, "file too large (15 MB max)");
 
     const dir = filesDir(store.vaultRoot);
-    fs.mkdirSync(dir, { recursive: true });
-    const abs = path.join(dir, name);
-    if (path.dirname(abs) !== dir) throw new HttpError(400, "invalid filename");
-    writeFileAtomic(abs, data);
+    if (path.dirname(path.join(dir, name)) !== dir) throw new HttpError(400, "invalid filename");
+    // Read first, write last, and never over an existing file (audit STO-006):
+    // an upload refused as already filed stores nothing, and a different file
+    // with a name already used is kept beside it as "name (2).pdf" — the name
+    // the payslips row then points at (uploads.ts).
+    const keep = () => storeUpload(dir, name, data).name;
 
-    if (!name.toLowerCase().endsWith(".pdf")) return { ok: true, name, parsed: null, filed: false };
+    if (!name.toLowerCase().endsWith(".pdf")) return { ok: true, name: keep(), stored: true, parsed: null, filed: false };
 
     let parsed = null;
     try {
@@ -1158,20 +1160,21 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const { text } = await extractText(doc, { mergePages: true });
       parsed = parsePayslip(text);
     } catch {
-      return { ok: true, name, parsed: null, filed: false, reason: "could not read the PDF's text" };
+      return { ok: true, name: keep(), stored: true, parsed: null, filed: false, reason: "could not read the PDF's text" };
     }
-    if (!payslipUsable(parsed)) return { ok: true, name, parsed, filed: false, reason: "unfamiliar payslip layout" };
+    if (!payslipUsable(parsed)) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "unfamiliar payslip layout" };
 
     const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
-    if (!slipNote) return { ok: true, name, parsed, filed: false, reason: "no note tagged #payslips" };
+    if (!slipNote) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "no note tagged #payslips" };
     // Re-filing the same month would double-count it in every average.
     if (parsePayslipTable(slipNote.content).some((r) => r.month === parsed!.month))
-      return { ok: true, name, parsed, filed: false, reason: `${parsed.month} is already filed` };
+      return { ok: true, name, stored: false, parsed, filed: false, reason: `${parsed.month} is already filed` };
 
-    const next = appendPayslipRow(slipNote.content, parsed, name);
-    if (next === null) return { ok: true, name, parsed, filed: false, reason: "the payslips note has no table" };
+    const stored = keep();
+    const next = appendPayslipRow(slipNote.content, parsed, stored);
+    if (next === null) return { ok: true, name: stored, stored: true, parsed, filed: false, reason: "the payslips note has no table" };
     store.write(user, slipNote.path, next);
-    return { ok: true, name, parsed, filed: true };
+    return { ok: true, name: stored, stored: true, parsed, filed: true };
   });
 
   /**

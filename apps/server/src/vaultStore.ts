@@ -810,8 +810,12 @@ export class VaultStore {
     return { rel, abs: path.join(this.root, rel), taken: disk.found ? disk.rel : undefined };
   }
 
-  /** Create or update a note. Returns the updated note. */
-  write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string): IndexedNote {
+  /**
+   * Create or update a note. Returns the updated note. `create` makes it
+   * create-only: a note already at the path — indexed or only on disk, in any
+   * spelling — is a 409 and nothing is written (audit WEB-001).
+   */
+  write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string, opts: { create?: boolean } = {}): IndexedNote {
     const { rel: relPath, abs } = this.resolvePath(inputPath);
     const grants = this.grants();
     let existing = this.index.getByPath(relPath);
@@ -825,6 +829,7 @@ export class VaultStore {
     // exactly as the watcher would record it, and the caller's change is merged
     // on top, against the text the caller actually started from.
     const disk = fs.existsSync(abs) ? readNote(abs) : null;
+    if (opts.create && (existing || disk)) throw this.taken(user, existing, relPath);
     // A file that is not UTF-8 was read with U+FFFD for every byte that did
     // not decode; saving over it writes those (audit STO-011). Refuse.
     if (disk && !disk.utf8) throw new HttpError(409, `This note ${NOT_UTF8}`);
@@ -920,7 +925,13 @@ export class VaultStore {
 
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     this.markWritten(relPath, finalContent);
-    writeFileAtomic(abs, finalContent);
+    try {
+      writeFileAtomic(abs, finalContent, { exclusive: !!opts.create });
+    } catch (err) {
+      // Created by someone else between the look above and now.
+      if (opts.create && (err as NodeJS.ErrnoException).code === "EEXIST") throw this.taken(user, undefined, relPath);
+      throw err;
+    }
     const note = this.index.upsert({ path: relPath, content: finalContent, mtimeMs: Date.now(), id: fallbackId });
     if (!existing) this.recordContent(note.id, finalContent, user.id);
     this.syncNoteRow(note);
@@ -928,6 +939,17 @@ export class VaultStore {
     this.reconcileTaskObjects(note);
     this.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id } satisfies NoteChangedEvent);
     return note;
+  }
+
+  /**
+   * The 409 for a create whose path is taken. It names the path only when the
+   * caller may read the note there: refusing is unavoidable, describing a note
+   * they cannot see is not (§5.4).
+   */
+  private taken(user: AclUser, existing: IndexedNote | undefined, relPath: string): HttpError {
+    const note = existing ?? this.index.getByPath(relPath);
+    const visible = note && canRead(user, note, this.grants());
+    return new HttpError(409, visible ? `A note already exists at ${note.path}.` : "A note already exists at that path.");
   }
 
   /** Rename/move: metadata operation, note id is stable so links never break (§10). */

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type TreeNote } from "./api.js";
+import { blankNote, createNote as createNoteAt } from "./newNote.js";
 import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
@@ -146,10 +147,8 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   const createNote = async (name: string) => {
     if (name.endsWith("/")) throw new Error("Add the note's name after the folder.");
     const path = name.endsWith(".md") ? name : `${name}.md`;
-    const res = await api<{ id: string }>("PUT", "/api/vault/note", {
-      path,
-      content: `---\ntitle: ${path.split("/").pop()!.replace(/\.md$/, "")}\n---\n\n`,
-    });
+    // Create-only: an existing note at this path is a 409, said under the field, never replaced.
+    const res = await createNoteAt(path, blankNote(path.split("/").pop()!.replace(/\.md$/, "")));
     await loadTree();
     await openNote(res.id);
   };

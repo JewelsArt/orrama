@@ -22,7 +22,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-export function writeFileAtomic(file: string, data: string | Uint8Array): void {
+/**
+ * `exclusive`: create the file, never replace one (audit WEB-001, STO-006). The
+ * temp file is hard-linked to the name instead of renamed over it, and a link
+ * fails with EEXIST when the name is taken — in any spelling the volume folds
+ * together — so a file that appeared since the caller looked is not lost.
+ */
+export function writeFileAtomic(file: string, data: string | Uint8Array, opts: { exclusive?: boolean } = {}): void {
   let target = file;
   let mode: number | undefined;
   try {
@@ -41,7 +47,12 @@ export function writeFileAtomic(file: string, data: string | Uint8Array): void {
     fs.fsyncSync(fd);
     fs.closeSync(fd);
     fd = undefined;
-    fs.renameSync(tmp, target);
+    if (opts.exclusive) {
+      fs.linkSync(tmp, target);
+      fs.rmSync(tmp);
+    } else {
+      fs.renameSync(tmp, target);
+    }
   } catch (err) {
     if (fd !== undefined) {
       try {

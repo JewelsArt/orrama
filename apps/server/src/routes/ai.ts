@@ -231,8 +231,13 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           execute: async ({ name, domain }: { name: string, domain?: "personal" | "professional" | "academic" }) => {
             const slug = slugify(name);
             const relPath = `${PROJECTS_DIR}/${slug}.md`;
-            if (store.index.getByPath(relPath)) return { success: false, error: "a project with that name already exists", path: relPath };
-            const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)));
+            let note;
+            try {
+              note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)), undefined, undefined, { create: true });
+            } catch (err) {
+              if (err instanceof HttpError && err.statusCode === 409) return { success: false, error: "a project with that name already exists", path: relPath };
+              throw err;
+            }
             return { success: true, noteId: note.id, path: note.path, key: `project/${slug}` };
           }
         }),

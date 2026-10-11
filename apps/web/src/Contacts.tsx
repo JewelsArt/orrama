@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Dialog } from "./dialog.js";
 import { api, type Me } from "./api.js";
+import { contactNote, createNote } from "./newNote.js";
 import { Companies } from "./Companies.js";
 import { IconPlus, IconSearch } from "./icons.js";
 import { onWs } from "./ws.js";
@@ -365,25 +366,21 @@ function AddContact({ me, onClose, onSaved }: { me: Me; onClose: () => void; onS
     if (!name) return;
     const val = (k: string) => String(f.get(k) ?? "").trim();
     const priv = f.get("private") === "on";
-    const content = [
-      "---",
-      `title: ${name}`,
-      "tags: [contact]",
-      `sector: ${val("sector") || "Other"}`,
-      `role: ${val("role")}`,
-      `company: ${val("company")}`,
-      `email: "${val("email")}"`,
-      `phone: "${val("phone")}"`,
-      `linkedin: "${val("linkedin")}"`,
-      "---",
-      `# ${name}`,
-      "",
-    ].join("\n");
+    const content = contactNote({
+      name,
+      sector: val("sector"),
+      role: val("role"),
+      company: val("company"),
+      email: val("email"),
+      phone: val("phone"),
+      linkedin: val("linkedin"),
+    });
     setBusy(true);
     setError("");
     try {
       const path = priv ? `Personal/${me.username}/Contacts/${name}.md` : `Contacts/${name}.md`;
-      const res = await api<{ id: string }>("PUT", "/api/vault/note", { path, content });
+      // Create-only: a contact with this name already there is a 409, said below, never replaced.
+      const res = await createNote(path, content);
       onSaved(res.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "failed");
