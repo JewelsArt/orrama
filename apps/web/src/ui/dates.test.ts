@@ -60,6 +60,7 @@ describe("the app", () => {
       [/toLocaleTimeString\(/, "a browser-locale time"],
       [/toLocaleDateString\((undefined|\))/, "a browser-locale date"],
       [/new Date\([^)]*\)\.toLocaleString\(\)/, "a browser-locale date and time"],
+      [/toLocaleString\([^)]*\b(hour|minute|weekday|day|month)\b/, "a hand-made date and time"],
     ];
     const found = files(SRC).flatMap((f) =>
       fs

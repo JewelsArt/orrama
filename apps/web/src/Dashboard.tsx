@@ -7,7 +7,7 @@ import { CATEGORIES, DOMAIN_COLOR, categoryOf, daysTo, isProjectActive, isSessio
 import { iconFor, paletteFor } from "./Finance.js";
 import { onWs } from "./ws.js";
 import type { AgendaItem, DeadlineItem, FocusItem, HomeData, HomeLedger as Ledger, ProjectRow, MoneyItem as SubscriptionItem } from "@basalt/schema/responses";
-import { dateLabel, minutesLabel } from "./ui/dates.js";
+import { dateLabel, dateTimeLabel, minutesLabel } from "./ui/dates.js";
 export type { ProjectRow };
 
 /** What each card is called, for the remove button's label and the picker. */
@@ -578,7 +578,7 @@ export function Dashboard({
           <p className="dh-sub">Welcome back, {first}. Here's your vault at a glance.</p>
         </div>
         <div className="dh-top-right">
-          <span className="dh-top-meta">Updated {now.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+          <span className="dh-top-meta">Updated {dateTimeLabel(now)}</span>
           <button
             className={`dh-edit ${editing ? "on" : ""}`}
             onClick={() => setEditing((v) => !v)}
