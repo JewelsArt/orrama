@@ -1,0 +1,1038 @@
+/* Today, still the Dashboard (Dashboard.tsx).
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+/* ============================================================
+   Dashboard — clean light SaaS surface (HireFlow-style layout,
+   Basalt palette). Scoped under .home; the dark app is untouched.
+   Type: Plus Jakarta Sans.
+
+   The Finance area shares this palette rather than declaring a second one:
+   these --d-* names are aliases over the global tokens, so both surfaces flip
+   with the theme together and there is one place to retint. A page that forgets
+   to opt in here still renders — text inherits — but every background silently
+   resolves to transparent, which is exactly how the Finance bars first shipped
+   invisible.
+   ============================================================ */
+.home,
+.fin {
+  /* Dashboard palette now rides the global glass tokens, so it flips with the
+     theme toggle. Fills are frosted glass; hues + tints come from the tokens. */
+  --d-bg: transparent;
+  --d-card: var(--glass);
+  --d-ink: var(--text);
+  --d-ink-2: var(--text-dim);
+  --d-ink-3: var(--text-faint);
+  --d-line: var(--border);
+  --d-line-2: var(--panel);
+  --d-accent: var(--accent);
+  --d-accent-soft: var(--accent-soft);
+  --d-blue: var(--blue); --d-blue-bg: color-mix(in srgb, var(--blue) 15%, transparent);
+  --d-indigo: var(--accent); --d-indigo-bg: var(--accent-soft);
+  --d-green: var(--green); --d-green-bg: color-mix(in srgb, var(--green) 15%, transparent);
+  --d-orange: var(--orange); --d-orange-bg: color-mix(in srgb, var(--orange) 15%, transparent);
+  --d-purple: var(--purple); --d-purple-bg: color-mix(in srgb, var(--purple) 15%, transparent);
+  --d-pink: var(--pink); --d-pink-bg: color-mix(in srgb, var(--pink) 15%, transparent);
+  /* Money in/out and late/over are STATUS, not decoration: they ride --ok and
+     --danger so a colour-vision mode reaches them. Only the chips and badges,
+     which are decorative, stay on the hue names above. */
+  --d-ok: var(--ok); --d-ok-bg: color-mix(in srgb, var(--ok) 15%, transparent);
+  --d-warn: var(--warn); --d-warn-bg: color-mix(in srgb, var(--warn) 15%, transparent);
+  --d-danger: var(--danger); --d-danger-bg: color-mix(in srgb, var(--danger) 15%, transparent);
+  --d-sans: var(--font-ui);
+
+  height: 100%;
+  overflow: auto;
+  background: var(--d-bg);
+  color: var(--d-ink);
+  font-family: var(--d-sans);
+  padding: 26px 30px 40px;
+}
+
+.dh-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.dh-h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.dh-sub {
+  margin: 4px 0 0;
+  color: var(--d-ink-2);
+  font-size: 14px;
+}
+.dh-top-right { display: flex; align-items: center; gap: 12px; }
+.dh-top-meta {
+  font-size: 12.5px;
+  color: var(--d-ink-3);
+}
+.dh-edit {
+  border: 1px solid var(--d-line);
+  background: var(--surface);
+  color: var(--d-ink-2);
+  border-radius: 9px;
+  padding: 6px 14px;
+  font: 650 12px var(--font-ui);
+  cursor: pointer;
+}
+.dh-edit:hover { color: var(--d-ink); border-color: var(--d-line-2); }
+/* In edit mode the button is the way out, so it reads as the active control. */
+.dh-edit.on {
+  background: var(--solid);
+  border-color: var(--solid);
+  color: var(--bg);
+}
+
+/* ---- edit mode -----------------------------------------------------------
+   Cards wiggle, iOS-homescreen style. Two things make it read as "loose"
+   rather than "broken": the rotation is tiny (0.5deg — enough to see, not
+   enough to blur text), and each card is given its own duration and delay so
+   they drift out of phase instead of rocking in lockstep like one rigid sheet.
+   Transform only, so this costs the compositor nothing while it runs. */
+@keyframes dhWiggle {
+  0%, 100% { transform: rotate(-0.5deg) translateY(0); }
+  50% { transform: rotate(0.5deg) translateY(-1px); }
+}
+.dh-grid.is-editing .dh-card {
+  animation: dhWiggle 0.34s ease-in-out infinite;
+}
+.dh-grid.is-editing .dh-card:nth-child(2n) { animation-duration: 0.39s; animation-delay: -0.12s; }
+.dh-grid.is-editing .dh-card:nth-child(3n) { animation-duration: 0.31s; animation-delay: -0.22s; }
+.dh-grid.is-editing .dh-card:nth-child(5n) { animation-duration: 0.37s; animation-delay: -0.06s; }
+/* The card being dragged is positioned by the drag loop's own transform —
+   wiggling it too would fight that and jitter the card under the pointer. */
+.dh-grid.is-editing .dh-card[style*="z-index: 40"] { animation: none; }
+/* The add tile is a target, not a card you can remove — it holds still. */
+.dh-grid.is-editing .dh-add { animation: none; }
+
+.dh-remove {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--solid);
+  color: var(--bg);
+  cursor: pointer;
+  padding: 0;
+  z-index: 3;
+  box-shadow: var(--shadow-pop);
+  animation: dhPop 0.16s cubic-bezier(0.2, 1.3, 0.5, 1) both;
+}
+.dh-remove:hover { background: var(--danger); border-color: var(--danger); }
+@keyframes dhPop {
+  from { opacity: 0; transform: scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dh-grid.is-editing .dh-card { animation: none; }
+  .dh-remove { animation: none; }
+  /* Edit mode still has to be legible without motion, so the cards say so. */
+  .dh-grid.is-editing .dh-card { outline: 1px dashed var(--d-line-2); outline-offset: 3px; }
+}
+
+.dh-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 1120px) {
+  .dh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .dh-grid { grid-template-columns: 1fr; }
+}
+
+.dh-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  animation: dhRise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  min-width: 0;
+  /* draggable bento: inertia handled imperatively in Dashboard.tsx. The card
+     itself is NOT the drag surface — only .dh-grip is — so the whole body stays
+     ordinary clickable content. */
+  position: relative;
+  will-change: transform;
+}
+/* The handle: three rules on the top edge, centred. Visible but recessive, and
+   it comes forward when the pointer is anywhere on the card. Padding well past
+   the glyph gives it a real touch target without a big visual footprint. */
+.dh-grip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  padding: 5px 0 7px;
+  border: none;
+  background: none;
+  color: var(--d-line);
+  cursor: grab;
+  opacity: 0.9;
+  transition: color 0.15s ease;
+  touch-action: none;
+  z-index: 1;
+}
+.dh-card:hover .dh-grip { color: var(--d-ink-3); }
+.dh-grip:hover { color: var(--d-ink-2); }
+.dh-grip:active { cursor: grabbing; }
+.dh-grip:focus-visible {
+  outline: 2px solid var(--d-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.dh-card :where(button, a, input, .dh-fcard, .dh-task-text) {
+  cursor: pointer;
+}
+.dh-card-activity {
+  display: flex;
+  flex-direction: column;
+}
+.dh-card-activity .dh-chart {
+  flex: 1;
+  height: auto;
+  min-height: 240px;
+}
+.dh-card:nth-child(2) { animation-delay: 0.05s; }
+.dh-card:nth-child(3) { animation-delay: 0.1s; }
+.dh-card:nth-child(4) { animation-delay: 0.15s; }
+.dh-card:nth-child(5) { animation-delay: 0.2s; }
+.dh-card:nth-child(6) { animation-delay: 0.25s; }
+
+.dh-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.dh-card-title {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.dh-card-sub {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--d-ink-3);
+}
+.dh-link {
+  background: none;
+  border: none;
+  color: var(--d-accent);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dh-pill-static {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--d-ink-2);
+  background: var(--d-line-2);
+  border: 1px solid var(--d-line);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.dh-icon-btn {
+  color: var(--d-ink-3);
+  display: inline-flex;
+}
+
+/* chips */
+.dh-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex: none;
+}
+.dh-chip.sm { width: 30px; height: 30px; border-radius: 9px; }
+.dh-chip.blue { background: var(--d-blue-bg); color: var(--d-blue); }
+.dh-chip.indigo { background: var(--d-indigo-bg); color: var(--d-indigo); }
+.dh-chip.green { background: var(--d-green-bg); color: var(--d-green); }
+.dh-chip.orange { background: var(--d-orange-bg); color: var(--d-orange); }
+.dh-chip.purple { background: var(--d-purple-bg); color: var(--d-purple); }
+.dh-chip.pink { background: var(--d-pink-bg); color: var(--d-pink); }
+
+/* hero */
+.dh-hero-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.dh-big {
+  font-size: 54px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--d-ink);
+}
+.dh-big-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.dh-big-label {
+  font-size: 13.5px;
+  color: var(--d-ink-2);
+  font-weight: 500;
+}
+.dh-big-note {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--d-ink-3);
+}
+.dh-delta {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.dh-delta.up { color: var(--d-ok); background: var(--d-ok-bg); }
+.dh-delta.down { color: var(--d-danger); background: var(--d-danger-bg); }
+.dh-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+.dh-tile {
+  border: 1px solid var(--d-line);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dh-tile-num {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.dh-tile-lbl {
+  font-size: 11.5px;
+  color: var(--d-ink-2);
+  margin-top: 1px;
+}
+
+/* chart */
+.dh-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+}
+.dh-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--d-ink-2);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.dot.accent { background: var(--d-accent); }
+.dot.muted { background: var(--d-ink-3); }
+.dh-chart {
+  width: 100%;
+  height: 170px;
+  display: block;
+  margin-top: 4px;
+}
+.dh-grid-line { stroke: var(--d-line); stroke-width: 1; }
+.dh-line-now { fill: none; stroke: var(--d-accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.dh-line-last { fill: none; stroke: var(--d-ink-3); stroke-width: 2; stroke-dasharray: 4 4; opacity: 0.6; }
+.dh-dot-now { fill: var(--surface); stroke: var(--d-accent); stroke-width: 2; }
+.dh-chart-axis { fill: var(--d-ink-3); font-size: 11px; font-weight: 600; font-family: var(--d-sans); }
+
+/* add-component tile */
+.dh-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 150px;
+  border: 1.5px dashed var(--glass-brd);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--glass) 55%, transparent);
+  color: var(--d-ink-3);
+  cursor: pointer;
+  font-family: var(--d-sans);
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.dh-add:hover {
+  transform: translateY(-2px);
+  border-color: var(--d-accent);
+  color: var(--d-accent);
+  background: color-mix(in srgb, var(--d-accent) 8%, transparent);
+}
+.dh-add-plus {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--d-accent) 14%, transparent);
+  color: var(--d-accent);
+}
+.dh-add-title { font-size: 15px; font-weight: 700; color: var(--d-ink); }
+.dh-add:hover .dh-add-title { color: var(--d-accent); }
+.dh-add-sub { font-size: 12px; color: var(--d-ink-3); }
+
+.dh-add-modal {
+  width: min(520px, 92vw);
+  font-family: var(--d-sans);
+  background: var(--bg-overlay);
+  border: 1px solid var(--glass-brd);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow), inset 0 1px 0 var(--glass-hi);
+  padding: 22px 24px;
+}
+.dh-add-modal h3 { margin: 0 0 4px; font-size: 18px; font-weight: 800; color: var(--text); }
+.dh-add-modal-sub { margin: 0 0 16px; font-size: 13px; color: var(--text-dim); }
+.dh-add-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.dh-add-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-brd);
+  background: color-mix(in srgb, var(--c) 10%, transparent);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  /* It restores a card now, so it is a button rather than a preview tile. */
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dh-add-opt:hover {
+  border-color: var(--c);
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+}
+.dh-add-opt-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--c);
+  flex: none;
+  box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.dh-add-opt-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.dh-add-opt-body b { font-weight: 700; font-size: 13px; color: var(--text); }
+.dh-add-opt-body em { font-style: normal; font-size: 11.5px; color: var(--text-dim); }
+.dh-add-opt-soon {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.dh-add-modal-foot { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* Add-a-row form */
+.dh-form { max-width: 460px; }
+.dh-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; flex: 1; min-width: 0; }
+.dh-field > span {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.dh-field input,
+.dh-field select {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font: 500 13px var(--font-ui);
+}
+.dh-field input:focus, .dh-field select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.dh-field-row { display: flex; gap: 10px; }
+.dh-form-hint { margin: 0; font-size: 11.5px; color: var(--text-faint); }
+.dh-form-error { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); line-height: 1.5; }
+.dh-form-error code {
+  font: 600 11.5px var(--font-mono);
+  background: var(--panel);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.dh-btn-solid {
+  background: var(--solid);
+  color: var(--bg);
+  border: 1px solid var(--solid);
+  border-radius: 9px;
+  padding: 8px 16px;
+  font: 650 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.dh-btn-solid:disabled { opacity: 0.45; cursor: default; }
+
+/* list (in focus) */
+.dh-list { list-style: none; margin: 0; padding: 0; }
+.dh-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.dh-row + .dh-row { border-top: 1px solid var(--d-line); }
+.dh-ava {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--on-vivid);
+  font-weight: 700;
+  font-size: 15px;
+  flex: none;
+}
+.dh-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dh-row-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-row:hover .dh-row-name { color: var(--d-accent); }
+.dh-row-role {
+  font-size: 12px;
+  color: var(--d-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  flex: none;
+}
+.dh-badge.blue { color: var(--d-blue); background: var(--d-blue-bg); }
+.dh-badge.purple { color: var(--d-purple); background: var(--d-purple-bg); }
+.dh-badge.green { color: var(--d-green); background: var(--d-green-bg); }
+.dh-badge.orange { color: var(--d-orange); background: var(--d-orange-bg); }
+.dh-badge.pink { color: var(--d-pink); background: var(--d-pink-bg); }
+.dh-star { color: var(--d-ink-3); display: inline-flex; flex: none; }
+.dh-row:hover .dh-star { color: var(--ink-amber); }
+
+/* schedule */
+/* Next 7 days: days stacked, each a label plus its rows. Only days that hold
+   something are rendered, so the card is short when the week is quiet rather
+   than seven lines of "nothing". */
+.dh-week { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.dh-day-label {
+  display: block;
+  font: 700 10.5px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--d-ink-3);
+  margin-bottom: 6px;
+}
+.dh-day-rows { list-style: none; margin: 0; padding: 0; }
+.dh-ag { display: flex; align-items: baseline; gap: 10px; padding: 6px 0; min-width: 0; }
+.dh-ag + .dh-ag { border-top: 1px solid var(--d-line); }
+/* A 4px spine in the row's own colour: calendar, focus block, due, money. */
+.dh-ag { border-left: 3px solid transparent; padding-left: 9px; margin-left: -12px; }
+.dh-ag.event { border-left-color: var(--d-accent); }
+.dh-ag.task { border-left-color: var(--d-warn); }
+.dh-ag.due { border-left-color: var(--d-danger); }
+.dh-ag.key .dh-ag-title,
+.dh-task.key .dh-task-text { color: var(--d-danger); font-weight: 650; }
+.dh-task.key .dh-radio { border-color: var(--d-danger); }
+/* Money out is pink like a deadline; money in is the only green spine. */
+.dh-ag.charge { border-left-color: var(--d-danger); }
+.dh-ag.income { border-left-color: var(--d-ok); }
+.dh-ag.income .dh-ag-amt { color: var(--d-ok); }
+.dh-ag-time {
+  font: 600 11px var(--font-mono);
+  color: var(--d-ink-3);
+  flex: none;
+  width: 48px;
+}
+.dh-ag-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-ag:hover .dh-ag-title { color: var(--d-accent); }
+.dh-ag-tag {
+  font-size: 11px;
+  color: var(--d-ink-3);
+  flex: none;
+  max-width: 34%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-ag-amt { font: 700 12px var(--font-mono); color: var(--d-ink-2); flex: none; }
+
+/* Finance: net, then the in/out ratio, then what is coming. */
+.dh-net { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.dh-net-num { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--d-ok); }
+.dh-net-num.down { color: var(--d-danger); }
+.dh-net-lbl { font-size: 12.5px; color: var(--d-ink-2); }
+.dh-flow { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.dh-flow-row { display: flex; align-items: center; gap: 10px; }
+.dh-flow-lbl {
+  font: 700 10px var(--font-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--d-ink-3);
+  width: 26px;
+  flex: none;
+}
+.dh-flow-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--d-line); overflow: hidden; }
+.dh-flow-bar i { display: block; height: 100%; border-radius: 4px; }
+.dh-flow-bar i.in { background: var(--d-ok); }
+.dh-flow-bar i.out { background: var(--d-danger); }
+.dh-flow-amt { font: 700 12px var(--font-mono); color: var(--d-ink-2); flex: none; }
+
+/* Subscriptions */
+.dh-subs { list-style: none; margin: 0; padding: 0; }
+.dh-sub { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; cursor: pointer; }
+.dh-sub + .dh-sub { border-top: 1px solid var(--d-line); }
+.dh-sub-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-sub:hover .dh-sub-name { color: var(--d-accent); }
+.dh-sub-when { font-size: 11.5px; color: var(--d-ink-3); flex: none; }
+.dh-sub-amt { font: 700 12.5px var(--font-mono); color: var(--d-ink); flex: none; }
+
+/* Pills and an action share the right-hand side of a card header. */
+.dh-head-tools { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* Empty states that tell you what to do, not just that there is nothing. */
+.dh-empty-block { padding: 10px 0; color: var(--d-ink-3); font-size: 13px; }
+.dh-empty-block p { margin: 0 0 6px; }
+.dh-empty-hint { font-size: 12px; line-height: 1.5; }
+.dh-empty-hint code {
+  font: 600 11.5px var(--font-mono);
+  background: var(--d-line-2);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* A legend row is the way into the category, so it is a real button. */
+.dh-cat {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  text-align: left;
+}
+.dh-cat span { flex: 1; color: var(--d-ink); }
+.dh-cat b { font-weight: 700; color: var(--d-ink-2); font-size: 12.5px; }
+.dh-cat:hover span { color: var(--d-accent); }
+
+.dh-empty {
+  font-size: 13px;
+  color: var(--d-ink-3);
+  padding: 14px 0;
+}
+
+/* today's tasks */
+/* Overdue is the one number on this dashboard that should read as a warning,
+   so it gets the alert pill rather than the neutral --d-line-2 one. */
+.dh-pill-alert {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--d-danger);
+  background: var(--d-danger-bg);
+  border: 1px solid color-mix(in srgb, var(--d-danger) 25%, transparent);
+  border-radius: 8px;
+  padding: 4px 10px;
+  flex: none;
+}
+
+/* A task row on the Deadlines card carries a second line (its project), so the
+   text half becomes a column while the radio and the date stay centred. */
+.dh-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dh-task-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dh-task-proj {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--d-ink-3);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-task-proj:hover { color: var(--d-accent); }
+/* The In Focus sub-line is "note title · project", and either half can be long.
+   A flex row lets both shrink and ellipsis independently. `max-width: 100%` on
+   the button alone was not enough: it resolves against the whole line, so a
+   button starting halfway along could still end up half a line past the edge. */
+.dh-fcard-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.dh-fcard-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-fcard-sub .dh-task-proj {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: inherit;
+  color: inherit;
+}
+.dh-fcard-sub .dh-task-proj:hover { color: var(--d-accent); }
+/* The fallback chip (no project behind it) still opens the note, so it gets the
+   same hover — nothing on this card looks clickable without being clickable. */
+.dh-task-proj.plain:hover { color: var(--d-ink-2); }
+
+.dh-projs { list-style: none; margin: 0; padding: 0; }
+.dh-proj {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.dh-proj + .dh-proj { border-top: 1px solid var(--d-line); }
+.dh-proj-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.dh-proj-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-proj:hover .dh-proj-name { color: var(--d-accent); }
+.dh-proj-sub { font-size: 11.5px; color: var(--d-ink-3); }
+.dh-proj-late { color: var(--d-danger); font-weight: 700; }
+/* Progress reads in the project's own life-area colour (--c), which is the same
+   colour it carries on the Overview board. */
+.dh-proj-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--d-line);
+  overflow: hidden;
+  margin-top: 2px;
+}
+.dh-proj-bar i { display: block; height: 100%; background: var(--c, var(--d-accent)); border-radius: 2px; }
+.dh-proj-when { font-size: 12px; font-weight: 600; color: var(--d-ink-3); flex: none; }
+.dh-proj-when.over { color: var(--d-danger); }
+
+.dh-tasks { list-style: none; margin: 0; padding: 0; }
+.dh-task { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.dh-task + .dh-task { border-top: 1px solid var(--d-line); }
+.dh-radio {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--d-line);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  flex: none;
+  transition: 0.15s;
+}
+.dh-radio:hover { border-color: var(--d-accent); box-shadow: inset 0 0 0 4px var(--d-accent); }
+.dh-task-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.dh-task-text:hover { color: var(--d-accent); }
+.dh-task-time { font-size: 12px; font-weight: 600; color: var(--d-ink-3); flex: none; }
+.dh-task-time.over { color: var(--d-danger); }
+.dh-task-foot { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--d-line); }
+.dh-prog { display: flex; flex-direction: column; gap: 7px; }
+.dh-prog-bar { height: 6px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
+.dh-prog-bar span { display: block; height: 100%; background: var(--d-accent); border-radius: 3px; }
+.dh-prog-lbl { font-size: 12px; color: var(--d-ink-2); font-weight: 500; }
+
+/* analytics */
+.dh-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+.dh-stat {
+  border: 1px solid var(--d-line);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dh-stat-num { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+.dh-stat-lbl { font-size: 11.5px; color: var(--d-ink-2); }
+.dh-src-title { font-size: 12.5px; font-weight: 700; color: var(--d-ink-2); }
+.dh-src-body { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.dh-donut { width: 118px; height: 118px; flex: none; }
+.dh-donut-num { font-size: 22px; font-weight: 800; fill: var(--d-ink); font-family: var(--d-sans); }
+.dh-donut-lbl { font-size: 10px; font-weight: 600; fill: var(--d-ink-3); font-family: var(--d-sans); }
+.dh-src-legend { list-style: none; margin: 0; padding: 0; flex: 1; }
+.dh-src-legend li { display: flex; align-items: center; gap: 9px; padding: 4px 0; font-size: 13px; }
+.dh-src-legend li span { flex: 1; color: var(--d-ink); }
+.dh-src-legend li b { font-weight: 700; color: var(--d-ink-2); font-size: 12.5px; }
+
+@keyframes dhRise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* The rail is one flat surface in both themes now — the old indigo/teal washes
+   are gone with the glass. `.rail-indigo` is left as a no-op so App.tsx keeps
+   compiling; delete the class when the shell is next touched. */
+
+/* ---- colourful "In Focus" cards (Panze energy) ---- */
+.dh-fcards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.dh-fcard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+.dh-fcard:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-strong);
+}
+
+.dh-fcard-ic {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--c);
+  color: var(--on-vivid);
+  font-weight: 800;
+  font-size: 15px;
+  flex: none;
+  box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.dh-fcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dh-fcard-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--d-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-fcard-sub {
+  font-size: 12px;
+  color: var(--d-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dh-fcard-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  flex: none;
+  color: var(--d-ink-2);
+  background: var(--d-line-2);
+}
+.dh-fcard-star { color: color-mix(in srgb, var(--c) 55%, var(--d-ink-3)); display: inline-flex; flex: none; }
+.dh-fcard:hover .dh-fcard-star { color: var(--c); }
+
+/* colour the Today's-Tasks radios to match */
+.dh-task .dh-radio { border-color: color-mix(in srgb, var(--c, var(--d-line-2)) 45%, var(--d-line)); }
+.dh-task .dh-radio:hover { border-color: var(--c, var(--d-accent)); box-shadow: inset 0 0 0 4px var(--c, var(--d-accent)); }
+
+/* ---- Dashboard: the Finance card leads with the real month ---------------- */
+.dh-spend {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.dh-spend:hover .dh-net-num { color: var(--accent); }
+.dh-pace { display: block; margin: 8px 0 2px; }
+.dh-pace .track { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
+.dh-pace .fill { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.dh-pace em { display: block; margin-top: 5px; font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
+.dh-spend-foot { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; font-size: 11.5px; color: var(--d-ink-3); }
+.dh-spend-foot b { font: 700 12px var(--font-mono); color: var(--d-ink-2); }
+.dh-spend-foot .save b { color: var(--ok); }
+
+/* ---- Dashboard finance cards --------------------------------------------- */
+.dh-net-num.up { color: var(--ok); }
+/* Where a typical month sits on the bar, so the fill means something. */
+.dh-pace .typical { position: absolute; top: -2px; bottom: -2px; left: 100%; width: 2px; background: var(--d-ink-3); opacity: 0.5; }
+.dh-pace .track { position: relative; overflow: visible; }
+.dh-pace .fill { max-width: 100%; }
+
+.dh-save-bar { display: flex; gap: 3px; height: 6px; margin: 9px 0 6px; }
+.dh-save-bar i { display: block; height: 100%; border-radius: 3px; }
+.dh-save-bar .surplus { background: var(--ok); }
+.dh-save-bar .trim { background: color-mix(in srgb, var(--ok) 32%, transparent); }
+
+/* One row per category. The tile carries the colour, the bar the size, and the
+   whole row is the button — same shape as the Finance area's own rows. */
+.dh-cats { list-style: none; margin: 10px 0 0; padding: 0; }
+.dh-cat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 6px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.dh-cat:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
+.dh-cat .tile {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  flex: none;
+  background: color-mix(in srgb, var(--c) 14%, var(--surface));
+  color: var(--c);
+}
+.dh-cat .tile svg { width: 12px; height: 12px; }
+.dh-cat .nm { flex: none; width: 92px; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dh-cat .bar { flex: 1; min-width: 24px; height: 5px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
+.dh-cat .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+.dh-cat > b { flex: none; width: 74px; text-align: right; font: 700 12px var(--font-mono); }
+[data-theme="command"] .dh-cat .tile { background: var(--c); color: var(--on-vivid); }
+
+/* The month still running, reported where it cannot be mistaken for the head. */
+.dh-running {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 6px;
+  border: none;
+  border-top: 1px solid var(--d-line);
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--d-ink-3);
+  text-align: left;
+  cursor: pointer;
+}
+.dh-running:hover { color: var(--d-ink-2); }
+.dh-running b { font: 700 12px var(--font-mono); color: var(--d-ink-2); }
+.dh-running em { margin-left: auto; font-style: normal; }
+
+/* The in/out rows are doors to their calendars now. */
+.dh-flow-row { width: 100%; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.dh-flow-row:hover { background: var(--fin-row-hover, rgba(0,0,0,0.03)); }
+
+/* ═══ Phone layout ═══════════════════════════════════════════════════════════
+   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
+   hands rather than pixels: a side rail puts navigation under the far edge of a
+   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
+   costs 16% of a 375px screen to show seven icons.
+
+   Everything here is additive. The desktop rules are untouched; this block only
+   reorders the same markup, so no component knows it is on a phone. */
+@media (max-width: 760px) {
+  /* Round and inline controls keep their drawn size and gain a centred 44px
+     hit area instead. The overlay is transparent and sits above the control's
+     own box, so the thumb target is square while the circle stays a circle. */
+  .dh-radio,
+  .dh-task-proj {
+    position: relative;
+  }
+  .dh-radio::after,
+  .dh-task-proj::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  /* ---- Dashboard ----
+     The source legend is a single non-wrapping row of chips. */
+  .dh-src-legend {
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+}

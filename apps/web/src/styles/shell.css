@@ -1,0 +1,314 @@
+/* The shell (App.tsx): rail, account, the page frame, and the phone layout that frames every page.
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+.shell {
+  display: flex;
+  height: 100%;
+}
+
+/* ---- left rail: a plain sidebar, not a floating slab ---- */
+.rail {
+  width: 224px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 10px 12px;
+  gap: 1px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  color: var(--text-dim);
+}
+/* The wordmark is the UI face at its heaviest, set in caps. Mono reads as
+   terminal, and the terminal was deliberately removed from this app — the
+   chrome should not keep claiming it.
+
+   Caps, tracked out, and smaller than the lowercase setting it replaces: caps
+   have no descenders and read a size larger than they are, and they need the
+   letter spacing that lowercase does not — set solid they close up into a
+   block. The wide tracking also rhymes with the gaps between the cells in the
+   mark, which is why this setting sits with it rather than beside it.
+
+   The transform is CSS, not the markup, so the accessible name stays the word
+   "basalt" rather than six letters a screen reader might spell out. */
+.rail-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-brand);
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 10px 13px;
+  color: var(--text);
+}
+.rail-brand svg {
+  color: var(--logo);
+}
+.rail-nav,
+.rail-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.rail-tools {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.rail-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+.rail-item:hover {
+  color: var(--text);
+  background: var(--bg-raised);
+}
+/* Active is a quiet fill + weight, not a colour wash. */
+.rail-item.active {
+  color: var(--text);
+  font-weight: 600;
+  background: var(--panel-strong);
+}
+.rail-item svg {
+  flex: none;
+  opacity: 0.75;
+}
+.rail-item.active svg {
+  opacity: 1;
+}
+/* Back sits above the nav and is the one rail item that can be unavailable —
+   greyed rather than hidden, so the rail never reflows as history fills. */
+.rail-back {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.rail-back:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+.rail-back:disabled:hover {
+  background: none;
+  color: var(--text-dim);
+}
+.rail-back span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A build newer than this tab's is being served: colour the icon and label,
+   and swap the ⌘R hint for a dot. Accent, not a banner — it is information,
+   not an interruption. */
+.rail-item.has-update,
+.rail-item.has-update:hover {
+  color: var(--accent);
+}
+.rail-item.has-update svg {
+  opacity: 1;
+}
+.rail-item.has-update .rail-kbd {
+  color: var(--accent);
+}
+.rail-kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.rail-spacer {
+  flex: 1;
+}
+
+/* account card, bottom-left */
+.account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+}
+.account:hover {
+  background: var(--bg-raised);
+}
+.account-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.account-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-team {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+@media (max-width: 980px) {  .rail {
+    width: 60px;
+  }
+  /* Labels go, icons stay. The theme toggle keeps its icon in a <span> (it
+     needs its own view-transition-name to cross-fade sun into moon), so a bare
+     `.rail-item span` hid the toggle itself — the one rail item that vanished
+     when the window narrowed. */
+  .rail-item span:not(.theme-ic),
+  .rail-kbd,
+  .account-text,
+  .rail-brand span {
+    display: none;
+  }
+}
+
+/* ═══ Phone layout ═══════════════════════════════════════════════════════════
+   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
+   hands rather than pixels: a side rail puts navigation under the far edge of a
+   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
+   costs 16% of a 375px screen to show seven icons.
+
+   Everything here is additive. The desktop rules are untouched; this block only
+   reorders the same markup, so no component knows it is on a phone. */
+@media (max-width: 760px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  /* The bar sits above the content in the stacking order and below it in the
+     flow, so it stays put while the page scrolls under it. */
+  .rail {
+    order: 2;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    /* Anything that does not fit scrolls, so no control is unreachable — the
+       seven views fit a 375px screen, the utilities are one swipe away. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Clear the home indicator on a notched iPhone (needs viewport-fit=cover). */
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .rail-item {
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    /* 44px is Apple's minimum touch target. Before this, 29 of 32 controls on
+       the Overview screen were under it. */
+    min-width: 44px;
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+
+  /* The brand, the back button, the spacer and the account block are desktop
+     chrome: a phone has a system back gesture, and the account lives in
+     Settings. .rail-nav and .rail-tools are the two groups that remain, laid
+     out in a row. */
+  .rail-brand,
+  .rail-back,
+  .rail-spacer,
+  .account {
+    display: none;
+  }
+  .rail-nav,
+  .rail-tools {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+  }
+
+  /* Content scrolls; the bar does not. */
+  .shell > :not(.rail) {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  /* THE root cause of things printing over each other on a phone.
+     Every view root is pinned to the viewport height — 724px here — because on
+     a desktop the whole screen fits and each pane scrolls inside it. Planning
+     and Overview go further and set overflow-y:hidden, so content past the fold
+     is not scrolled to, it is CLIPPED: .planning was 724px tall holding 1742px
+     of content, which is why the backlog printed straight through the footer.
+
+     On a phone the page itself is the scroll surface, so every root grows to
+     its content and the shell above does the scrolling. */
+  .home,
+  .arch,
+  .planning,
+  .overview,
+  .contacts,
+  .mail,
+  .fin {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* Give every interactive control a real touch target — but only the ones
+     whose height is free to grow. A blanket rule stretched the round task
+     checkbox into an ellipse and bloated inline labels, so anything with a
+     fixed shape or an inline role opts out and gets the treatment below. */
+  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj),
+  select,
+  summary,
+  [role="button"] {
+    min-height: 44px;
+  }
+  input,
+  textarea {
+    /* Under 16px iOS zooms the whole page on focus and never zooms back. */
+    font-size: max(16px, 1em);
+  }
+
+  /* Page headers put the title, a subtitle and a right-hand meta block on one
+     line. At 375px the subtitle ran under the timestamp. Let them stack. */
+  .dh-head,
+  .plan-top,
+  .ov-head,
+  .home-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Page headings were sized for a 1400px canvas. */
+  h1 {
+    font-size: clamp(22px, 7vw, 32px);
+  }
+}

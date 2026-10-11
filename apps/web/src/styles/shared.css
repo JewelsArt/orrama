@@ -1,0 +1,181 @@
+/* Shared pieces several screens use: buttons, scope tabs, overlays, the confirm dialog, the --d-* palette.
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+/* ---- shared bits ---- */
+button.ghost {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+button.ghost:hover {
+  color: var(--text);
+  background: var(--panel-strong);
+}
+button.primary {
+  background: var(--solid);
+  color: var(--solid-text);
+  font-weight: 650;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button.primary:disabled {
+  opacity: 0.55;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  flex: none;
+}
+.avatar.sm {
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+}
+
+.empty {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+}
+
+.badge {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  flex: none;
+}
+.badge.p1 {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.badge.p2 {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.badge.due.overdue {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.badge.progress-badge {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* scope tabs (Architecture / Planning / Overview headers) */
+.view-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.scope-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  background: var(--panel);
+  width: fit-content;
+}
+.scope-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+}
+.scope-tab.active {
+  background: var(--panel-strong);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.scope-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--team, var(--accent));
+}
+.scope-pct {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.scope-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: 8px;
+}
+.scope-new {
+  margin-left: auto;
+}
+
+/* ---- overlays ---- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  display: grid;
+  place-items: start center;
+  padding-top: 12vh;
+  z-index: 50;
+}
+.palette,
+.capture-box,
+.settings {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+}
+
+/* ---- live preview ---- */
+/* in-app confirmation (window.confirm is a no-op in the desktop webview) */
+.confirm {
+  width: min(420px, 92vw);
+  padding: 20px 22px 18px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-pop);
+}
+.confirm h2 { margin: 0; font-size: 16px; font-weight: 750; letter-spacing: -0.01em; }
+.confirm p { margin: 9px 0 0; font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+.confirm-actions { display: flex; gap: 8px; margin-top: 18px; }
+.confirm-actions .ct-btn { flex: 1; }
+
+/* A dialog box that takes focus itself (it has no controls yet) shows no ring. */
+[role="dialog"][tabindex="-1"]:focus,
+[role="alertdialog"][tabindex="-1"]:focus { outline: none; }

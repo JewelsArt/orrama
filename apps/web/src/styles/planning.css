@@ -1,0 +1,968 @@
+/* Planning (Planning.tsx, TaskCard.tsx): the week and month, backlog, dated band, the task card.
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+/* ---- planning ---- */
+.planning {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 22px 24px 20px;
+  overflow: hidden;
+}
+.plan-top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  flex-wrap: wrap;
+}
+.plan-h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.plan-sub {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.plan-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The week in numbers. The grid can legitimately be empty — a week with no
+   meetings is not a bug — so the tab has to say something before you reach it. */
+.plan-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  flex: none;
+}
+.plan-tile {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 9px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.plan-tile-lbl {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+.plan-tile-val {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.plan-tile-val em {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+.plan-tile.bad .plan-tile-val {
+  color: var(--danger);
+}
+.plan-tile-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-tile-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--panel-strong);
+  overflow: hidden;
+  margin-top: 3px;
+}
+.plan-tile-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.plan-foot {
+  flex: none;
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ---- task card (Planning) ---- */
+.task-card { width:min(460px, 94vw); padding:18px 20px 20px; }
+.task-head { display:flex; align-items:center; justify-content:space-between; }
+.task-kicker { font:700 10px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-faint); }
+.task-title { margin:8px 0 2px; font-size:17px; font-weight:750; line-height:1.35; letter-spacing:-0.01em; }
+.task-note { margin:0 0 14px; font-size:12px; color:var(--text-faint); }
+.linkish { border:none; background:none; padding:0; color:var(--accent); font:inherit; cursor:pointer; }
+.linkish:hover { text-decoration:underline; }
+.task-stats { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; padding:12px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.task-stats > div { display:flex; flex-direction:column; gap:3px; }
+.task-k { font:600 9.5px var(--font-mono); letter-spacing:.07em; text-transform:uppercase; color:var(--text-faint); }
+.task-stats b { font-size:13.5px; font-weight:700; }
+.task-stats b.late { color:var(--danger); }
+.task-stats b.ok { color:var(--ok); }
+.task-project { padding:14px 0 0; }
+.task-project-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:6px; }
+.task-project-name { border:none; background:none; padding:0; font:750 14px var(--font-ui); color:var(--text); cursor:pointer; }
+.task-project-name:hover:not(:disabled) { color:var(--accent); }
+.task-project-name:disabled { cursor:default; }
+.task-pill { font:600 10.5px var(--font-ui); padding:2px 8px; border-radius:99px; color:var(--text-dim); background:var(--panel); border:1px solid var(--border); }
+.task-pill.late { color:var(--danger); border-color:color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.task-people { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.task-person { display:inline-flex; align-items:center; gap:6px; padding:3px 9px 3px 3px; border:1px solid var(--border); border-radius:99px; background:none; color:var(--text-dim); font:600 11.5px var(--font-ui); cursor:pointer; }
+.task-person:hover { color:var(--text); border-color:var(--border-strong); }
+.task-empty { margin:8px 0 0; font-size:11.5px; color:var(--text-faint); }
+.task-plan { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); }
+.task-plan-row { display:flex; gap:8px; margin-top:7px; }
+.task-plan-row input { flex:1; background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; color:var(--text); font:500 13px var(--font-ui); }
+.task-done { margin:8px 0 0; font-size:12px; color:var(--ok); }
+
+/* ---- planning calendar ---- */
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.week-nav .ghost {
+  font-size: 15px;
+  padding: 3px 9px;
+}
+.week-today {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  min-width: 138px;
+  text-align: center;
+}
+
+.plan-body {
+  display: flex;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 14px;
+}
+
+/* ---- backlog rail ---- */
+.backlog {
+  width: 252px;
+  flex: none;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 12px;
+}
+.backlog-head h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.backlog-filters {
+  display: flex;
+  gap: 4px;
+}
+.backlog-filter {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: none;
+  color: var(--text-faint);
+  font: 600 11px var(--font-ui);
+  padding: 3px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backlog-filter span {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  opacity: 0.7;
+}
+.backlog-filter:hover {
+  border-color: var(--border-strong);
+  color: var(--text-dim);
+}
+.backlog-filter.on {
+  border-color: var(--border-strong);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+.backlog-hint {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  margin: 10px 0 10px;
+  line-height: 1.45;
+}
+.backlog .cal-task {
+  margin-bottom: 6px;
+}
+.backlog .empty {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* The one place the app fills the calendar for you — and it proposes first. */
+.plan-auto {
+  margin-top: 10px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: 650 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.plan-auto:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.plan-auto:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.plan-proposal {
+  margin-top: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+}
+.plan-proposal-line {
+  margin: 0;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+.plan-proposal-hint {
+  margin: 3px 0 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.plan-proposal-actions {
+  display: flex;
+  gap: 6px;
+}
+.plan-proposal-actions button {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.cal-task {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  font-size: 12.5px;
+  cursor: grab;
+  position: relative;
+}
+.cal-task:hover {
+  border-color: var(--border-strong);
+}
+.cal-task:active {
+  cursor: grabbing;
+}
+.cal-task.risk {
+  border-left-color: var(--danger);
+}
+.cal-task-text {
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cal-task-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+.cal-task-est {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--accent);
+  flex: none;
+}
+.cal-task-project {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-task-due {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  flex: none;
+}
+.cal-task-due.overdue {
+  color: var(--danger);
+}
+
+/* ---- month ---- */
+.cal-month {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(86px, 1fr);
+  gap: 5px;
+  min-width: 0;
+  overflow: auto;
+}
+.cal-month-dow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 2px 6px;
+}
+.cal-month-day {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+.cal-month-day.today {
+  border-color: var(--accent);
+}
+.cal-month-day.dim {
+  opacity: 0.45;
+}
+.cal-month-num {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cal-month-day.today .cal-month-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-month-num:hover {
+  color: var(--accent);
+}
+.cal-month-load {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--panel-strong);
+  overflow: hidden;
+}
+.cal-month-bar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.cal-month-bar.over {
+  background: var(--warn);
+}
+
+/* ---- week time grid ---- */
+.cal-grid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+}
+.cal-grid-head {
+  display: grid;
+  grid-template-columns: 52px repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+.cal-gutter-spacer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Reads as a range, not a control, until you want it: the grid already tells
+   you which hours it is showing, so the label *is* the button. */
+.cal-window-toggle {
+  border: 1px solid transparent;
+  background: none;
+  border-radius: 4px;
+  color: var(--text-faint);
+  font: 400 9.5px var(--font-mono);
+  padding: 1px 4px;
+  cursor: pointer;
+}
+.cal-window-toggle:hover {
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+.cal-col-head {
+  padding: 7px 9px 6px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.cal-col-head.today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.cal-day-name {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cal-day-num {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.cal-col-head.today .cal-day-num {
+  color: var(--accent);
+  font-weight: 700;
+}
+.cal-col-hours {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.cal-col-load {
+  flex-basis: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--panel-strong);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.cal-col-load > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.cal-col-load.over > span {
+  background: var(--warn);
+}
+
+/* The dated band: deadlines, milestones, money, all-day events. Nothing here
+   owns an hour, so nothing here belongs in the grid below. */
+.cal-marks {
+  display: grid;
+  grid-template-columns: 52px repeat(7, 1fr);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  max-height: 62px;
+  overflow: hidden;
+}
+.cal-marks.open {
+  max-height: 210px;
+  overflow-y: auto;
+}
+.cal-marks-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 5px 7px 5px 0;
+}
+.cal-marks-gutter > span {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+.cal-marks-toggle {
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font: 600 9.5px var(--font-ui);
+  cursor: pointer;
+  padding: 0;
+}
+.cal-marks-toggle:hover {
+  color: var(--accent);
+}
+.cal-marks-cell {
+  border-left: 1px solid var(--border);
+  padding: 4px 4px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-marks-cell.today {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.cal-mark {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 2px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text-dim);
+  font: 500 10.5px var(--font-ui);
+  line-height: 1.35;
+  padding: 2px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.cal-mark:disabled {
+  cursor: default;
+}
+.cal-mark:hover:not(:disabled) {
+  color: var(--text);
+}
+.cal-mark.due {
+  border-left-color: var(--warn);
+  color: var(--text);
+}
+.cal-mark.due.overdue {
+  border-left-color: var(--danger);
+  color: var(--danger);
+}
+/* A #deadline task: the one chip that must not be missed. Solid, not a
+   left rule — every other chip is a rule, so this reads first at a glance. */
+.cal-mark.due.key,
+.cal-mark.due.key.overdue {
+  background: var(--danger);
+  border-left-color: var(--danger);
+  color: var(--on-vivid);
+  font-weight: 650;
+}
+.cal-mark.due.key:hover:not(:disabled) {
+  color: var(--on-vivid);
+}
+.cal-mark.milestone {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 650;
+}
+.cal-mark.money {
+  border-left-color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.cal-mark.money.in {
+  border-left-color: var(--ok);
+  color: var(--ok);
+}
+.cal-mark.ics,
+.cal-mark.event {
+  border-left-color: var(--blue);
+}
+.cal-mark.more {
+  border-left-color: transparent;
+  background: none;
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+.cal-grid-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  /* The first and last hour labels are centred on their own line, so without
+     this half of "07:00" sits above the scroll box. Padding the scroller moves
+     gutter and body together, so the geometry still lines up. */
+  padding: 9px 0 12px;
+}
+.cal-gutter {
+  position: relative;
+  border-right: 1px solid var(--border);
+}
+.cal-hour-label {
+  position: absolute;
+  right: 7px;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+.cal-grid-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.cal-hour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--border);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.cal-col {
+  position: relative;
+  border-left: 1px solid var(--border);
+  min-width: 0;
+}
+.cal-col.weekend {
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+}
+.cal-col.today {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--danger);
+  pointer-events: none;
+  z-index: 3;
+}
+.cal-now::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/* Sits behind the columns so drag, drop and double-click still reach them. */
+.cal-empty {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 34%;
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cal-item {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+  font-size: 12px;
+  overflow: hidden;
+  cursor: grab;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  user-select: none;
+  text-align: left;
+}
+.cal-item.dragging {
+  opacity: 0.9;
+  z-index: 4;
+  box-shadow: var(--shadow);
+  cursor: grabbing;
+  animation: cal-wiggle 0.3s ease-in-out infinite;
+}
+@keyframes cal-wiggle {
+  0%,
+  100% {
+    transform: rotate(-0.9deg);
+  }
+  50% {
+    transform: rotate(0.9deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cal-item.dragging {
+    animation: none;
+  }
+}
+.cal-item.task {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--accent);
+}
+.cal-item.task.risk {
+  border-left-color: var(--danger);
+}
+.cal-item.event {
+  background: color-mix(in srgb, var(--blue) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue) 40%, transparent);
+  border-left: 3px solid var(--blue);
+}
+/* A proposal, not a booking: dashed until you say yes. */
+.cal-item.ghost {
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cal-item.ghost:hover {
+  border-style: solid;
+  color: var(--text);
+}
+.cal-item.readonly {
+  opacity: 0.65;
+  cursor: default;
+}
+.cal-item-time {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.cal-item-title {
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.cal-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+}
+.cal-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+
+/* popup */
+.cal-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+.cal-popup {
+  position: fixed;
+  z-index: 56;
+  width: 300px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--glass-brd);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.cal-popup-title {
+  margin: 0;
+  font-weight: 650;
+  font-size: 14px;
+}
+.cal-popup-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+.cal-popup-note {
+  font-size: 12px;
+  padding: 0 2px;
+  color: var(--accent);
+}
+.cal-popup-risk {
+  color: var(--danger);
+  font-family: var(--font-ui);
+}
+.cal-popup-budget {
+  display: flex;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+}
+.cal-popup-budget .done {
+  color: var(--ok);
+}
+.cal-popup-input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  color: var(--text);
+  font-size: 13px;
+}
+.cal-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+.cal-stepper span {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  min-width: 42px;
+  text-align: center;
+}
+.cal-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.ghost.danger {
+  color: var(--danger);
+}
+
+/* ---- ICS layer (subscribed calendars) ---- */
+.cal-item.event.ics {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--text-faint);
+  z-index: 1; /* under task blocks: plan around it, not on it */
+}
+.cal-allday {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  background: var(--bg-raised);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 3;
+}
+
+/* ═══ Phone layout ═══════════════════════════════════════════════════════════
+   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
+   hands rather than pixels: a side rail puts navigation under the far edge of a
+   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
+   costs 16% of a 375px screen to show seven icons.
+
+   Everything here is additive. The desktop rules are untouched; this block only
+   reorders the same markup, so no component knows it is on a phone. */
+@media (max-width: 760px) {
+  /* Panes that shared the height with a sibling must stop competing for it. */
+  .plan-body,
+  .plan-top,
+  .plan-strip {
+    flex: 0 0 auto;
+  }
+
+  /* Planning's strip squeezed five tiles into 375px and truncated every label
+     to "UNPLAN…". Two per row, so each gets ~170px and reads in full. */
+  .plan-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .plan-tile {
+    min-width: 0;
+  }
+  .plan-tile-lbl {
+    white-space: normal;
+  }
+  .plan-top {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  /* ---- Planning ----
+     .plan-body is a flex ROW: backlog beside the week grid. At 375px that left
+     the calendar 61px wide — a sliver showing three hour labels and nothing
+     else. Stack them, so each gets the full width in turn, and let the seven
+     day columns scroll sideways inside the calendar rather than compressing. */
+  .plan-body {
+    flex-direction: column;
+    /* Desktop fixes this row to the viewport height and lets each column scroll
+       inside it. Stacked, that cap made the backlog overrun its own box and the
+       footer text printed straight through it — so the container grows with its
+       children here instead. */
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+  .plan-body > .backlog,
+  .plan-body > .cal-grid {
+    width: 100%;
+    max-width: 100%;
+    flex: 0 0 auto;
+  }
+  .cal-grid {
+    overflow-x: auto;
+    min-height: 420px;
+  }
+  .cal-grid-scroll {
+    overflow-x: auto;
+  }
+  .cal-marks-cell {
+    min-width: 0;
+  }
+}

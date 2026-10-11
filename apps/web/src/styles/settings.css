@@ -1,0 +1,503 @@
+/* Settings (Settings.tsx, VisionEditor.tsx): the modal, colour vision, integrations, mail connect.
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+/* ---- settings ---- */
+.settings {
+  width: min(460px, 92vw);
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 650;
+}
+.settings h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.char-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 7px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.char-pick:hover {
+  border-color: var(--border-strong);
+}
+.char-pick.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.settings-row {
+  display: flex;
+  gap: 8px;
+}
+.settings-row input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+}
+.settings-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.theme-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.theme-pick.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* ---- colour-vision picker -------------------------------------------------
+   Each row previews its own palette: the swatch strip carries data-vision, so
+   vision.css re-declares the families for that strip alone. You compare the
+   modes side by side, in the theme you actually use, without switching. */
+.settings-note {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vision-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+}
+.vision-pick:hover {
+  border-color: var(--border-strong);
+}
+.vision-pick.active {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.vision-swatches {
+  display: flex;
+  flex: none;
+  gap: 2px;
+}
+.vision-swatches i {
+  width: 9px;
+  height: 20px;
+  border-radius: 2px;
+}
+.vision-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.vision-txt strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+.vision-txt em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* A saved profile's row splits in two: the body picks it, the Edit button opens
+   it. One <button> inside another is invalid HTML, so the row is a <div> and
+   both halves are real buttons. */
+.vision-pick:has(.vision-choose) {
+  padding: 0;
+  gap: 0;
+}
+.vision-choose {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.vision-edit {
+  flex: none;
+  align-self: stretch;
+  padding: 0 13px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-faint);
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+.vision-edit:hover {
+  color: var(--accent);
+}
+.vision-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 11px;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+}
+.vision-add:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- palette editor -------------------------------------------------------
+   Wells on the left, the real Finance page on the right. The preview carries
+   the draft's custom properties on its own wrapper, so it is not a mock of the
+   palette — it IS the palette, one subtree early. */
+.vised-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+}
+.vised {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 100%);
+  max-height: 100%;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.vised-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.vised-name {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  color: var(--text);
+  font: 700 14px var(--font-ui);
+}
+.vised-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.vised-actions button {
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font: 600 12.5px var(--font-ui);
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+}
+.vised-actions button:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.vised-save {
+  background: var(--solid) !important;
+  border-color: transparent !important;
+  color: var(--solid-text) !important;
+}
+.vised-del:hover {
+  color: var(--danger) !important;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent) !important;
+}
+.vised-x {
+  padding: 8px 10px !important;
+  border-color: transparent !important;
+  background: none !important;
+}
+.vised-body {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+.vised-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+.vised-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vised-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+.vised-slot:hover {
+  background: var(--panel);
+}
+/* Basalt's own colour is not one of the seven; the rule says so. */
+.vised-sep {
+  height: 1px;
+  margin: 8px 6px 4px;
+  background: var(--border);
+}
+/* The native well, stripped of its chrome so it reads as a swatch. */
+.vised-well {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.vised-well::-webkit-color-swatch-wrapper { padding: 2px; }
+.vised-well::-webkit-color-swatch { border: none; border-radius: 7px; }
+.vised-well::-moz-color-swatch { border: none; border-radius: 7px; }
+.vised-slot-txt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.vised-slot-txt strong { font-size: 13px; font-weight: 650; color: var(--text); }
+.vised-slot-txt em { font-style: normal; font-size: 11px; color: var(--text-faint); }
+.vised-hex {
+  flex: none;
+  width: 78px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 7px;
+  color: var(--text-dim);
+  font: 600 11.5px var(--font-mono);
+}
+.vised-ratio {
+  flex: none;
+  width: 46px;
+  text-align: right;
+  font: 600 11px var(--font-mono);
+  color: var(--text-faint);
+}
+/* Below 4.5:1 the derived text colour is not reliably readable. Said before you
+   save, not discovered afterwards on a pill you cannot read. */
+.vised-ratio.low { color: var(--danger); }
+.vised-warn {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.vised-warn strong { color: var(--text); font-weight: 700; }
+
+.vised-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: auto;
+  background: var(--fin-ground);
+}
+.vised-strip {
+  display: flex;
+  gap: 3px;
+  padding: 16px 18px 0;
+}
+.vised-strip i {
+  flex: 1;
+  height: 22px;
+  border-radius: 4px;
+}
+/* The real .fin, sized for a side panel: its own grids are cut to two columns
+   and the hero number down a step, because .fin's breakpoints watch the
+   viewport and this panel is a fraction of it. */
+.vised-fin {
+  padding: 14px 18px 18px;
+  min-height: 0;
+  overflow: visible;
+}
+.vised-fin .fin-hero { margin-bottom: 18px; }
+.vised-fin .fin-tops { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.vised-fin .fin-tops > :nth-child(3) { display: none; }
+.vised-fin .fin-hero-num { font-size: 30px; }
+.vised-fin .fin-top-cat b { font-size: 20px; }
+.vised-fin .fin-rest { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+
+@media (max-width: 900px) {
+  .vised-body { grid-template-columns: 1fr; }
+  .vised-slots { border-right: none; border-bottom: 1px solid var(--border); }
+}
+.settings-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  color: var(--danger);
+}
+
+/* ---- settings: integrations ---- */
+.settings {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.integr-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.integr-hint code {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+.integr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.integr-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.integr-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.integr-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.integr-bad {
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+.integr-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.integr-reveal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.integr-checks {
+  display: flex;
+  gap: 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.integr-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+/* ---- Settings: stacked field column (mail connect form) ---- */
+.settings-col { display: flex; flex-direction: column; gap: 8px; }
+.settings-col > input,
+.settings-col > select,
+.settings-col > textarea {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+  font: inherit;
+}
+.settings-col > textarea {
+  resize: vertical;
+}

@@ -1,0 +1,253 @@
+/* Mail (Mail.tsx).
+   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+
+/* ---- Mail view ---- */
+.mail {
+  height: 100%;
+  display: flex;
+  min-height: 0;
+}
+.mail-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+.mail-empty svg { width: 30px; height: 30px; opacity: 0.5; }
+.mail-empty h2 { margin: 4px 0 0; font-size: 18px; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
+.mail-empty p { margin: 0; max-width: 380px; font-size: 13px; line-height: 1.55; }
+
+/* list column */
+.mail-list {
+  width: 340px;
+  flex: 0 0 340px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--glass-brd);
+}
+.mail-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--glass-brd);
+}
+.mail-addr {
+  font: 600 12px var(--font-mono);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-head-actions { display: flex; gap: 2px; flex: 0 0 auto; }
+.mail-list-error, .mail-hint {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+.mail-list-error { color: var(--danger); }
+
+/* Drafts staged by the agent / an API token: held back until a human sends them. */
+.mail-pending {
+  border-bottom: 1px solid var(--glass-brd);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.mail-pending-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 16px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.mail-pending-sub {
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-faint);
+}
+.mail-pending-row { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 16px; }
+.mail-pending-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.mail-pending-to { font-size: 11.5px; color: var(--text-faint); font-family: var(--font-mono); }
+.mail-pending-subject {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-pending-src { font-size: 11px; color: var(--text-faint); }
+.mail-pending-x { flex: none; }
+.mail-composer-flag {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid var(--glass-brd);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.mail-tabs { display: flex; gap: 0; padding: 6px 6px 0; scrollbar-width: none; border-bottom: 1px solid var(--border); flex: none; overflow-x: auto; }
+.mail-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font: 600 11.5px var(--font-ui);
+  padding: 8px 9px 9px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mail-tab:hover { color: var(--text); }
+.mail-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.mail-tab i { font-style: normal; font: 700 10px var(--font-mono); color: var(--accent); }
+.mail-tabs::-webkit-scrollbar { display: none; }
+.mail-tab svg { width: 14px; height: 14px; flex: none; opacity: 0.7; }
+.mail-tab.active svg { opacity: 1; color: var(--accent); }
+
+.mail-rows { flex: 1; overflow: auto; min-height: 0; }
+.mail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 16px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--glass-brd);
+  cursor: pointer;
+  color: var(--text);
+}
+.mail-row.firstvis { border-top: none; }
+.mail-row:hover { background: var(--panel); }
+.mail-row.active { background: var(--accent-dim); }
+.mail-row-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+.mail-row.unread .mail-row-dot { background: var(--accent); }
+.mail-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.mail-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.mail-row-from {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-row.unread .mail-row-from { font-weight: 750; color: var(--text); }
+.mail-row-date { flex: 0 0 auto; font: 500 11px var(--font-mono); color: var(--text-faint); }
+.mail-row-subject {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-row.unread .mail-row-subject { color: var(--text-dim); }
+
+/* reading / composing pane */
+.mail-pane { flex: 1; min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
+.mail-message { padding: 26px 30px 40px; max-width: 860px; width: 100%; }
+.mail-msg-head { flex: none; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 18px; }
+.mail-msg-head h1 { margin: 0 0 12px; font-size: 21px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.3; }
+.mail-msg-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mail-msg-from { font-size: 14px; color: var(--text); }
+.mail-msg-addr { margin-left: 6px; font: 500 12px var(--font-mono); color: var(--text-faint); }
+.mail-msg-date { font: 500 12px var(--font-mono); color: var(--text-faint); }
+.mail-msg-to { margin-top: 4px; font-size: 12.5px; color: var(--text-faint); }
+.mail-reply-btn { margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; }
+.mail-body { font-size: 14px; line-height: 1.6; color: var(--text); word-break: break-word; }
+.mail-body p { margin: 0 0 2px; }
+.mail-body p.mail-gap { height: 10px; margin: 0; }
+.mail-body a { color: var(--accent); }
+
+/* HTML mail is sized to its content, so the message scrolls with the page */
+.mail-body-wrap { display: flex; flex-direction: column; gap: 10px; }
+.mail-body-html {
+  display: block;
+  width: 100%;
+  border: none;
+  background: #fff;
+  color-scheme: light;
+}
+.mail-images-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.mail-images-bar span { flex: 1; }
+.mail-images-bar .ct-btn { flex: 0 0 auto; padding: 5px 12px; font-size: 12px; }
+
+/* composer */
+.mail-composer { display: flex; flex-direction: column; gap: 10px; padding: 22px 26px 30px; max-width: 720px; width: 100%; }
+.mail-composer-head { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.mail-field { display: flex; align-items: center; gap: 10px; }
+.mail-field > span { flex: 0 0 58px; font: 600 12px var(--font-mono); color: var(--text-faint); }
+.mail-field > input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--text);
+}
+.mail-field > input:disabled { color: var(--text-faint); }
+.mail-composer-body {
+  min-height: 260px;
+  resize: vertical;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  color: var(--text);
+  font: 400 14px var(--font-ui);
+  line-height: 1.55;
+}
+.mail-composer-actions { display: flex; align-items: center; gap: 10px; }
+.mail-composer-actions .primary { display: inline-flex; align-items: center; gap: 7px; }
