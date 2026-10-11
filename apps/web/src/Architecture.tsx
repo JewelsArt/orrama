@@ -114,7 +114,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
         const current = openRef.current;
         // Not while another note is on its way: refreshing this one would
         // cancel the note just clicked.
-        if (current && msg.noteId === current.id && wantRef.current === current.id) {
+        if (current && (msg.noteId === current.id || msg.resync) && wantRef.current === current.id) {
           // Someone else: refresh the header too. You (another tab, the phone,
           // a toggle on this page): the text is all that can have moved, and a
           // refresh after your own save is a no-op.

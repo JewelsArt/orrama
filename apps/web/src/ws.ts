@@ -1,10 +1,18 @@
-/** Live-sync client: one WebSocket, reconnecting, fan-out to interested views. */
+/** Live-sync client: one WebSocket, reconnecting with backoff, fan-out to interested views. */
+import { useEffect } from "react";
+import { SESSION_ENDED } from "./api.js";
 
 export interface NoteChangedMsg {
   type: "note-changed";
   noteId: string;
   path: string;
   authorId: string | null;
+  /**
+   * Set on the one message sent after the socket comes back. Anything may have changed while
+   * it was down (every `pnpm ship` restarts the server), so a view treats it as a change to
+   * whatever it shows, whatever `noteId` says.
+   */
+  resync?: true;
 }
 export interface PresenceMsg {
   type: "presence";
@@ -18,9 +26,32 @@ export type WsMsg = NoteChangedMsg | PresenceMsg;
 type Listener = (msg: WsMsg) => void;
 
 let socket: WebSocket | null = null;
-let listeners = new Set<Listener>();
+const listeners = new Set<Listener>();
 let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 let currentToken = "";
+/** Failed attempts since the last good connection: how long the next wait is. */
+let attempt = 0;
+/** Has this session's socket been ready before? The next `ready` is then a reconnect. */
+let wasReady = false;
+
+const BACKOFF_FIRST_MS = 2000;
+const BACKOFF_MAX_MS = 30_000;
+/** The server closes with this when the session is over (revoked, signed out, account gone). */
+const SESSION_OVER = 4001;
+
+/**
+ * How long to wait before reconnect attempt `n` (0-based): doubling from 2 s to at most 30 s,
+ * then a random point in its upper half, so a restarted server is not met by every open tab in
+ * the same instant.
+ */
+export function reconnectDelay(n: number, random: () => number = Math.random): number {
+  const cap = Math.min(BACKOFF_MAX_MS, BACKOFF_FIRST_MS * 2 ** n);
+  return Math.round(cap / 2 + (random() * cap) / 2);
+}
+
+const emit = (msg: WsMsg) => {
+  for (const l of listeners) l(msg);
+};
 
 export function connectWs(token: string): void {
   currentToken = token;
@@ -42,20 +73,38 @@ export function connectWs(token: string): void {
   s.onopen = () => s.send(JSON.stringify({ type: "auth", token }));
   socket = s;
   socket.onmessage = (e) => {
+    let msg: WsMsg | { type: "ready" };
     try {
-      const msg = JSON.parse(e.data) as WsMsg;
-      for (const l of listeners) l(msg);
+      msg = JSON.parse(e.data) as WsMsg | { type: "ready" };
     } catch {
-      /* ignore */
+      return;
     }
+    if (msg.type === "ready") {
+      attempt = 0;
+      // Back after a gap: say so once, so open views reload what they show (WEB-015).
+      if (wasReady) emit({ type: "note-changed", noteId: "", path: "", authorId: null, resync: true });
+      wasReady = true;
+      return;
+    }
+    emit(msg);
   };
-  socket.onclose = () => {
-    if (currentToken) reconnectTimer = setTimeout(() => connectWs(currentToken), 2000);
+  socket.onclose = (e) => {
+    if (!currentToken) return;
+    if (e.code === SESSION_OVER) {
+      // The server ended this session. Presenting the dead token every few seconds would never
+      // work; hand over to the app, which signs out and shows the sign-in screen.
+      currentToken = "";
+      window.dispatchEvent(new Event(SESSION_ENDED));
+      return;
+    }
+    reconnectTimer = setTimeout(() => connectWs(currentToken), reconnectDelay(attempt++));
   };
 }
 
 export function disconnectWs(): void {
   currentToken = "";
+  attempt = 0;
+  wasReady = false;
   clearTimeout(reconnectTimer);
   if (socket) {
     socket.onclose = null;
@@ -77,4 +126,19 @@ export function sendEditing(noteId: string): void {
   if (now - lastEditingSent < 2000) return;
   lastEditingSent = now;
   if (socket?.readyState === 1) socket.send(JSON.stringify({ type: "editing", noteId }));
+}
+
+/**
+ * Keep the live-sync socket open while someone is signed in. Keyed on the user's id, never on
+ * the user object: saving a display name or an avatar hands App a new object for the same
+ * person, and tearing the socket down for that lost whatever changed in the gap (WEB-015).
+ */
+export function useLiveSync(userId: string | undefined, token: () => string): void {
+  useEffect(() => {
+    if (!userId) return;
+    connectWs(token());
+    return () => disconnectWs();
+    // token is read once per connection; a new sign-in is a new user id or a remount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 }

@@ -799,7 +799,7 @@ function NoteCard({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNo
       setSync(s);
     })();
     const off = onWs((msg) => {
-      if (msg.type === "note-changed" && msg.noteId === w.noteId) void s?.refresh();
+      if (msg.type === "note-changed" && (msg.noteId === w.noteId || msg.resync)) void s?.refresh();
     });
     return () => {
       live = false;

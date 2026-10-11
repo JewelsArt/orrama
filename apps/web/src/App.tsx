@@ -19,7 +19,7 @@ import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, writeKey } from "./storage.js";
-import { connectWs, disconnectWs } from "./ws.js";
+import { disconnectWs, useLiveSync } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
 export type FinancePage = "spending" | "documents" | "subscriptions" | "income" | "savings";
@@ -207,10 +207,7 @@ export function App() {
       .catch(() => {});
   }, [me, serverSnapshot, theme, vision, profiles]);
 
-  useEffect(() => {
-    if (me) connectWs(getToken());
-    return () => disconnectWs();
-  }, [me]);
+  useLiveSync(me?.id, getToken);
 
   /**
    * Notice when the server starts serving a bundle newer than the one this tab
