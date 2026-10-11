@@ -579,9 +579,7 @@ export function App() {
       )}
       {captureOpen && (
         <ErrorBoundary what="Capture" onLeave={{ label: "Close", run: () => setCaptureOpen(false) }}>
-          <Layer kind="dialog" label="Capture" onClose={() => setCaptureOpen(false)}>
-            <QuickCapture onClose={() => setCaptureOpen(false)} />
-          </Layer>
+          <QuickCapture onClose={() => setCaptureOpen(false)} />
         </ErrorBoundary>
       )}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}

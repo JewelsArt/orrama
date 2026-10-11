@@ -123,7 +123,18 @@ vi.mock("../find/Find.js", async () => {
   const Search = stub("search", (p) => [["ask instead", () => p.onAsk()]]);
   return { Find: (p: P) => <Palette label="Find" onClose={p.onClose}><Search {...p} /></Palette> };
 });
-vi.mock("../QuickCapture.js", () => ({ QuickCapture: stub("capture") }));
+// Capture is its own Dialog (the system's), as QuickCapture.tsx draws it.
+vi.mock("../QuickCapture.js", async () => {
+  const { Dialog: SystemDialog } = await import("../ui/overlays.js");
+  const Stub = stub("capture");
+  return {
+    QuickCapture: (p: P) => (
+      <SystemDialog title="Capture" onClose={p.onClose}>
+        <Stub />
+      </SystemDialog>
+    ),
+  };
+});
 vi.mock("../Login.js", () => ({ Login: stub("login") }));
 vi.mock("../Lock.js", () => ({ Lock: stub("lock") }));
 vi.mock("../Setup.js", () => ({ Setup: stub("setup") }));

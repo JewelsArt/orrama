@@ -13,7 +13,6 @@ import "./styles/shared.css";
 import "./styles/door.css";
 import "./styles/notes.css";
 import "./styles/find.css";
-import "./styles/capture.css";
 import "./styles/settings.css";
 import "./styles/planning.css";
 import "./styles/ask.css";
