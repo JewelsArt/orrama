@@ -218,9 +218,11 @@ the database. Rotate the credential itself at the provider too.
 
 ### Keep it running in the background (macOS)
 
-A `launchd` agent with `KeepAlive` restarts the server on boot and on crash. Adapt
-`~/Library/LaunchAgents/dev.basalt.server.plist` to run
-`pnpm --dir apps/server start` from your checkout.
+A `launchd` agent with `KeepAlive` restarts the server on boot and on crash.
+`scripts/dev.basalt.server.plist` is the template and `scripts/README.md` the
+install steps: create `~/.basalt-run`, fill in the secrets, the vault and the
+public origins (the server refuses the `REPLACE_ME` placeholders), `chmod 600`,
+then `launchctl bootstrap`.
 
 After changing web code, rebuild and restart — editing source alone changes nothing,
 because the server serves the built bundle and registers static files at boot. The

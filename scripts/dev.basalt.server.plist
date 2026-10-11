@@ -1,27 +1,52 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The launchd agent that runs Basalt on the Mac. A TEMPLATE: install it as
+  scripts/README.md says, and replace every REPLACE_ME first. The server refuses
+  to start on REPLACE_ME (env.ts), so a forgotten secret is a refusal in
+  ~/.basalt-run/server.log, not a server signing sessions with a known key.
+  Paths are this machine's (/Users/jules/basalt, Homebrew node).
+-->
 <plist version="1.0">
 <dict>
   <key>Label</key>
   <string>dev.basalt.server</string>
+  <!--
+    node itself, not `pnpm start`: launchd signals this process on a stop,
+    kickstart -k or logout, and the server's graceful close (watcher, requests,
+    the SQLite WAL checkpoint) needs the SIGTERM. Same command `pnpm start` runs.
+  -->
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/pnpm</string>
-    <string>--dir</string>
-    <string>apps/server</string>
-    <string>start</string>
+    <string>/opt/homebrew/bin/node</string>
+    <string>--import</string>
+    <string>tsx</string>
+    <string>src/main.ts</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/jules/basalt</string>
+  <string>/Users/jules/basalt/apps/server</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- The Obsidian vault Basalt reads and writes. -->
+    <key>BASALT_VAULT_DIR</key>
+    <string>/Users/jules/Obsidian Vault</string>
+    <!-- Every address Basalt is reached at (Host check, Touch ID). -->
+    <key>BASALT_PUBLIC_ORIGINS</key>
+    <string>http://localhost:4623</string>
+    <!-- openssl rand -hex 32, each. Keep a copy somewhere safe: a new
+         BASALT_SECRET_KEY makes every stored credential unreadable. -->
+    <key>BASALT_JWT_SECRET</key>
+    <string>REPLACE_ME</string>
+    <key>BASALT_SECRET_KEY</key>
+    <string>REPLACE_ME</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <!-- launchd does not create this folder: mkdir -p ~/.basalt-run first. -->
   <key>StandardOutPath</key>
   <string>/Users/jules/.basalt-run/server.log</string>
   <key>StandardErrorPath</key>
