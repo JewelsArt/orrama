@@ -130,37 +130,3 @@ p.td-plain { display: flex; align-items: center; gap: 10px; color: var(--ink-2);
   .today .keyrow .chip-dl { grid-column: 1 / -1; justify-self: start; }
   .td-add-row { grid-template-columns: 1fr; }
 }
-
-/* Finance still reads the old --d-* palette until Money is redrawn (R10): kept for .fin alone.
-   The Dashboard's own rules that used to follow it went with the Dashboard (R5). */
-.fin {
-  --d-bg: transparent;
-  --d-card: var(--glass);
-  --d-ink: var(--text);
-  --d-ink-2: var(--text-dim);
-  --d-ink-3: var(--text-faint);
-  --d-line: var(--border);
-  --d-line-2: var(--panel);
-  --d-accent: var(--accent);
-  --d-accent-soft: var(--accent-soft);
-  --d-blue: var(--blue); --d-blue-bg: color-mix(in srgb, var(--blue) 15%, transparent);
-  --d-indigo: var(--accent); --d-indigo-bg: var(--accent-soft);
-  --d-green: var(--green); --d-green-bg: color-mix(in srgb, var(--green) 15%, transparent);
-  --d-orange: var(--orange); --d-orange-bg: color-mix(in srgb, var(--orange) 15%, transparent);
-  --d-purple: var(--purple); --d-purple-bg: color-mix(in srgb, var(--purple) 15%, transparent);
-  --d-pink: var(--pink); --d-pink-bg: color-mix(in srgb, var(--pink) 15%, transparent);
-  /* Money in/out and late/over are STATUS, not decoration: they ride --ok and
-     --danger so a colour-vision mode reaches them. Only the chips and badges,
-     which are decorative, stay on the hue names above. */
-  --d-ok: var(--ok); --d-ok-bg: color-mix(in srgb, var(--ok) 15%, transparent);
-  --d-warn: var(--warn); --d-warn-bg: color-mix(in srgb, var(--warn) 15%, transparent);
-  --d-danger: var(--danger); --d-danger-bg: color-mix(in srgb, var(--danger) 15%, transparent);
-  --d-sans: var(--font-ui);
-
-  height: 100%;
-  overflow: auto;
-  background: var(--d-bg);
-  color: var(--d-ink);
-  font-family: var(--d-sans);
-  padding: 26px 30px 40px;
-}

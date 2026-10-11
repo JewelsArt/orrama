@@ -132,22 +132,3 @@
   /* The note's title is in its box: the top bar keeps the Back and Find around it (the board). */
   .frame:has(.nt.has-note) > .ptop h1 { visibility: hidden; }
 }
-
-/* ---- kept for another screen ----------------------------------------------------------------
-   Project.tsx's right column is `.proj-col.side` and still takes these from here (R8 redraws it). */
-.side {
-  border-left: 1px solid var(--border);
-  overflow: auto;
-  padding: 16px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-.side h3 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
