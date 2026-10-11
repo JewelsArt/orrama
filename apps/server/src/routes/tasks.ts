@@ -2,9 +2,12 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, type SetTaskStatus } from "@basalt/schema";
+import type { z } from "zod";
 import { locateTask, promoteTaskLine, setTaskDates, setTaskStatus, type AclUser, type ParsedTask, type TaskLineRef } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
+
+type TaskDates = z.infer<typeof taskDatesSchema>;
 
 /** What a 409 says when the task a client named is not in the note as it is now. */
 export const TASK_GONE = "that task is not in the note as it is now — reload and try again";
@@ -36,6 +39,25 @@ export function applyTaskStatus(_db: Db, store: VaultStore, user: AclUser, body:
     store.events.emit("task-completed", { noteId: saved.id, path: note.path, authorId: user.id, blockId: task.blockId ?? null, text: task.text });
   }
   return { status: body.status, ...(task.blockId ? { blockId: task.blockId } : {}) };
+}
+
+/**
+ * Set or clear a task's start:/due: on its line (and a promoted task's
+ * object due). Shared by POST /api/tasks/dates and the agent's
+ * set_task_dates, which had its own copy that skipped the YYYY-MM-DD check:
+ * "next friday" went into the task's title, a newline moved its block id
+ * to another line (audit AI-011). The body is taskDatesSchema's, parsed.
+ */
+export function applyTaskDates(db: Db, store: VaultStore, user: AclUser, body: TaskDates) {
+  const note = store.requireEditable(user, body.noteId);
+  const task = requireTask(note.content, body);
+  const saved = store.write(user, note.path, setTaskDates(note.content, body, { start: body.start, due: body.due })!);
+  // Keep a promoted object's due in sync so both views of the task agree.
+  if (body.due !== undefined && task.blockId) {
+    const obj = store.taskObjectByBlock(note.id, task.blockId);
+    if (obj) db.update(tables.taskObjects).set({ due: body.due, updatedAt: Date.now() }).where(eq(tables.taskObjects.id, obj.id)).run();
+  }
+  return { id: saved.id, start: body.start, due: body.due };
 }
 
 /**
@@ -95,19 +117,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
    * from the unscheduled strip). Like /check, this EDITS THE FILE — the dates
    * live on the Markdown line and survive a re-index (spec §7).
    */
-  app.post("/api/tasks/dates", auth, async (req) => {
-    const body = taskDatesSchema.parse(req.body);
-    const user = store.aclUser(req.userId);
-    const note = store.requireEditable(user, body.noteId);
-    const task = requireTask(note.content, body);
-    const saved = store.write(user, note.path, setTaskDates(note.content, body, { start: body.start, due: body.due })!);
-    // Keep a promoted object's due in sync so both views of the task agree.
-    if (body.due !== undefined && task.blockId) {
-      const obj = store.taskObjectByBlock(note.id, task.blockId);
-      if (obj) db.update(tables.taskObjects).set({ due: body.due, updatedAt: Date.now() }).where(eq(tables.taskObjects.id, obj.id)).run();
-    }
-    return { id: saved.id, start: body.start, due: body.due };
-  });
+  app.post("/api/tasks/dates", auth, async (req) => applyTaskDates(db, store, store.aclUser(req.userId), taskDatesSchema.parse(req.body)));
 
   /** Promote a checkbox to a task object (spec §7.2). */
   app.post("/api/tasks/promote", auth, async (req) => {

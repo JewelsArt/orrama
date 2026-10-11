@@ -1,12 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { convertToModelMessages, pipeUIMessageStreamToResponse, stepCountIs, streamText, tool, type ModelMessage, type UIMessage, type UIMessageChunk, type UserModelMessage } from "ai";
 import { z } from "zod";
-import { askVaultSchema } from "@basalt/schema";
+import { askVaultSchema, taskDatesSchema } from "@basalt/schema";
 import crypto from "node:crypto";
-import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, setTaskDates, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@basalt/core";
+import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@basalt/core";
 import { graphFor, resolveRef } from "./graph.js";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
-import { applyTaskStatus } from "./tasks.js";
+import { applyTaskDates, applyTaskStatus } from "./tasks.js";
 import { bookTaskBlock, clampSlot } from "./calendar.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
@@ -386,12 +386,15 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
         set_task_dates: tool({
           description: "Set or clear a task's due:/start: dates (YYYY-MM-DD; pass null to clear). Identify the task by blockId, or by its text exactly as the note has it (line, 0-indexed, is an optional hint between identical tasks).",
           inputSchema: z.object({ noteId: z.string(), blockId: z.string().optional(), text: z.string().optional(), line: z.number().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
-          execute: async ({ noteId, line, blockId, text, due, start }: { noteId: string; line?: number; blockId?: string; text?: string; due?: string | null; start?: string | null }) => {
-            const note = store.requireReadable(user, noteId);
-            const updated = setTaskDates(note.content, { line, blockId, text }, { start, due });
-            if (updated === null) return { success: false, error: "task line not found" };
-            store.write(user, note.path, updated);
-            return { success: true };
+          execute: async (args: { noteId: string; line?: number; blockId?: string; text?: string; due?: string | null; start?: string | null }) => {
+            // The route's schema and helper, so the agent can write nothing the route would refuse (AI-011).
+            const body = taskDatesSchema.safeParse(args);
+            if (!body.success) return { success: false, error: body.error.issues.map((i) => `${i.path.join(".") || "task"}: ${i.message}`).join("; ") };
+            try {
+              return { success: true, ...applyTaskDates(db, store, user, body.data) };
+            } catch (err) {
+              return refused(err);
+            }
           }
         }),
         schedule_block: tool({
