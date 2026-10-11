@@ -68,15 +68,23 @@ vi.mock("../Project.js", () => {
 // People holds what was typed in it: its own addresses (a person, ?q=) must not remount it.
 vi.mock("../people/People.js", () => ({ People: stub("contacts", () => [], () => <input aria-label="people draft" />) }));
 vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
-vi.mock("../Finance.js", () => ({
-  Finance: stub("finance", (p) => [
-    ["category Shopping", () => p.onOpenCategory("Shopping")],
-    ["month Groceries", () => p.onOpenMonth("2026-09", "Groceries")],
-    ["merchant UNIQLO", () => p.onOpenMerchant("UNIQLO")],
-    ["page savings", () => p.onOpenPage("savings")],
-    ["back", () => p.onBack()],
-  ]),
-}));
+vi.mock("../Finance.js", async () => {
+  // Money reads its own address and goes where its links point (money/links.ts).
+  const { useRoute, navigate, goBack } = await import("../ui/router.js");
+  const Money = stub("money", () => [
+    ["category Shopping", () => navigate({ kind: "money", page: "spending", category: "Shopping" })],
+    ["month Groceries", () => navigate({ kind: "money", page: "spending", category: "Groceries", month: "2026-09" })],
+    ["merchant UNIQLO", () => navigate({ kind: "money", page: "spending", merchant: "UNIQLO" })],
+    ["page savings", () => navigate({ kind: "money", page: "savings" })],
+    ["back", () => goBack({ kind: "money" })],
+  ]);
+  return {
+    Money: () => {
+      const r = useRoute();
+      return r?.kind === "money" ? <Money page={r.page} category={r.category} merchant={r.merchant} month={r.month} /> : null;
+    },
+  };
+});
 /** A box the Settings page opens over itself, the way its colour profile editor does. */
 function ProfileEditor() {
   const [open, setOpen] = useState(false);

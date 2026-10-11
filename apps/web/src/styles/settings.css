@@ -331,7 +331,7 @@
   flex-direction: column;
   min-width: 0;
   overflow: auto;
-  background: var(--fin-ground);
+  background: var(--ground);
 }
 .vised-strip {
   display: flex;
@@ -343,20 +343,12 @@
   height: 22px;
   border-radius: 4px;
 }
-/* The real .fin, sized for a side panel: its own grids are cut to two columns
-   and the hero number down a step, because .fin's breakpoints watch the
-   viewport and this panel is a fraction of it. */
-.vised-fin {
-  padding: 14px 18px 18px;
-  min-height: 0;
-  overflow: visible;
-}
-.vised-fin .fin-hero { margin-bottom: 18px; }
-.vised-fin .fin-tops { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.vised-fin .fin-tops > :nth-child(3) { display: none; }
-.vised-fin .fin-hero-num { font-size: 30px; }
-.vised-fin .fin-top-cat b { font-size: 20px; }
-.vised-fin .fin-rest { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+/* Money's real rows, sized for a side panel: the panel is a fraction of the viewport Money's own
+   breakpoints watch, so the columns are cut here. */
+.money.vised-money { padding: 14px 18px 18px; min-height: 0; gap: 12px; }
+.money.vised-money .mcat { grid-template-columns: 110px minmax(0, 1fr) 84px; }
+.money.vised-money .mcat .vs { display: none; }
+.money.vised-money .mbig > b { font-size: 30px; line-height: 36px; }
 
 @media (max-width: 900px) {
   .vised-body { grid-template-columns: 1fr; }

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { iconFor } from "./Finance.js";
 import { Button } from "./ui/controls.js";
 import { Layer } from "./ui/overlays.js";
 import { BRAND_SLOT, PALETTE_SLOTS, type VisionProfile, closestPair, contrast, deriveInk, profileVars } from "./palette.js";
@@ -177,46 +176,46 @@ export function VisionEditor({
                 <i key={token} style={{ background: `var(--v-${token})` }} />
               ))}
             </span>
-            <div className="fin vised-fin" aria-label="Preview, with sample figures">
-              <div className="fin-card fin-hero">
-                <span className="fin-hero-lbl">Spent in September<em>day 7 of 30</em></span>
-                <b className="fin-hero-num">{eur(figures.spent)}</b>
-                <span className="fin-hero-pace">
-                  <i className="track">
-                    <i className="fill" style={{ width: "38%" }} />
-                    <i className="typical" style={{ left: "55%" }} />
-                  </i>
-                  <em>typically {eur(figures.typical)} a month</em>
-                </span>
-                <span className="fin-hero-split">
-                  {figures.cats.slice(0, 5).map((c, i) => (
-                    <i key={c.name} style={{ width: `${(c.last / figures.spent) * 100}%`, ["--a" as string]: [0.9, 0.66, 0.48, 0.32, 0.2][i] }} />
-                  ))}
-                </span>
-              </div>
-
-              <div className="fin-tops">
-                {figures.cats.slice(0, 3).map((c, i) => (
-                  <div className="fin-card fin-top-cat" key={c.name} style={{ ["--c" as string]: `var(--v-${PALETTE_SLOTS[i]!.token})` }}>
-                    <span className="fin-top-head"><i>{iconFor(c.name)}</i>{c.name}</span>
-                    <b>{eur(c.last)}</b>
-                    <span className="fin-top-sub">typically {eur(c.typical)}</span>
-                    <span className={`fin-top-delta ${c.last > c.typical ? "over" : "under"}`}>
-                      {c.last > c.typical ? "▲" : "▼"} {eur(Math.abs(c.last - c.typical))}
+            {/* Money's own rows, where the categorical colours do their work. */}
+            <div className="money vised-money" aria-label="Preview, with sample figures">
+              <section className="mod">
+                <div className="mh">
+                  <h2>Spent in September</h2>
+                  <span className="c">day 7 of 30</span>
+                  <a className="go" href="#" onClick={(e) => e.preventDefault()}>
+                    All spending →
+                  </a>
+                </div>
+                <div className="mbig">
+                  <b>{eur(figures.spent)}</b>
+                  <span>of a typical {eur(figures.typical)} a month</span>
+                </div>
+                <div className="mpace">
+                  <div className="ui-bar">
+                    <i style={{ width: `${(figures.spent / figures.typical) * 100}%` }} />
+                    <u style={{ left: "23%" }} />
+                  </div>
+                </div>
+              </section>
+              <section className="mod">
+                <div className="mh">
+                  <h2>This month by category</h2>
+                </div>
+                {/* Money paints its first five categories --c1…--c5, which the profile sets. */}
+                {figures.cats.slice(0, 5).map((c, i) => (
+                  <div className="mcat" key={c.name} style={{ ["--cc" as string]: `var(--c${i + 1})` }}>
+                    <span className="nm">
+                      <i className="sw" />
+                      {c.name}
                     </span>
+                    <span className="ui-bar">
+                      <i style={{ width: `${Math.min(c.last / c.typical, 1) * 100}%` }} />
+                    </span>
+                    <span className="amt">{eur(c.last)}</span>
+                    <span className="vs">typical {eur(c.typical)}</span>
                   </div>
                 ))}
-              </div>
-
-              <div className="fin-rest">
-                {figures.cats.map((c, i) => (
-                  <div className="fin-chip" key={c.name} style={{ ["--c" as string]: `var(--v-${PALETTE_SLOTS[i]!.token})` }}>
-                    <i>{iconFor(c.name)}</i>
-                    {c.name}
-                    <b>{eur(c.last)}</b>
-                  </div>
-                ))}
-              </div>
+              </section>
             </div>
           </div>
         </div>

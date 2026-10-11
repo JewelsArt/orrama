@@ -83,11 +83,17 @@ describe("addresses", () => {
     expect(path()).toBe("/money/spending/Groceries?month=2026-09");
     expect(await view()).toMatch(/category=Groceries month=2026-09/);
     await user.click(screen.getByRole("button", { name: "merchant UNIQLO" }));
-    expect(path()).toBe("/money?merchant=UNIQLO");
+    expect(path()).toBe("/money/spending?merchant=UNIQLO");
+    expect(await view()).toMatch(/^money page=spending merchant=UNIQLO/);
     await user.click(screen.getByRole("button", { name: "page savings" }));
     expect(path()).toBe("/money/savings");
     await user.click(screen.getByRole("button", { name: "back" }));
-    await waitFor(() => expect(path()).toBe("/money?merchant=UNIQLO"));
+    await waitFor(() => expect(path()).toBe("/money/spending?merchant=UNIQLO"));
+  });
+
+  it("a whole month opened from elsewhere is that month's page under Spending, not the overview", () => {
+    expect(routeHref(routeOfView({ kind: "finance", month: "2026-09" }))).toBe("/money/spending?month=2026-09");
+    expect(routeHref(routeOfView({ kind: "finance", month: "2026-09", category: "Groceries" }))).toBe("/money/spending/Groceries?month=2026-09");
   });
 
   it("a life area opens the Orrery zoomed to it", () => {

@@ -1,0 +1,1348 @@
+{
+ "finance": {
+  "notes": {
+   "income": "n-mv3sxcsd01jq9y",
+   "subscriptions": "n-mv3sxcsd05ghuf",
+   "payslips": "n-mv3sxcsd03x5pd",
+   "area": null
+  },
+  "income": {
+   "totals": [
+    {
+     "currency": "EUR",
+     "monthly": 1630
+    }
+   ],
+   "items": [
+    {
+     "service": "Study grant",
+     "amount": 980,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-24",
+     "anchor": "2026-10-24",
+     "monthly": 980,
+     "match": [
+      "duo"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "Internship allowance",
+     "amount": 650,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-26",
+     "anchor": "2026-10-26",
+     "monthly": 650,
+     "match": [
+      "kade social"
+     ],
+     "category": "",
+     "note": ""
+    }
+   ],
+   "count": 2,
+   "activity": {
+    "Study grant": {
+     "charges": 19,
+     "months": 19,
+     "first": "2025-03",
+     "last": "2026-09",
+     "total": 18620,
+     "expected": 18620,
+     "seen": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+     ],
+     "merchants": [
+      "PAYMENT FROM DUO"
+     ]
+    },
+    "Internship allowance": {
+     "charges": 6,
+     "months": 6,
+     "first": "2026-04",
+     "last": "2026-09",
+     "total": 3900,
+     "expected": 3900,
+     "seen": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+     ],
+     "merchants": [
+      "PAYMENT FROM KADE SOCIAL B.V."
+     ]
+    }
+   },
+   "unreadable": []
+  },
+  "subscriptions": {
+   "totals": [
+    {
+     "currency": "EUR",
+     "monthly": 812
+    }
+   ],
+   "items": [
+    {
+     "service": "Rent",
+     "amount": 745,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-11-01",
+     "anchor": "2026-11-01",
+     "monthly": 745,
+     "match": [
+      "woonstichting"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "Adobe CC",
+     "amount": 19.66,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-11-08",
+     "anchor": "2026-11-08",
+     "monthly": 19.66,
+     "match": [
+      "adobe"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "Spotify",
+     "amount": 11.99,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-11",
+     "anchor": "2026-10-11",
+     "monthly": 11.99,
+     "match": [
+      "spotify"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "Netflix",
+     "amount": 13.99,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-12",
+     "anchor": "2026-10-12",
+     "monthly": 13.99,
+     "match": [
+      "netflix"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "iCloud+",
+     "amount": 2.99,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-18",
+     "anchor": "2026-10-18",
+     "monthly": 2.99,
+     "match": [
+      "apple.com"
+     ],
+     "category": "",
+     "note": ""
+    },
+    {
+     "service": "Phone",
+     "amount": 18.37,
+     "currency": "EUR",
+     "cadence": "monthly",
+     "next": "2026-10-28",
+     "anchor": "2026-10-28",
+     "monthly": 18.37,
+     "match": [
+      "vodafone"
+     ],
+     "category": "",
+     "note": ""
+    }
+   ],
+   "count": 6,
+   "activity": {
+    "Rent": {
+     "charges": 20,
+     "months": 20,
+     "first": "2025-03",
+     "last": "2026-10",
+     "total": 14900,
+     "expected": 14900,
+     "seen": [
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+     ],
+     "merchants": [
+      "TO WOONSTICHTING DE KEY"
+     ]
+    },
+    "Adobe CC": {
+     "charges": 20,
+     "months": 20,
+     "first": "2025-03",
+     "last": "2026-10",
+     "total": 393.2,
+     "expected": 393.2,
+     "seen": [
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+     ],
+     "merchants": [
+      "ADOBE"
+     ]
+    },
+    "Spotify": {
+     "charges": 20,
+     "months": 20,
+     "first": "2025-03",
+     "last": "2026-10",
+     "total": 239.8,
+     "expected": 239.8,
+     "seen": [
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10"
+     ],
+     "merchants": [
+      "SPOTIFY"
+     ]
+    },
+    "Netflix": {
+     "charges": 19,
+     "months": 19,
+     "first": "2025-03",
+     "last": "2026-09",
+     "total": 265.81,
+     "expected": 265.81,
+     "seen": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+     ],
+     "merchants": [
+      "NETFLIX.COM"
+     ]
+    },
+    "iCloud+": {
+     "charges": 19,
+     "months": 19,
+     "first": "2025-03",
+     "last": "2026-09",
+     "total": 56.81,
+     "expected": 56.81,
+     "seen": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+     ],
+     "merchants": [
+      "APPLE.COM/BILL"
+     ]
+    },
+    "Phone": {
+     "charges": 19,
+     "months": 19,
+     "first": "2025-03",
+     "last": "2026-09",
+     "total": 349.03,
+     "expected": 349.03,
+     "seen": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09"
+     ],
+     "merchants": [
+      "VODAFONE"
+     ]
+    }
+   },
+   "unreadable": []
+  },
+  "payslips": [
+   {
+    "month": "2026-07",
+    "gross": 720,
+    "net": 650,
+    "tax": null,
+    "hours": 96,
+    "rate": null,
+    "file": "",
+    "effectiveNet": 6.77
+   },
+   {
+    "month": "2026-08",
+    "gross": 720,
+    "net": 650,
+    "tax": null,
+    "hours": 96,
+    "rate": null,
+    "file": "",
+    "effectiveNet": 6.77
+   },
+   {
+    "month": "2026-09",
+    "gross": 720,
+    "net": 650,
+    "tax": null,
+    "hours": 96,
+    "rate": null,
+    "file": "",
+    "effectiveNet": 6.77
+   }
+  ],
+  "savings": {
+   "incomeMonthly": 1517.02,
+   "incomeSource": "balance",
+   "spendMonthly": 1372.02,
+   "outflowMonthly": 1372.56,
+   "surplus": 144.46,
+   "committedMonthly": 812,
+   "discretionaryMonthly": 569.27,
+   "trimmable": 46.19,
+   "typicalMonth": "2025-11",
+   "goodMonth": "2025-12",
+   "target": 190.65,
+   "targetRate": 12.6,
+   "observed": 144.46,
+   "headroom": [
+    {
+     "category": "Going out",
+     "typical": 50.33,
+     "good": 0,
+     "save": 50.33
+    },
+    {
+     "category": "Shopping",
+     "typical": 86.24,
+     "good": 76.5,
+     "save": 9.74
+    },
+    {
+     "category": "Transport",
+     "typical": 31.4,
+     "good": 25.25,
+     "save": 6.15
+    },
+    {
+     "category": "Health",
+     "typical": 21.72,
+     "good": 17.61,
+     "save": 4.11
+    },
+    {
+     "category": "Groceries",
+     "typical": 319.7,
+     "good": 319.8,
+     "save": -0.1
+    },
+    {
+     "category": "Eating out",
+     "typical": 59.88,
+     "good": 83.92,
+     "save": -24.04
+    }
+   ],
+   "emergencyFund": 4116.06,
+   "monthsToFund": 21.6,
+   "basedOn": 12
+  },
+  "recurring": [
+   {
+    "merchant": "BASIC-FIT",
+    "amount": 29.99,
+    "months": [
+     "2026-07",
+     "2026-08",
+     "2026-09"
+    ],
+    "cadence": "monthly",
+    "everyMonths": 1,
+    "charges": 3,
+    "first": "2026-07",
+    "last": "2026-09",
+    "total": 89.97,
+    "active": true
+   }
+  ],
+  "summary": {
+   "net": [
+    {
+     "currency": "EUR",
+     "monthly": 818
+    }
+   ],
+   "balance": 3150.28,
+   "balanceDate": "2026-10-11",
+   "runwayMonths": null,
+   "burn": -44.46,
+   "drift": 44.46,
+   "spanMonths": 12
+  },
+  "spending": {
+   "months": [
+    {
+     "month": "2026-07",
+     "spend": 1393.31,
+     "fees": 0,
+     "refunds": 6.94,
+     "movedIn": 1630,
+     "movedOut": 845
+    },
+    {
+     "month": "2026-08",
+     "spend": 1460.97,
+     "fees": 0,
+     "refunds": 6.97,
+     "movedIn": 1630,
+     "movedOut": 845
+    },
+    {
+     "month": "2026-09",
+     "spend": 1337.17,
+     "fees": 0,
+     "refunds": 3.4,
+     "movedIn": 1630,
+     "movedOut": 845
+    },
+    {
+     "month": "2026-10",
+     "spend": 932.12,
+     "fees": 0,
+     "refunds": 0,
+     "movedIn": 0,
+     "movedOut": 745
+    }
+   ],
+   "dataThrough": "2026-10-11",
+   "categories": {
+    "noteId": "n-mv3sxcsd048pg9",
+    "rules": [
+     {
+      "category": "Rent",
+      "colour": null
+     },
+     {
+      "category": "Groceries",
+      "colour": null
+     },
+     {
+      "category": "Eating out",
+      "colour": null
+     },
+     {
+      "category": "Transport",
+      "colour": null
+     },
+     {
+      "category": "Subscriptions",
+      "colour": null
+     },
+     {
+      "category": "Shopping",
+      "colour": null
+     },
+     {
+      "category": "Going out",
+      "colour": null
+     },
+     {
+      "category": "Health",
+      "colour": null
+     },
+     {
+      "category": "Education",
+      "colour": null
+     },
+     {
+      "category": "Subscriptions",
+      "colour": "purple"
+     }
+    ],
+    "months": [
+     {
+      "month": "2026-07",
+      "byCategory": {
+       "Subscriptions": 841.99,
+       "Transport": 61.84,
+       "Health": 16.24,
+       "Groceries": 335.42,
+       "Eating out": 50.47,
+       "Shopping": 87.35
+      },
+      "committed": {
+       "Subscriptions": 812
+      },
+      "total": 1393.31
+     },
+     {
+      "month": "2026-08",
+      "byCategory": {
+       "Groceries": 375.94,
+       "Subscriptions": 841.99,
+       "Eating out": 100.54,
+       "Transport": 34.65,
+       "Shopping": 85.35,
+       "Going out": 22.5
+      },
+      "committed": {
+       "Subscriptions": 812
+      },
+      "total": 1460.97
+     },
+     {
+      "month": "2026-09",
+      "byCategory": {
+       "Subscriptions": 841.99,
+       "Groceries": 232.29,
+       "Shopping": 76.94,
+       "Transport": 23.84,
+       "Education": 34.54,
+       "Health": 17.06,
+       "Eating out": 81.43,
+       "Going out": 29.08
+      },
+      "committed": {
+       "Subscriptions": 812
+      },
+      "total": 1337.17
+     },
+     {
+      "month": "2026-10",
+      "byCategory": {
+       "Subscriptions": 776.65,
+       "Eating out": 12.95,
+       "Groceries": 66.48,
+       "Transport": 14.59,
+       "Health": 12.75,
+       "Going out": 25.88,
+       "Shopping": 22.82
+      },
+      "committed": {
+       "Subscriptions": 776.65
+      },
+      "total": 932.12
+     }
+    ],
+    "forecast": [
+     {
+      "category": "Subscriptions",
+      "typical": 812,
+      "low": 812,
+      "high": 841.99,
+      "months": 12,
+      "last": 841.99,
+      "lastTypical": 812,
+      "merchants": [
+       {
+        "name": "TO WOONSTICHTING DE KEY",
+        "total": 8940,
+        "count": 12
+       },
+       {
+        "name": "ADOBE",
+        "total": 235.92,
+        "count": 12
+       }
+      ]
+     },
+     {
+      "category": "Groceries",
+      "typical": 342.6,
+      "low": 232.29,
+      "high": 415.47,
+      "months": 12,
+      "last": 232.29,
+      "lastTypical": 356.38,
+      "merchants": [
+       {
+        "name": "ALBERT HEIJN 1427",
+        "total": 1380.38,
+        "count": 108
+       },
+       {
+        "name": "PICNIC B.V.",
+        "total": 1174.85,
+        "count": 49
+       }
+      ]
+     },
+     {
+      "category": "Eating out",
+      "typical": 77.94,
+      "low": 48.19,
+      "high": 118.09,
+      "months": 12,
+      "last": 81.43,
+      "lastTypical": 73.6,
+      "merchants": [
+       {
+        "name": "THUISBEZORGD.NL",
+        "total": 276.64,
+        "count": 19
+       },
+       {
+        "name": "BAGELS & BEANS",
+        "total": 246.21,
+        "count": 15
+       }
+      ]
+     },
+     {
+      "category": "Shopping",
+      "typical": 68.31,
+      "low": 0,
+      "high": 87.35,
+      "months": 12,
+      "last": 76.94,
+      "lastTypical": 55.27,
+      "merchants": [
+       {
+        "name": "BOL.COM",
+        "total": 283.91,
+        "count": 8
+       },
+       {
+        "name": "HEMA",
+        "total": 281.15,
+        "count": 7
+       }
+      ]
+     },
+     {
+      "category": "Transport",
+      "typical": 36.99,
+      "low": 23.84,
+      "high": 61.84,
+      "months": 12,
+      "last": 23.84,
+      "lastTypical": 36.99,
+      "merchants": [
+       {
+        "name": "GVB AMSTERDAM",
+        "total": 226.82,
+        "count": 39
+       },
+       {
+        "name": "NS GROEP",
+        "total": 226.45,
+        "count": 38
+       }
+      ]
+     },
+     {
+      "category": "Going out",
+      "typical": 20.8,
+      "low": 0,
+      "high": 53.72,
+      "months": 12,
+      "last": 29.08,
+      "lastTypical": 20.8,
+      "merchants": [
+       {
+        "name": "PARADISO",
+        "total": 135.22,
+        "count": 6
+       },
+       {
+        "name": "PATHE TUSCHINSKI",
+        "total": 96.13,
+        "count": 5
+       }
+      ]
+     },
+     {
+      "category": "Health",
+      "typical": 16.65,
+      "low": 0,
+      "high": 29.61,
+      "months": 12,
+      "last": 17.06,
+      "lastTypical": 16.92,
+      "merchants": [
+       {
+        "name": "KRUIDVAT",
+        "total": 103.23,
+        "count": 8
+       },
+       {
+        "name": "ETOS",
+        "total": 93.31,
+        "count": 8
+       }
+      ]
+     },
+     {
+      "category": "Education",
+      "typical": 0,
+      "low": 0,
+      "high": 61.46,
+      "months": 12,
+      "last": 34.54,
+      "lastTypical": 0,
+      "merchants": [
+       {
+        "name": "BOEKHANDEL WATERSTONES",
+        "total": 96,
+        "count": 2
+       }
+      ]
+     }
+    ],
+    "typical": 1372.02,
+    "completeMonths": 12,
+    "lastComplete": "2026-09"
+   },
+   "txnCount": 895,
+   "skipped": 0,
+   "excluded": []
+  },
+  "files": [
+   {
+    "name": "revolut-2026.csv",
+    "size": 48928,
+    "mtimeMs": 1791721841431.9355,
+    "ext": ".csv"
+   },
+   {
+    "name": "revolut-2025.csv",
+    "size": 49333,
+    "mtimeMs": 1791721841431.373,
+    "ext": ".csv"
+   }
+  ],
+  "ledgerConflicts": []
+ },
+ "month": {
+  "month": "2026-09",
+  "category": null,
+  "complete": true,
+  "total": 1337.17,
+  "movedOut": 100,
+  "movedIn": 1630,
+  "refunded": 3.4,
+  "count": 39,
+  "transferCount": 3,
+  "typical": 1372.02,
+  "categories": [
+   {
+    "category": "Subscriptions",
+    "total": 841.99,
+    "count": 7,
+    "colour": null,
+    "typical": 812
+   },
+   {
+    "category": "Groceries",
+    "total": 232.29,
+    "count": 17,
+    "colour": null,
+    "typical": 356.38
+   },
+   {
+    "category": "Eating out",
+    "total": 81.43,
+    "count": 5,
+    "colour": null,
+    "typical": 73.6
+   },
+   {
+    "category": "Shopping",
+    "total": 76.94,
+    "count": 2,
+    "colour": null,
+    "typical": 55.27
+   },
+   {
+    "category": "Education",
+    "total": 34.54,
+    "count": 1,
+    "colour": null,
+    "typical": 0
+   },
+   {
+    "category": "Going out",
+    "total": 29.08,
+    "count": 1,
+    "colour": null,
+    "typical": 20.8
+   },
+   {
+    "category": "Transport",
+    "total": 23.84,
+    "count": 4,
+    "colour": null,
+    "typical": 36.99
+   },
+   {
+    "category": "Health",
+    "total": 17.06,
+    "count": 2,
+    "colour": null,
+    "typical": 16.92
+   }
+  ],
+  "prev": "2026-08",
+  "next": "2026-10",
+  "transactions": [
+   {
+    "date": "2026-09-29",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 16.52,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4082.4,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-28",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 13.21,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4117.29,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-28",
+    "description": "BAGELS & BEANS",
+    "amount": 17.84,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4130.5,
+    "category": "Eating out"
+   },
+   {
+    "date": "2026-09-28",
+    "description": "VODAFONE",
+    "amount": 18.37,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4098.92,
+    "category": "Subscriptions"
+   },
+   {
+    "date": "2026-09-27",
+    "description": "DIRK VD BROEK",
+    "amount": 10.99,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4248.34,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-27",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 12.97,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4259.33,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-27",
+    "description": "To SAVINGS POT",
+    "amount": 100,
+    "refund": false,
+    "moved": true,
+    "type": "Transfer",
+    "balance": 4148.34,
+    "category": "Transfer"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "Payment from KADE SOCIAL B.V.",
+    "amount": 650,
+    "refund": false,
+    "moved": true,
+    "type": "Transfer",
+    "balance": 4272.3,
+    "category": "Transfer"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "NS GROEP",
+    "amount": 8.69,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3646.53,
+    "category": "Transport"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 9.19,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3655.22,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "PICNIC B.V.",
+    "amount": 24.23,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3622.3,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-24",
+    "description": "Payment from DUO",
+    "amount": 980,
+    "refund": false,
+    "moved": true,
+    "type": "Transfer",
+    "balance": 3664.41,
+    "category": "Transfer"
+   }
+  ]
+ },
+ "catMonth": {
+  "month": "2026-09",
+  "category": "Groceries",
+  "complete": true,
+  "total": 232.29,
+  "movedOut": 0,
+  "movedIn": 0,
+  "refunded": 3.4,
+  "count": 17,
+  "transferCount": 0,
+  "typical": 356.38,
+  "categories": [
+   {
+    "category": "Groceries",
+    "total": 232.29,
+    "count": 17,
+    "colour": null,
+    "typical": 356.38
+   }
+  ],
+  "prev": "2026-08",
+  "next": "2026-10",
+  "transactions": [
+   {
+    "date": "2026-09-29",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 16.52,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4082.4,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-28",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 13.21,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4117.29,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-27",
+    "description": "DIRK VD BROEK",
+    "amount": 10.99,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4248.34,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-27",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 12.97,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 4259.33,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 9.19,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3655.22,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-26",
+    "description": "PICNIC B.V.",
+    "amount": 24.23,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3622.3,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-21",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 9.1,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2691.9,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-16",
+    "description": "PICNIC B.V.",
+    "amount": 22.41,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2733.98,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-13",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 14.18,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2793.66,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-12",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 10.81,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2859.59,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-12",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 16.48,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2927.97,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-10",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 12.67,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2974.08,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-09",
+    "description": "JUMBO AMSTERDAM OOST",
+    "amount": 7.37,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2986.75,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-09",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 7.4,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 2994.12,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-06",
+    "description": "PICNIC B.V.",
+    "amount": 23.95,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3021.18,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-05",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 3.4,
+    "refund": true,
+    "moved": false,
+    "type": "Card Refund",
+    "balance": 3091.97,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-03",
+    "description": "DIRK VD BROEK",
+    "amount": 13.74,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3100.99,
+    "category": "Groceries"
+   },
+   {
+    "date": "2026-09-02",
+    "description": "ALBERT HEIJN 1427",
+    "amount": 7.07,
+    "refund": false,
+    "moved": false,
+    "type": "Card Payment",
+    "balance": 3134.1,
+    "category": "Groceries"
+   }
+  ]
+ },
+ "category": {
+  "category": "Groceries",
+  "colour": null,
+  "years": [
+   "2026",
+   "2025"
+  ],
+  "year": "2026",
+  "series": [
+   {
+    "month": "2026-01",
+    "total": 349.78,
+    "count": 21,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-02",
+    "total": 247.69,
+    "count": 18,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-03",
+    "total": 415.47,
+    "count": 27,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-04",
+    "total": 287.15,
+    "count": 19,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-05",
+    "total": 367.92,
+    "count": 26,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-06",
+    "total": 370.05,
+    "count": 27,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-07",
+    "total": 335.42,
+    "count": 24,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-08",
+    "total": 375.94,
+    "count": 26,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-09",
+    "total": 232.29,
+    "count": 17,
+    "hasData": true,
+    "future": false,
+    "partial": false
+   },
+   {
+    "month": "2026-10",
+    "total": 66.48,
+    "count": 5,
+    "hasData": true,
+    "future": false,
+    "partial": true
+   },
+   {
+    "month": "2026-11",
+    "total": 0,
+    "count": 0,
+    "hasData": false,
+    "future": true,
+    "partial": false
+   },
+   {
+    "month": "2026-12",
+    "total": 0,
+    "count": 0,
+    "hasData": false,
+    "future": true,
+    "partial": false
+   }
+  ],
+  "yearly": [
+   {
+    "year": "2025",
+    "total": 3036.99,
+    "count": 221,
+    "partial": true
+   },
+   {
+    "year": "2026",
+    "total": 3048.19,
+    "count": 210,
+    "partial": true
+   }
+  ],
+  "merchants": [
+   {
+    "name": "ALBERT HEIJN 1427",
+    "total": 1092.59,
+    "count": 86
+   },
+   {
+    "name": "PICNIC B.V.",
+    "total": 872.21,
+    "count": 36
+   },
+   {
+    "name": "JUMBO AMSTERDAM OOST",
+    "total": 742.15,
+    "count": 63
+   },
+   {
+    "name": "LIDL AMSTERDAM",
+    "total": 186.86,
+    "count": 14
+   },
+   {
+    "name": "DIRK VD BROEK",
+    "total": 154.38,
+    "count": 11
+   }
+  ],
+  "stats": {
+   "total": 3048.19,
+   "count": 210,
+   "activeMonths": 9,
+   "average": 331.3,
+   "high": 415.47,
+   "low": 232.29
+  }
+ },
+ "merchant": {
+  "merchant": "BASIC-FIT",
+  "years": [
+   "2026"
+  ],
+  "year": "2026",
+  "direction": "out",
+  "transactions": [
+   {
+    "date": "2026-09-20",
+    "amount": 29.99,
+    "refund": false,
+    "type": "Card Payment",
+    "balance": 2701
+   },
+   {
+    "date": "2026-08-20",
+    "amount": 29.99,
+    "refund": false,
+    "type": "Card Payment",
+    "balance": 2532.61
+   },
+   {
+    "date": "2026-07-20",
+    "amount": 29.99,
+    "refund": false,
+    "type": "Card Payment",
+    "balance": 2573.01
+   }
+  ],
+  "months": [
+   {
+    "month": "2026-07",
+    "total": 29.99
+   },
+   {
+    "month": "2026-08",
+    "total": 29.99
+   },
+   {
+    "month": "2026-09",
+    "total": 29.99
+   }
+  ],
+  "stats": {
+   "total": 89.97,
+   "count": 3,
+   "average": 29.99,
+   "biggest": 29.99,
+   "first": "2026-07-20",
+   "last": "2026-09-20",
+   "allTime": 89.97
+  }
+ }
+}

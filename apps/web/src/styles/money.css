@@ -1,1036 +1,256 @@
-/* Money, still Finance (Finance.tsx).
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+/* Money (Finance.tsx, money/*). From the boards mockups/screens/money.html (the overview) and
+   money-drill.html (a category), on the shared system: white boxes on the paper ground, the five
+   category colours, ink for amounts, Orr's orange for now. No purple hero, no glass, no tokens of
+   its own (structure.md §8 #6); Money used to be the documented exception to the flat language
+   and is not any more. The system's pieces (modules, rows, tabs, bars, notices, the chart) come
+   from ui/ui.css; this file is Money's own arrangement of them. */
 
-/* ---- Finance area --------------------------------------------------------
-   Same flat language as the rest: solid surfaces, hairline borders, colour only
-   where it carries meaning — green for money in, pink for money out, and the
-   gross/net bar where the GAP between the two bars is the tax. */
-.fin { padding: 26px 30px 40px; min-height: 100%; box-sizing: border-box; background: var(--fin-ground); color: var(--d-ink); font-family: var(--d-sans); }
-.fin-loading { color: var(--text-faint); font-size: 13px; }
-.fin-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-.fin-h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
-.fin-sub { margin: 4px 0 0; color: var(--d-ink-2); font-size: 14px; }
-.fin-upload {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: var(--solid); color: var(--bg); border: 1px solid var(--solid);
-  border-radius: 9px; padding: 9px 15px; font: 650 12.5px var(--font-ui); cursor: pointer;
-}
-.fin-upload:disabled { opacity: 0.55; cursor: default; }
-.fin-upload svg { width: 14px; height: 14px; }
-.fin-flash {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
-  border: 1px solid var(--border); background: var(--panel); border-radius: var(--radius-sm);
-  padding: 10px 14px; font-size: 13px; color: var(--d-ink-2);
-}
-.fin-flash button { margin-left: auto; border: none; background: none; color: var(--text-faint); font-size: 16px; cursor: pointer; }
-
-.fin-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-@media (max-width: 1040px) { .fin-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.fin-kpi {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 16px 18px; display: flex; flex-direction: column; gap: 3px; min-width: 0;
-}
-.fin-kpi-lbl { font: 700 10px var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--d-ink-3); }
-.fin-kpi b { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; color: var(--d-ink); }
-.fin-kpi b.down { color: var(--fin-neg); }
-.fin-kpi b.muted { color: var(--d-ink-3); }
-.fin-kpi-sub { font-size: 11.5px; color: var(--d-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Cards in a row share a height. Without this the Payslips card sets the row
-   height and the Saving card beside it floats with a gap under it, which reads
-   as a layout bug rather than as two cards of different lengths. */
-.fin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
-.fin-grid > * { min-width: 0; }
-.fin-grid > .fin-card { display: flex; flex-direction: column; }
-/* The last block in a card sinks to the bottom, so the footers line up across
-   a row even when the middles are different lengths. */
-.fin-grid > .fin-card > :last-child { margin-top: auto; }
-@media (max-width: 900px) { .fin-grid { grid-template-columns: 1fr; } }
-.fin-span { grid-column: 1 / -1; }
-.fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 22px; min-width: 0; }
-.fin-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.fin-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
-/* Year chips: small, quiet, and pushed to the right of the heading. The active
-   one is a solid fill rather than a colour wash, matching the rail's active tab. */
-.fin-years { margin-left: auto; display: flex; gap: 4px; }
-.fin-year {
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--d-ink-3);
-  border-radius: 7px;
-  padding: 3px 9px;
-  font: 650 11px var(--font-mono);
-  cursor: pointer;
-}
-.fin-year:hover { color: var(--d-ink); }
-.fin-year.on { background: var(--solid); border-color: var(--solid); color: var(--bg); }
-.fin-years + .fin-link { margin-left: 10px; }
-/* Month | Year, and the year tabs, above a spending chart. */
-.fin-chart-controls { display: flex; align-items: center; gap: 8px; margin: 2px 0 10px; }
-.fin-grain { margin-left: 0; }
-.fin-card-head .fin-grain { margin-left: auto; }
-
-.fin-link { margin-left: auto; border: none; background: none; color: var(--d-accent); font: 600 12px var(--font-ui); cursor: pointer; }
-.fin-count { margin-left: auto; font: 700 11.5px var(--font-mono); color: var(--d-ink-3); }
-
-/* Payslip rows: one bar per month, gross behind and net in front. */
-.fin-slips { list-style: none; margin: 0; padding: 0; }
-.fin-slips li { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
-.fin-slips li + li { border-top: 1px solid var(--d-line); }
-.fin-slip-m { font: 700 11px var(--font-mono); color: var(--d-ink-2); width: 56px; flex: none; }
-.fin-slip-bar { position: relative; flex: 1; height: 16px; min-width: 60px; }
-.fin-slip-bar i { position: absolute; top: 3px; height: 10px; border-radius: 3px; }
-.fin-slip-bar i.gross { background: color-mix(in srgb, var(--d-accent) 24%, transparent); }
-.fin-slip-bar i.net { background: var(--d-accent); }
-.fin-slip-n { font: 700 12.5px var(--font-mono); flex: none; width: 82px; text-align: right; }
-.fin-slip-h { font-size: 11.5px; color: var(--d-ink-3); flex: none; width: 52px; text-align: right; }
-.fin-slip-r { font: 600 11.5px var(--font-mono); color: var(--d-ink-2); flex: none; width: 76px; text-align: right; }
-.fin-legend { margin: 12px 0 0; font-size: 11.5px; color: var(--d-ink-3); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.fin-legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-.fin-legend .sw.gross { background: color-mix(in srgb, var(--d-accent) 24%, transparent); }
-.fin-legend .sw.net { background: var(--d-accent); }
-
-.fin-ledger, .fin-files { list-style: none; margin: 0; padding: 0; }
-.fin-ledger li, .fin-files li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; }
-.fin-ledger li + li, .fin-files li + li { border-top: 1px solid var(--d-line); }
-.fin-l-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-l-cad { font-size: 11px; color: var(--d-ink-3); flex: none; }
-.fin-l-amt { font: 700 12.5px var(--font-mono); flex: none; }
-.fin-file-ext {
-  font: 700 9.5px var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em;
-  background: var(--d-line-2); color: var(--d-ink-2); border-radius: 5px; padding: 2px 6px; flex: none;
-}
-.fin-files a { flex: 1; min-width: 0; font-size: 13px; color: var(--d-ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-files a:hover { color: var(--d-accent); text-decoration: underline; }
-.fin-file-size { font: 600 11px var(--font-mono); color: var(--d-ink-3); flex: none; }
-
-.fin-empty { padding: 6px 0 2px; }
-.fin-empty p { margin: 0 0 6px; font-size: 13px; color: var(--d-ink-2); }
-.fin-empty-line { margin: 0; padding: 6px 0; font-size: 13px; color: var(--d-ink-3); }
-.fin-hint { font-size: 12px; line-height: 1.55; color: var(--d-ink-3); }
-.fin-hint code { font: 600 11.5px var(--font-mono); background: var(--d-line-2); border-radius: 5px; padding: 1px 5px; }
-
-/* Committed vs discretionary: one bar, two segments — the ratio is the point,
-   not the individual merchants. */
-.fin-split { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
-.fin-split-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--d-line); }
-.fin-split-bar i { display: block; height: 100%; }
-.fin-split-bar i.fixed { background: var(--d-accent); }
-.fin-split-bar i.variable { background: color-mix(in srgb, var(--d-accent) 22%, transparent); }
-.fin-split-lbl { font-size: 12px; color: var(--d-ink-3); }
-.fin-split-lbl b { font-weight: 700; color: var(--d-ink-2); }
-
-/* Monthly stack: rectangles only, no chart library. Rounded corners are left
-   off deliberately — at these widths they eat the thin segments. */
-/* The card's anchor figure. Large, quiet label beneath — the number is the
-   thing being said, the words only qualify it. */
-.fin-head-num { display: flex; align-items: baseline; gap: 12px; margin: 2px 0 2px; }
-.fin-head-num b { font-size: 32px; font-weight: 800; letter-spacing: -0.025em; color: var(--d-ink); }
-.fin-head-num > span { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; color: var(--d-ink-2); }
-.fin-head-num em { font-style: normal; font: 600 11.5px var(--font-mono); }
-.fin-head-num em.over { color: var(--d-danger); }
-.fin-head-num em.under { color: var(--d-ok); }
-
-.fin-chart { display: block; width: 100%; height: 210px; margin: 6px 0 18px; overflow: visible; }
-/* Month names, not "01" — a bare number makes you count on your fingers. */
-.fin-chart-lbl { fill: var(--d-ink-2); font: 600 10.5px var(--font-ui); letter-spacing: 0.01em; }
-.fin-chart-axis { fill: var(--d-ink-3); font: 600 10px var(--font-mono); }
-.fin-axis { stroke: var(--d-line); stroke-width: 1; }
-/* The typical month, so a column means something on its own. */
-.fin-typical { stroke: var(--d-ink-3); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.5; }
-.fin-col { transition: opacity 0.12s ease; }
-
-.fin-cats { list-style: none; margin: 0; padding: 0; }
-.fin-cat { border-top: 1px solid var(--d-line); transition: background 0.12s ease, opacity 0.12s ease; }
-.fin-cat:first-child { border-top: none; }
-/* Hovering a row lights it and its band in the chart, and fades the rest. The
-   tint is the category's own colour so the link between the two is obvious. */
-.fin-cat.hot { background: color-mix(in srgb, var(--c) 8%, transparent); }
-.fin-cat.cool { opacity: 0.45; }
-.fin-cat.open { background: color-mix(in srgb, var(--c) 6%, transparent); }
-.fin-cat-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 9px 10px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.fin-cat-ic {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  flex: none;
-  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
-  color: var(--fin-tile-ink, var(--c));
-}
-.fin-cat-ic svg { width: 15px; height: 15px; }
-.fin-cat-name {
-  width: 132px;
-  flex: none;
-  font-size: 13px;
-  font-weight: 600;
+.money {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  min-width: 0;
+  gap: 14px;
+  padding: 20px 40px 40px;
+  min-height: 100%;
+  box-sizing: border-box;
 }
-.fin-cat-name em { font-style: normal; font-weight: 500; font-size: 11px; color: var(--d-ink-2); }
-/* The range track: where a category has actually landed month to month. */
-.fin-cat-range { position: relative; flex: 1; min-width: 60px; height: 16px; }
-.fin-cat-range::before {
-  content: "";
-  position: absolute;
-  inset: 7px 0 auto 0;
-  height: 2px;
-  background: var(--d-line);
-  border-radius: 1px;
-}
-.fin-cat-range i { position: absolute; }
-/* The span is neutral: ten rows each with a coloured bar was a second rainbow
-   under the chart. The icon tile carries the category; the span only says
-   "between here and here", and the two markers pick up the hue. */
-.fin-cat-range i.span { top: 6px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--d-ink) 14%, transparent); }
-.fin-cat-range i.mark { top: 3px; width: 2px; height: 10px; border-radius: 1px; background: var(--c); }
-/* Last month as a hollow marker, so it reads against the median, not as it. */
-.fin-cat-range i.lastmark {
-  top: 4px;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
-  border-radius: 50%;
-  border: 2px solid var(--c);
-  background: var(--surface);
-}
-.fin-cat-typ { font: 700 13px var(--font-mono); flex: none; width: 78px; text-align: right; }
-.fin-cat-last {
-  font: 600 11.5px var(--font-mono);
-  color: var(--d-ink-3);
-  flex: none;
-  width: 92px;
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.fin-cat-last.over, .fin-cat-last.under { color: inherit; }
-.fin-cat-last.over > :first-child,
-.fin-cat-last.under > :first-child { padding: 2px 8px; border-radius: 999px; }
-.fin-cat-last em { font-style: normal; font-size: 10px; font-weight: 500; color: var(--d-ink-2); }
-.fin-cat-last.over { color: var(--d-danger); }
-.fin-cat-last.under { color: var(--d-ok); }
-.fin-cat-chev { font: 600 14px var(--font-mono); color: var(--d-ink-3); flex: none; width: 14px; text-align: center; }
-.fin-cat:hover .fin-cat-chev { color: var(--d-ink-2); }
+.money > * { max-width: 1260px; width: 100%; }
+.money > .tabs { margin-top: -4px; }
+.money .mpage { display: flex; flex-direction: column; gap: 12px; }
+.money .mpage > .crumbs { margin-bottom: -6px; }
+.money .msp { flex: 1; }
+.money .q3 { margin: 6px 0 0; font-size: 13px; line-height: 19px; color: var(--ink-2); }
+.money .q3 a { color: var(--accent); font-weight: 600; }
+.money .q3 b { color: var(--ink); font-weight: 650; }
+.money .mnline { display: block; }
+/* Headings, counts and crumbs are the system's (ink; accent only for "go"), not the browser's blue. */
+.money .mh h2 a { color: inherit; text-decoration: none; }
+.money .mh h2 a:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.money .mh a.c { color: var(--ink-3); text-decoration: none; }
+.money .mh a.c:hover { color: var(--ink); background: var(--hover); }
+.money .mh a.go { text-decoration: none; }
+.money .crumbs a { color: inherit; text-decoration: none; }
+.money .mh .tabs { margin: -6px 0 -8px; }
+.money .mh .tabs button { height: 32px; font-size: 13.5px; }
 
-/* Merchants behind a category, revealed on click. */
-.fin-merchants { list-style: none; margin: 0; padding: 2px 10px 12px 48px; }
-.fin-merchants li { position: relative; display: flex; align-items: center; gap: 10px; padding: 5px 8px; font-size: 12px; }
-.fin-merch-bar {
-  position: absolute;
-  left: 0;
-  top: 2px;
-  bottom: 2px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--c) 14%, transparent);
-}
-.fin-merch-name { position: relative; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-merch-n { position: relative; font: 600 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; }
-.fin-merch-amt { position: relative; font: 700 11.5px var(--font-mono); flex: none; width: 74px; text-align: right; }
-.fin-merch-empty { color: var(--d-ink-3); }
+/* ---- the header: title, the month, add a bank export ------------------------------------ */
+.money .phead .mnav { display: flex; align-items: center; gap: 6px; }
+.money .phead .mnav b { font-size: 15px; font-weight: 650; min-width: 128px; text-align: center; }
+.money .mswatch { width: 14px; height: 14px; border-radius: 4px; background: var(--cc); align-self: center; flex: none; }
+.money .mphone { display: none; }
 
-/* Chart segments respond to the pointer the same way the rows do. */
-.fin-seg { transition: opacity 0.12s ease; cursor: pointer; }
-.fin-chart-total { fill: var(--d-ink-2); font: 700 10px var(--font-mono); opacity: 0; transition: opacity 0.12s ease; }
-.fin-chart .fin-col:hover .fin-chart-total { opacity: 1; }
+/* ---- the overview's two columns --------------------------------------------------------- */
+.money .mgrid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.money .mcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.money .mlower { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
-/* Category detail page */
-.fin-detail-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.fin-back {
-  border: 1px solid var(--border);
-  background: var(--panel);
-  color: var(--text-dim);
-  border-radius: 9px;
-  padding: 6px 11px;
-  font: 650 12px var(--font-ui);
-  cursor: pointer;
-  flex: none;
-}
-.fin-back:hover { color: var(--text); border-color: var(--border-strong); }
-.fin-detail-ic {
-  display: inline-grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  flex: none;
-  background: color-mix(in srgb, currentColor 15%, transparent);
-}
-.fin-detail-ic svg { width: 20px; height: 20px; }
-.fin-line { display: block; width: 100%; height: 240px; overflow: visible; }
-/* Values appear on the point you are pointing at, not on all twelve. */
-.fin-pt .fin-chart-total { opacity: 0; }
-.fin-pt:hover .fin-chart-total { opacity: 1; }
-.fin-merchants-flat { padding: 2px 0 4px; }
-.fin-merchants-flat li { padding: 6px 8px; }
+/* One number dominates */
+.money .mbig { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0 12px; }
+.money .mbig > b { font-size: 40px; line-height: 44px; font-weight: 750; letter-spacing: -0.025em; }
+.money .mbig > span { color: var(--ink-3); font-size: 15px; }
+.money .mbig > span b { color: var(--ink-2); font-weight: 650; }
+.money .mbig > span a { color: var(--accent); font-weight: 600; }
+.money .mbig.sm > b { font-size: 28px; line-height: 34px; }
 
-/* Months the data has not reached: still labelled, visibly not measured. */
-.fin-chart-lbl.ahead { fill: var(--d-line-2); }
+/* The pace: the month so far against a typical one, and where in the month today is */
+.money .mpace { position: relative; margin: 6px 0 28px; }
+.money .mpace .ui-bar { height: 10px; }
+.money .mpace .ui-bar i { background: var(--ink); }
+.money .mpace .lab { position: absolute; top: 18px; transform: translateX(-50%); font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.money .mpace .lab b { color: var(--ink-2); font-weight: 650; }
+.money .msum { margin: 0; color: var(--ink-2); line-height: 22px; }
+.money .msum b { color: var(--ink); font-weight: 650; }
+.money .msum a { color: var(--accent); font-weight: 600; }
 
-/* ---- Finance overview: a dashboard, not a table --------------------------
-   One number dominates and everything else is sized by how much it matters.
-   Cards are buttons: each is the door to the page that explains it. */
-.fin-hero-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 14px; margin-bottom: 14px; align-items: stretch; }
-@media (max-width: 980px) { .fin-hero-grid { grid-template-columns: 1fr; } }
-
-.fin-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  transition: border-color 0.12s ease;
-}
-/* A flat tint, not a gradient: the flat design language rules gradients out of
-   chrome. They stay allowed under a chart line, which is data, not decoration. */
-.fin-hero { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
-.fin-hero:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
-.fin-hero-lbl { display: flex; align-items: baseline; gap: 8px; font: 700 10.5px var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--d-ink-3); }
-.fin-hero-lbl em { font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; }
-.fin-hero-num { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; color: var(--d-ink); }
-.fin-hero-pace { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 8px; }
-.fin-hero-pace .track { position: relative; display: block; height: 8px; border-radius: 4px; background: var(--d-line); overflow: hidden; }
-.fin-hero-pace .fill { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
-/* Where a typical month sits on that track, so the fill has a meaning. */
-/* `left` is set inline from the same ceiling the fill is scaled by. */
-.fin-hero-pace .typical { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--d-ink-3); opacity: 0.55; }
-.fin-hero-pace em { font-style: normal; font-size: 12.5px; color: var(--d-ink-2); }
-.fin-hero-split { display: flex; gap: 3px; width: 100%; height: 6px; margin-top: 10px; }
-.fin-hero-split i { display: block; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--d-ink) calc(var(--a, 0.5) * 100%), transparent); }
-.fin-hero-go { margin-top: 12px; font: 600 12px var(--font-ui); color: var(--d-accent); }
-
-.fin-side { display: flex; flex-direction: column; gap: 14px; }
-.fin-mini {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  justify-content: center;
-}
-.fin-mini b { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--fin-pos); }
-.fin-mini b.down { color: var(--fin-neg); }
-
-/* The three that matter. */
-.fin-tops { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 12px; align-items: stretch; }
-@media (max-width: 820px) { .fin-tops { grid-template-columns: 1fr; } }
-/* Colour lives in the surface, not in a 3px line at the top. A wash of the
-   category's own hue plus a matching border is enough to identify the card
-   across the page without shouting — and it is what the flat language does
-   elsewhere (see .dh-chip), rather than a new idea. */
-/* Surfaces stay neutral and colour concentrates into a small SOLID tile.
-   The same amount of pigment spread as a 7% wash over a whole card reads as
-   washed-out; in a 34px square at full strength it reads as vivid. Every
-   fintech dashboard worth copying does this — neutral cards, saturated tiles. */
-.fin-top-cat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  padding: 18px 20px 20px;
-  transition: border-color 0.14s ease, transform 0.14s ease;
-}
-.fin-top-cat:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--c) 50%, var(--border));
-}
-.fin-top-head { display: flex; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 700; color: var(--d-ink-2); margin-bottom: 6px; }
-.fin-top-head i {
-  display: inline-grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
-  color: var(--fin-tile-ink, var(--c));
-}
-.fin-top-head svg { width: 17px; height: 17px; }
-.fin-top-cat b { font-size: 28px; font-weight: 800; letter-spacing: -0.025em; color: var(--d-ink); }
-.fin-top-sub { font-size: 11.5px; color: var(--d-ink-3); }
-/* Deltas as pills, not bare text — a tinted capsule is what makes a change
-   read as a badge rather than as part of the sentence. */
-.fin-top-delta {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 8px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font: 700 11px var(--font-mono);
-}
-.fin-top-delta.over { color: var(--fin-neg); background: color-mix(in srgb, var(--fin-neg) 15%, transparent); }
-.fin-top-delta.under { color: var(--fin-pos); background: color-mix(in srgb, var(--fin-pos) 15%, transparent); }
-
-/* Everything else: footnotes, one line, still clickable. */
-.fin-rest { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.fin-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  border-radius: 999px;
-  padding: 5px 14px 5px 5px;
-  font: 600 12px var(--font-ui);
-  color: var(--d-ink-2);
-  cursor: pointer;
-  transition: border-color 0.12s ease;
-}
-.fin-chip:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--border)); color: var(--d-ink); }
-.fin-chip i {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
-  color: var(--fin-tile-ink, var(--c));
-}
-.fin-chip svg { width: 12px; height: 12px; }
-.fin-chip b { font: 700 11.5px var(--font-mono); color: var(--d-ink); }
-
-.fin-two { display: flex; gap: 22px; }
-.fin-two span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.fin-two b { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
-.fin-two em { font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
-
-/* Merchant rows are doors now, so the whole row is the button. */
-.fin-merchants-flat li { padding: 0; }
-.fin-merch-row {
+/* A month by category: one row per category, each a door to it */
+.money .mcat {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 92px 140px;
+  gap: 14px;
   align-items: center;
-  gap: 10px;
-  width: 100%;
+  min-height: 40px;
   padding: 7px 8px;
-  border: none;
-  background: none;
-  font: inherit;
-  font-size: 12px;
+  margin: 0 -8px;
+  border-radius: var(--r-2);
   color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
+  text-decoration: none;
 }
-.fin-merch-row:hover { background: color-mix(in srgb, var(--c) 10%, transparent); }
-.fin-merch-chev { position: relative; font: 600 13px var(--font-mono); color: var(--d-ink-3); flex: none; width: 12px; text-align: center; }
-.fin-merch-row:hover .fin-merch-chev { color: var(--c); }
+.money .mcat + .mcat::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; border-top: 1px solid var(--line); }
+.money .mcat:hover { background: var(--hover); }
+.money .mcat:hover::before, .money .mcat:hover + .mcat::before { border-color: transparent; }
+.money .mcat:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.money .mcat .nm { display: flex; align-items: center; gap: 9px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.money .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; background: var(--cc); }
+.money .mcat .ui-bar { height: 8px; }
+.money .mcat .ui-bar i { background: var(--cc); }
+.money .mcat .amt { text-align: right; font-weight: 650; }
+.money .mcat .vs { text-align: right; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.money .mcat .vs b { color: var(--ink-2); font-weight: 650; }
+.money .mkey { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: var(--ink-3); font-size: 12.5px; }
+.money .mkey span { display: inline-flex; align-items: center; gap: 6px; }
+.money .mkey i { display: inline-block; width: 16px; height: 6px; border-radius: 3px; background: var(--ink-3); }
 
-/* Transactions, grouped by month.
-   The month is a BAND — its own surface, its own rhythm — and the transactions
-   are plainly nested under it. Previously both were flat rows of similar weight
-   separated by identical hairlines, which made a long list read as one mush. */
-.fin-txns { list-style: none; margin: 0; padding: 0; }
-.fin-txns > li + li { margin-top: 20px; }
-.fin-txn-month {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 9px 14px 11px;
-  border-radius: 10px;
-  background: var(--fin-band);
-  overflow: hidden;
-}
-.fin-txn-month .m { font: 800 12px var(--font-ui); letter-spacing: 0.02em; color: var(--d-ink); flex: none; }
-.fin-txn-month .n { font-size: 11px; color: var(--d-ink-3); }
-.fin-txn-month b { margin-left: auto; font: 800 14px var(--font-mono); color: var(--d-ink); }
-/* The month's share of the biggest month, as a rule along the band's foot. */
-.fin-txn-month .share {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 0 2px 2px 0;
-}
-.fin-txn-rows { list-style: none; margin: 0; padding: 0 4px; }
-.fin-txn-rows li { display: flex; align-items: center; gap: 14px; padding: 10px 10px; font-size: 12.5px; }
-.fin-txn-rows li + li { border-top: 1px solid var(--d-line); }
-/* `:not(.fin-day)` matters: a month page reuses .fin-txn-rows for its day
-   groups, and each group is itself an <li>. Without the guard, pointing at one
-   transaction lit up the whole day it belonged to. */
-.fin-txn-rows > li:not(.fin-day):hover { background: var(--fin-row-hover); border-radius: 8px; }
-/* Day of the month over its weekday: a date block, so the eye lands on a
-   number rather than on "Sun 5" competing with the amount. */
-.fin-txn-day { display: flex; flex-direction: column; align-items: center; flex: none; width: 34px; line-height: 1.1; }
-.fin-txn-day b { font: 800 15px var(--font-ui); color: var(--d-ink); }
-.fin-txn-day em { font-style: normal; font: 600 9.5px var(--font-mono); text-transform: uppercase; color: var(--d-ink-3); }
-.fin-txn-type {
-  flex: none;
-  font: 600 10px var(--font-mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--d-ink-3);
-  background: var(--fin-band);
-  border-radius: 999px;
-  padding: 3px 9px;
-}
-.fin-txn-amt { margin-left: auto; font: 700 13.5px var(--font-mono); flex: none; text-align: right; }
-/* Money coming back is the one thing in this list that is not a cost. */
-.fin-txn-rows li.refund .fin-txn-amt { color: var(--fin-pos); }
-.fin-txn-bal { font: 500 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; width: 132px; text-align: right; }
+/* Arithmetic, laid out */
+.money .marith { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; font-size: 14px; margin: 6px 0 10px; max-width: 560px; }
+.money .marith > span { color: var(--ink-2); }
+.money .marith > b { text-align: right; font-weight: 600; white-space: nowrap; }
+.money .marith .sub { border-top: 1px solid var(--line); padding-top: 4px; color: var(--ink); }
+.money .marith .tot { border-top: 1.5px solid var(--ink); padding-top: 6px; font-weight: 750; color: var(--ink); }
+.money .marith b.tot { font-size: 16px; }
+.money .marith.wide { max-width: 680px; gap: 8px 16px; }
+.money .marith em { display: block; font-style: normal; font-size: 12.5px; color: var(--ink-3); line-height: 17px; }
+.money .marith b em { display: inline; margin-left: 6px; font-weight: 450; }
+.money .mnet { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
 
-.fin-cat-last .fin-pill { display: inline-block; }
-.fin-cat-last.over .fin-pill { color: var(--fin-neg); background: color-mix(in srgb, var(--fin-neg) 15%, transparent); }
-.fin-cat-last.under .fin-pill { color: var(--fin-pos); background: color-mix(in srgb, var(--fin-pos) 15%, transparent); }
-/* Chart fills stay gradient — that is data, not chrome. */
-.fin-line path[fill^="url"] { opacity: 1; }
+/* ---- commitments: the month's days, and the charges still to come ---------------------- */
+.money .mstrip { display: grid; gap: 2px; margin: 8px 0 6px; }
+.money .mstrip i { height: 18px; border-radius: 3px; background: var(--panel); }
+.money .mstrip i.p { background: color-mix(in srgb, var(--ink) 16%, var(--panel)); }
+.money .mstrip i.t { box-shadow: 0 0 0 1.5px var(--sun); background: var(--sun-wash); }
+.money .mstrip i.c { background: var(--ink-2); }
+.money .mstrip i.c.fut { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--ink-2); }
+.money .mstrip i.c.t { box-shadow: 0 0 0 1.5px var(--sun), inset 0 0 0 1.5px var(--ink-2); }
+.money .mstriplab { position: relative; height: 16px; color: var(--ink-3); font-size: 11.5px; margin-bottom: 4px; }
+.money .mstriplab span { position: absolute; top: 0; }
+.money .mstriplab .now { transform: translateX(-50%); color: var(--sun-ink); font-weight: 700; }
+.money .row.mrow { grid-template-columns: 52px minmax(0, 1fr) auto; color: inherit; text-decoration: none; }
+.money .mrow .dd { font-size: 12.5px; color: var(--ink-3); line-height: 16px; }
+.money .mrow .dd b { display: block; color: var(--ink); font-size: 14px; }
+.money .row .r { color: var(--ink); font-weight: 650; font-size: 14px; }
+.money .mmore { display: inline-block; margin-top: 6px; color: var(--accent); font-weight: 600; font-size: 13.5px; }
+.money .mfound { margin-top: 10px; }
+.money .mfound svg.i { color: var(--ink-3); margin-top: 1px; }
 
-/* ============================================================
-   FINANCE — a deliberate exception to the flat design language.
-   ============================================================
-   Everything in `.fin` is allowed elevation, gradient surfaces and larger
-   radii, which the rest of Basalt forbids (see "Design rules": no blur, no
-   gradients, no glow, separation by 1px border alone).
+/* ---- every category: typical, the range of your months, and last month ---------------- */
+.money .row.mcrow { grid-template-columns: minmax(0, 1fr) minmax(120px, 220px) 96px 160px; color: inherit; text-decoration: none; }
+.money .row.mcrow.cool { opacity: 0.45; }
+.money .mcrow .t { display: flex; align-items: center; gap: 9px; }
+.money .mcrow .amt { text-align: right; font-weight: 650; }
+.money .mcrow .vs, .money .mcat .vs { text-align: right; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.money .mcrow .vs b { color: var(--ink-2); font-weight: 650; }
+.money .mrange { position: relative; height: 16px; }
+.money .mrange::before { content: ""; position: absolute; left: 0; right: 0; top: 7px; height: 2px; border-radius: 1px; background: var(--panel); }
+.money .mrange .span { position: absolute; top: 4px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--cc) 35%, transparent); }
+.money .mrange .mark { position: absolute; top: 0; width: 2px; height: 16px; margin-left: -1px; background: var(--ink-2); }
+.money .mrange .last { position: absolute; top: 4px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--cc); box-shadow: 0 0 0 2px var(--surface); }
+.money .mlegend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 10px 0 0; color: var(--ink-3); font-size: 12.5px; }
+.money .mlegend span { display: inline-flex; align-items: center; gap: 6px; position: relative; }
+.money .mlegend i { position: static; display: inline-block; }
+.money .mlegend .span { width: 18px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--ink-3) 35%, transparent); }
+.money .mlegend .mark { width: 2px; height: 12px; background: var(--ink-2); }
+.money .mlegend .last { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
 
-   This is not drift and it is not an oversight. Jules asked for the fintech
-   dashboard look here specifically, after we compared the flat version against
-   four reference dashboards and agreed the flat language was fighting the
-   material — a money view lives on depth and layering in a way a notes app
-   does not. It is scoped to this one area on purpose.
+/* ---- the charts (ui.css .chart): Money's own marks ------------------------------------- */
+.money .mchart { margin-top: 4px; }
+.money .mchart .mband { fill: color-mix(in srgb, var(--ink) 5%, transparent); }
+.money .mchart .tick.lbl { font-weight: 500; }
+.money .mchart .tick.lbl.on { fill: var(--ink); font-weight: 700; }
+.money .mchart .hit { fill: transparent; cursor: pointer; outline: none; }
+.money .mchart .hit:focus-visible { stroke: var(--accent); stroke-width: 2; }
+.money .mchart .mk:hover path { opacity: 0.75 !important; }
+.money .mchart .mk.selected:hover path, .money .mchart .mk.partial:hover path { opacity: 1 !important; }
+.money .mchart .mk.future .tick.lbl { fill: var(--ink-3); opacity: 0.6; }
+.money .mchart .tip { pointer-events: none; }
+.money .mchart .tip .q3 { display: block; margin: 0; }
+.money .mh .ck { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.money .mh .ck i.dash { width: 18px; border-top: 1.5px dashed var(--ink-3); }
+.money .mh .ck i.band { width: 16px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.money .msel { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
 
-   So: do NOT "fix" these to match the rest of the app, and do NOT copy them
-   outward into other views. If the exception is ever revisited, the whole
-   block goes at once rather than being flattened piecemeal.
-   ============================================================ */
-.fin {
-  /* Icon tiles, the mockup way: the category's ink on a pale tint of itself.
-     The tint is mixed from the ink AT THE TILE (see .fin-cat-ic), because a
-     custom property is resolved where it is declared — declaring
-     color-mix(var(--c)) here, where no --c exists, yields an invalid value
-     that every tile then inherits. Only the knobs live here. */
-  --fin-tile-pct: 13%;
-  --fin-shadow: 0 1px 2px rgba(17, 18, 22, 0.04), 0 10px 28px -14px rgba(17, 18, 22, 0.16);
-  --fin-shadow-lift: 0 2px 4px rgba(17, 18, 22, 0.05), 0 18px 40px -18px rgba(17, 18, 22, 0.28);
-  --fin-band: color-mix(in srgb, var(--d-ink) 4%, transparent);
-  --fin-row-hover: color-mix(in srgb, var(--d-ink) 3%, transparent);
-}
-[data-theme="dark"] .fin {
-  /* On navy the tiles go solid with a white glyph — Revolut's move. */
-  --fin-tile-pct: 100%;
-  --fin-tile-ink: var(--on-vivid);
-  --fin-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 12px 32px -14px rgba(0, 0, 0, 0.7);
-  --fin-shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.55), 0 22px 48px -18px rgba(0, 0, 0, 0.85);
-  --fin-band: color-mix(in srgb, var(--d-ink) 7%, transparent);
-  --fin-row-hover: color-mix(in srgb, var(--d-ink) 5%, transparent);
-}
+/* ---- shops, purchases, transactions ----------------------------------------------------- */
+.money .row.mshop, .money .row.mpay, .money .row.mheadroom { grid-template-columns: minmax(0, 1fr) 160px 96px; color: inherit; text-decoration: none; }
+.money .mshop .ui-bar i, .money .mpay .ui-bar i { background: var(--cc, var(--ink-2)); }
+.money .mheadroom .ui-bar i { background: var(--ink-2); }
+.money .mheadroom .ui-bar u { background: var(--ok); width: 3px; }
+.money .row.mpay:disabled { cursor: default; }
+.money .row.mtx { grid-template-columns: minmax(52px, auto) minmax(0, 1fr) auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px; color: inherit; text-decoration: none; }
+.money .mtx .dd { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.money .mtx .r { font-weight: 600; }
+.money .mtx.refund .r, .money .mtx.moved .r { color: var(--ink-2); font-weight: 500; }
+.money .row.mtx:has(> .lead) { grid-template-columns: 12px minmax(0, 1fr) auto; }
+.money .mtx .dot { display: block; width: 8px; height: 8px; border-radius: 50%; }
+.money .row.static { cursor: default; }
+.money .row.static:hover { background: none; }
+.money .mday + .mday { margin-top: 8px; }
+.money .mdayh { padding: 8px 0 2px; font-size: 12.5px; font-weight: 650; color: var(--ink-3); }
+.money .mmonth { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 8px; margin: 0 -8px; border-radius: var(--r-2); background: var(--panel); color: inherit; text-decoration: none; }
+.money a.mmonth:hover { background: color-mix(in srgb, var(--ink) 7%, var(--panel)); }
+.money a.mmonth:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.money .mmonth span { color: var(--ink-3); font-size: 13px; }
+.money .mmonth .amt { font-weight: 700; }
+.money .row.mline { grid-template-columns: minmax(0, 1fr) auto; color: inherit; text-decoration: none; align-items: start; }
+.money .mline .m { white-space: normal; }
+.money .mline .m em { color: var(--ink-2); font-style: normal; margin-left: 6px; }
+.money .mline .end { gap: 8px; align-items: start; }
+.money .mline .r span { display: block; font-size: 12px; font-weight: 450; color: var(--ink-3); }
+.money .mrun { display: flex; gap: 2px; margin-top: 5px; }
+.money .mrun i { width: 8px; height: 8px; border-radius: 2px; background: var(--ink-3); opacity: 0.55; }
+.money .row.mdoc { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.money .mdoc .ext { display: inline-block; padding: 2px 6px; border-radius: 5px; background: var(--panel); color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 
-.fin .fin-card,
-.fin .fin-kpi {
-  background: var(--fin-surface);
-  box-shadow: var(--fin-shadow);
-  border-color: color-mix(in srgb, var(--border) 55%, transparent);
-}
-.fin .fin-top-cat:hover,
-.fin .fin-hero:hover { box-shadow: var(--fin-shadow-lift); }
+/* A shop in figures */
+.money .mstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding-top: 14px; padding-bottom: 14px; }
+.money .mstats > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.money .mstats .lbl { color: var(--ink-3); font-size: 12.5px; font-weight: 600; }
+.money .mstats b { font-size: 22px; line-height: 28px; font-weight: 750; letter-spacing: -0.01em; }
+.money .mstats .sub { color: var(--ink-3); font-size: 12.5px; }
 
-/* The hero is the one surface that goes fully coloured — the "total balance"
-   card every one of the references leads with. */
-.fin .fin-hero {
-  /* One purple, gently lightened along the diagonal. Two stops, not three:
-     a third hue is what put a visible seam down the middle of the card. */
-  background: linear-gradient(135deg, var(--fin-hero-a) 0%, var(--fin-hero-b) 100%);
-  border-color: transparent;
-  color: #fff;
-  /* Tinted from the card, not from a violet literal — the literal stayed purple
-     under a repainted hero, which read as a bruise under an orange one. */
-  box-shadow:
-    0 2px 4px color-mix(in srgb, var(--fin-hero-a) 30%, transparent),
-    0 22px 44px -20px color-mix(in srgb, var(--fin-hero-a) 62%, transparent);
-}
-.fin .fin-hero .fin-hero-lbl,
-.fin .fin-hero .fin-hero-pace em { color: rgba(255, 255, 255, 0.72); }
-.fin .fin-hero .fin-hero-num { color: #fff; }
-.fin .fin-hero .fin-hero-go { color: #fff; font-weight: 700; }
-.fin .fin-hero .fin-hero-pace .track { background: rgba(255, 255, 255, 0.22); }
-.fin .fin-hero .fin-hero-pace .fill { background: #fff; }
-.fin .fin-hero .fin-hero-pace .typical { background: rgba(255, 255, 255, 0.75); opacity: 1; }
-/* The category split is tonal on the coloured card: white, stepped by share.
-   Category hues stay off this surface — see the note in Finance.tsx. */
-.fin .fin-hero .fin-hero-split i { background: rgba(255, 255, 255, var(--a, 0.5)); }
+/* ---- the ledgers' calendar ------------------------------------------------------------- */
+.money .mcalh { flex-wrap: wrap; row-gap: 6px; }
+.money .mcalh .c b { color: var(--ink); font-weight: 650; }
+.money .mswitch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; margin-right: 8px; }
+.money .mcalh .mnav { display: flex; gap: 4px; }
+.money .mcal { margin-top: 6px; }
+.money .mcal-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
+.money .mcal-head span { font-size: 11.5px; font-weight: 650; color: var(--ink-3); text-transform: uppercase; letter-spacing: .04em; padding-left: 6px; }
+.money .mcal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.money .mcal-day { min-height: 84px; padding: 6px; border-radius: var(--r-2); background: var(--panel); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.money .mcal-day.pad { background: none; }
+.money .mcal-day.on { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line-2); }
+.money .mcal-day.today { box-shadow: inset 0 0 0 1.5px var(--sun); background: var(--sun-wash); }
+.money .mcal-day .n { font-size: 12px; font-weight: 650; color: var(--ink-3); }
+.money .mcal-day.today .n { color: var(--sun-ink); }
+.money .mcal-day .sums { display: flex; flex-direction: column; font-size: 12.5px; font-weight: 700; }
+.money .mcal-day .sums em { font-style: normal; color: var(--ink); }
+.money .mcal-day .sums em.in { color: var(--ink-2); }
+.money .mcal-day ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.money .mcal-day li { font-size: 12px; line-height: 16px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
+.money .mcal-day li a { color: var(--accent); }
+.money .mcal-day li a:hover { text-decoration: underline; }
+.money .mcal-day li.more { color: var(--ink-3); }
 
-/* ---- Finance: charts on the page, not in a white box ---------------------
-   A chart is data, and data reads better on the page's own ground than inside
-   another raised surface. The card around it keeps its padding and heading and
-   loses its fill, border and shadow, so the plot sits directly on the
-   background — which is also what makes the gridlines legible. */
-.fin .fin-card.fin-plot {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  padding-left: 4px;
-  padding-right: 4px;
-}
-/* The axis is a real line now, and the value gridlines sit behind everything. */
-.fin-grid-line { stroke: var(--d-line); stroke-width: 1; opacity: 0.55; }
-.fin-axis { stroke: var(--d-ink-3); stroke-width: 1; opacity: 0.45; }
-/* Every column and every point is a door. */
-.fin-hit { fill: transparent; cursor: pointer; }
-.fin-hit:hover { fill: color-mix(in srgb, var(--d-ink) 4%, transparent); }
-.fin-hit:focus-visible { outline: none; fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); stroke-width: 2; }
-
-/* ---- month navigation ---------------------------------------------------- */
-.fin-monthnav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.fin-monthnav button {
-  border: 1px solid var(--border);
-  background: var(--fin-surface);
-  color: var(--d-ink-2);
-  border-radius: 8px;
-  min-width: 28px;
-  padding: 4px 9px;
-  font: 650 12px var(--font-ui);
-  cursor: pointer;
-}
-.fin-monthnav button:hover:not(:disabled) { color: var(--d-ink); border-color: var(--border-strong); }
-.fin-monthnav button:disabled { opacity: 0.35; cursor: default; }
-.fin-h1-of { font-weight: 600; color: var(--d-ink-3); }
-
-/* ---- a ledger as a calendar ---------------------------------------------- */
-.fin-cal { margin-top: 6px; }
-.fin-cal-head, .fin-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.fin-cal-head {
-  margin-bottom: 6px;
-  font: 700 10px var(--font-mono);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--d-ink-3);
-}
-.fin-cal-head span { padding-left: 2px; }
-.fin-cal-day {
-  position: relative;
-  overflow: hidden;
-  min-height: 76px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px 7px;
-  background: var(--fin-surface);
-}
-.fin-cal-day.empty { border-color: transparent; background: none; }
-.fin-cal-day.on { border-color: color-mix(in srgb, var(--c) 40%, var(--border)); }
-/* The wash is the day's share of the busiest day — heavy dates read first. */
-.fin-cal-wash { position: absolute; inset: 0; background: var(--c); pointer-events: none; }
-.fin-cal-n { position: relative; font: 700 12px var(--font-mono); color: var(--d-ink-3); }
-.fin-cal-day.on .fin-cal-n { color: var(--d-ink); }
-.fin-cal-sum { position: relative; display: block; font: 800 12.5px var(--font-mono); color: var(--c); margin-top: 1px; }
-.fin-cal-items { position: relative; list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.fin-cal-items button {
-  display: block;
-  width: 100%;
-  border: none;
-  background: color-mix(in srgb, var(--c) 16%, transparent);
-  color: var(--d-ink);
-  border-radius: 5px;
-  padding: 2px 5px;
-  font: 600 10.5px var(--font-ui);
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.fin-cal-items button:hover { background: color-mix(in srgb, var(--c) 30%, transparent); }
-.fin-cal-items .more { font: 600 10px var(--font-mono); color: var(--d-ink-3); padding-left: 5px; }
-@media (max-width: 880px) { .fin-cal-day { min-height: 60px; } .fin-cal-items { display: none; } }
-
-/* ---- one card per subscription ------------------------------------------- */
-.fin-subs { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 14px; margin-top: 14px; }
-.fin-sub-card {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: stretch;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  padding: 16px 18px 18px;
-  transition: border-color 0.14s ease, transform 0.14s ease;
-}
-.fin-sub-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 50%, var(--border)); }
-.fin-sub-top { display: flex; align-items: baseline; gap: 10px; }
-.fin-sub-top b { font-size: 14.5px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-sub-top em { font-style: normal; font: 800 15px var(--font-mono); color: var(--c); flex: none; }
-.fin-sub-cad { font-size: 11.5px; color: var(--d-ink-3); text-transform: capitalize; }
-/* One tick per month it actually charged. A short run and a long one are
-   different decisions, and the shape says which before the number does. */
-.fin-sub-run { display: flex; gap: 2px; margin: 7px 0 3px; height: 14px; align-items: flex-end; }
-.fin-sub-run i { flex: 1; min-width: 2px; height: 100%; border-radius: 2px; background: color-mix(in srgb, var(--c) 55%, transparent); }
-.fin-sub-meta { font-size: 12px; color: var(--d-ink-2); }
-.fin-sub-meta b { font: 800 13px var(--font-mono); color: var(--d-ink); }
-.fin-sub-meta.muted { color: var(--d-ink-3); font-style: italic; }
-.fin-sub-since, .fin-sub-next { font: 600 11px var(--font-mono); color: var(--d-ink-3); }
-.fin-sub-note { font-size: 11.5px; color: var(--d-ink-3); line-height: 1.45; }
-
-/* ---- documents ----------------------------------------------------------- */
-.fin-docs { list-style: none; margin: 0; padding: 0; }
-.fin-docs > li + li { margin-top: 20px; }
-.fin-doc-rows { list-style: none; margin: 0; padding: 0 4px; }
-.fin-doc-rows li + li { border-top: 1px solid var(--d-line); }
-.fin-doc-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.fin-doc-row:hover { background: var(--fin-row-hover); }
-.fin-doc-name { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-doc-date { font: 600 11px var(--font-mono); color: var(--d-ink-3); flex: none; }
-/* The overview's strip: enough to recognise the pile, not a second list. */
-.fin-doc-strip { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
-.fin-doc-strip i {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--d-ink-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 3px 9px 3px 4px;
-  max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.fin-doc-strip em {
-  font-style: normal;
-  font: 700 9px var(--font-mono);
-  text-transform: uppercase;
-  background: var(--d-line-2);
-  border-radius: 4px;
-  padding: 2px 5px;
+/* ---- the phone: one column, the drill-down as stacked screens (§2.9) -------------------- */
+@media (max-width: 760px) {
+  .money { padding: 0 12px 24px; gap: 12px; }
+  .money > .tabs { margin: 0 -12px; padding: 0 6px; overflow-x: auto; scrollbar-width: none; }
+  .money > .tabs::-webkit-scrollbar { display: none; }
+  .money > .tabs a, .money > .tabs button { flex: none; }
+  .money .mhead h1, .money .mhead .meta { display: none; }
+  .money .mhead { min-height: 0; }
+  .money .mhead .mnav b { min-width: 0; font-size: 14px; }
+  .money .mhead .mlabel { display: none; }
+  .money .mpage > .crumbs { display: none; }
+  .money .mpage > .phead h1, .money .mpage > .phead .meta { display: none; }
+  .money .mpage > .phead { min-height: 0; }
+  .money .mpage > .phead:not(:has(.tabs, .mnav)) { display: none; }
+  .money .mphone { display: flex; align-items: baseline; gap: 8px; margin: -2px 0 2px; color: var(--ink-3); font-size: 14px; }
+  .money .mphone b { color: var(--ink); font-size: 24px; font-weight: 750; letter-spacing: -0.02em; }
+  .money .mgrid, .money .mlower { grid-template-columns: 1fr; gap: 12px; }
+  .money .mcol { gap: 12px; }
+  .money .mbig > b { font-size: 34px; line-height: 40px; }
+  .money .mcat { grid-template-columns: 112px minmax(0, 1fr) 84px; gap: 10px; }
+  .money .mcat .vs, .money .mkey, .money .mh .mhide, .money .mpage > .phead .mswatch, .money .mchart .tip { display: none; }
+  .money .mh { flex-wrap: wrap; row-gap: 2px; }
+  .money .mh h2 { font-size: 17px; line-height: 24px; }
+  .money .mh .c, .money .mh .go { white-space: nowrap; }
+  .money .row.mcrow { grid-template-columns: minmax(0, 1fr) 84px; }
+  .money .mcrow .mrange, .money .mcrow .vs { display: none; }
+  .money .row.mshop, .money .row.mpay, .money .row.mheadroom { grid-template-columns: minmax(0, 1fr) 64px 84px; }
+  .money .mstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .money .row { min-height: 48px; }
+  .money .mcal-day { min-height: 54px; padding: 4px; }
+  .money .mcal-day ul, .money .mcal-head span { font-size: 10.5px; }
+  .money .mcal-day ul { display: none; }
+  .money .mcal-day .sums { font-size: 10.5px; }
 }
 
-/* ---- cards that are doors ------------------------------------------------ */
-.fin-jump {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  align-items: stretch;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  transition: border-color 0.14s ease, transform 0.14s ease;
-}
-.fin-jump:hover { transform: translateY(-2px); }
-.fin-jump > b { font-size: 27px; font-weight: 800; letter-spacing: -0.025em; margin-top: 2px; }
-.fin-jump-sub { font-size: 11.5px; color: var(--d-ink-3); }
-.fin-jump .fin-hero-go { margin-top: auto; padding-top: 10px; }
-.fin-jump .fin-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
-.fin-jump .fin-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; }
-
-.fin-nextup { display: flex; flex-direction: column; gap: 3px; margin: 10px 0 2px; }
-.fin-nextup i {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-style: normal;
-  font-size: 12px;
-  color: var(--d-ink-2);
-}
-.fin-nextup em { font-style: normal; font: 700 10.5px var(--font-mono); color: var(--d-ink-3); flex: none; width: 46px; }
-.fin-nextup i > b { margin-left: auto; font: 700 11.5px var(--font-mono); color: var(--d-ink); }
-
-/* ---- saving -------------------------------------------------------------- */
-.fin-save-bar { display: flex; gap: 3px; height: 8px; margin: 10px 0 6px; }
-.fin-save-bar i { display: block; height: 100%; border-radius: 4px; }
-.fin-save-bar .surplus { background: var(--fin-pos); }
-.fin-save-bar .trim { background: color-mix(in srgb, var(--fin-pos) 32%, transparent); }
-.fin-save-key { display: flex; flex-direction: column; gap: 2px; }
-.fin-save-key i { display: flex; align-items: center; gap: 7px; font-style: normal; font-size: 11.5px; color: var(--d-ink-2); }
-.fin-save-key em { width: 9px; height: 9px; border-radius: 3px; flex: none; }
-.fin-save-key .surplus { background: var(--fin-pos); }
-.fin-save-key .trim { background: color-mix(in srgb, var(--fin-pos) 32%, transparent); }
-
-/* The plan, as arithmetic you can argue with rather than a number to believe. */
-.fin-maths { list-style: none; margin: 14px 0 0; padding: 0; }
-.fin-maths li { display: flex; align-items: baseline; gap: 12px; padding: 9px 2px; border-top: 1px solid var(--d-line); }
-.fin-maths li:first-child { border-top: none; }
-.fin-maths li > span { flex: none; width: 170px; font-size: 13px; font-weight: 600; }
-.fin-maths li > b { font: 800 15px var(--font-mono); min-width: 96px; text-align: right; }
-.fin-maths li > b.neg { color: var(--fin-neg); }
-.fin-maths li > b.pos { color: var(--fin-pos); }
-.fin-maths li > em { font-style: normal; font-size: 11.5px; color: var(--d-ink-3); }
-.fin-maths li.sum, .fin-maths li.total { border-top-color: var(--border-strong); }
-.fin-maths li.total > span, .fin-maths li.total > b { font-size: 16px; font-weight: 800; }
-.fin-maths li.total > b { color: var(--fin-pos); }
-
-.fin-head-rows { list-style: none; margin: 0; padding: 0; }
-.fin-head-rows li + li { border-top: 1px solid var(--d-line); }
-.fin-head-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 9px 6px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.fin-head-row:hover { background: var(--fin-row-hover); }
-.fin-head-name { flex: none; width: 120px; font-size: 13px; font-weight: 600; }
-/* The bar is the typical month; the notch is a good one. The distance between
-   them is the saving, drawn rather than asserted. */
-.fin-head-bar { position: relative; flex: 1; min-width: 60px; height: 12px; }
-.fin-head-bar .typ { position: absolute; top: 3px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fin-pos) 28%, transparent); }
-.fin-head-bar .good { position: absolute; top: 0; width: 2px; height: 12px; border-radius: 1px; background: var(--fin-pos); }
-.fin-head-nums { flex: none; width: 132px; text-align: right; display: flex; flex-direction: column; gap: 1px; }
-.fin-head-nums b { font: 800 13px var(--font-mono); color: var(--fin-pos); }
-.fin-head-nums em { font-style: normal; font: 600 10.5px var(--font-mono); color: var(--d-ink-3); }
-
-.fin-goals { list-style: none; margin: 0; padding: 0; }
-.fin-goals li { display: flex; align-items: baseline; gap: 12px; padding: 10px 2px; border-top: 1px solid var(--d-line); }
-.fin-goals li:first-child { border-top: none; }
-.fin-goals li > span { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
-.fin-goals li > b { font: 800 15px var(--font-mono); flex: none; }
-.fin-goals li > em { font-style: normal; font-size: 11px; color: var(--d-ink-3); flex: none; width: 150px; text-align: right; }
-.fin-ytd { margin-top: 12px; }
-
-/* ---- payslips: the real rate against the contract rate ------------------- */
-.fin-rate-rows { list-style: none; margin: 12px 0 0; padding: 0; }
-.fin-rate-rows li { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
-.fin-rate-rows .m { flex: none; width: 52px; font: 700 11px var(--font-mono); color: var(--d-ink-2); }
-.fin-rate-rows .track { position: relative; flex: 1; min-width: 50px; height: 12px; background: var(--d-line); border-radius: 6px; }
-.fin-rate-rows .track i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: var(--cat-azure); }
-/* The contract rate as a notch: the gap to the bar's end is the whole point. */
-.fin-rate-rows .track em { position: absolute; top: -2px; width: 2px; height: 16px; background: var(--d-ink); border-radius: 1px; opacity: 0.65; }
-.fin-rate-rows li > b { flex: none; width: 62px; text-align: right; font: 700 12.5px var(--font-mono); }
-.fin-rate-rows .h { flex: none; width: 42px; text-align: right; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
-
-/* ---- one month in full --------------------------------------------------- */
-.fin-monthsplit { list-style: none; margin: 14px 0 0; padding: 0; }
-.fin-monthsplit li + li { border-top: 1px solid var(--d-line); }
-.fin-monthsplit-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 8px 6px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.fin-monthsplit-row:hover { background: color-mix(in srgb, var(--c) 8%, transparent); }
-.fin-monthsplit-row .tile {
-  display: inline-grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  flex: none;
-  background: color-mix(in srgb, var(--c) var(--fin-tile-pct, 13%), var(--fin-surface));
-  color: var(--fin-tile-ink, var(--c));
-}
-.fin-monthsplit-row .tile svg { width: 13px; height: 13px; }
-.fin-monthsplit-row .nm { flex: none; width: 120px; font-size: 13px; font-weight: 600; }
-.fin-monthsplit-row .bar { flex: 1; min-width: 40px; height: 6px; background: var(--d-line); border-radius: 3px; overflow: hidden; }
-.fin-monthsplit-row .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
-.fin-monthsplit-row > b { flex: none; width: 82px; text-align: right; font: 700 13px var(--font-mono); }
-.fin-monthsplit-row > em { flex: none; width: 108px; text-align: right; font-style: normal; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
-
-/* Transactions grouped under a date block rather than repeating the date. */
-.fin-day-rows { list-style: none; margin: 0; padding: 0; }
-.fin-day { display: flex; gap: 14px; padding: 8px 0; align-items: flex-start; }
-.fin-day + .fin-day { border-top: 1px solid var(--d-line); }
-.fin-day-txns { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
-.fin-day-txns li.refund .fin-txn-amt { color: var(--fin-pos); }
-.fin-day-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.fin-day .fin-merch-row { gap: 12px; }
-.fin-day .fin-txn-type { margin-left: 0; }
-.fin-day .fin-txn-amt { margin-left: auto; }
-
-/* A month band that is also a button (merchant page). */
-.fin-txn-month.as-button {
-  width: 100%;
-  border: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.fin-txn-month.as-button:hover { background: color-mix(in srgb, var(--d-ink) 7%, transparent); }
-.fin-txn-month.as-button .fin-merch-chev { margin-left: 10px; }
-
-
-/* ---- Finance: readability passes -----------------------------------------
-   A long day-by-day list needs a rhythm. Every other day group takes a slightly
-   darker ground than the card — enough to separate the groups, not enough to
-   read as a highlight. */
-.fin-day.alt { background: var(--fin-band); border-radius: 10px; }
-.fin-day { padding: 8px 10px; }
-.fin-day + .fin-day { border-top: none; }
-.fin-day-txns li.moved { opacity: 0.72; }
-.fin-day-txns li.moved .fin-txn-amt { color: var(--d-ink-3); }
-
-/* Money that moved without being spent, stated beside the headline. */
-.fin-aside { display: flex; flex-wrap: wrap; gap: 18px; margin: 10px 0 0; font-size: 12px; color: var(--d-ink-3); }
-.fin-aside em { font-style: normal; font: 700 12.5px var(--font-mono); color: var(--d-ink-2); }
-
-/* Take-home per month: one hue, the named month picked out. */
-.fin-pay-rows .track i { background: color-mix(in srgb, var(--cat-azure) 45%, transparent); }
-.fin-pay-rows li.on .track i { background: var(--cat-azure); }
-.fin-pay-rows li.on .m, .fin-pay-rows li.on > b { color: var(--d-ink); font-weight: 800; }
-
-
-/* One transaction highlights, and nothing around it. The day band underneath
-   keeps its alternating tint so the hover reads as a change, not as the stripe. */
-.fin-day-txns > li { border-radius: 8px; }
-.fin-day-txns > li:hover { background: color-mix(in srgb, var(--d-ink) 6%, transparent); }
-.fin-day-txns > li:hover .fin-merch-chev { color: var(--d-ink-2); }
-.fin-day .fin-merch-row:hover { background: none; }
-
-/* Payslip rows are doors to their own PDF. The whole row is the button, so the
-   month, the bar and the figure all point at the same document. */
-.fin-pay-rows li { padding: 0; }
-.fin-pay-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 5px 8px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.fin-pay-row:hover:not(:disabled) { background: color-mix(in srgb, var(--d-ink) 6%, transparent); }
-.fin-pay-row:hover:not(:disabled) .fin-merch-chev { color: var(--d-ink-2); }
-.fin-pay-row:disabled { cursor: default; }
-.fin-pay-row:disabled .fin-merch-chev { visibility: hidden; }
-.fin-pay-row .fin-merch-chev { flex: none; width: 12px; }
-
-/* ---- the overlay switch ---------------------------------------------------
-   Both ledgers on one grid, without merging them. A real checkbox underneath,
-   so it is keyboard-reachable and announces itself; the track is decoration. */
-/* No auto margin: it sits where its container puts it — beside the month name
-   on the calendar header, with the month nav taking the auto margin instead. */
-.fin-switch { display: inline-flex; align-items: center; gap: 9px; margin-left: 6px; cursor: pointer; user-select: none; }
-.fin-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
-.fin-switch .track {
-  position: relative;
-  display: block;
-  width: 34px;
-  height: 20px;
-  flex: none;
-  border-radius: 999px;
-  background: var(--d-line-2);
-  transition: background 0.16s ease;
-}
-.fin-switch .track i {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--fin-surface);
-  box-shadow: 0 1px 2px rgba(17, 18, 22, 0.25);
-  transition: transform 0.16s ease;
-}
-.fin-switch input:checked + .track { background: var(--c, var(--accent)); }
-.fin-switch input:checked ~ .lbl { color: var(--d-ink); font-weight: 700; }
-.fin-switch input:checked + .track i { transform: translateX(14px); }
-.fin-switch input:focus-visible + .track { outline: 2px solid var(--focus); outline-offset: 2px; }
-.fin-switch .lbl { font: 600 12.5px var(--font-ui); color: var(--d-ink-2); }
-.fin-switch:hover .lbl { color: var(--d-ink); }
-
-/* Two subtotals in one day cell: money in and money out keep their own line. */
-.fin-cal-sums { position: relative; display: flex; flex-direction: column; gap: 0; margin-top: 1px; }
-.fin-cal-sums em { font-style: normal; font: 800 12px var(--font-mono); }
-@media (max-width: 1100px) { .fin-cal-sums em { font-size: 11px; } }
-
-/* ---- charges the ledger has not caught up with ---------------------------- */
-.fin-found { margin-top: 14px; }
-.fin-found .fin-hint { margin: 0 0 6px; }
-.fin-found code { font: 600 11.5px var(--font-mono); background: var(--d-line-2); border-radius: 5px; padding: 1px 5px; }
-.fin-found-rows { list-style: none; margin: 0; padding: 0; }
-.fin-found-rows li + li { border-top: 1px solid var(--d-line); }
-.fin-found-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  width: 100%;
-  padding: 9px 6px;
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 8px;
-}
-.fin-found-row:hover { background: var(--fin-row-hover); }
-.fin-found-row .nm { flex: none; width: 230px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fin-found-row .cad { flex: 1; min-width: 0; font: 600 11.5px var(--font-mono); color: var(--d-ink-3); }
-.fin-found-row .stopped {
-  flex: none;
-  font: 700 10px var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--fin-neg);
-  background: color-mix(in srgb, var(--fin-neg) 14%, transparent);
-  border-radius: 999px;
-  padding: 2px 8px;
-}
-.fin-found-row > b { flex: none; width: 84px; text-align: right; font: 800 13px var(--font-mono); }
-.fin-found-row > em { flex: none; width: 104px; text-align: right; font-style: normal; font: 600 11px var(--font-mono); color: var(--d-ink-3); }
-@media (max-width: 900px) { .fin-found-row .nm { width: 150px; } .fin-found-row .cad { display: none; } }
-
-/* A commitment the statement has never seen has nowhere to lead. It keeps the
-   card's shape and loses the affordances, rather than being a button that
-   silently does nothing. */
-.fin-sub-card.inert { cursor: default; }
-.fin-sub-card.inert:hover { transform: none; border-color: var(--border); }
-.fin-cal-items button:disabled { cursor: default; opacity: 0.75; }
-
-/* What arrived against what was expected. Named, never averaged into the
-   headline — a catch-up payment is not a raise. */
-.fin-sub-extra { font-size: 11.5px; line-height: 1.45; }
-.fin-sub-extra.over { color: var(--fin-pos); }
-.fin-sub-extra.under { color: var(--fin-neg); }
-
-/* Ledger rows left out of the totals (FIN-005/006): the system Notice, one line per row. */
-.fin-unreadables { margin-bottom: 14px; }
-.fin-unreadable { display: block; }

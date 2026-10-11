@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
 import { AskPanel } from "./AskPanel.js";
-import { Finance } from "./Finance.js";
+import { Money } from "./Finance.js";
 import { People } from "./people/People.js";
 import { Project } from "./Project.js";
 import { Today } from "./Today.js";
@@ -78,7 +78,9 @@ export function routeOfView(v: View, pathOf: (id: string) => string | undefined 
     case "mail":
       return { kind: "mail" };
     case "finance": {
-      if (v.month) return v.category && v.category !== SPENDING_PAGE ? { kind: "money", page: "spending", category: v.category, month: v.month } : { kind: "money", month: v.month };
+      // A month opened from elsewhere (Today's money card) is that month's page under Spending;
+      // `/money?month=` is the overview showing that month.
+      if (v.month) return v.category && v.category !== SPENDING_PAGE ? { kind: "money", page: "spending", category: v.category, month: v.month } : { kind: "money", page: "spending", month: v.month };
       if (v.merchant) return { kind: "money", merchant: v.merchant };
       if (v.page) return { kind: "money", page: v.page };
       if (v.category === SPENDING_PAGE) return { kind: "money", page: "spending" };
@@ -514,6 +516,8 @@ export function App() {
           <Suspense fallback={null}>
             <Orrery route={shown} onAsk={() => setAskOpen(true)} />
           </Suspense>
+        ) : shown.kind === "money" ? (
+          <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (
           <Today onCapture={() => setCaptureOpen(true)} />
         ) : view.kind === "architecture" ? (
@@ -528,20 +532,7 @@ export function App() {
           <People me={me} onOpenNote={openNote} onAsk={() => setAskOpen(true)} />
         ) : view.kind === "mail" ? (
           <Mail me={me} />
-        ) : (
-          <Finance
-            onOpenNote={openNote}
-            category={view.category}
-            merchant={view.merchant}
-            page={view.page}
-            month={view.month}
-            onOpenCategory={(c) => navigate({ kind: "finance", category: c })}
-            onOpenMerchant={(m) => navigate({ kind: "finance", merchant: m })}
-            onOpenPage={(pg) => navigate({ kind: "finance", page: pg })}
-            onOpenMonth={(m, c) => navigate({ kind: "finance", month: m, category: c })}
-            onBack={goBack}
-          />
-        )}
+        ) : null}
       </ErrorBoundary>
 
       {/* The overlays these screens draw themselves join the overlay stack (§1.4, WEB-018):

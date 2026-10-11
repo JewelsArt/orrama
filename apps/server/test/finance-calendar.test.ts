@@ -75,8 +75,11 @@ describe("Planning's charge band (FIN-003)", () => {
 
 describe("the Finance ledger calendar keeps no date arithmetic of its own (FIN-003)", () => {
   it("reads chargeDates from core instead of stepping dates itself", () => {
-    const src = fs.readFileSync(path.join(__dirname, "../../web/src/Finance.tsx"), "utf8");
-    expect(src).toMatch(/from "@basalt\/core\/subscriptions"/);
+    // Money's screen is Finance.tsx and its pages in money/ (R10); the calendar is among them.
+    const web = path.join(__dirname, "../../web/src");
+    const files = ["Finance.tsx", ...fs.readdirSync(path.join(web, "money")).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f)).map((f) => `money/${f}`)];
+    const src = files.map((f) => fs.readFileSync(path.join(web, f), "utf8")).join("\n");
+    expect(src).toMatch(/import \{[^}]*\bchargeDates\b[^}]*\} from "@basalt\/core\/subscriptions"/);
     expect(src).not.toMatch(/setUTC(Date|Month|FullYear)\(/);
   });
 });
