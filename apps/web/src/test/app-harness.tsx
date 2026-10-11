@@ -68,6 +68,8 @@ vi.mock("../Project.js", () => {
 // People holds what was typed in it: its own addresses (a person, ?q=) must not remount it.
 vi.mock("../people/People.js", () => ({ People: stub("contacts", () => [], () => <input aria-label="people draft" />) }));
 vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
+// Orr noticed (R11).
+vi.mock("../noticed/Noticed.js", () => ({ Noticed: stub("noticed") }));
 vi.mock("../Finance.js", async () => {
   // Money reads its own address and goes where its links point (money/links.ts).
   const { useRoute, navigate, goBack } = await import("../ui/router.js");

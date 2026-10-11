@@ -216,7 +216,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./SearchPalette.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -372,6 +372,14 @@
 - **Exports**: parseDateInput
 - **Imports**: @basalt/core/dates
 
+### `apps/web/src/entity/known.ts`
+- **Exports**: KnownData, knownOf, useKnown, Load, useLoad, useNotesTick
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../ws.js, ./links.js
+
+### `apps/web/src/entity/links.ts`
+- **Exports**: slugOf, Kind, Known, NOTHING_KNOWN, kindOf, notePath, routeOf, bySlug, linkTo, anchor
+- **Imports**: react, ../ui/router.js
+
 ### `apps/web/src/entity/relations.tsx`
 - **Exports**: Related, RelationsState, useRelations, roleWord, rolesOf, RelationItem, RelationRows, OrrWarnings
 - **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/Icon.js, ../ui/layout.js, ../ui/orr/Orr.js
@@ -432,7 +440,7 @@
 - **Imports**: ../ui/dates.js
 
 ### `apps/web/src/main.tsx`
-- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/capture.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js
+- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/capture.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js
 
 ### `apps/web/src/money/Category.tsx`
 - **Exports**: pickMonth, CategoryPage
@@ -504,6 +512,18 @@
 ### `apps/web/src/notes/read.ts`
 - **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, isOrdinary, editedLabel, relationWords, snippet, folderName
 - **Imports**: @basalt/core, ../ui/dates.js
+
+### `apps/web/src/noticed/Noticed.tsx`
+- **Exports**: Noticed
+- **Imports**: @basalt/schema/responses, ../api.js, ../entity/known.js, ../entity/links.js, ../ui/controls.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./fixes.js, ./model.js
+
+### `apps/web/src/noticed/fixes.tsx`
+- **Exports**: projectNameFor, useFixes, Sentence, Fixes, NoticeRow
+- **Imports**: react, @basalt/schema/responses, ../api.js, ../entity/StatusMenu.js, ../entity/links.js, ../people/NewDialogs.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./model.js
+
+### `apps/web/src/noticed/model.ts`
+- **Exports**: Warning, NoteRef, Part, Fix, Item, statusWord, itemsOf, firstOf, typeCount
+- **Imports**: @basalt/schema/responses
 
 ### `apps/web/src/orrery/Glyph.tsx`
 - **Exports**: Glyph

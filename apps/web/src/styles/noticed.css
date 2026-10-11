@@ -1,0 +1,51 @@
+/* Orr noticed (noticed/Noticed.tsx, structure.md §2.15): what needs a look, each said as a
+   sentence with one fix, and the graph at a glance beside it. Built from the system's module,
+   buttons, status words and name links (ui/ui.css); this file only places them. The sentence
+   and fix rows follow the graph-warnings cards on mockups/screens/states.html. */
+
+.noticed-page { padding: 20px 36px 40px; display: flex; flex-direction: column; gap: 14px; }
+.noticed-page > * { max-width: 1180px; width: 100%; }
+.noti-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+
+/* ---- what needs a look ------------------------------------------------------------------- */
+.noti-intro { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 14px; align-items: end; padding: 2px 0 12px; border-bottom: 1px solid var(--line); }
+.noti-intro .orrbox, .noti-plain .orrbox { height: 62px; border-bottom: 1.5px solid var(--ink); }
+.noti-intro p { margin: 0 0 6px; color: var(--ink-2); line-height: 20px; }
+.noti-list { list-style: none; margin: 0; padding: 0; }
+.noti-item { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 12px 0; }
+.noti-item + .noti-item { border-top: 1px solid var(--line); }
+.noti-lead { display: grid; place-items: center start; height: 22px; color: var(--ink-3); }
+.noti-x p { margin: 0; line-height: 22px; }
+.noti-x .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.noti-status { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 13.5px; }
+.noti-plain { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 14px; align-items: end; padding: 4px 0 8px; }
+.noti-plain p { margin: 0 0 6px; color: var(--ink-2); line-height: 21px; }
+
+/* ---- the glance -------------------------------------------------------------------------- */
+.noti-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 2px 0 6px; }
+.noti-counts > div { padding: 8px 0; }
+.noti-counts > div:nth-child(even) { padding-left: 14px; border-left: 1px solid var(--line); }
+.noti-counts > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+.noti-counts dt { color: var(--ink-3); font-size: 12.5px; font-weight: 600; }
+.noti-counts dd { margin: 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.noti-h { margin: 14px 0 4px; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
+.noti-tally { list-style: none; margin: 0; padding: 0; }
+.noti-tally li { display: flex; flex-direction: column; padding: 5px 0; }
+.noti-tally li + li { border-top: 1px solid var(--line); }
+.noti-tally span, .noti-tally .ui-nm { font-weight: 600; align-self: flex-start; }
+.noti-tally small { color: var(--ink-3); font-size: 12.5px; line-height: 17px; }
+.noti-tally b { margin-left: 4px; font-weight: 600; color: var(--ink-2); }
+.noti-statuses { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.noti-statuses li { display: inline-flex; align-items: center; gap: 6px; }
+.noti-statuses a.status { color: inherit; text-decoration: none; border-radius: 5px; padding: 1px 4px; margin: -1px -4px; }
+.noti-statuses a.status:hover { background: var(--hover); }
+.noti-statuses b { color: var(--ink-3); font-weight: 600; font-size: 13px; }
+.noti-src { margin: 14px 0 2px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 13px; line-height: 19px; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 760px) {
+  .noticed-page { padding: 6px 16px 28px; }
+  .noticed-page > header .crumbs, .noticed-page .phead h1 { display: none; }
+  .noti-cols { grid-template-columns: 1fr; }
+  .noti-x .acts .btn { min-height: 40px; }
+}

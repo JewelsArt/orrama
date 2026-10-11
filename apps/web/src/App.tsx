@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
+import { Noticed } from "./noticed/Noticed.js";
 import { AskPanel } from "./AskPanel.js";
 import { Money } from "./Finance.js";
 import { People } from "./people/People.js";
@@ -518,6 +519,8 @@ export function App() {
           <Suspense fallback={null}>
             <Orrery route={shown} onAsk={() => setAskOpen(true)} />
           </Suspense>
+        ) : shown.kind === "notes-health" ? (
+          <Noticed me={me} />
         ) : shown.kind === "money" ? (
           <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (

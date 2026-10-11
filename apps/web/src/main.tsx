@@ -23,6 +23,7 @@ import "./styles/people.css";
 import "./styles/editor.css";
 import "./styles/today.css";
 import "./styles/entity.css";
+import "./styles/noticed.css";
 import "./styles/project.css";
 import "./styles/mail.css";
 import "./styles/money.css";
