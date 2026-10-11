@@ -91,7 +91,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, projects (the project workspace, its files and board), finance (Money), mail, graph (the knowledge graph), contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder for Settings → Notes), notesHome (Notes home's pins and counts), noticed (every graph warning by note, with what its fix needs, for Orr noticed) — one file each |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner |
-| `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter, the shelves) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity page's shared pieces: header, status vocabulary, dates as text, relations, Orr's warnings), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` open a Sheet until the entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel`, `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
+| `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
 | `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Basalt isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Basalt (`is_basalt`, `src/lib.rs`). Building needs a Rust toolchain |
 
 ## Permission model (memorize this)
@@ -174,7 +174,11 @@ words, *planned · on track · at risk · paused · completed · archived · can
 (`entity/status.ts`, `statusOf`), whatever older spelling the note holds (sleeping,
 planning, done, blocked…), and the menu writes the ontology's id (`on-track`). The shelf
 follows from it (`shelfOf`): paused, cancelled, completed and archived leave the board,
-and every step ticked is completed. Dates are typed (`entity/dateInput.ts`, day before
+and every step ticked is completed. The Projects board shows three shelves, Paused,
+Cancelled and **Done** (completed and archived together, newest first by the board's
+`lastActivityMs`; `boardShelf`/`shelfRows` in `OverviewHead.tsx`), each at
+`/projects?shelf=<id>`; that is the page only, and the ontology and the project page keep
+both words. Dates are typed (`entity/dateInput.ts`, day before
 month) and written when a field is left: never while typing, never a year before 1900.
 
 A slot is a `##` heading (a closed `## Goals ##` too; a `### Goals` inside
@@ -543,6 +547,13 @@ every compatible server implements; only the ChatGPT plan uses the Responses API
 key that no longer decrypts makes `aiConfig` return null (AI off) and logs one line, never
 a 500.
 
+Ask Orr (`AskPanel.tsx`) sends the note the page is about as `contextNoteId`
+(`ask/targets.ts`) and draws each tool call as a sentence (`ask/working.ts`): a new agent
+tool gets a case there, or it reads "Used <name>". Earlier questions live on the device
+(`basalt-ask-history`, the open one in sessionStorage `basalt-ask-open`), slimmed to
+names, ids and counts: note text, excerpts and mail bodies are never copied into the
+browser.
+
 ## The agent can draft mail, never send it
 
 The agent reads text nobody vetted — inbox messages, notes any teammate can
@@ -616,7 +627,9 @@ parsed before it is known to be a valid auth.
   variable gets a rule there.
 - **Outbound requests to user-typed URLs go through `safeFetch`** (calendar
   feeds, webhooks): http(s) only, every resolved address public (checked in the
-  socket's own `lookup`, so DNS rebinding is caught), redirects re-checked hop
+  socket's own `lookup`, so DNS rebinding is caught), IPv6 ranges that wrap or
+  reach an IPv4 address (IPv4-compatible, IPv4-translated, NAT64, 6to4, Teredo)
+  refused whole, redirects re-checked hop
   by hop (GET only), and callers report a coarse outcome — never the far end's
   status or error text. A private target that is really wanted (a NAS, a tailnet
   host) is named in `BASALT_FETCH_ALLOW` (hosts or CIDRs). Anything new that
@@ -624,6 +637,17 @@ parsed before it is known to be a valid auth.
   make itself (IMAP/SMTP to a user-typed mail server) checks the host with
   `assertPermittedHost` first — same rule and allow-list, checked before
   connecting rather than in the socket.
+- **Untrusted input is read within a budget, off the event loop where it can't
+  be bounded.** Office files go through `zip.ts`: every part inflated against
+  `DOCX_CAPS`/`XLSX_CAPS` (an XML-part cap and a total) before mammoth or
+  exceljs sees the bytes — the zip's declared sizes are never believed; over a
+  cap is a 413, unreadable a 422. A .pptx reads each slide once and shares one
+  XML budget (`SLIDE_CAPS.xmlBudget`). ICS expansion jumps to the window and
+  stops at `MAX_EXPAND_STEPS` per feed (ics.ts). A payslip PDF is read in a
+  worker (`pdfText.ts`, plain `.mjs`) with a page cap and a time limit: pdf.js
+  parses a page in one synchronous stretch that no main-thread timer can
+  interrupt. Anything new that parses a user's file or feed gets a cap, and a
+  worker if its cost can't be capped.
 - **The server answers only to its own names.** Every request — API, static
   files, the WebSocket upgrade — must carry a `Host` of `localhost`,
   `127.0.0.1`, `[::1]` or a host in `BASALT_PUBLIC_ORIGINS` (any port), or it
@@ -697,7 +721,10 @@ parsed before it is known to be a valid auth.
   renaming, so a file that appeared since the check is not lost. Files are
   served under their own name with `contentDisposition` (same file): an ASCII
   fallback plus RFC 5987 `filename*` — a raw name above U+00FF in a header
-  throws outside every handler and stops the process.
+  throws outside every handler and stops the process. A `.md` uploaded into a
+  project's files is a note and is created through `store.write` like New note
+  (routes/projects.ts), never stored as bytes the watcher would index past the
+  ACL.
 - **Never rewrite bytes that were not parsed.** `updateFrontmatter` edits only
   the lines of the keys it changes and reads its result back; if it would not
   read back as exactly the new data with the body byte-identical, the note is
@@ -710,11 +737,14 @@ parsed before it is known to be a valid auth.
   `server.log.1` (owner-only) and starts again — only when stdout really is
   that file. URLs in it are already redacted (no query strings or secret paths).
 - **An Ask run stops with its request** (`routes/ai.ts`): the response closing early (the
-  panel's Stop, unmount, leaving the page) aborts the run, so no later model call or tool
-  call happens; `BASALT_AI_TIMEOUT_MS` (120 s) bounds it and the digest, which also makes
-  one attempt. **Logged errors carry no bodies**: `errSerializer` (logging.ts) drops
-  `requestBodyValues`, `responseBody`, `errors`, `lastError` and the like — the AI SDK's
-  errors hold the whole prompt.
+  panel's Stop, closing the panel, leaving the page) aborts the run, so no later model call
+  or tool call happens; `BASALT_AI_TIMEOUT_MS` (120 s) bounds it and the digest, which also
+  makes one attempt. A run stopped mid-answer errors the SDK's stream, and
+  `pipeUIMessageStreamToResponse` rethrows that from a promise nobody awaits — Node ends
+  the process on it — so the route pipes a stream that ends itself instead
+  (`agent-abort-midstream.test.ts`). **Logged errors carry no bodies**: `errSerializer`
+  (logging.ts) drops `requestBodyValues`, `responseBody`, `errors`, `lastError` and the
+  like — the AI SDK's errors hold the whole prompt.
 - **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
   Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
   auth hook and the live-sync socket refuse a token whose row is gone or
@@ -957,6 +987,21 @@ their descriptions tell a model to query first and read last. Jules's live vault
 has no ontology note yet: the note and the backfill (`~/basalt-kg`) wait for
 Jules's go.
 
+**Entity pages, Orr noticed and Find read the graph and degrade without it.** An entity page
+(`entity/EntityPage.tsx`) lists relations in words both ways, each note once under its
+strongest word (`relationGroups`), "works with" from shared projects, and "How you know
+them" from `find_path` starting at your own person note (the one with your address, else
+your name), only for a 2–4 step path. What a note is follows the app's pages first
+(`entity/links.ts`: a `#contact` is a person, a `#company` a company, a board project a
+project, a saved chat a conversation) and the ontology's `document` after, so an untyped
+vault still opens people at their pages; without typed relations a page shows "mentioned in"
+and "links to" and draws no empty box. Orr noticed (`GET /api/graph/warnings`,
+`noticed/model.ts`) says each problem once with one fix and writes nothing until it is
+clicked; a fix with no safe server write opens the note. Find ranks the group with the best
+match first, puts notes a step below a person, company or project matched as well, and a
+company found by name brings its people and projects; notes still come from
+`/api/vault/search`, so its `tag:`/`path:` filters work.
+
 **Today** (`Today.tsx`, the default place, `/today`; its pieces in `apps/web/src/today/`) is
 the timetable and seven modules (structure.md §2.1). The timetable's window is 08–20, widened
 to whole hours around the day and around now; Orr stands on the present minute and his pose
@@ -967,7 +1012,7 @@ in order: Due (the next key deadline, Today = due or booked today, Late least la
 Mail (unread Primary and Orr's drafts), People today (a whole name in today's events or a
 contact's address on today's unread mail: never a first name alone), Coming up (three weeks
 of events, key deadlines, project dates), Projects, Money (this month against a typical
-month), Orr noticed (graph warnings). Every request is in `Today.tsx` so the contract test
+month), Orr noticed (the first problem Orr noticed lists, said as the page says it). Every request is in `Today.tsx` so the contract test
 sees it; the rules are pure in `today/model.ts`. Nothing is invented: without an ontology
 note there are no relation lines and Orr noticed says so. Customise hides modules per device
 (`basalt-today-hidden`). A task row's checkbox and its link sit side by side, never nested.
@@ -1007,6 +1052,12 @@ on a shipped commit, with an entry in `CHANGELOG.md`:
 
 Note anything users must do (a schema bump, signing in again) under
 "Upgrading" in that version's entry.
+
+**Dependencies are audited**: `pnpm audit --prod --audit-level=high` must pass
+(CI blocks on it); an advisory judged unreachable goes into
+`auditConfig.ignoreGhsas` in pnpm-workspace.yaml with its reason, and comes out
+when the package is bumped past the fix. Pick a fixing release at least a week
+old when one exists (`--config.minimum-release-age`).
 
 ## Dev loop
 

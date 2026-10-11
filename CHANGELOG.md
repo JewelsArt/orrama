@@ -98,6 +98,26 @@ one is in CLAUDE.md, "Releases".
 - ↑ ↓ move between rows on Money; Enter opens one.
 - Orr can read a whole note (`read_note`), add lines to one (`append_to_note`)
   or rewrite one section (`replace_section`) without resending the rest.
+- People, companies, saved conversations and documents have their own pages:
+  who or what they are, how they relate (in words, both ways), who they work
+  with, how you know them through your notes, what is going on with them
+  (mail, coming events, open steps), and the note itself.
+- Orr noticed (Notes → Orr noticed, or Today's module): what in your notes'
+  graph needs a look, said in words, each with one fix, and your notes at a
+  glance.
+- Find (⌘K) finds people, companies, projects, notes, conversations, places,
+  settings and actions, grouped and described; Tab narrows to one kind, and
+  "person ines" does too.
+- Stop while Orr works.
+- Earlier questions: your last 20 conversations with Orr, on this device; the
+  one you had open comes back when you open Ask again.
+- New on Today and on the phone's +: a task, a note, an event or a project,
+  already set for the page you are on (a step on a project, the day in
+  Planning, the folder in Notes).
+- Orr reads the note, project, person or company you have open along with your
+  question.
+- Each shelf under the Projects board has its own address
+  (`/projects?shelf=done`), next to the area filter's.
 
 ### Changed
 
@@ -219,6 +239,19 @@ one is in CLAUDE.md, "Releases".
   spending-categories note lists them; the rest are grey "Other". The note's
   Colour column is no longer read.
 - Months read "Sep 2026", not "Sep 26".
+- Picking a project in Find opens the project, not its note.
+- Today's Orr noticed names the first thing that needs a look instead of
+  counting by kind.
+- A person's or company's page replaces the sheet People used to open; the
+  company's card is edited from its page.
+- Ask is now Ask Orr: a panel beside the page (the centre tab on a phone).
+  Answers are formatted, every note, person, company and project he names
+  opens, and "How I found this" says each step he took and what it found.
+- Capture is a small sheet; it says when the line is in your inbox, with a way
+  to open it.
+- Projects has one shelf for finished work, **Done**: completed and archived
+  projects sit on it together, the most recently worked on first. A project's
+  status in its note is unchanged.
 
 ### Removed
 
@@ -247,6 +280,10 @@ one is in CLAUDE.md, "Releases".
   on a project's steps.
 - The A–Z letter rail on the desktop People page (it stays on the phone).
 - Finance's purple card and its own colours.
+- The old search palette (note titles and paths only).
+- "Ask your vault" and "a workspace owner" in Ask.
+- "Today's summary" on Projects (Orr's digest of the board). Today already
+  says what's due.
 
 ### Fixed
 
@@ -491,6 +528,37 @@ one is in CLAUDE.md, "Releases".
 - "de" names get the right initials ("Bram de Wit" → BW).
 - A spending category with nothing in it no longer draws a chart of "Invalid"
   months.
+- A subscribed calendar with old repeating events (a daily meeting since 2012,
+  a feed that starts in 1900) no longer freezes Basalt; a repeating event with
+  a malformed rule shows once instead of hiding the whole calendar.
+- A calendar feed too complex to show in full shows what fits, and Settings →
+  Connections says "too many repeating events, some are not shown".
+- Opening a huge or crafted Word, Excel or PowerPoint file says it is too big
+  to show instead of freezing or crashing the server.
+- A PDF uploaded as a payslip that is long or heavy is kept, not read, and the
+  upload says why, instead of freezing Basalt.
+- The install guide's quickstart works: it sets the two secrets the server
+  needs before starting it.
+- `pnpm --dir apps/server dev` and `seed` use their own folder
+  (`apps/server/data-dev`) and port (4627), so they can never open or replace
+  the live database; `seed` refuses a vault that already holds notes.
+- Docker self-host: the container starts on a fresh Linux host (it no longer
+  crash-loops on a root-owned `./data`), reports its health, and is less than
+  half the size.
+- The desktop app no longer shows whatever happens to answer on port 4623:
+  until Basalt's server answers, it shows "Basalt isn't running".
+- On Windows, the vault's own CLAUDE.md is no longer indexed and stamped, and
+  `pnpm dev` starts.
+- A schema upgrade that fails stops the server with the statement that failed,
+  instead of starting and failing later on a missing column.
+- The window title and the phone's top bar say a person's name as written
+  ("Ines Vermaat"), not the address in words ("Ines vermaat").
+- Closing Ask, or stopping it, really stops Orr: nothing he was doing carries
+  on.
+- Stopping Orr, or reloading the page, while he was answering no longer stops
+  the server.
+- A failed capture no longer loses what you typed.
+- Picking an area on Projects no longer reloads the whole board.
 
 ### Security
 
@@ -541,6 +609,20 @@ one is in CLAUDE.md, "Releases".
 - A `/regex/` in the life-area rules note can no longer freeze the server (it
   runs in a matcher that takes time linear in the text; backreferences and
   lookaround are not supported and are ignored).
+- Opening an e-mail with a crafted address header no longer stalls the server
+  for seconds (nodemailer 10 via mailparser).
+- Calendar feeds, webhooks and mail servers given as an IPv6 address that
+  wraps a private IPv4 (6to4, Teredo, NAT64, IPv4-compatible) are refused.
+- A .md uploaded into a project's documents is created as a note under the
+  same rules as New note; it can no longer place a note in a folder its
+  uploader may not write.
+- Docker publishes the server on this machine only (127.0.0.1); reaching it
+  from elsewhere goes through Tailscale or a proxy (INSTALL.md).
+- `export.json` no longer contains webhook URLs (a Slack or Discord hook URL
+  is its credential): only the host and a four-character hint.
+- Personal data removed from source comments, the demo seed and CLAUDE.md (a
+  history rewrite follows after the audit).
+- CI actions are pinned to commits and the workflow token is read-only.
 
 ### Internal
 
@@ -586,6 +668,20 @@ one is in CLAUDE.md, "Releases".
   `apps/web/src`, not only its top level.
 - Finance's own tokens (`--fin-ground/-surface/-pos/-neg`, the `--cat-*` ramp)
   and three blocks of CSS no screen reads any more are gone.
+- fastify 5.12.5, @fastify/jwt 10 (fast-jwt 6), drizzle-orm 0.45, imapflow
+  1.7, MCP SDK 1.31; reviewed advisories listed in pnpm-workspace.yaml with
+  their reasons; CI's `pnpm audit --prod --audit-level=high` now blocks.
+- CI also runs on macOS for pushes to sep-2026-redesign, builds and boots the
+  Docker image, lints the web app; `desktop.yml` checks the Tauri crate;
+  `windows.yml` runs the suite on Windows by hand.
+- `pnpm typecheck` re-runs when an upstream package changes (no stale cache
+  pass before `pnpm ship`).
+- `pnpm ship` succeeds only when a new server process reports the build it
+  just made.
+- The launchd plist in `scripts/` is a complete template; the web build ships
+  third-party licence notices; `tsx` is a production dependency; Node types
+  are 22.
+- ESLint with the React hooks rules (`pnpm lint`).
 
 ### Upgrading
 
@@ -600,6 +696,9 @@ one is in CLAUDE.md, "Releases".
   has none). On the live vault three cards are renamed: Basalt → "Basalt —
   team knowledge tool", School Resits → "School Resits — June/July 2026",
   Graduation Internship → "Graduation Internship Search".
+- Optional: the installed `~/Library/LaunchAgents/dev.basalt.server.plist` may
+  run node directly as the template in `scripts/` does (pnpm passes SIGTERM on
+  macOS too, so nothing breaks if it stays).
 
 ## [0.1.0] — 2026-10-01
 
