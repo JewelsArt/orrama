@@ -203,14 +203,39 @@ function statementCell(v: unknown): string | number {
   return String(v);
 }
 
+/**
+ * Parsed statement files, by path, for as long as the file is the same file:
+ * same inode, size and modification time. Every Dashboard load and every
+ * Finance page used to re-read and re-parse every export synchronously —
+ * ~0.5 s on five years of statements, on the event loop live sync shares,
+ * and the Dashboard reloads on any note-changed event (audit FIN-015). An
+ * upload, an edit in a spreadsheet or a file copied in from Finder changes
+ * the stat, and that file alone is read again. Nothing here is stored
+ * anywhere but memory: the files stay the truth.
+ */
+const parsedFiles = new Map<string, { sig: string; st: Statement }>();
+
 async function statements(
   root: string,
-): Promise<{ currency: string; files: Statement[]; summaries: StatementFileSummary[] }> {
+): Promise<{ currency: string; files: Statement[]; summaries: StatementFileSummary[]; signature: string }> {
   const dirPath = filesDir(root);
-  if (!fs.existsSync(dirPath)) return { currency: "EUR", files: [], summaries: [] };
+  if (!fs.existsSync(dirPath)) return { currency: "EUR", files: [], summaries: [], signature: "" };
   const names = (await fs.promises.readdir(dirPath)).filter(isStatementFile).sort();
   const read: { name: string; st: Statement }[] = [];
-  for (const name of names) read.push({ name, st: await readStatementFile(path.join(dirPath, name)) });
+  const sigs: string[] = [];
+  for (const name of names) {
+    const abs = path.join(dirPath, name);
+    const stat = await fs.promises.stat(abs);
+    const sig = `${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+    let hit = parsedFiles.get(abs);
+    if (!hit || hit.sig !== sig) {
+      hit = { sig, st: await readStatementFile(abs) };
+      parsedFiles.set(abs, hit);
+    }
+    read.push({ name, st: hit.st });
+    sigs.push(`${name}\u0001${sig}`);
+  }
+  for (const abs of parsedFiles.keys()) if (path.dirname(abs) === dirPath && !names.includes(path.basename(abs))) parsedFiles.delete(abs);
   const weight = new Map<string, number>();
   for (const { st } of read) weight.set(st.currency, (weight.get(st.currency) ?? 0) + st.rows.length);
   const currency = [...weight.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "EUR";
@@ -225,8 +250,17 @@ async function statements(
       st.problem ??
       (st.currency !== currency ? `it is in ${st.currency}, and the statements are read in ${currency}` : null),
   }));
-  return { currency, files: read.filter(({ st }) => st.currency === currency || st.rows.length === 0).map(({ st }) => st), summaries };
+  return {
+    currency,
+    files: read.filter(({ st }) => st.currency === currency || st.rows.length === 0).map(({ st }) => st),
+    summaries,
+    signature: sigs.join("\n"),
+  };
 }
+
+type Loaded = { txns: Statement["rows"]; complete: string[]; currency: string; summaries: StatementFileSummary[] };
+/** The merged result, per vault, while the files and the own-accounts list are unchanged. Read-only to callers. */
+const mergedStatements = new Map<string, { key: string; value: Loaded }>();
 
 export async function loadTxns(root: string, own: OwnAccount[] = []): Promise<Statement["rows"]> {
   return (await loadStatements(root, own)).txns;
@@ -240,8 +274,11 @@ export async function loadTxns(root: string, own: OwnAccount[] = []): Promise<St
 export async function loadStatements(
   root: string,
   own: OwnAccount[] = [],
-): Promise<{ txns: Statement["rows"]; complete: string[]; currency: string; summaries: StatementFileSummary[] }> {
-  const { files, currency, summaries } = await statements(root);
+): Promise<Loaded> {
+  const { files, currency, summaries, signature } = await statements(root);
+  const key = `${signature}\u0000${JSON.stringify(own)}`;
+  const cached = mergedStatements.get(root);
+  if (cached && cached.key === key) return cached.value;
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
   for (const file of files) {
@@ -261,12 +298,14 @@ export async function loadStatements(
   // a refund to net off the deposit (ownAccounts.ts).
   // Each refund comes off the purchase it refunds, in that purchase's month,
   // or — bought before these statements begin — off nothing (spending.ts).
-  return {
+  const value = {
     txns: settleRefunds(markOwnAccounts(rows, own)),
     complete: fullMonths(coverageOf(files.map((f) => f.rows))),
     currency,
     summaries,
   };
+  mergedStatements.set(root, { key, value });
+  return value;
 }
 
 /** The own-accounts list — a broker, a savings pot — from the note tagged #own-accounts. */

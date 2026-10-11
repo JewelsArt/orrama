@@ -121,27 +121,57 @@ export function categoryOf(description: string, rules: CategoryRule[]): string {
   return ruleFor(description, rules)?.category ?? UNCATEGORISED;
 }
 
-/** The rule a description falls under — categoryOf, but saying which rule won. */
-export function ruleFor(description: string, rules: CategoryRule[]): CategoryRule | null {
-  const hay = fold(description).trim();
-  let best: CategoryRule | null = null;
-  let bestLen = 0;
+/**
+ * A rules set, folded once: every term with its score, best first, and the
+ * answer for each description already asked. `ruleFor` used to NFD-fold every
+ * term of every rule for every row — 90 terms × 5,500 rows, three times per
+ * Finance request (audit FIN-015). Keyed by the array itself; a rules set is
+ * built per request and never changed after.
+ */
+interface CompiledRules {
+  size: number;
+  terms: { rule: CategoryRule; exact: boolean; m: string; score: number }[];
+  memo: Map<string, CategoryRule | null>;
+}
+const compiledRules = new WeakMap<CategoryRule[], CompiledRules>();
+
+function compile(rules: CategoryRule[]): CompiledRules {
+  const had = compiledRules.get(rules);
+  if (had && had.size === rules.length) return had;
+  const terms: CompiledRules["terms"] = [];
   for (const rule of rules) {
     for (const raw of rule.matches) {
       const exact = raw.startsWith("=");
       const m = fold(exact ? raw.slice(1) : raw).trim();
-      if (!m) continue;
+      if (!m || (!exact && m.length < MIN_SUBSTRING)) continue;
       // Exact terms are scored generously so a deliberate `=ns` is not lost to
       // some longer accidental substring elsewhere in the rules; a pinned rule
       // outranks both.
-      const score = (exact ? m.length + 100 : m.length) + (rule.pinned ? 1000 : 0);
-      if (score <= bestLen) continue;
-      if (exact ? hay === m : m.length >= MIN_SUBSTRING && hay.includes(m)) {
-        best = rule;
-        bestLen = score;
-      }
+      terms.push({ rule, exact, m, score: (exact ? m.length + 100 : m.length) + (rule.pinned ? 1000 : 0) });
     }
   }
+  // Best first; a stable sort keeps the earlier term on a tie, as the
+  // one-pass "only a strictly better score replaces it" did.
+  terms.sort((a, b) => b.score - a.score);
+  const made = { size: rules.length, terms, memo: new Map<string, CategoryRule | null>() };
+  compiledRules.set(rules, made);
+  return made;
+}
+
+/** The rule a description falls under — categoryOf, but saying which rule won. */
+export function ruleFor(description: string, rules: CategoryRule[]): CategoryRule | null {
+  const c = compile(rules);
+  const known = c.memo.get(description);
+  if (known !== undefined) return known;
+  const hay = fold(description).trim();
+  let best: CategoryRule | null = null;
+  for (const t of c.terms) {
+    if (t.exact ? hay === t.m : hay.includes(t.m)) {
+      best = t.rule;
+      break;
+    }
+  }
+  c.memo.set(description, best);
   return best;
 }
 
@@ -157,8 +187,17 @@ export function ruleFor(description: string, rules: CategoryRule[]): CategoryRul
  * searched for literally, as "=ns" (audit FIN-010). Every question of the
  * form "does this line match that description" comes here.
  */
-export const matchesTerms = (description: string, terms: string[]): boolean =>
-  ruleFor(description, [{ category: "", matches: terms, colour: null }]) !== null;
+export const matchesTerms = (description: string, terms: string[]): boolean => {
+  // One rules set per terms array, so a ledger line's terms are folded once
+  // however many rows they are asked about.
+  let rules = termRules.get(terms);
+  if (!rules || rules[0]!.matches.length !== terms.length) {
+    rules = [{ category: "", matches: terms, colour: null }];
+    termRules.set(terms, rules);
+  }
+  return ruleFor(description, rules) !== null;
+};
+const termRules = new WeakMap<string[], CategoryRule[]>();
 
 /**
  * What a statement row actually cost: its outflow plus any fee on it.
@@ -222,11 +261,21 @@ export function settleRefunds(rows: StatementRow[]): StatementRow[] {
     .map((r, i) => ({ r, i }))
     .filter(({ r }) => r.flow === "refund" && r.amount > 0)
     .sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i);
+  // Purchases by merchant, in row order: a refund looks at its own merchant's
+  // purchases, not at every row in the file (O(refunds × rows), FIN-015).
+  const purchases = new Map<string, StatementRow[]>();
+  for (const p of out) {
+    if (p.refunded === undefined) continue;
+    const m = merchantOf(p);
+    const list = purchases.get(m);
+    if (list) list.push(p);
+    else purchases.set(m, [p]);
+  }
   for (const { r } of refunds) {
     let owed = cents(r.amount);
     const merchant = merchantOf(r);
-    const candidates = out
-      .filter((p) => p.refunded !== undefined && p.date <= r.date && merchantOf(p) === merchant && left(p) > 0)
+    const candidates = (purchases.get(merchant) ?? [])
+      .filter((p) => p.date <= r.date && left(p) > 0)
       .sort((a, b) => Number(left(b) === owed) - Number(left(a) === owed) || b.date.localeCompare(a.date));
     for (const p of candidates) {
       if (owed <= 0) break;
