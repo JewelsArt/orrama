@@ -220,7 +220,7 @@
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
-- **Imports**: react, @ai-sdk/react, ai, ./api.js, ./icons.js
+- **Imports**: react, @ai-sdk/react, ai, ./api.js, ./icons.js, ./ask/Answer.js, ./ask/targets.js, ./notes/links.js, ./ui/router.js
 
 ### `apps/web/src/Confirm.tsx`
 - **Exports**: ConfirmRequest, Confirm
@@ -313,6 +313,10 @@
 ### `apps/web/src/api.ts`
 - **Exports**: default, getToken, setToken, clearToken, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isAbort, unlessAborted, latestOnly, SESSION_ENDED, signOut, apiBlob, ApiError
 - **Imports**: @basalt/schema/responses, ./storage.js
+
+### `apps/web/src/ask/Answer.tsx`
+- **Exports**: CiteRender, Markdown
+- **Imports**: react, ./markdown.js
 
 ### `apps/web/src/ask/history.ts`
 - **Exports**: HISTORY_KEY, HISTORY_MAX, SavedMessage, Conversation, slim, readHistory, saveConversation

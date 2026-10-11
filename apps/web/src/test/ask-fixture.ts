@@ -23,15 +23,18 @@ export const TREE = [
 ];
 export const PROJECTS = [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: "academic", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: null, nextDue: null, overdue: 0 }];
 
-/** Install the fake server. `configured: false` is Orr without a model. */
-export function serveAsk({ configured = true }: { configured?: boolean } = {}) {
+/** Install the fake server. `configured: false` is Orr without a model; `treeAfter` holds the tree back. */
+export function serveAsk({ configured = true, treeAfter }: { configured?: boolean; treeAfter?: Promise<void> } = {}) {
   const calls: AskCall[] = [];
   const enc = new TextEncoder();
   vi.stubGlobal("fetch", async (url: string, init: RequestInit = {}) => {
     const path = String(url).split("?")[0];
     const method = init.method ?? "GET";
     if (method === "GET" && path === "/api/ai/status") return Response.json({ configured, provider: configured ? "anthropic" : null, model: configured ? "claude" : null });
-    if (method === "GET" && path === "/api/vault/tree") return Response.json(TREE);
+    if (method === "GET" && path === "/api/vault/tree") {
+      await treeAfter;
+      return Response.json(TREE);
+    }
     if (method === "GET" && path === "/api/projects") return Response.json(PROJECTS);
     if (method === "POST" && path === "/api/ai/ask") {
       let ctl!: ReadableStreamDefaultController<Uint8Array>;
