@@ -9,6 +9,7 @@ import { Dashboard } from "./Dashboard.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
+import { Orrery } from "./orrery/Orrery.js";
 import { Overview } from "./Overview.js";
 import { PROFILE_VAR_NAMES, customId, isCustom, profileVars, type VisionProfile } from "./palette.js";
 import { Planning } from "./Planning.js";
@@ -461,7 +462,7 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      <ErrorBoundary key={routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
+      <ErrorBoundary key={shown.kind === "orrery" ? "/orrery" : routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
         {route.kind === "settings" ? (
           <Settings
             me={me}
@@ -481,6 +482,8 @@ export function App() {
               go({ kind: "today" }, { replace: true });
             }}
           />
+        ) : shown.kind === "orrery" ? (
+          <Orrery route={shown} onAsk={() => setAskOpen(true)} />
         ) : view.kind === "dashboard" ? (
           <Dashboard
             me={me}

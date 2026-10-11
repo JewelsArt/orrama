@@ -43,6 +43,10 @@ vi.mock("../Dashboard.js", () => ({
   ]),
 }));
 vi.mock("../Architecture.js", () => ({ Architecture: stub("architecture") }));
+vi.mock("../orrery/Orrery.js", () => {
+  const Orrery = stub("orrery");
+  return { Orrery: (p: P) => <Orrery area={p.route.area} center={p.route.center} topic={p.route.topic} /> };
+});
 vi.mock("../Planning.js", () => ({ Planning: stub("planning") }));
 vi.mock("../Overview.js", () => ({ Overview: stub("overview") }));
 vi.mock("../Project.js", () => ({ Project: stub("project", (p) => [["back", () => p.onBack()]]) }));

@@ -95,7 +95,7 @@ describe("addresses", () => {
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "open area" }));
     expect(path()).toBe("/orrery?area=work");
-    expect(await view()).toMatch(/category=work/);
+    expect(await view()).toMatch(/^orrery area=work/);
   });
 
   it("Settings is a page at its address, with its section; Back returns to where you were", async () => {

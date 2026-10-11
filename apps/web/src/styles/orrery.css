@@ -119,3 +119,118 @@
     white-space: normal;
   }
 }
+
+/* The Orrery (orrery/Orrery.tsx), from the boards on canvas page 4c and the prototype's
+   orrery.css. The map and the panel are white boxes on the ground (§12); the canvas draws
+   everything inside the map; these are the page, the panel and the controls on the map. */
+
+.orrery { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 560px; font-variant-numeric: tabular-nums; }
+.o-top { display: flex; align-items: center; gap: 14px; padding: 14px 20px 12px 24px; min-width: 0; flex-wrap: wrap; row-gap: 8px; }
+.o-top h1 { margin: 0; font-size: 26px; line-height: 32px; font-weight: 750; letter-spacing: -0.02em; }
+.o-meta { color: var(--ink-3); font-size: 14px; margin-top: 4px; white-space: nowrap; }
+.o-sp { flex: 1; }
+.o-arr button:disabled { opacity: .4; cursor: default; background: none; }
+
+.o-find { position: relative; width: 260px; }
+.o-find .inp { height: 34px; }
+.o-find .inp svg.i { color: var(--ink-3); width: 16px; height: 16px; }
+.o-find input { border: 0; outline: none; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); width: 100%; min-width: 0; }
+.o-find input::placeholder { color: var(--ink-3); }
+.o-find .inp:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+.o-results { position: absolute; left: 0; right: -60px; top: 38px; z-index: 20; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-2); box-shadow: var(--shadow-pop); }
+.o-results li { display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 8px; align-items: center; min-height: 40px; padding: 4px 8px; border-radius: var(--r-1); cursor: pointer; }
+.o-results li.on { background: var(--hover); }
+.o-results li svg { grid-row: span 2; }
+.o-results b { font-weight: 600; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o-results span { font-size: 12px; color: var(--ink-3); }
+.o-results .o-nores { display: flex; color: var(--ink-2); font-size: 13.5px; cursor: default; }
+
+.o-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; padding: 0 12px 12px 12px; min-height: 0; }
+.o-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.o-stage canvas { position: absolute; left: 0; top: 0; display: block; touch-action: none; outline: none; }
+.o-stage canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--r-3); }
+
+.o-where { position: absolute; left: 16px; top: 14px; z-index: 3; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 32px); font-size: 13.5px; font-weight: 650; color: var(--ink-3); background: color-mix(in srgb, var(--surface) 88%, transparent); padding: 4px 8px 4px 4px; border-radius: var(--r-2); }
+.o-where b { color: var(--ink); }
+.o-where .o-q { font-weight: 500; margin-left: 4px; }
+.o-where svg.i { width: 14px; height: 14px; }
+.o-orr { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--r-1); border: 1px solid var(--line-2); background: var(--surface); font: inherit; font-weight: 650; font-size: 13px; color: var(--ink); cursor: pointer; }
+.o-orr:hover { border-color: var(--ink-3); }
+.o-crumb { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px; border: 0; border-radius: var(--r-1); background: transparent; font: inherit; font-weight: 650; font-size: 13.5px; color: var(--ink-3); cursor: pointer; }
+.o-crumb:hover { color: var(--ink); background: var(--hover); }
+.o-crumb:focus-visible, .o-orr:focus-visible, .o-zoom button:focus-visible, .o-area:focus-visible, .o-list button:focus-visible, .o-rel .v a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.o-legend { position: absolute; left: 18px; bottom: 14px; z-index: 3; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; max-width: calc(100% - 90px); color: var(--ink-3); font-size: 12.5px; background: color-mix(in srgb, var(--surface) 86%, transparent); padding: 6px 10px; border-radius: var(--r-2); pointer-events: none; }
+.o-legend span { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.o-legend svg { display: block; }
+.o-zoom { position: absolute; right: 16px; bottom: 14px; z-index: 3; display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--surface); overflow: hidden; }
+.o-zoom[hidden] { display: none; }
+.o-zoom button { width: 36px; height: 34px; display: grid; place-items: center; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.o-zoom button + button { border-top: 1px solid var(--line); }
+.o-zoom button:hover { background: var(--hover); }
+
+.o-panel { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; min-height: 0; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.o-type { font-size: 12.5px; font-weight: 650; color: var(--ink-3); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.o-type svg { flex: none; }
+.o-type .status { font-size: 12.5px; }
+.o-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.o-panel h2 { margin: 4px 0 0; font-size: 22px; line-height: 28px; font-weight: 750; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.o-panel p { margin: 4px 0 0; color: var(--ink-2); line-height: 21px; }
+.o-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.o-panel section { display: flex; flex-direction: column; }
+.o-panel h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--ink-3); display: flex; gap: 6px; }
+.o-panel h3 span { font-weight: 450; }
+.o-rel { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 8px; margin: 0 -8px; border-radius: var(--r-2); align-items: baseline; }
+.o-rel + .o-rel { border-top: 1px solid var(--line); }
+.o-rel .k { color: var(--ink-3); font-size: 13px; font-weight: 600; }
+.o-rel .v { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.o-rel .v a { font-weight: 600; font-size: 13.5px; color: var(--ink); text-decoration: none; padding: 1px 4px; margin: -1px -4px; border-radius: 5px; overflow-wrap: anywhere; }
+.o-rel .v a:hover { color: var(--accent); background: var(--accent-wash); }
+.o-rel .v a.o-more { color: var(--accent); }
+.o-area { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px; padding: 9px 8px 13px; margin: 0 -8px; width: calc(100% + 16px); border: 0; border-radius: var(--r-2); background: transparent; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.o-area:hover, .o-area.on { background: var(--hover); }
+.o-area i { width: 10px; height: 10px; border-radius: 50%; }
+.o-area b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o-area span { color: var(--ink-3); font-size: 13px; }
+.o-area u { position: absolute; left: 30px; bottom: 6px; height: 3px; border-radius: 2px; opacity: .8; max-width: calc(100% - 46px); }
+.o-list { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.o-list button { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px; padding: 6px 8px; border: 0; border-radius: var(--r-2); background: transparent; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.o-list button:hover { background: var(--hover); }
+.o-list b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.o-counts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; font-size: 14px; }
+.o-counts span { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.o-counts b { font-weight: 650; text-align: right; }
+.o-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.o-hint { margin-top: auto !important; color: var(--ink-3) !important; font-size: 12.5px; line-height: 18px !important; border-top: 1px solid var(--line); padding-top: 10px; }
+.o-none { font-size: 13.5px; }
+
+/* states: the loading bar, the empty and error messages */
+.o-load { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 650; color: var(--ink-2); pointer-events: none; white-space: nowrap; }
+.o-load i { display: block; width: 220px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.o-load b { display: block; height: 100%; width: 0; background: var(--prog); border-radius: 2px; }
+.o-load i.busy b { width: 30%; animation: o-busy 1.2s ease-in-out infinite; }
+@keyframes o-busy { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.o-msg { position: absolute; left: 50%; top: calc(50% + 74px); transform: translateX(-50%); z-index: 4; width: min(420px, calc(100% - 32px)); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.o-msg b { font-size: 19px; line-height: 25px; font-weight: 750; color: var(--ink); }
+.o-msg p { margin: 0 0 8px; color: var(--ink-2); font-size: 14.5px; line-height: 22px; }
+.o-msg .o-acts { justify-content: center; }
+
+@media (prefers-reduced-motion: reduce) { .o-load i.busy b { animation: none; width: 100%; opacity: .5; } }
+@media (max-width: 1100px) { .o-find { width: 190px; } .o-body { grid-template-columns: minmax(0, 1fr) 300px; } }
+
+/* Phone: the circle fills the width, the panel sits underneath and the page scrolls; the top
+   bar already says "Orrery", so the page's own title steps aside. */
+@media (max-width: 760px) {
+  .orrery { display: block; height: auto; min-height: 0; }
+  .o-top { padding: 4px 16px 10px; }
+  .o-top h1 { display: none; }
+  .o-meta { margin-top: 0; font-size: 13.5px; }
+  .o-find { width: 100%; order: 5; }
+  .o-results { right: 0; }
+  .o-body { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; }
+  .o-stage { aspect-ratio: 1 / 1.02; flex: none; }
+  .o-legend { display: none; }
+  .o-panel { overflow: visible; }
+  .o-panel .o-hint { margin-top: 0 !important; }
+  .o-area, .o-list button, .o-results li { min-height: 48px; }
+}
