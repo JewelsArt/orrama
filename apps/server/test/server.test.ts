@@ -164,7 +164,8 @@ describe("tasks: file is the source of truth", () => {
     const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
     const before = await api("GET", `/api/vault/note/${shared.id}`, "jules");
     const line = before.json.content.split("\n").findIndex((l: string) => l.includes("schedule next sync"));
-    const r = await api("POST", "/api/tasks/check", "jules", { noteId: shared.id, line, checked: true });
+    const text = before.json.content.split("\n")[line]!;
+    const r = await api("POST", "/api/tasks/check", "jules", { noteId: shared.id, line, text, checked: true });
     expect(r.status).toBe(200);
 
     const after = await api("GET", `/api/vault/note/${shared.id}`, "jules");
@@ -175,7 +176,7 @@ describe("tasks: file is the source of truth", () => {
       "utf8",
     );
     expect(onDisk).toContain("- [x] schedule next sync");
-    await api("POST", "/api/tasks/check", "jules", { noteId: shared.id, line, checked: false });
+    await api("POST", "/api/tasks/check", "jules", { noteId: shared.id, line, text, checked: false });
   });
 
   it("promotion creates a task object bound by block id; deleting the line orphans it", async () => {
@@ -183,7 +184,8 @@ describe("tasks: file is the source of truth", () => {
     const arch = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Architecture.md");
     const note = await api("GET", `/api/vault/note/${arch.id}`, "erin");
     const line = note.json.content.split("\n").findIndex((l: string) => l.includes("write ADR"));
-    const p = await api("POST", "/api/tasks/promote", "erin", { noteId: arch.id, line });
+    const text = note.json.content.split("\n")[line]!;
+    const p = await api("POST", "/api/tasks/promote", "erin", { noteId: arch.id, line, text });
     expect(p.status).toBe(200);
     expect(p.json.blockId).toMatch(/^t-/);
 
@@ -205,7 +207,9 @@ describe("tasks: file is the source of truth", () => {
     const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
     const note = await api("GET", `/api/vault/note/${road.id}`, "erin");
     const line = note.json.content.split("\n").findIndex((l: string) => l.includes("partial checkout spike"));
-    const r = await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, start: "2026-07-06", due: "2026-07-10" });
+    // Its words, as every surface sends them: the date tokens this test rewrites are not part of them.
+    const text = "partial checkout spike";
+    const r = await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, text, start: "2026-07-06", due: "2026-07-10" });
     expect(r.status).toBe(200);
     const after = await api("GET", `/api/vault/note/${road.id}`, "erin");
     expect(after.json.content.split("\n")[line]).toContain("start:2026-07-06 due:2026-07-10");
@@ -218,11 +222,11 @@ describe("tasks: file is the source of truth", () => {
     expect(task).toMatchObject({ start: "2026-07-06", due: "2026-07-10" });
 
     // invalid range is rejected; unreadable note stays a 404 (no existence leak)
-    expect((await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, start: "2026-07-12", due: "2026-07-10" })).status).toBe(400);
-    expect((await api("POST", "/api/tasks/dates", "mara", { noteId: road.id, line, due: "2026-07-10" })).status).toBe(404);
+    expect((await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, text, start: "2026-07-12", due: "2026-07-10" })).status).toBe(400);
+    expect((await api("POST", "/api/tasks/dates", "mara", { noteId: road.id, line, text, due: "2026-07-10" })).status).toBe(404);
 
     // null clears a token (bar dragged back to the unscheduled strip)
-    await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, start: null });
+    await api("POST", "/api/tasks/dates", "erin", { noteId: road.id, line, text, start: null });
     const cleared = await api("GET", `/api/vault/note/${road.id}`, "erin");
     expect(cleared.json.content.split("\n")[line]).not.toContain("start:");
     expect(cleared.json.content.split("\n")[line]).toContain("due:2026-07-10");
@@ -234,24 +238,25 @@ describe("tasks: file is the source of truth", () => {
     const notePath = path.join(process.env.BASALT_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md");
     const before = await api("GET", `/api/vault/note/${shared.id}`, "jules");
     const line = before.json.content.split("\n").findIndex((l: string) => l.includes("schedule next sync"));
+    const text = before.json.content.split("\n")[line]!;
     const onDisk = () => fs.readFileSync(notePath, "utf8").split("\n").find((l) => l.includes("schedule next sync"))!;
     const listed = async () => (await api("GET", "/api/tasks", "jules")).json.find((t: { noteId: string; line: number }) => t.noteId === shared.id && t.line === line);
 
     // in-progress lives in the line itself — no promotion, nothing DB-only.
-    const wip = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, status: "in-progress" });
+    const wip = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, text, status: "in-progress" });
     expect(wip.status).toBe(200);
     expect(onDisk()).toMatch(/^- \[\/\] schedule next sync/);
     expect(onDisk()).not.toMatch(/\^t-/);
     expect((await listed()).status).toBe("in-progress");
     expect((await listed()).checked).toBe(false);
 
-    const blocked = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, status: "blocked" });
+    const blocked = await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, text, status: "blocked" });
     expect(blocked.status).toBe(200);
     expect(onDisk()).toMatch(/^- \[b\] schedule next sync/);
     expect((await listed()).status).toBe("blocked");
 
     // A promoted object follows the file, whichever way the file changed.
-    const promoted = await api("POST", "/api/tasks/promote", "jules", { noteId: shared.id, line });
+    const promoted = await api("POST", "/api/tasks/promote", "jules", { noteId: shared.id, line, text });
     expect(promoted.json.status).toBe("blocked");
     await api("POST", "/api/tasks/status", "jules", { noteId: shared.id, line, blockId: promoted.json.blockId, status: "done" });
     expect(onDisk()).toMatch(/^- \[x\] schedule next sync/);
@@ -475,7 +480,8 @@ describe("graph + plan + profile", () => {
     const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
     const note = await api("GET", `/api/vault/note/${road.id}`, "erin");
     const line = note.json.content.split("\n").findIndex((l: string) => l.includes("permission test suite"));
-    const s = await api("POST", "/api/tasks/schedule", "erin", { noteId: road.id, line, date: "2026-07-06" });
+    const text = note.json.content.split("\n")[line]!;
+    const s = await api("POST", "/api/tasks/schedule", "erin", { noteId: road.id, line, text, date: "2026-07-06" });
     expect(s.status).toBe(200);
     expect(s.json.plannedDate).toBe("2026-07-06");
     expect(s.json.blockId).toMatch(/^t-/);
@@ -494,8 +500,9 @@ describe("graph + plan + profile", () => {
     const road = erin.json.find((n: { path: string }) => n.path === "Engineering/Atlas Roadmap.md");
     const note = await api("GET", `/api/vault/note/${road.id}`, "erin");
     const line = note.json.content.split("\n").findIndex((l: string) => l.includes("dashboard API"));
+    const text = note.json.content.split("\n")[line]!;
     const b1 = await api("POST", "/api/tasks/blocks", "erin", {
-      noteId: road.id, line, date: "2026-07-06", startMin: 9 * 60, estimateHours: 3,
+      noteId: road.id, line, text, date: "2026-07-06", startMin: 9 * 60, estimateHours: 3,
     });
     expect(b1.status).toBe(200);
     expect(b1.json.durationMin).toBe(120); // default 2h of the 3h estimate

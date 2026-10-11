@@ -3,28 +3,64 @@
  * content — the Markdown file is always the source of truth (spec §7): dashboards
  * call these and write the result back through the normal edit path.
  */
-import type { TaskState } from "./types.js";
+import { parseNote } from "./parse.js";
+import type { ParsedTask, TaskState } from "./types.js";
 
 const TASK_LINE_RE = /^(\s*- \[)( |x|X|\/|b)(\] .*)$/;
 const MARK: Record<TaskState, string> = { todo: " ", "in-progress": "/", blocked: "b", done: "x" };
 
+/**
+ * Which task an edit means (audit COR-001). A promoted task is its block id.
+ * Any other task is its text, as the caller saw it, with the line it saw it on
+ * as a hint. A line index alone names nothing: the note can move under the
+ * caller (an Obsidian edit, a decision appended above) and the edit would land
+ * on whatever task slid into that line.
+ */
 export interface TaskLineRef {
-  /** 0-based line index; used when the task has no block id. */
-  line?: number;
-  /** Stable block id (without ^) — preferred, survives line moves. */
+  /** Stable block id (without ^): the task's identity once promoted. Never falls back to the line. */
   blockId?: string;
+  /**
+   * The task as the caller saw it: its raw line, or its display text
+   * (`ParsedTask.raw` or `.text`). The checkbox mark and a trailing block id are
+   * ignored, so a task ticked or promoted since is still the same task.
+   */
+  text?: string;
+  /** 0-based line index the caller saw the task on: a hint that picks between identical tasks. */
+  line?: number;
 }
 
-function findTaskLine(lines: string[], ref: TaskLineRef): number {
+/** A task line's words: no indent, checkbox, trailing block id or extra spaces. */
+const words = (s: string) =>
+  s.replace(/^\s*- \[[ xX/b]\]\s*/, "").replace(/\s\^[\w-]+\s*$/, "").replace(/\s+/g, " ").trim();
+
+function sameTask(t: ParsedTask, text: string): boolean {
+  const w = words(text);
+  return w !== "" && (w === words(t.raw) || w === t.text);
+}
+
+/**
+ * The task `ref` names in `content`, read with the same parser the index uses
+ * (code fences, front matter and transcripts included), or null when it is
+ * gone or cannot be told apart from another.
+ */
+export function locateTask(content: string, ref: TaskLineRef): ParsedTask | null {
+  const tasks = parseNote(content).tasks;
   if (ref.blockId) {
-    const suffix = `^${ref.blockId}`;
-    const idx = lines.findIndex((l) => TASK_LINE_RE.test(l) && l.trimEnd().endsWith(suffix));
-    if (idx !== -1) return idx;
+    const t = tasks.find((x) => x.blockId === ref.blockId);
+    if (!t) return null;
+    // The id belongs to its first line (COR-009). A caller pointing at a later
+    // copy of that line by its text meant the copy: refuse rather than guess.
+    if (ref.line !== undefined && ref.line !== t.line && ref.text !== undefined) {
+      const there = tasks.find((x) => x.line === ref.line);
+      if (there && sameTask(there, ref.text) && !sameTask(t, ref.text)) return null;
+    }
+    return t;
   }
-  if (ref.line !== undefined && lines[ref.line] !== undefined && TASK_LINE_RE.test(lines[ref.line]!)) {
-    return ref.line;
-  }
-  return -1;
+  if (ref.text === undefined) return null;
+  const at = ref.line === undefined ? undefined : tasks.find((x) => x.line === ref.line);
+  if (at && sameTask(at, ref.text)) return at;
+  const matches = tasks.filter((x) => sameTask(x, ref.text!));
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 /** Check/uncheck a task. Returns null if the referenced line is gone (caller orphans the task object). */
@@ -37,9 +73,10 @@ export function setTaskChecked(content: string, ref: TaskLineRef, checked: boole
  * asked to be done again is left as it is. Returns null if the line is gone.
  */
 export function setTaskStatus(content: string, ref: TaskLineRef, status: TaskState): string | null {
+  const task = locateTask(content, ref);
+  if (!task) return null;
   const lines = content.split("\n");
-  const idx = findTaskLine(lines, ref);
-  if (idx === -1) return null;
+  const idx = task.line;
   lines[idx] = lines[idx]!.replace(TASK_LINE_RE, (_, pre, cur, post) => `${pre}${status === "done" && cur === "X" ? "X" : MARK[status]}${post}`);
   return lines.join("\n");
 }
@@ -56,9 +93,10 @@ export interface TaskDates {
  * Returns null if the referenced line is gone.
  */
 export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates): string | null {
+  const task = locateTask(content, ref);
+  if (!task) return null;
   const lines = content.split("\n");
-  const idx = findTaskLine(lines, ref);
-  if (idx === -1) return null;
+  const idx = task.line;
   const m = /^(\s*- \[(?: |x|X|\/|b)\] )(.*)$/.exec(lines[idx]!)!;
   let body = m[2]!;
   let blockSuffix = "";
@@ -84,19 +122,21 @@ export function generateBlockId(): string {
 
 /**
  * Promote a checkbox: append a stable block id to the line (spec §7.2).
- * Returns the new content and the id, or null if the line is not a task.
+ * Returns the new content and the id, or null if `ref` names no task. A line
+ * that carries a copy of another line's id (COR-009) gets an id of its own.
  */
 export function promoteTaskLine(
   content: string,
-  line: number,
+  ref: TaskLineRef,
 ): { content: string; blockId: string } | null {
+  const task = locateTask(content, ref);
+  if (!task) return null;
+  if (task.blockId) return { content, blockId: task.blockId };
   const lines = content.split("\n");
-  const raw = lines[line];
-  if (raw === undefined || !TASK_LINE_RE.test(raw)) return null;
-  const existing = /\s\^([\w-]+)\s*$/.exec(raw);
-  if (existing) return { content, blockId: existing[1]! };
-  const blockId = generateBlockId();
-  lines[line] = `${raw.trimEnd()} ^${blockId}`;
+  const taken = new Set(parseNote(content).tasks.flatMap((t) => (t.blockId ? [t.blockId] : [])));
+  let blockId = generateBlockId();
+  while (taken.has(blockId)) blockId = generateBlockId();
+  lines[task.line] = `${lines[task.line]!.replace(/\s\^[\w-]+\s*$/, "").trimEnd()} ^${blockId}`;
   return { content: lines.join("\n"), blockId };
 }
 

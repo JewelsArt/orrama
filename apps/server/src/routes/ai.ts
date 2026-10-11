@@ -257,38 +257,35 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           }
         }),
         set_task_status: tool({
-          description: "Set a task's status: todo, in-progress, blocked, or done. Identify the task by noteId + line (0-indexed) or blockId.",
-          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), status: z.enum(["todo", "in-progress", "blocked", "done"]) }),
-          execute: async ({ noteId, line, blockId, status }: { noteId: string; line?: number; blockId?: string; status: "todo" | "in-progress" | "blocked" | "done" }) => {
-            return applyTaskStatus(db, store, user, { noteId, line, blockId, status });
+          description: "Set a task's status: todo, in-progress, blocked, or done. Identify the task by blockId, or by its text exactly as the note has it (line, 0-indexed, is an optional hint between identical tasks)." ,
+          inputSchema: z.object({ noteId: z.string(), blockId: z.string().optional(), text: z.string().optional(), line: z.number().optional(), status: z.enum(["todo", "in-progress", "blocked", "done"]) }),
+          execute: async ({ noteId, line, blockId, text, status }: { noteId: string; line?: number; blockId?: string; text?: string; status: "todo" | "in-progress" | "blocked" | "done" }) => {
+            if (!blockId && !text) return { success: false, error: "say which task: its blockId or its text" };
+            return applyTaskStatus(db, store, user, { noteId, line, blockId, text, status });
           }
         }),
         set_task_dates: tool({
-          description: "Set or clear a task's due:/start: dates (YYYY-MM-DD; pass null to clear). Identify by noteId + line or blockId.",
-          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
-          execute: async ({ noteId, line, blockId, due, start }: { noteId: string; line?: number; blockId?: string; due?: string | null; start?: string | null }) => {
+          description: "Set or clear a task's due:/start: dates (YYYY-MM-DD; pass null to clear). Identify the task by blockId, or by its text exactly as the note has it (line, 0-indexed, is an optional hint between identical tasks).",
+          inputSchema: z.object({ noteId: z.string(), blockId: z.string().optional(), text: z.string().optional(), line: z.number().optional(), due: z.string().nullable().optional(), start: z.string().nullable().optional() }),
+          execute: async ({ noteId, line, blockId, text, due, start }: { noteId: string; line?: number; blockId?: string; text?: string; due?: string | null; start?: string | null }) => {
             const note = store.requireReadable(user, noteId);
-            const updated = setTaskDates(note.content, { line, blockId }, { start, due });
+            const updated = setTaskDates(note.content, { line, blockId, text }, { start, due });
             if (updated === null) return { success: false, error: "task line not found" };
             store.write(user, note.path, updated);
             return { success: true };
           }
         }),
         schedule_block: tool({
-          description: "Book focused time for a task on the calendar. date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (defaults: 09:00, 120 min).",
-          inputSchema: z.object({ noteId: z.string(), line: z.number().optional(), blockId: z.string().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
-          execute: async ({ noteId, line, blockId, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; date: string; startMin?: number; durationMin?: number }) => {
+          description: "Book focused time for a task on the calendar. Identify the task by blockId, or by its text exactly as the note has it (line, 0-indexed, is an optional hint between identical tasks). date=YYYY-MM-DD; startMin/durationMin are minutes from midnight (defaults: 09:00, 120 min).",
+          inputSchema: z.object({ noteId: z.string(), blockId: z.string().optional(), text: z.string().optional(), line: z.number().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
+          execute: async ({ noteId, line, blockId, text, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; text?: string; date: string; startMin?: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
             // Edit, like the route: a block is a change to the task, not a read of it.
             const note = store.requireEditable(user, noteId);
-            let tbId = blockId;
-            if (!tbId) {
-              if (line === undefined) return { success: false, error: "line or blockId required" };
-              const res = promoteTaskLine(note.content, line);
-              if (!res) return { success: false, error: "line is not a task" };
-              if (res.content !== note.content) store.write(user, note.path, res.content);
-              tbId = res.blockId;
-            }
+            const res = promoteTaskLine(note.content, { line, blockId, text });
+            if (!res) return { success: false, error: "no such task in the note: say which by its blockId or its text" };
+            if (res.content !== note.content) store.write(user, note.path, res.content);
+            const tbId = res.blockId;
             const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === tbId);
             if (!task) return { success: false, error: "task line not found" };
             store.ensureTaskObject(note.id, tbId);

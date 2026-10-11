@@ -109,7 +109,7 @@ export function Overview({
   }, [load]);
 
   const setStatus = async (t: DashboardTask, status: TaskStatus) => {
-    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, status });
+    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
     if (teamSlug) void load(teamSlug);
   };
 
@@ -128,7 +128,7 @@ export function Overview({
 
   // Gantt drag/resize/schedule → start:/due: tokens on the task line (file is the truth).
   const setDates = async (t: DashboardTask, dates: { start?: string | null; due?: string | null }) => {
-    await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, ...dates });
+    await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, ...dates });
     if (teamSlug) void load(teamSlug);
   };
 

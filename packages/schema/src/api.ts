@@ -89,38 +89,44 @@ export const noteMoveSchema = z.object({
   toPath: z.string().regex(/^(?!\/)(?!.*\.\.).+\.md$/),
 });
 
-export const checkTaskSchema = z.object({
+/**
+ * Which task a mutation means (audit COR-001; `TaskLineRef` in core). A
+ * promoted task is its `blockId`; any other task is its `text` — the line or
+ * the display text the caller saw — with `line` as a hint between identical
+ * tasks. A line alone is refused: the note may have moved under the caller.
+ */
+const taskRef = {
   noteId: z.string(),
   line: z.number().int().nonnegative().optional(),
   blockId: z.string().optional(),
-  checked: z.boolean(),
-});
+  text: z.string().max(10_000).optional(),
+};
+const namesTheTask = (b: { blockId?: string; text?: string }) => !!b.blockId || (b.text ?? "").trim() !== "";
+const NAME_THE_TASK = { message: "say which task: its blockId, or its text (with the line it is on as a hint)" };
 
-export const promoteTaskSchema = z.object({
-  noteId: z.string(),
-  line: z.number().int().nonnegative(),
-});
+export const checkTaskSchema = z.object({ ...taskRef, checked: z.boolean() }).refine(namesTheTask, NAME_THE_TASK);
 
-/** Set a task's board status by line/block. `done`/`todo` flip the checkbox in
- *  the file; `in-progress`/`blocked` are DB-only and auto-promote the line. */
-export const setTaskStatusSchema = z.object({
-  noteId: z.string(),
-  line: z.number().int().nonnegative().optional(),
-  blockId: z.string().optional(),
-  status: z.enum(["todo", "in-progress", "done", "blocked"]),
-});
+export const promoteTaskSchema = z.object(taskRef).refine(namesTheTask, NAME_THE_TASK);
+
+/** Set a task's status by block id or text: written into the checkbox,
+ *  `[ ]` todo, `[/]` in progress, `[b]` blocked, `[x]` done. */
+export const setTaskStatusSchema = z
+  .object({ ...taskRef, status: z.enum(["todo", "in-progress", "done", "blocked"]) })
+  .refine(namesTheTask, NAME_THE_TASK);
 
 export const taskDatesSchema = z
   .object({
-    noteId: z.string(),
-    line: z.number().int().nonnegative().optional(),
-    blockId: z.string().optional(),
+    ...taskRef,
     /** undefined = leave as-is, null = remove the token from the line. */
     start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
     due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   })
+  .refine(namesTheTask, NAME_THE_TASK)
   .refine((b) => b.start !== undefined || b.due !== undefined, { message: "start or due required" })
   .refine((b) => !b.start || !b.due || b.start <= b.due, { message: "start must not be after due" });
+
+/** A task booked onto a day (`/api/tasks/schedule`) or a calendar slot (`/api/tasks/blocks`). */
+export const taskPlaceSchema = z.object(taskRef).refine(namesTheTask, NAME_THE_TASK);
 
 export const updateTaskObjectSchema = z.object({
   status: taskStatusSchema.optional(),

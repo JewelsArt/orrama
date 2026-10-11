@@ -40,8 +40,8 @@ beforeAll(async () => {
   token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
 
   const roadmap = built.store.index.getByPath("Engineering/Atlas Roadmap.md")!;
-  const line = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!.line;
-  const promoted = await call("POST", "/api/tasks/promote", { noteId: roadmap.id, line });
+  const { line, raw: text } = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!;
+  const promoted = await call("POST", "/api/tasks/promote", { noteId: roadmap.id, line, text });
   expect(promoted.status).toBe(200);
   taskId = promoted.json.id;
   expect((await call("PATCH", `/api/tasks/${taskId}`, { description: "Exported description: the spec lives in the thesis note." })).status).toBe(200);

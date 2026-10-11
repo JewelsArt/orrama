@@ -219,6 +219,7 @@ export function Planning({
           noteId: p.noteId,
           line: p.line,
           blockId: p.blockId ?? undefined,
+          text: p.text,
           date: p.date,
           startMin: p.startMin,
           durationMin: p.durationMin,
@@ -381,7 +382,7 @@ export function Planning({
               onDragStart={(e) => {
                 e.dataTransfer.setData(
                   "text/task",
-                  JSON.stringify({ noteId: t.noteId, line: t.line, blockId: t.blockId, estimateHours: t.estimateHours }),
+                  JSON.stringify({ noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, estimateHours: t.estimateHours }),
                 );
                 e.dataTransfer.effectAllowed = "copy";
               }}
@@ -732,13 +733,14 @@ function WeekGrid({
                   e.preventDefault();
                   const raw = e.dataTransfer.getData("text/task");
                   if (!raw) return;
-                  const t = JSON.parse(raw) as { noteId: string; line: number; blockId: string | null; estimateHours: number };
+                  const t = JSON.parse(raw) as { noteId: string; line: number; blockId: string | null; text: string; estimateHours: number };
                   const loc = locate(e.clientX, e.clientY);
                   if (!loc) return;
                   await api("POST", "/api/tasks/blocks", {
                     noteId: t.noteId,
                     line: t.line,
                     blockId: t.blockId ?? undefined,
+                    text: t.text,
                     date: day,
                     startMin: clampStart(loc.min),
                     estimateHours: t.estimateHours,

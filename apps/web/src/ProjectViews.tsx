@@ -97,7 +97,7 @@ export function ProjectTimeline({ w, onChanged, onOpenNote }: { w: ProjectWorksp
     if (!shift) return;
     const due = isoOf(dayNum(t.due!) + shift);
     await api("POST", "/api/tasks/dates", {
-      noteId: t.noteId, line: t.line, blockId: t.blockId, due,
+      noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, due,
       ...(t.start ? { start: isoOf(dayNum(t.start) + shift) } : {}),
     });
     setNote(`Moved “${t.text.slice(0, 48)}${t.text.length > 48 ? "…" : ""}” to ${fmt(due, { weekday: "short", day: "numeric", month: "short" })}.`);
@@ -246,11 +246,11 @@ export function ProjectTodo({ w, onChanged, onOpenNote }: { w: ProjectWorkspace;
     filter === "all" ? true : filter === "open" ? !t.checked : filter === "late" ? isLate(t) : !t.checked && !!t.due && t.due >= today && t.due <= soon;
 
   const setStatus = async (t: ProjectTask, status: string) => {
-    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, status });
+    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
     await onChanged();
   };
   const check = async (t: ProjectTask) => {
-    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, checked: !t.checked });
+    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
     await onChanged();
   };
 

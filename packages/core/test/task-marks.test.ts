@@ -25,17 +25,17 @@ describe("task marks", () => {
 
   it("writes each state into the box and leaves the rest of the line alone", () => {
     const line = "- [ ] draft chapter 3 @jules due:2026-10-19 ^t-abc123";
-    expect(setTaskStatus(line, { line: 0 }, "in-progress")).toBe("- [/] draft chapter 3 @jules due:2026-10-19 ^t-abc123");
+    expect(setTaskStatus(line, { line: 0, text: line }, "in-progress")).toBe("- [/] draft chapter 3 @jules due:2026-10-19 ^t-abc123");
     expect(setTaskStatus(line, { blockId: "t-abc123" }, "blocked")).toBe("- [b] draft chapter 3 @jules due:2026-10-19 ^t-abc123");
-    expect(setTaskStatus("- [b] x", { line: 0 }, "done")).toBe("- [x] x");
-    expect(setTaskStatus("- [/] x", { line: 0 }, "todo")).toBe("- [ ] x");
-    expect(setTaskStatus("- [X] x", { line: 0 }, "done")).toBe("- [X] x");
-    expect(setTaskStatus("plain line", { line: 0 }, "done")).toBeNull();
+    expect(setTaskStatus("- [b] x", { line: 0, text: "x" }, "done")).toBe("- [x] x");
+    expect(setTaskStatus("- [/] x", { line: 0, text: "x" }, "todo")).toBe("- [ ] x");
+    expect(setTaskStatus("- [X] x", { line: 0, text: "x" }, "done")).toBe("- [X] x");
+    expect(setTaskStatus("plain line", { line: 0, text: "plain line" }, "done")).toBeNull();
   });
 
   it("the older transforms work on marked lines too", () => {
-    expect(setTaskChecked("- [/] x", { line: 0 }, true)).toBe("- [x] x");
-    expect(setTaskDates("- [b] x ^t-1", { line: 0 }, { due: "2026-11-01" })).toBe("- [b] x due:2026-11-01 ^t-1");
+    expect(setTaskChecked("- [/] x", { line: 0, text: "x" }, true)).toBe("- [x] x");
+    expect(setTaskDates("- [b] x ^t-1", { line: 0, text: "x" }, { due: "2026-11-01" })).toBe("- [b] x due:2026-11-01 ^t-1");
     expect(readSectionItems("## Goals\n- [/] ship it\n- [b] wait", "Goals")).toEqual(["ship it", "wait"]);
   });
 });

@@ -155,7 +155,7 @@ describe("task line editing", () => {
   const content = "intro\n- [ ] alpha @erin\n- [x] beta ^t-abc123\n";
 
   it("toggles by line and by block id", () => {
-    expect(setTaskChecked(content, { line: 1 }, true)).toContain("- [x] alpha");
+    expect(setTaskChecked(content, { line: 1, text: "alpha @erin" }, true)).toContain("- [x] alpha");
     expect(setTaskChecked(content, { blockId: "t-abc123" }, false)).toContain("- [ ] beta ^t-abc123");
   });
 
@@ -164,25 +164,25 @@ describe("task line editing", () => {
   });
 
   it("promotes a task by appending a stable block id, idempotently", () => {
-    const res = promoteTaskLine(content, 1)!;
+    const res = promoteTaskLine(content, { line: 1, text: "alpha @erin" })!;
     expect(res.content).toMatch(/- \[ \] alpha @erin \^t-[a-z0-9]{6}/);
-    const again = promoteTaskLine(content, 2)!;
+    const again = promoteTaskLine(content, { line: 2, text: "beta" })!;
     expect(again).toMatchObject({ blockId: "t-abc123", content });
-    expect(promoteTaskLine(content, 0)).toBeNull();
+    expect(promoteTaskLine(content, { line: 0, text: "intro" })).toBeNull();
   });
 
   it("sets, moves, and clears start:/due: tokens (Gantt edits)", () => {
-    const set = setTaskDates(content, { line: 1 }, { start: "2026-07-06", due: "2026-07-09" })!;
+    const set = setTaskDates(content, { line: 1, text: "alpha @erin" }, { start: "2026-07-06", due: "2026-07-09" })!;
     expect(set).toContain("- [ ] alpha @erin start:2026-07-06 due:2026-07-09");
     // moving rewrites in place, no duplicate tokens
-    const moved = setTaskDates(set, { line: 1 }, { start: "2026-07-08", due: "2026-07-11" })!;
+    const moved = setTaskDates(set, { line: 1, text: "alpha" }, { start: "2026-07-08", due: "2026-07-11" })!;
     expect(moved).toContain("- [ ] alpha @erin start:2026-07-08 due:2026-07-11");
     expect(moved.match(/start:/g)).toHaveLength(1);
     // partial update leaves the other token alone; null removes
-    const dueOnly = setTaskDates(moved, { line: 1 }, { start: null })!;
+    const dueOnly = setTaskDates(moved, { line: 1, text: "alpha" }, { start: null })!;
     expect(dueOnly).toContain("- [ ] alpha @erin due:2026-07-11");
     expect(dueOnly).not.toContain("start:");
-    const cleared = setTaskDates(dueOnly, { line: 1 }, { due: null })!;
+    const cleared = setTaskDates(dueOnly, { line: 1, text: "alpha" }, { due: null })!;
     expect(cleared).toContain("- [ ] alpha @erin\n");
   });
 

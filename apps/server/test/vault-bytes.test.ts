@@ -170,7 +170,8 @@ describe("a note that cannot be stamped keeps one id (STO-003)", () => {
 
     // 1. A Basalt write (a checkbox ticked from the Dashboard).
     const line = fs.readFileSync(abs(rel), "utf8").split("\n").findIndex((l) => l.includes("^t-deck01"));
-    expect((await api("POST", "/api/tasks/check", { noteId: id, line, checked: true })).status).toBe(200);
+    const text = fs.readFileSync(abs(rel), "utf8").split("\n")[line]!;
+    expect((await api("POST", "/api/tasks/check", { noteId: id, line, text, checked: true })).status).toBe(200);
     expect(idAt(rel)).toBe(id);
     expect((await api("GET", `/api/vault/note/${id}`)).status).toBe(200);
     await sleep(500);

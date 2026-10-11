@@ -251,7 +251,7 @@ describe("webhooks", () => {
     const task = detail.json().tasks.find((t: { checked: boolean }) => !t.checked);
     expect(task).toBeDefined();
 
-    const r = await api("POST", "/api/tasks/check", tokens["mara"], { noteId: note.id, line: task.line, checked: true });
+    const r = await api("POST", "/api/tasks/check", tokens["mara"], { noteId: note.id, line: task.line, text: task.raw, checked: true });
     expect(r.status).toBe(200);
 
     expect(await waitFor(() => received.some((m) => JSON.parse(m.body).event === "task.completed"))).toBe(true);

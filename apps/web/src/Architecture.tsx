@@ -118,11 +118,11 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
         // Not while another note is on its way: refreshing this one would
         // cancel the note just clicked.
         if (current && (msg.noteId === current.id || msg.resync) && wantRef.current === current.id) {
-          // Someone else: refresh the header too. You (another tab, the phone,
-          // a toggle on this page): the text is all that can have moved, and a
-          // refresh after your own save is a no-op.
-          if (msg.authorId !== me.id) void openNote(current.id);
-          else void syncRef.current?.sync?.refresh();
+          // Whoever wrote it — you included, in this tab or another — refresh
+          // the header too: the panel's tasks, links and tags are read off the
+          // text, so a save that moved lines moved them (WEB-004). The text
+          // itself merges into whatever is being typed.
+          void openNote(current.id);
         }
       } else if (msg.type === "presence") {
         const current = openRef.current;
@@ -134,7 +134,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       off();
       clearInterval(expire);
     };
-  }, [loadTree, openNote, me.id]);
+  }, [loadTree, openNote]);
 
   const onEdit = useCallback((content: string) => {
     const note = openRef.current;
@@ -153,16 +153,25 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     await openNote(res.id);
   };
 
-  const checkTask = async (line: number, checked: boolean) => {
+  // A task is named by its block id or its text, the line only a hint: if the
+  // note moved since the panel was drawn, the server finds the task or says
+  // 409, and the panel reloads either way (COR-001, WEB-004).
+  const checkTask = async (t: NoteDetail["tasks"][number], checked: boolean) => {
     if (!open) return;
-    await api("POST", "/api/tasks/check", { noteId: open.id, line, checked });
-    await openNote(open.id);
+    try {
+      await api("POST", "/api/tasks/check", { noteId: open.id, line: t.line, blockId: t.blockId, text: t.text, checked });
+    } finally {
+      await openNote(open.id);
+    }
   };
 
-  const promote = async (line: number) => {
+  const promote = async (t: NoteDetail["tasks"][number]) => {
     if (!open) return;
-    await api("POST", "/api/tasks/promote", { noteId: open.id, line });
-    await openNote(open.id);
+    try {
+      await api("POST", "/api/tasks/promote", { noteId: open.id, line: t.line, text: t.text });
+    } finally {
+      await openNote(open.id);
+    }
   };
 
   const isProject = open?.tags?.some((t) => /^project\//i.test(t.tag)) ?? false;
@@ -335,7 +344,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                         if (el) el.indeterminate = t.status === "in-progress" || t.status === "blocked";
                       }}
                       title={t.status === "in-progress" ? "In progress" : t.status === "blocked" ? "Blocked" : undefined}
-                      onChange={(e) => checkTask(t.line, e.target.checked)}
+                      onChange={(e) => checkTask(t, e.target.checked)}
                       aria-label={t.text}
                     />
                     <span>{t.text}</span>
@@ -345,7 +354,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                       </span>
                     ) : (
                       open.canEdit && (
-                        <button className="ghost promote" title="Promote to task object" onClick={() => promote(t.line)}>
+                        <button className="ghost promote" title="Promote to task object" onClick={() => promote(t)}>
                           <IconPromote />
                         </button>
                       )

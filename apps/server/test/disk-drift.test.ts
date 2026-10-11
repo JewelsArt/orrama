@@ -73,8 +73,8 @@ describe("a write while the disk is ahead of the index", () => {
     obsidianSave(abs, (s) => s + "OBSIDIAN-EDIT\n");
     expect(store.index.get(id)!.content).not.toContain("OBSIDIAN-EDIT"); // inside the window
 
-    const line = store.index.get(id)!.tasks[0]!.line;
-    expect((await api("POST", "/api/tasks/check", { noteId: id, line, checked: true })).status).toBe(200);
+    const { line, raw: text } = store.index.get(id)!.tasks[0]!;
+    expect((await api("POST", "/api/tasks/check", { noteId: id, line, text, checked: true })).status).toBe(200);
 
     const disk = fs.readFileSync(abs, "utf8");
     expect(disk).toContain("- [x] task one\nOBSIDIAN-EDIT\n");

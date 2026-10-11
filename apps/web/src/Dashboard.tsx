@@ -505,8 +505,8 @@ export function Dashboard({
     };
   }, [load]);
 
-  const check = async (noteId: string, line: number) => {
-    await api("POST", "/api/tasks/check", { noteId, line, checked: true });
+  const check = async (noteId: string, line: number, text: string) => {
+    await api("POST", "/api/tasks/check", { noteId, line, text, checked: true });
     await load();
   };
 
@@ -927,7 +927,7 @@ export function Dashboard({
           <ul className="dh-tasks">
             {home?.deadlines.slice(0, 6).map((d) => (
               <li key={`${d.noteId}:${d.line}`} className={`dh-task ${d.key ? "key" : ""}`}>
-                <button className="dh-radio" aria-label={`Complete ${d.text}`} onClick={(e) => { e.stopPropagation(); void check(d.noteId, d.line); }} />
+                <button className="dh-radio" aria-label={`Complete ${d.text}`} onClick={(e) => { e.stopPropagation(); void check(d.noteId, d.line, d.text); }} />
                 <div className="dh-task-body">
                   <span className="dh-task-text" onClick={() => onOpenNote(d.noteId)}>{d.text}</span>
                   <span className="dh-task-meta">

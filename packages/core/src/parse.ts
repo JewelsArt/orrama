@@ -166,6 +166,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   const tags: NoteTag[] = [];
   const tasks: ParsedTask[] = [];
   const headings: Heading[] = [];
+  const blockIds = new Set<string>();
 
   for (const t of frontmatterStrings(data["tags"])) {
     const tag = frontmatterTag(t);
@@ -222,7 +223,16 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
     }
 
     const task = parseTaskLine(i, line);
-    if (task) tasks.push(task);
+    if (task) {
+      // A block id is one task. A line copied with its `^t-…` (Obsidian's
+      // duplicate line) is a task of its own, addressed by its text until it
+      // is promoted and given its own id (COR-009); the first line keeps it.
+      if (task.blockId !== undefined) {
+        if (blockIds.has(task.blockId)) delete task.blockId;
+        else blockIds.add(task.blockId);
+      }
+      tasks.push(task);
+    }
   }
 
   const onlyTeams: string[] = [];

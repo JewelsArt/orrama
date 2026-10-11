@@ -56,9 +56,9 @@ beforeAll(async () => {
 
   // Rows behind every list, made the way the app makes them.
   const ws = await must("GET", "/api/projects/atlas");
-  const [t1, t2] = ws["tasks"] as { noteId: string; line: number }[];
+  const [t1, t2] = ws["tasks"] as { noteId: string; line: number; raw: string }[];
   await must("POST", "/api/events", { title: "Dentist", date: "2026-10-06", startMin: 540, durationMin: 60 });
-  await must("POST", "/api/tasks/blocks", { noteId: t1!.noteId, line: t1!.line, date: "2026-10-07", startMin: 600, durationMin: 60 });
+  await must("POST", "/api/tasks/blocks", { noteId: t1!.noteId, line: t1!.line, text: t1!.raw, date: "2026-10-07", startMin: 600, durationMin: 60 });
   await must("POST", "/api/tokens", { label: "CLI" });
   await must("POST", "/api/webhooks", { url: "https://hooks.example.com/basalt", events: ["note.changed"] });
   await must("POST", "/api/me/ics-token");
@@ -72,7 +72,7 @@ beforeAll(async () => {
   const files = (board["nodes"] as { id: string; type: string }[]).filter((n) => n.type === "file");
   await must("PUT", "/api/projects/atlas/board", { ...board, edges: [{ id: "e1", fromNode: files[0]!.id, toNode: files[1]!.id }] });
   // An orphaned task object: promote a line, then delete it from its note.
-  await must("POST", "/api/tasks/promote", { noteId: t2!.noteId, line: t2!.line });
+  await must("POST", "/api/tasks/promote", { noteId: t2!.noteId, line: t2!.line, text: t2!.raw });
   const host = (await must("GET", `/api/vault/note/${t2!.noteId}`)) as unknown as { path: string; content: string; hash: string };
   await must("PUT", "/api/vault/note", { path: host.path, content: host.content.split("\n").filter((_l, i) => i !== t2!.line).join("\n"), baseHash: host.hash });
   // What has no endpoint to create it without a real device or mail server.

@@ -9,13 +9,15 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { advance, isoLocal, nextCharge, parseSubscriptions, projectName, promoteTaskLine } from "@basalt/core";
+import { advance, isoLocal, nextCharge, parseSubscriptions, projectName } from "@basalt/core";
+import { taskPlaceSchema } from "@basalt/schema";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { projectNoteFor } from "./projects.js";
+import { promoteNamedTask } from "./tasks.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const SNAP = 30;
@@ -74,25 +76,20 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       noteId?: string;
       line?: number;
       blockId?: string;
+      text?: string;
       date?: string;
       startMin?: number;
       durationMin?: number;
       estimateHours?: number;
     };
-    if (!body.noteId || (body.line === undefined && !body.blockId)) throw new HttpError(400, "noteId and line or blockId required");
+    const ref = taskPlaceSchema.parse(body);
     if (!body.date || !DAY_RE.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
     const startMin = mins(body.startMin, "startMin");
     const durationMin = optMins(body.durationMin, "durationMin");
     const user = store.aclUser(req.userId);
-    const note = store.requireEditable(user, body.noteId);
+    const note = store.requireEditable(user, ref.noteId);
 
-    let taskBlockId = body.blockId;
-    if (!taskBlockId) {
-      const res = promoteTaskLine(note.content, body.line!);
-      if (!res) throw new HttpError(409, "line is not a task");
-      if (res.content !== note.content) store.write(user, note.path, res.content);
-      taskBlockId = res.blockId;
-    }
+    const taskBlockId = promoteNamedTask(store, user, note, ref);
     const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === taskBlockId);
     if (!task) throw new HttpError(409, "task line no longer exists");
     const obj = store.ensureTaskObject(note.id, taskBlockId);

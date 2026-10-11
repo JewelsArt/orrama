@@ -85,6 +85,7 @@ export function TaskCard({
         noteId: task.noteId,
         line: task.line,
         blockId: task.blockId,
+        text: task.text,
         date,
       });
       await onScheduled();

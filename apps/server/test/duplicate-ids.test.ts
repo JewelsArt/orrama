@@ -106,8 +106,8 @@ beforeAll(async () => {
   await boot();
   const roadmap = built.store.index.getByPath(ORIG)!;
   id = roadmap.id;
-  const line = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!.line;
-  expect((await api("POST", "/api/tasks/blocks", { noteId: id, line, date: "2026-10-05", startMin: 840 })).status).toBe(200);
+  const { line, raw: text } = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!;
+  expect((await api("POST", "/api/tasks/blocks", { noteId: id, line, text, date: "2026-10-05", startMin: 840 })).status).toBe(200);
   for (const extra of ["History one.", "History two."]) {
     expect((await api("PUT", "/api/vault/note", { path: ORIG, content: `${built.store.index.get(id)!.content}\n${extra}\n` })).status).toBe(200);
   }
@@ -135,8 +135,8 @@ describe("a copy made while the server runs", () => {
   });
 
   it("a task ticked by id is ticked in the original, not the copy", async () => {
-    const line = built.store.index.get(id)!.tasks.find((t) => t.text.startsWith("permission test suite"))!.line;
-    expect((await api("POST", "/api/tasks/status", { noteId: id, line, status: "done" })).status).toBe(200);
+    const { line, raw: text } = built.store.index.get(id)!.tasks.find((t) => t.text.startsWith("permission test suite"))!;
+    expect((await api("POST", "/api/tasks/status", { noteId: id, line, text, status: "done" })).status).toBe(200);
     expect(read(ORIG)).toMatch(/- \[x\] permission test suite/);
     expect(read(COPY)).toMatch(/- \[ \] permission test suite/);
   });

@@ -187,8 +187,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: "object",
           properties: {
             noteId: { type: "string" },
-            line: { type: "number", description: "Line number of the task (0-indexed) if no blockId" },
             blockId: { type: "string", description: "Block ID of the task if promoted" },
+            text: { type: "string", description: "The task's text exactly as the note has it, if no blockId" },
+            line: { type: "number", description: "Line the task is on (0-indexed): a hint between identical tasks, never enough alone" },
             checked: { type: "boolean" },
           },
           required: ["noteId", "checked"],
@@ -201,8 +202,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: "object",
           properties: {
             noteId: { type: "string" },
-            line: { type: "number" },
-            blockId: { type: "string" },
+            blockId: { type: "string", description: "Block ID of the task if promoted" },
+            text: { type: "string", description: "The task's text exactly as the note has it, if no blockId" },
+            line: { type: "number", description: "Line the task is on (0-indexed): a hint between identical tasks, never enough alone" },
             start: { type: "string", description: "YYYY-MM-DD" },
             due: { type: "string", description: "YYYY-MM-DD" },
           },
@@ -216,8 +218,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: "object",
           properties: {
             noteId: { type: "string" },
-            line: { type: "number" },
-            blockId: { type: "string" },
+            blockId: { type: "string", description: "Block ID of the task if promoted" },
+            text: { type: "string", description: "The task's text exactly as the note has it, if no blockId" },
+            line: { type: "number", description: "Line the task is on (0-indexed): a hint between identical tasks, never enough alone" },
             date: { type: "string", description: "YYYY-MM-DD" },
           },
           required: ["noteId"],
@@ -282,13 +285,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "set_task_status",
-        description: "Set a task's status. Written into the note's checkbox: [ ] todo, [/] in-progress, [b] blocked, [x] done. Identify the task by noteId + line (0-indexed) or blockId.",
+        description: "Set a task's status. Written into the note's checkbox: [ ] todo, [/] in-progress, [b] blocked, [x] done. Identify the task by blockId, or by its text exactly as the note has it.",
         inputSchema: {
           type: "object",
           properties: {
             noteId: { type: "string" },
-            line: { type: "number", description: "Line number of the task (0-indexed) if no blockId" },
             blockId: { type: "string", description: "Block ID of the task if promoted" },
+            text: { type: "string", description: "The task's text exactly as the note has it, if no blockId" },
+            line: { type: "number", description: "Line the task is on (0-indexed): a hint between identical tasks, never enough alone" },
             status: { type: "string", enum: ["todo", "in-progress", "blocked", "done"] },
           },
           required: ["noteId", "status"],
@@ -448,6 +452,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           noteId: args.noteId,
           line: args.line,
           blockId: args.blockId,
+          text: args.text,
           checked: args.checked,
         });
         return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
@@ -459,6 +464,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           noteId: args.noteId,
           line: args.line,
           blockId: args.blockId,
+          text: args.text,
           start: args.start,
           due: args.due,
         });
@@ -471,6 +477,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           noteId: args.noteId,
           line: args.line,
           blockId: args.blockId,
+          text: args.text,
           date: args.date,
         });
         return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
@@ -513,7 +520,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "set_task_status": {
         const a = request.params.arguments ?? {};
-        const res = await fetchBasalt(`/api/tasks/status`, "POST", { noteId: a.noteId, line: a.line, blockId: a.blockId, status: a.status });
+        const res = await fetchBasalt(`/api/tasks/status`, "POST", { noteId: a.noteId, line: a.line, blockId: a.blockId, text: a.text, status: a.status });
         return { content: [{ type: "text", text: JSON.stringify(res, null, 2) }] };
       }
 

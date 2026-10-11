@@ -237,9 +237,9 @@ async function main() {
 
   // Promote one task and mark it in-progress so "who's working on what" has life.
   const roadmap = store.index.getByPath("Engineering/Atlas Roadmap.md")!;
-  const spikeLine = roadmap.content.split("\n").findIndex((l) => l.includes("partial checkout spike"));
+  const spike = roadmap.tasks.find((t) => t.text.includes("partial checkout spike"))!;
   const erinAcl = store.aclUser(erin!.id);
-  const promoted = promoteTaskLine(roadmap.content, spikeLine)!;
+  const promoted = promoteTaskLine(roadmap.content, spike)!;
   store.write(erinAcl, roadmap.path, promoted.content);
   db.insert(tables.taskObjects).values({
     id: uid("task"),

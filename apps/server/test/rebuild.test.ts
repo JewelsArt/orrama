@@ -75,19 +75,22 @@ describe("delete the database, re-index the vault", () => {
     const call = await session(b);
     const roadmap = b.store.index.getByPath("Engineering/Atlas Roadmap.md")!;
     const arch = b.store.index.getByPath("Engineering/Atlas Architecture.md")!;
-    const lineOf = (n: typeof roadmap, text: string) => n.tasks.find((t) => t.text.startsWith(text))!.line;
+    const at = (n: typeof roadmap, text: string) => {
+      const t = n.tasks.find((x) => x.text.startsWith(text))!;
+      return { line: t.line, text: t.raw };
+    };
 
     // status: one of each middle state
-    expect((await call("jules", "POST", "/api/tasks/status", { noteId: roadmap.id, line: lineOf(roadmap, "dashboard API"), status: "in-progress" })).status).toBe(200);
-    expect((await call("jules", "POST", "/api/tasks/status", { noteId: arch.id, line: lineOf(arch, "threat-model"), status: "blocked" })).status).toBe(200);
+    expect((await call("jules", "POST", "/api/tasks/status", { noteId: roadmap.id, ...at(roadmap, "dashboard API"), status: "in-progress" })).status).toBe(200);
+    expect((await call("jules", "POST", "/api/tasks/status", { noteId: arch.id, ...at(arch, "threat-model"), status: "blocked" })).status).toBe(200);
 
     // blocks: booked, moved into the next month, resized; erin books her own
-    const blk = await call("jules", "POST", "/api/tasks/blocks", { noteId: arch.id, line: lineOf(arch, "threat-model"), date: "2026-10-30", startMin: 540, durationMin: 90 });
+    const blk = await call("jules", "POST", "/api/tasks/blocks", { noteId: arch.id, ...at(arch, "threat-model"), date: "2026-10-30", startMin: 540, durationMin: 90 });
     expect(blk.status).toBe(200);
     expect((await call("jules", "PATCH", `/api/blocks/${blk.body.id}`, { date: "2026-11-02", startMin: 600, durationMin: 120 })).status).toBe(200);
-    const second = await call("jules", "POST", "/api/tasks/blocks", { noteId: roadmap.id, line: lineOf(roadmap, "dashboard API"), date: "2026-10-05", startMin: 840 });
+    const second = await call("jules", "POST", "/api/tasks/blocks", { noteId: roadmap.id, ...at(roadmap, "dashboard API"), date: "2026-10-05", startMin: 840 });
     expect(second.status).toBe(200);
-    const erinBlk = await call("erin", "POST", "/api/tasks/blocks", { noteId: roadmap.id, line: lineOf(b.store.index.get(roadmap.id)!, "permission test suite"), date: "2026-10-06", startMin: 480 });
+    const erinBlk = await call("erin", "POST", "/api/tasks/blocks", { noteId: roadmap.id, ...at(b.store.index.get(roadmap.id)!, "permission test suite"), date: "2026-10-06", startMin: 480 });
     expect(erinBlk.status).toBe(200);
 
     // events: created, renamed (with a pipe in the title), moved, one deleted
