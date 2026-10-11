@@ -3,6 +3,7 @@ dist/
 .turbo/
 data/
 apps/server/data/
+apps/server/data-dev/
 *.db
 *.db-*
 target/

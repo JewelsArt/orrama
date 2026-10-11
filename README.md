@@ -30,9 +30,11 @@ your own AI provider key.
 
 - **Your files stay files.** Valid CommonMark + YAML front-matter + wiki-links. No
   lock-in, no proprietary store — `rsync` or `git init` the folder and you're backed up.
-- **The database is disposable.** SQLite holds an index and the CRDT update log.
-  Delete it, re-index the Markdown, and the dashboard rebuilds. Only promoted-task
-  metadata is DB-only.
+- **The files are the truth.** SQLite holds an index of the Markdown, which
+  rebuilds from the files: notes, task status, time blocks, events, projects.
+  It also holds what has no place in a note — accounts and credentials, task
+  comments, mail drafts, and every note's history — so it is backed up with
+  `pnpm --dir apps/server export`, not deleted.
 - **Tasks without a second system.** Any `- [ ]` line in any note is a task
   (`@assignee due:2026-07-10 !p1`). Promote one when it needs structure; the checkbox
   in the file and the task object stay two-way bound, and the file wins.
@@ -70,12 +72,16 @@ TypeScript end to end, except a deliberately thin Rust shell.
 ```bash
 pnpm install
 pnpm --dir apps/web build       # the server serves a built bundle
+export BASALT_JWT_SECRET=$(openssl rand -hex 32)   # keep both: the next start
+export BASALT_SECRET_KEY=$(openssl rand -hex 32)   # needs the same values
 pnpm --dir apps/server start    # http://127.0.0.1:4623
 ```
 
 A fresh install asks you to create an account — the first one founds the workspace
-and owns it. `pnpm --dir apps/server seed` is optional and loads a sample vault.
-Full walkthrough, including how to point Basalt at an existing Obsidian vault:
+and owns it. The server refuses to start on missing or placeholder secrets. To look
+around with a sample vault instead, `pnpm --dir apps/server seed` then
+`pnpm --dir apps/server dev` (:4627, its own `data-dev` folder). Full walkthrough,
+including how to point Basalt at an existing Obsidian vault:
 **[INSTALL.md](INSTALL.md)**.
 
 > `pnpm build` and `pnpm dev` fan out to `apps/desktop`, which is a Tauri app and

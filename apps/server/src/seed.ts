@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { hash as argonHash } from "@node-rs/argon2";
 import { promoteTaskLine } from "@basalt/core";
+import { writeFileAtomic } from "./atomicWrite.js";
 import { createDb, tables } from "./db.js";
 import { vaultDir } from "./env.js";
 import { VaultStore } from "./vaultStore.js";
@@ -178,21 +179,70 @@ Cross-team sync. [[Atlas Roadmap]] on track; [[Acme Relaunch Brief]] copy due ne
 `,
 };
 
+/**
+ * The first note found under `root` (dot-folders such as .obsidian skipped), or
+ * null. Seed only ever fills an empty vault: run with the agent's
+ * BASALT_VAULT_DIR exported and an empty users table (a deleted database), it
+ * wrote 13 demo notes over the real vault, bare writes overwriting same-named
+ * files, and put a published-password owner on the database (audit REG-013).
+ * The test suites, which write fixtures and then seed, opt out with
+ * BASALT_SEED_INTO_EXISTING_VAULT=1 (vitest.config.ts); a demo file never
+ * replaces one that is there.
+ */
+export function firstNote(root: string): string | null {
+  const walk = (dir: string): string | null => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return null; // a vault that does not exist yet is empty
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".")) continue;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        const found = walk(abs);
+        if (found) return found;
+      } else if (e.name.toLowerCase().endsWith(".md")) return abs;
+    }
+    return null;
+  };
+  return walk(root);
+}
+
 async function main() {
   const db = createDb();
+  try {
+    await seed(db);
+  } finally {
+    // Left open, the handle kept the data dir locked: on Windows every test
+    // file that seeds failed its cleanup with EBUSY (audit OPS-003).
+    (db as unknown as { $client: { close(): void } }).$client.close();
+  }
+}
+
+async function seed(db: ReturnType<typeof createDb>) {
   if (db.select().from(tables.users).all().length > 0) {
-    console.log("already seeded — delete the data dir to reseed");
+    console.log("already seeded — nothing to do");
     return;
+  }
+  const root = vaultDir();
+  const existing = process.env.BASALT_SEED_INTO_EXISTING_VAULT === "1" ? null : firstNote(root);
+  if (existing) {
+    throw new Error(
+      `Refusing to seed: ${root} already holds notes (${path.relative(root, existing)}). ` +
+        `Seed writes demo notes and a demo owner with a published password; point ` +
+        `BASALT_DATA_DIR and BASALT_VAULT_DIR at an empty scratch folder instead.`,
+    );
   }
   if (db.select().from(tables.workspace).all().length === 0) {
     db.insert(tables.workspace).values({ id: uid("w"), name: "Basalt Demo" }).run();
   }
 
-  const root = vaultDir();
   for (const [rel, content] of Object.entries(FILES)) {
     const abs = path.join(root, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, content);
+    writeFileAtomic(abs, content, { exclusive: true });
   }
 
   const pw = await argonHash("basalt-demo");

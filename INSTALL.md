@@ -16,12 +16,19 @@ cd basalt
 
 pnpm install                      # ~3s warm, ~1min on a cold pnpm store
 pnpm --dir apps/web build         # ~2s  — builds the UI the server serves
+export BASALT_JWT_SECRET=$(openssl rand -hex 32)   # keep both — see Security
+export BASALT_SECRET_KEY=$(openssl rand -hex 32)
 pnpm --dir apps/server start      # serves API + UI on http://127.0.0.1:4623
 ```
 
 Open <http://127.0.0.1:4623>. A fresh install shows **Create your account** —
 the first account founds the workspace and owns it. Nothing is sent anywhere;
 there is no Basalt account service.
+
+The server refuses to start without the two secrets. Save the values you
+generated wherever you start the server from (a launchd plist, a compose `.env`):
+a new `BASALT_JWT_SECRET` signs everyone out, and a new `BASALT_SECRET_KEY`
+makes the stored mail password and AI key unreadable.
 
 > **Do not run `pnpm build`** unless you have a Rust toolchain — see the next section.
 
@@ -76,27 +83,15 @@ files at boot. Skip this and the server runs but every page is a 404.
 
 **Verify:** `apps/web/dist/index.html` exists.
 
-### 3. (Optional) Start from a sample vault
+### 3. Generate the secrets
 
 ```bash
-pnpm --dir apps/server seed
+export BASALT_JWT_SECRET=$(openssl rand -hex 32)
+export BASALT_SECRET_KEY=$(openssl rand -hex 32)
 ```
 
-Not required. It creates 13 Markdown files — linked notes, tags, checkbox tasks,
-projects and contacts — so the dashboard and graph have something to show, plus
-three demo accounts (`jules` / `erin` / `mara` `@basalt.dev`, password
-`basalt-demo`).
-
-Those demo passwords are printed in the source, so they are a way to look around,
-not an account. If you seed and then intend to keep the install, turn one into a
-real account:
-
-```bash
-pnpm --dir apps/server account
-```
-
-It asks for an email, a name and a password, typed interactively. Skip seeding
-entirely and the app offers **Create your account** on first open instead.
+The server refuses to boot without them (see **Security**). Keep the values: the
+next start needs the same ones.
 
 ### 4. Start the server
 
@@ -115,7 +110,20 @@ curl -s http://127.0.0.1:4623/api/auth/status                            # {"nee
 ```
 
 Open the URL. On a fresh install you get **Create your account**; after that, a
-sign-in form. Either way you land on the Dashboard.
+sign-in form. Either way you land on Today.
+
+### Looking around with a sample vault instead
+
+```bash
+pnpm --dir apps/server seed     # 13 demo notes, three demo accounts
+pnpm --dir apps/server dev      # http://127.0.0.1:4627, dev secrets allowed
+```
+
+`seed` and `dev` are a scratch install: they keep their database and vault in
+`apps/server/data-dev`, never in `apps/server/data`, and `dev` listens on 4627,
+not 4623. The demo accounts (`jules` / `erin` / `mara` `@basalt.dev`, password
+`basalt-demo`) have passwords printed in the source, so they are a way to look
+around, not an account. `seed` refuses a vault that already holds notes.
 
 ### 5. Set up quick unlock (optional)
 
@@ -149,8 +157,8 @@ Two things to know before you do this:
   usable as soon as the server reports listening.
 
 Your account comes from the **Create your account** screen on first start (step 4),
-not from seeding — step 3 only writes demo notes into `data/vault`, which is separate
-from the vault you point at here.
+not from seeding — `seed` only fills an empty scratch vault, and refuses one that
+holds notes.
 
 ---
 
@@ -160,9 +168,9 @@ All optional. Set them in the environment before starting the server.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT` | `4623` | HTTP port |
+| `PORT` | `4623` (`dev`: `4627`) | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it on your network |
-| `BASALT_DATA_DIR` | `./data` | Database and default vault location |
+| `BASALT_DATA_DIR` | `./data` (`dev`, `seed`: `./data-dev`) | Database and default vault location; relative to `apps/server` when run through `pnpm --dir apps/server` |
 | `BASALT_VAULT_DIR` | `<dataDir>/vault` | Point at an existing vault (above) |
 | `BASALT_JWT_SECRET` | dev placeholder | Signs session tokens — **must be set**, see Security |
 | `BASALT_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest — **must be set** |
@@ -188,7 +196,8 @@ The refusal does not depend on `NODE_ENV`. It used to, and that was worse than
 useless: an operator who forgets to set secrets is exactly the operator who
 forgets to set `NODE_ENV`, so the guard stayed silent on the installs that
 needed it. For a throwaway install nobody else can reach, opt out explicitly
-with `BASALT_ALLOW_DEV_SECRETS=1` — `pnpm --dir apps/server dev` already does.
+with `BASALT_ALLOW_DEV_SECRETS=1` — `pnpm --dir apps/server dev` already does,
+and keeps its own data folder and port for that reason.
 
 **Rotating `BASALT_SECRET_KEY` on a database that already holds credentials**
 does not re-encrypt them; it makes them undecryptable, and the symptom is mail
@@ -202,9 +211,6 @@ Without `--apply` it reports what it would do and writes nothing, which is how
 you confirm the old key is the right one. And note what rotation cannot undo: a
 credential that was protected by a published key was readable by anyone holding
 the database. Rotate the credential itself at the provider too.
-
-And change the demo passwords, or delete the demo accounts once you have made your
-own via `POST /api/auth/register`.
 
 ---
 
@@ -273,7 +279,7 @@ Two things to keep:
   BASALT_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
   ```
 
-  writes `data/exports/basalt-export-<date>-<time>/` with a restorable
+  writes `apps/server/data/exports/basalt-export-<date>-<time>/` with a restorable
   `basalt.db`, a readable `export.json` (no passwords, hashes or keys) and a
   README on how to restore. It is safe to run while the server is up. Keep the
   folder private; it will not write into the vault.
@@ -319,14 +325,22 @@ The stored password is still encrypted under the old key. Restore it, or run
 `rotate-secret-key` with both keys — see **Security**.
 
 **Starting over**
-The database is disposable — it is an index of the Markdown, not the source of truth:
+Do not just delete the database. The notes, task status, time blocks and events
+come back from the Markdown, but these exist only in `basalt.db`: accounts,
+passwords, sessions, passkeys and API tokens; the mail password, AI key and
+ChatGPT sign-in; webhooks and calendar feeds; task comments and descriptions,
+assignees set in the app, project hidden flags; staged mail drafts; and every
+note's history, the only copy of text that was overwritten. Export first, with the
+server stopped:
 
 ```bash
-rm -rf data/basalt.db data/basalt.db-shm data/basalt.db-wal
-pnpm --dir apps/server seed
+BASALT_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
+rm apps/server/data/basalt.db apps/server/data/basalt.db-shm apps/server/data/basalt.db-wal
 ```
 
-Your `.md` files are untouched.
+The next start re-indexes the vault and offers **Create your account**. Your `.md`
+files are untouched. To get the old database back, copy the export's `basalt.db`
+into place (its README says how).
 
 ---
 
@@ -339,6 +353,8 @@ node --version                                  # require >= 22
 pnpm --version                                  # require 11.x; npm i -g pnpm@11.9.0
 pnpm install                                    # expect exit 0
 pnpm --dir apps/web build                       # expect apps/web/dist/index.html
+export BASALT_JWT_SECRET=$(openssl rand -hex 32)  # hand both values to the human: the
+export BASALT_SECRET_KEY=$(openssl rand -hex 32)  # next start needs the same ones
 pnpm --dir apps/server start &                  # backgrounded; serves :4623
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4623/     # expect 200
 curl -s http://127.0.0.1:4623/api/auth/status                     # {"needsSetup":true}
@@ -361,6 +377,9 @@ Rules that are not obvious from the scripts:
 - The server needs no build; it runs TypeScript via `tsx`.
 - To isolate a test instance from an existing one, set `PORT` **and**
   `BASALT_DATA_DIR`. Do not let a test run inherit the default `./data`.
+- **Never delete `apps/server/data`** (or the `basalt.db` in it) on a machine where
+  Basalt is in use: it holds accounts, credentials, comments, drafts and history
+  that exist nowhere else. `dev` and `seed` use `apps/server/data-dev`.
 - Verify by HTTP, not by reading the log: a successful boot line does not prove the
   static bundle registered.
 
@@ -371,4 +390,4 @@ pnpm test        # every package
 pnpm typecheck
 ```
 
-Both are safe — they use temporary directories and never touch `data/`.
+Both are safe — they use temporary directories and never touch `apps/server/data`.

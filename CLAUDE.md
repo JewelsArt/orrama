@@ -6,8 +6,12 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
 ## Start here (read this first in a new session)
 
 - **The vault is `~/Obsidian Vault`** — the same folder Obsidian opens, not a
-  copy. Basalt reads and writes those files live. `apps/server/data/` holds only
-  the SQLite index (and `vault-old-copy/`, a pre-merge backup you can ignore).
+  copy. Basalt reads and writes those files live. `apps/server/data/` holds the
+  **live database** (and `vault-old-copy/`, a pre-merge backup you can ignore):
+  the index, plus everything that exists only there — accounts, credentials,
+  comments, mail drafts, note history (see "Architecture"). **Never delete,
+  reseed or write to it**, in any checkout; run `export` before anything that
+  could. Work on a scratch copy (Dev loop).
 - **The app is already running.** A launchd agent
   (`~/Library/LaunchAgents/dev.basalt.server.plist`, KeepAlive) serves the API on
   **:4623** *and* the built web bundle from `apps/web/dist`. The desktop app is a
@@ -23,7 +27,7 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
   `BASALT_SECRET_KEY`) in its plist, which is `chmod 600`. The server refuses to
   boot on the shipped placeholders, or on a secret that is empty or under 32
   characters, regardless of `NODE_ENV`; `pnpm --dir apps/server dev` opts out
-  with `BASALT_ALLOW_DEV_SECRETS=1`. Changing `BASALT_SECRET_KEY` orphans every
+  with `--dev`, which also moves it to its own data folder and port (Dev loop). Changing `BASALT_SECRET_KEY` orphans every
   stored credential (mail password, AI key, ChatGPT sign-in, webhook secrets,
   calendar feed URLs) — run `pnpm --dir apps/server rotate-secret-key` with the
   server stopped.
@@ -984,15 +988,27 @@ Note anything users must do (a schema bump, signing in again) under
 
 ## Dev loop
 
+On this machine `apps/server/data` and :4623 are the live instance (Start here).
+Nothing in the dev loop touches either: `dev` and `seed` run with `--dev`
+(`env.ts`), which defaults the data folder to `apps/server/data-dev` and the port
+to 4627, and `seed` refuses a vault that already holds a note.
+
 ```sh
 pnpm install
-pnpm --dir apps/server seed   # demo: jules/erin/mara @basalt.dev, pw basalt-demo
-pnpm --dir apps/server dev    # :4623 (delete apps/server/data to reseed)
-pnpm --dir apps/web dev       # :4625, proxies /api (ws included)
+pnpm --dir apps/server seed   # demo into apps/server/data-dev: jules/erin/mara @basalt.dev, pw basalt-demo
+pnpm --dir apps/server dev    # :4627, apps/server/data-dev — never the live DB
+BASALT_API_PORT=4627 pnpm --dir apps/web dev   # :4625, proxies /api (ws included) to the dev server
 # /dev/ui on :4625 shows every component of the design system (dev server only)
-pnpm test                     # core + sync + server — permission tests are release-blocking
+pnpm test                     # every package, in temp folders — permission tests are release-blocking
 ```
 
-Ports 4623/4625 are deliberate (4620/4621 are taken on this machine). When testing
+To start the demo over, delete `apps/server/data-dev` (only that) and seed again.
+For a throwaway elsewhere, set both folders and a port:
+`BASALT_DATA_DIR=$(mktemp -d) BASALT_VAULT_DIR=… PORT=… pnpm --dir apps/server dev`.
+Never export the agent's `BASALT_VAULT_DIR` in a shell you run `seed` or `dev`
+from. `pnpm --dir apps/web dev` without `BASALT_API_PORT` proxies to the live
+agent on :4623 — the real vault, so what you click writes to it.
+
+Ports 4623/4625/4627 are deliberate (4620/4621 are taken on this machine). When testing
 the web UI programmatically: React controlled inputs need native-setter + `input`
 event dispatch, and forms need `requestSubmit()`.

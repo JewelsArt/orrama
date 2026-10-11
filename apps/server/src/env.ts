@@ -21,11 +21,27 @@ const PLACEHOLDER_SECRETS = new Set([
 /** The shortest secret accepted; `openssl rand -hex 32` gives 64. */
 const MIN_SECRET_LENGTH = 32;
 
+/**
+ * `--dev` (the `dev` and `seed` scripts pass it): a scratch install. It may use
+ * the dev secrets, and unless PORT / BASALT_DATA_DIR say otherwise it listens on
+ * DEV_PORT and keeps its database in `./data-dev`, never in `./data`.
+ *
+ * On the Mac Basalt runs on, `apps/server/data` IS the live database and the
+ * launchd agent holds 4623 (`start`, no flag). `dev` used to default to both,
+ * and the guide said "delete apps/server/data to reseed" — the only copy of
+ * accounts, credentials, comments, drafts and history (audit REG-013, OPS-007).
+ * A flag rather than `VAR=1 cmd` in package.json, which cmd.exe cannot run
+ * (OPS-003).
+ */
+export const devMode = (argv: readonly string[] = process.argv) => argv.includes("--dev");
+export const DEV_PORT = 4627;
+const DEV = devMode();
+
 export const env = {
-  port: Number(process.env.PORT ?? 4623),
+  port: Number(process.env.PORT ?? (DEV ? DEV_PORT : 4623)),
   host: process.env.HOST ?? "127.0.0.1",
   /** Server data root: vault files live in <dataDir>/vault, DB in <dataDir>/basalt.db */
-  dataDir: path.resolve(process.env.BASALT_DATA_DIR ?? "./data"),
+  dataDir: path.resolve(process.env.BASALT_DATA_DIR ?? (DEV ? "./data-dev" : "./data")),
   /**
    * Where the Markdown lives. Defaults to <dataDir>/vault; set BASALT_VAULT_DIR
    * to point Basalt at a vault you already keep elsewhere (an Obsidian vault,
@@ -82,12 +98,12 @@ export const env = {
  * vault set neither, so the guard returned immediately for months while the
  * server signed sessions with a string published on GitHub (audit B2).
  *
- * The default is now "refuse". Opting out takes `BASALT_ALLOW_DEV_SECRETS=1`,
- * which is a thing you have to type and can grep for, unlike a variable whose
+ * The default is now "refuse". Opting out takes `BASALT_ALLOW_DEV_SECRETS=1`
+ * or `--dev`, things you have to type and can grep for, unlike a variable whose
  * ABSENCE was the unsafe state.
  */
 export function assertProductionSecrets(
-  allowDevSecrets = process.env.BASALT_ALLOW_DEV_SECRETS === "1",
+  allowDevSecrets = process.env.BASALT_ALLOW_DEV_SECRETS === "1" || DEV,
 ): void {
   if (allowDevSecrets) return;
   // Empty or short counts too, not only the known placeholders: `??` keeps
