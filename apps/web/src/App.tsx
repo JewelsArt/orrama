@@ -520,7 +520,7 @@ export function App() {
         ) : view.kind === "planning" ? (
           <Planning me={me} route={route.kind === "planning" ? route : undefined} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "overview" ? (
-          <Overview me={me} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
+          <Overview me={me} area={shown.kind === "projects" ? shown.area : undefined} onOpenNote={openNote} />
         ) : view.kind === "project" ? (
           <Project me={me} slug={view.slug} tab={(shown.kind === "project" && shown.tab) || "overview"} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (

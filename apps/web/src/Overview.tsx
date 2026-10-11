@@ -1,106 +1,128 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
-import { CharacterAvatar } from "./avatars.js";
+import { api, isAbort, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
+import { CATEGORIES } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
-import { CANCEL_STATES, DOMAIN_COLOR, SLEEP_STATES } from "./categories.js";
-import { Gantt } from "./Gantt.js";
-import { OverviewHead } from "./OverviewHead.js";
-import { onWs } from "./ws.js";
-import { dateLabel } from "./ui/dates.js";
+import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@basalt/schema/responses";
+import { boardProject, ProjectRow, ProjectSteps, type BoardPerson, type BoardProject } from "./OverviewHead.js";
+import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
+import { areaOf, useNoteAreas } from "./projectArea.js";
+import { useTaskCard } from "./ProjectViews.js";
+import { readKey } from "./storage.js";
+import { Button, Chip } from "./ui/controls.js";
 import { Icon } from "./ui/Icon.js";
+import { PageHeader } from "./ui/layout.js";
+import { NameDialog } from "./ui/NameDialog.js";
+import { HeadMark } from "./ui/orr/Orr.js";
+import type { MenuItem } from "./ui/overlays.js";
+import { navigate } from "./ui/router.js";
+import { EmptyState, Notice, Skeleton } from "./ui/states.js";
+import { onWs } from "./ws.js";
 
-type Domain = "personal" | "professional" | "academic";
-const DOMAINS: { id: Domain; label: string; color: string }[] = [
-  // The same three tokens DOMAIN_COLOR uses. They were duplicated as hex here,
-  // so a retint in categories.ts left the board's own lane headers behind.
-  { id: "personal", label: "Personal", color: "var(--area-personal)" },
-  { id: "professional", label: "Professional", color: "var(--area-professional)" },
-  { id: "academic", label: "Academic", color: "var(--area-academic)" },
+type Shelf = "paused" | "cancelled" | "completed" | "archived";
+const SHELVES: { id: Shelf; label: string }[] = [
+  { id: "paused", label: "Paused" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "completed", label: "Completed" },
+  { id: "archived", label: "Archived" },
 ];
-const STEP_CAP = 12;
+
+interface Loaded {
+  dashboard: DashboardData;
+  list: ProjectListRow[];
+  people: Map<string, BoardPerson[]>;
+  warnings: Map<string, string[]>;
+}
 
 /**
- * Front-matter `status:` values that park a project. Several spellings each,
- * because the note is hand-editable and "paused" and "on hold" mean the same
- * thing to a person.
+ * Projects (structure.md §2.4, was Overview): every project and its state at a glance, one row
+ * each (OverviewHead.tsx), filtered by life area (`/projects?area=school`), with the shelves for
+ * paused, cancelled, completed and archived work under the board. Every step, percentage and
+ * date is a view over the checkboxes in the notes; status and dates are the notes' front matter.
+ *
+ * What it reads, all existing endpoints: the board's steps (`/api/dashboard/<team>`), each
+ * project's note and dates (`/api/projects`), the areas (`/api/vault/tree`), the people a project
+ * note links to (`/api/vault/graph`), and, when the vault has an ontology, the graph's warnings
+ * about each project (`/api/graph/relations`).
  */
-
-type TaskStatus = "todo" | "in-progress" | "blocked" | "done";
-/** Order matters: this is how the dropdown lists them. `cls` maps to the .st.* colours. */
-const STATUS_OPTS: { id: TaskStatus; label: string; cls: string }[] = [
-  { id: "in-progress", label: "Working on it", cls: "work" },
-  { id: "todo", label: "To do", cls: "todo" },
-  { id: "blocked", label: "Blocked", cls: "blocked" },
-  { id: "done", label: "Done", cls: "done" },
-];
-/** The checkbox is the status (`[ ]`, `[/]`, `[b]`, `[x]`); a line from an older server has none. */
-const statusOf = (t: DashboardTask): TaskStatus => t.status ?? (t.checked ? "done" : "todo");
-
-/** Overview: the project board, split by life-area (Personal / Professional /
- *  Academic). Every step, %, owner is a view over checkboxes in the notes. */
-export function Overview({
-  me,
-  onOpenNote,
-  onOpenProject,
-}: {
-  me: Me;
-  onOpenNote: (id: string) => void;
-  onOpenProject: (slug: string) => void;
-}) {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamSlug, setTeamSlug] = useState<string | null>(localStorage.getItem("basalt-team"));
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [scope, setScope] = useState<Domain | "all">("all");
-  // Projects are open by default (like the mock); this tracks the ones collapsed.
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [showAll, setShowAll] = useState<Set<string>>(new Set());
-  // Anything not being worked on folds away: finished, sleeping, or dropped.
-  const [shelf, setShelf] = useState<"active" | "sleeping" | "cancelled" | "completed">("active");
+export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOpenNote: (id: string) => void }) {
+  const [data, setData] = useState<Loaded | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [allSteps, setAllSteps] = useState<Set<string>>(new Set());
+  const [shelf, setShelf] = useState<Shelf | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
-  // Projects flipped to the Gantt view; persisted so the board reopens the way you left it.
-  const [gantt, setGantt] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem("basalt-gantt") ?? "[]") as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-  const toggleGantt = (project: string) =>
-    setGantt((s) => {
-      const next = toggleSet(s, project);
-      localStorage.setItem("basalt-gantt", JSON.stringify([...next]));
-      return next;
-    });
-  const [digest, setDigest] = useState<{ configured: boolean; text?: string; loading?: boolean } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [digest, setDigest] = useState<{ configured: boolean; text?: string; loading?: boolean; failed?: boolean } | null>(null);
+  const [version, setVersion] = useState(0);
+  const areas = useNoteAreas(version);
+  const teamRef = useRef<string | null>(null);
 
-  const load = useCallback(async (slug: string) => {
-    setData(await api<DashboardData>("GET", `/api/dashboard/${slug}`));
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      if (!teamRef.current) {
+        const teams = await api<Team[]>("GET", "/api/teams", undefined, { signal });
+        const saved = readKey("basalt-team");
+        teamRef.current = (teams.find((t) => t.slug === saved) ?? teams[0])?.slug ?? null;
+      }
+      if (!teamRef.current) return setFailed(true);
+      const [dashboard, list, graph, schema] = await Promise.all([
+        api<DashboardData>("GET", `/api/dashboard/${teamRef.current}`, undefined, { signal }),
+        api<ProjectListRow[]>("GET", "/api/projects", undefined, { signal }),
+        api<GraphData>("GET", "/api/vault/graph", undefined, { signal }),
+        api<GraphSchema>("GET", "/api/graph/schema", undefined, { signal }).catch(() => null),
+      ]);
+      // People: the contact and company notes a project note links to, either way (a
+      // supervisor's own `supervises:` field counts as much as a link under ## People).
+      const kindOf = new Map(graph.nodes.map((n) => [n.id, n.tags.includes("company") ? "company" : n.tags.includes("contact") ? "person" : null] as const));
+      const titleOf = new Map(graph.nodes.map((n) => [n.id, n.title]));
+      const noteIds = new Set(list.map((p) => p.noteId).filter((x): x is string => !!x));
+      const people = new Map<string, BoardPerson[]>();
+      for (const e of graph.edges) {
+        for (const [mine, other] of [[e.from, e.to], [e.to, e.from]] as const) {
+          const kind = kindOf.get(other);
+          if (!noteIds.has(mine) || !kind) continue;
+          const list2 = people.get(mine) ?? [];
+          if (!list2.some((x) => x.id === other)) list2.push({ id: other, title: titleOf.get(other) ?? "", kind });
+          people.set(mine, list2);
+        }
+      }
+      // The graph's warnings, per project, only when the vault has an ontology to warn from.
+      const warnings = new Map<string, string[]>();
+      if (schema && schema.warnings.length > 0) {
+        await Promise.all(
+          [...noteIds].map((id) =>
+            api<GraphRelations>("GET", `/api/graph/relations?entity=${encodeURIComponent(id)}`, undefined, { signal })
+              .then((r) => warnings.set(id, r.warnings))
+              .catch((e) => {
+                if (isAbort(e)) throw e;
+              }),
+          ),
+        );
+      }
+      setData({ dashboard, list, people, warnings });
+      setFailed(false);
+      setVersion((v) => v + 1);
+    } catch (e) {
+      if (!isAbort(e)) setFailed(true);
+    }
   }, []);
 
   useEffect(() => {
-    api<Team[]>("GET", "/api/teams").then((ts) => {
-      setTeams(ts);
-      const slug = ts.some((t) => t.slug === teamSlug) ? teamSlug! : ts[0]?.slug;
-      if (slug) {
-        setTeamSlug(slug);
-        localStorage.setItem("basalt-team", slug);
-        void load(slug);
-      }
-    });
-    api<{ configured: boolean }>("GET", "/api/ai/status").then((s) => setDigest({ configured: s.configured }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const ac = new AbortController();
+    void load(ac.signal);
+    api<{ configured: boolean }>("GET", "/api/ai/status", undefined, { signal: ac.signal })
+      .then((s) => setDigest({ configured: s.configured }))
+      .catch(() => {});
+    return () => ac.abort();
+  }, [load]);
 
-  const teamSlugRef = useRef(teamSlug);
-  teamSlugRef.current = teamSlug;
+  // Someone editing a note (here, in Obsidian, the agent) refreshes the board.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const off = onWs((msg) => {
       if (msg.type !== "note-changed") return;
       clearTimeout(timer);
-      timer = setTimeout(() => {
-        if (teamSlugRef.current) void load(teamSlugRef.current);
-      }, 400);
+      timer = setTimeout(() => void load(), 400);
     });
     return () => {
       off();
@@ -108,359 +130,296 @@ export function Overview({
     };
   }, [load]);
 
-  const setStatus = async (t: DashboardTask, status: TaskStatus) => {
+  const lastTab = (readKey(LAST_TAB_KEY) as Tab | null) ?? "overview";
+  const projects: BoardProject[] = useMemo(() => {
+    if (!data) return [];
+    const bySlug = new Map(data.list.map((p) => [p.slug, p]));
+    return data.dashboard.projects
+      .filter((p) => p.slug)
+      .map((p) => {
+        const row = bySlug.get(p.slug!);
+        const noteId = row?.noteId ?? null;
+        return boardProject({
+          slug: p.slug!,
+          projectId: p.projectId,
+          name: row?.name ?? p.project,
+          href: tabHref(p.slug!, ["overview", "timeline", "documents", "todo"].includes(lastTab) ? lastTab : "overview"),
+          noteId,
+          area: areaOf(noteId ? areas.get(noteId) : undefined, p.domain),
+          status: p.status,
+          total: p.total,
+          done: p.done,
+          tasks: p.tasks,
+          deadline: row?.deadline ?? null,
+          people: (noteId && data.people.get(noteId)) || [],
+          warnings: (noteId && data.warnings.get(noteId)) || [],
+        });
+      });
+  }, [data, areas, lastTab]);
+
+  const inArea = (p: BoardProject) => !area || p.area?.id === area;
+  const active = projects.filter((p) => p.shelf === "active");
+  // The board's order: what is late or next first, then by date, undated last.
+  const shown = active
+    .filter(inArea)
+    .sort((a, b) => (a.next?.due ?? "9999").localeCompare(b.next?.due ?? "9999") || a.name.localeCompare(b.name));
+  const openSteps = shown.reduce((s, p) => s + (p.total - p.done), 0);
+  const areaCounts = CATEGORIES.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length })).filter((c) => c.n > 0 || c.id === area);
+
+  const card = useTaskCard(() => load(), onOpenNote);
+  const setStatus = async (t: DashboardTask, status: string) => {
     await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
-    if (teamSlug) void load(teamSlug);
+    await load();
+  };
+  const check = async (t: DashboardTask) => {
+    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
+    await load();
+  };
+  const setLifecycle = async (p: BoardProject, status: string) => {
+    await api("PATCH", `/api/projects/${encodeURIComponent(p.slug)}`, { status });
+    await load();
   };
 
-  // Owners can unregister a project (removes the board mapping; the note stays).
-  const removeProject = (id: string, name: string) =>
-    setConfirm({
-      title: `Remove “${name}” from the board?`,
-      body: "The note and its tag stay — it just stops being tracked as a project.",
-      confirmLabel: "Remove",
-      danger: true,
-      onConfirm: async () => {
-        await api("DELETE", `/api/admin/projects/${id}`);
-        if (teamSlug) void load(teamSlug);
-      },
-    });
-
-  // Gantt drag/resize/schedule → start:/due: tokens on the task line (file is the truth).
-  const setDates = async (t: DashboardTask, dates: { start?: string | null; due?: string | null }) => {
-    await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, ...dates });
-    if (teamSlug) void load(teamSlug);
+  /** The ⋯ menu on a row: where the project stands, and (owners) taking it off the board. */
+  const menuFor = (p: BoardProject): (MenuItem | "-")[] => {
+    const items: (MenuItem | "-")[] = [
+      p.shelf === "active" ? { label: "Pause", onSelect: () => void setLifecycle(p, "paused") } : { label: "Back on the board", onSelect: () => void setLifecycle(p, "on-track") },
+    ];
+    if (p.shelf !== "completed") items.push({ label: "Mark completed", onSelect: () => void setLifecycle(p, "completed") });
+    if (p.shelf !== "cancelled")
+      items.push({
+        label: "Cancel…",
+        danger: true,
+        onSelect: () =>
+          setConfirm({
+            title: `Cancel “${p.name}”?`,
+            body: "It moves to the Cancelled shelf. The note, its steps, its documents and its history stay exactly as they are; you can bring it back any time.",
+            confirmLabel: "Cancel the project",
+            danger: true,
+            onConfirm: () => void setLifecycle(p, "cancelled"),
+          }),
+      });
+    if (me.isOwner && p.projectId)
+      items.push("-", {
+        label: "Remove from the board…",
+        danger: true,
+        onSelect: () =>
+          setConfirm({
+            title: `Remove “${p.name}” from the board?`,
+            body: "The note and its tag stay; it stops being tracked as a project.",
+            confirmLabel: "Remove",
+            danger: true,
+            onConfirm: async () => {
+              await api("DELETE", `/api/admin/projects/${p.projectId}`);
+              await load();
+            },
+          }),
+      });
+    return items;
   };
+
+  const toggle = (set: Set<string>, key: string) => {
+    const n = new Set(set);
+    if (n.has(key)) n.delete(key);
+    else n.add(key);
+    return n;
+  };
+
+  const rows = (list: BoardProject[], onShelf = false) =>
+    list.map((p) => (
+      <div key={p.slug} className="pr-wrap">
+        <ProjectRow p={p} open={open.has(p.slug)} onToggle={() => setOpen((s) => toggle(s, p.slug))} onOpen={() => navigate(p.href)} menu={menuFor(p)} people={!onShelf || p.people.length > 0} />
+        {open.has(p.slug) && (
+          <ProjectSteps
+            p={p}
+            canEdit
+            all={allSteps.has(p.slug)}
+            onAll={() => setAllSteps((s) => toggle(s, p.slug))}
+            onCheck={(t) => void check(t)}
+            onStatus={(t, s) => void setStatus(t, s)}
+            onOpenStep={(t) => void card.open(t)}
+            links={
+              <>
+                <a className="lk" href={tabHref(p.slug, "overview")} onClick={(e) => go(e, tabHref(p.slug, "overview"))}>
+                  Open the project
+                </a>
+                <a className="lk" href={tabHref(p.slug, "timeline")} onClick={(e) => go(e, tabHref(p.slug, "timeline"))}>
+                  Timeline and Gantt
+                </a>
+              </>
+            }
+          />
+        )}
+      </div>
+    ));
 
   const generateDigest = async () => {
-    if (!teamSlug) return;
-    setDigest((d) => ({ ...(d ?? { configured: true }), loading: true }));
+    if (!teamRef.current) return;
+    setDigest((d) => ({ ...(d ?? { configured: true }), loading: true, failed: false }));
     try {
-      const res = await api<{ digest: string }>("POST", `/api/ai/digest/${teamSlug}`);
+      const res = await api<{ digest: string }>("POST", `/api/ai/digest/${teamRef.current}`);
       setDigest({ configured: true, text: res.digest });
-    } catch (e) {
-      setDigest({ configured: true, text: e instanceof Error ? e.message : "digest failed" });
+    } catch {
+      setDigest({ configured: true, failed: true });
     }
   };
 
-  const projects = useMemo(
-    () => (data?.projects ?? []).filter((p) => scope === "all" || p.domain === scope),
-    [data, scope],
-  );
-  const counts = useMemo(() => {
-    const m: Record<string, number> = { all: data?.projects.length ?? 0, personal: 0, professional: 0, academic: 0 };
-    for (const p of data?.projects ?? []) if (p.domain) m[p.domain] = (m[p.domain] ?? 0) + 1;
-    return m;
-  }, [data]);
-
-  /**
-   * Where a project sits. `status:` in the note wins — a sleeping project stays
-   * asleep even with steps left, a cancelled one never comes back on its own —
-   * and otherwise "complete" means every step is ticked (0-step projects never
-   * count as done).
-   */
-  const sleeping = useMemo(() => projects.filter((p) => SLEEP_STATES.has(p.status)), [projects]);
-  const cancelled = useMemo(() => projects.filter((p) => CANCEL_STATES.has(p.status)), [projects]);
-  const parked = new Set([...sleeping, ...cancelled].map((p) => p.project));
-  const activeProjects = useMemo(
-    () => projects.filter((p) => !parked.has(p.project) && !(p.total > 0 && p.done === p.total)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, sleeping, cancelled],
-  );
-  const completedProjects = useMemo(
-    () => projects.filter((p) => !parked.has(p.project) && p.total > 0 && p.done === p.total),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, sleeping, cancelled],
-  );
-  const shown = shelf === "completed" ? completedProjects : shelf === "sleeping" ? sleeping : shelf === "cancelled" ? cancelled : activeProjects;
-  const openTasks = activeProjects.reduce((s, p) => s + (p.total - p.done), 0);
-
-  /** Sleep / cancel / wake — one front-matter field, written to the note. */
-  const setLifecycle = async (p: { slug: string | null; project: string }, status: string) => {
-    if (!p.slug) return;
-    await api("PATCH", `/api/projects/${encodeURIComponent(p.slug)}`, { status });
-    if (teamSlug) void load(teamSlug);
+  const create = async (name: string) => {
+    const res = await api<{ slug: string }>("POST", "/api/projects", { name, ...(area === "school" ? { domain: "academic" } : area === "work" ? { domain: "professional" } : area === "personal" ? { domain: "personal" } : {}) });
+    navigate(tabHref(res.slug, "overview"));
   };
 
   return (
-    <div className="overview">
-      <div className="board">
-        <header className="ov-top">
-          <h1 className="ov-h1">Overview</h1>
-          <p className="ov-sub">Where every project stands, generated from your notes.</p>
-        </header>
+    <div className="pjs">
+      <PageHeader
+        title="Projects"
+        meta={data ? `${shown.length} open · ${openSteps} open ${openSteps === 1 ? "step" : "steps"}` : undefined}
+        actions={
+          <>
+            {digest?.configured && !digest.text && (
+              <Button kind="quiet" orr disabled={digest.loading} onClick={() => void generateDigest()}>
+                {digest.loading ? "Orr is reading the board…" : "Today's summary"}
+              </Button>
+            )}
+            <Button icon="plus" onClick={() => setCreating(true)}>
+              New project
+            </Button>
+          </>
+        }
+      />
 
-        <div className="ov-bar">
-          <span className="ov-bar-lbl">Area</span>
-          <div className="seg" role="tablist" aria-label="Life area">
-            <button role="tab" aria-selected={scope === "all"} className={`seg-btn ${scope === "all" ? "active" : ""}`} onClick={() => setScope("all")}>
-              All
-            </button>
-            {DOMAINS.map((d) => (
-              <button
-                key={d.id}
-                role="tab"
-                aria-selected={scope === d.id}
-                className={`seg-btn ${scope === d.id ? "active" : ""}`}
-                onClick={() => setScope(d.id)}
-              >
-                <span className="dot" style={{ background: d.color }} />
-                {d.label}
-                <span className="seg-count">{counts[d.id]}</span>
-              </button>
-            ))}
-          </div>
-          <span className="ov-bar-meta">
-            {shelf === "active"
-              ? `${openTasks} open · ${activeProjects.length} ${activeProjects.length === 1 ? "project" : "projects"}`
-              : `${shown.length} ${shelf}`}
-          </span>
-          <div className="ov-shelves">
-            {/* Every shelf is reachable from every shelf — no going home first. */}
-            {shelf !== "active" && (
-              <button className="ov-completed-tab on" onClick={() => setShelf("active")}>
-                <Icon name="chev-l" size={12} />
-                Active projects
-              </button>
-            )}
-            {shelf !== "sleeping" && sleeping.length > 0 && (
-              <button className="ov-completed-tab" onClick={() => setShelf("sleeping")}>
-                Sleeping · {sleeping.length}
-              </button>
-            )}
-            {shelf !== "cancelled" && cancelled.length > 0 && (
-              <button className="ov-completed-tab" onClick={() => setShelf("cancelled")}>
-                Cancelled · {cancelled.length}
-              </button>
-            )}
-            {shelf !== "completed" && completedProjects.length > 0 && (
-              <button className="ov-completed-tab" onClick={() => setShelf("completed")}>
-                Completed · {completedProjects.length}
-              </button>
-            )}
+      {areaCounts.length > 0 && (
+        <div className="pjs-filters" role="group" aria-label="Area">
+          <span className="lbl">Area</span>
+          <Chip on={!area} onClick={() => navigate({ kind: "projects" })}>
+            All <span className="n">{active.length}</span>
+          </Chip>
+          {areaCounts.map((c) => (
+            <Chip key={c.id} dot={c.color} on={area === c.id} onClick={() => navigate({ kind: "projects", area: area === c.id ? undefined : c.id })}>
+              {c.label} <span className="n">{c.n}</span>
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      {digest?.text && (
+        <div className="oprop boxed pjs-digest" role="note">
+          <HeadMark size={18} />
+          <div>
+            <p>{digest.text}</p>
           </div>
         </div>
+      )}
+      {digest?.failed && <Notice title="No summary this time" text="Orr could not reach the model. Settings → Orr & AI says which one is set up." />}
 
-        {digest && digest.configured && (
-          <div className="ov-digest" role="note">
-            <span className="ov-digest-ic" aria-hidden>
-              ✦
-            </span>
-            {digest.text ? (
-              <p>
-                <span className="ov-ai-tag">AI summary</span> {digest.text}
-              </p>
-            ) : (
-              <button className="ghost" onClick={generateDigest} disabled={digest.loading}>
-                {digest.loading ? "Generating digest…" : "Generate today's summary"}
-              </button>
-            )}
+      {failed && !data && (
+        <Notice
+          title="The board could not be loaded"
+          text="Check that the server is running, then try again."
+          actions={
+            <Button size="sm" onClick={() => void load()}>
+              Try again
+            </Button>
+          }
+        />
+      )}
+      {!data && !failed && (
+        <div className="card pjs-board">
+          <Skeleton rows={5} label="Loading the projects" />
+        </div>
+      )}
+
+      {data && shown.length > 0 && (
+        <section className="card pjs-board" aria-label="Open projects">
+          <div className="pg ph" aria-hidden="true">
+            <span />
+            <span>Project · next step</span>
+            <span>Status</span>
+            <span>Next date</span>
+            <span>Key deadline</span>
+            <span>People</span>
+            <span />
+            <span />
           </div>
-        )}
+          {rows(shown)}
+        </section>
+      )}
 
-        {shown.map((p, pi) => {
-          const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
-          const open = !collapsed.has(p.project);
-          const color = DOMAIN_COLOR[p.domain ?? "personal"] ?? PROJECT_COLORS[pi % PROJECT_COLORS.length] ?? "var(--area-professional)";
-          const inProgress = p.tasks.filter((t) => t.status === "in-progress").length;
-          const donePct = p.total ? (p.done / p.total) * 100 : 0;
-          const workPct = p.total ? (inProgress / p.total) * 100 : 0;
-          const all = showAll.has(p.project);
-          const steps = all ? p.tasks : p.tasks.slice(0, STEP_CAP);
-          const nextDue = p.tasks.map((t) => t.due).filter(Boolean).sort()[0];
-          return (
-            <article
-              key={p.project}
-              className={`ov-project ${parked.has(p.project) ? "parked" : ""}`}
-              style={{ ["--pc" as string]: color }}
-            >
-              <OverviewHead
-                name={p.project}
-                open={open}
-                parked={parked.has(p.project)}
-                sleeping={SLEEP_STATES.has(p.status)}
-                pct={pct}
-                donePct={donePct}
-                workPct={workPct}
-                nextDue={nextDue}
-                gantt={gantt.has(p.project)}
-                onToggle={() => setCollapsed((s) => toggleSet(s, p.project))}
-                onOpenProject={p.slug ? () => onOpenProject(p.slug!) : undefined}
-                onToggleGantt={() => toggleGantt(p.project)}
-                onLifecycle={(status) => void setLifecycle(p, status)}
-                onCancel={() =>
-                  setConfirm({
-                    title: `Cancel “${p.project}”?`,
-                    body: parked.has(p.project)
-                      ? "It moves to the Cancelled shelf. Everything in the note stays."
-                      : "It moves to the Cancelled shelf. The note, its steps, its documents and its history stay exactly as they are — you can bring it back any time.",
-                    confirmLabel: "Cancel the project",
-                    danger: true,
-                    onConfirm: () => void setLifecycle(p, "cancelled"),
-                  })
-                }
-              />
+      {data && shown.length === 0 && (
+        <div className="card pjs-empty">
+          {projects.length === 0 ? (
+            <EmptyState
+              pose="carry"
+              title="No projects yet"
+              text={
+                <>
+                  A project is a note tagged <code>project/…</code>: its checkboxes are the steps, its front matter the status and dates.
+                </>
+              }
+              actions={<Button onClick={() => setCreating(true)}>Make a project</Button>}
+            />
+          ) : (
+            <EmptyState
+              pose="carry"
+              title={area ? `Nothing open in ${CATEGORIES.find((c) => c.id === area)?.label ?? area}` : "Nothing open"}
+              text="Everything here is paused, finished or put away: the shelves below have it."
+              actions={area ? <Button onClick={() => navigate({ kind: "projects" })}>Show every area</Button> : <Button onClick={() => setCreating(true)}>Make a project</Button>}
+            />
+          )}
+        </div>
+      )}
 
-              {open && gantt.has(p.project) && (
-                <div className="ov-steps ov-steps-gantt">
-                  {p.tasks.length === 0 ? (
-                    <p className="ov-step-empty">
-                    No steps yet — add checkboxes to the note.
-                    {me.isOwner && p.projectId && (
-                      <button className="ov-remove" onClick={() => removeProject(p.projectId!, p.project)}>
-                        Remove from board
-                      </button>
-                    )}
-                  </p>
-                  ) : (
-                    <Gantt tasks={p.tasks} color={color} onSetDates={setDates} onOpen={onOpenNote} />
-                  )}
-                </div>
-              )}
+      {data && (
+        <div className="pjs-shelves">
+          {SHELVES.map((s) => {
+            const on = projects.filter((p) => p.shelf === s.id && inArea(p));
+            if (on.length === 0) return null;
+            return (
+              <div key={s.id} className="shelf">
+                <button type="button" className="shelf-head" aria-expanded={shelf === s.id} onClick={() => setShelf(shelf === s.id ? null : s.id)}>
+                  <Icon name={shelf === s.id ? "chev-d" : "chev-r"} size={14} />
+                  {s.label} {on.length}
+                </button>
+                <span className="shelf-names">
+                  {on.map((p, i) => (
+                    <span key={p.slug}>
+                      {i > 0 && " · "}
+                      <a className="ui-nm" href={p.href} onClick={(e) => go(e, p.href)}>
+                        {p.name}
+                      </a>
+                    </span>
+                  ))}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {data && shelf && (
+        <section className="card pjs-board pjs-shelf" aria-label={`${SHELVES.find((s) => s.id === shelf)!.label} projects`}>
+          {rows(projects.filter((p) => p.shelf === shelf && inArea(p)), true)}
+        </section>
+      )}
 
-              {open && !gantt.has(p.project) && (
-                <div className="ov-steps">
-                  {p.tasks.length === 0 ? (
-                    <p className="ov-step-empty">
-                    No steps yet — add checkboxes to the note.
-                    {me.isOwner && p.projectId && (
-                      <button className="ov-remove" onClick={() => removeProject(p.projectId!, p.project)}>
-                        Remove from board
-                      </button>
-                    )}
-                  </p>
-                  ) : (
-                    <>
-                      {/* Named so the narrow-container rules can drop a column
-                          and its heading together. */}
-                      <div className="ov-steps-head">
-                        <span className="ov-th-status">Status</span>
-                        <span className="ov-th-step">Step</span>
-                        <span className="ov-th-timeline">Timeline</span>
-                        <span className="ov-th-note">Note</span>
-                      </div>
-                      {steps.map((t) => (
-                        <Step key={`${t.noteId}:${t.line}`} t={t} onStatus={setStatus} onOpen={onOpenNote} />
-                      ))}
-                      {!all && p.tasks.length > STEP_CAP && (
-                        <button className="ov-more" onClick={() => setShowAll((s) => toggleSet(s, p.project))}>
-                          + {p.tasks.length - STEP_CAP} more steps
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </article>
-          );
-        })}
-
-        {data && shown.length === 0 && (
-          <p className="empty">
-            {shelf === "completed"
-              ? "No completed projects yet — finish every step in a project and it lands here."
-              : shelf === "sleeping"
-                ? "Nothing asleep. Park a project here when it is not this month's problem."
-                : shelf === "cancelled"
-                  ? "Nothing cancelled."
-                  : `No ${scope === "all" ? "" : scope} projects here yet.`}
-          </p>
-        )}
-      </div>
-
+      {card.node}
+      {creating && (
+        <NameDialog
+          title="New project"
+          label="What is it called?"
+          help="Orrama makes its note in 04-Projects/, tagged so it joins this board."
+          placeholder="Graduation thesis"
+          onSubmit={create}
+          onClose={() => setCreating(false)}
+        />
+      )}
       <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }
 
-function Step({
-  t,
-  onStatus,
-  onOpen,
-}: {
-  t: DashboardTask;
-  onStatus: (t: DashboardTask, status: TaskStatus) => void;
-  onOpen: (id: string) => void;
-}) {
-  const [menu, setMenu] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const status = statusOf(t);
-  const cur = STATUS_OPTS.find((s) => s.id === status)!;
+const go = (e: React.MouseEvent, href: string) => {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  e.preventDefault();
+  navigate(href);
+};
 
-  // Close the dropdown on any click outside it.
-  useEffect(() => {
-    if (!menu) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [menu]);
-
-  return (
-    <div className={`ov-step ${status === "done" ? "is-done" : ""}`}>
-      <div className="st-wrap" ref={ref}>
-        <button className={`st ${cur.cls}`} onClick={() => setMenu((m) => !m)} aria-haspopup="listbox" aria-expanded={menu}>
-          {cur.label}
-          <span className="st-caret" aria-hidden>
-            ▾
-          </span>
-        </button>
-        {menu && (
-          <div className="st-menu" role="listbox">
-            {STATUS_OPTS.map((s) => (
-              <button
-                key={s.id}
-                role="option"
-                aria-selected={s.id === status}
-                className={`st-opt ${s.id === status ? "sel" : ""}`}
-                onClick={() => {
-                  setMenu(false);
-                  if (s.id !== status) onStatus(t, s.id);
-                }}
-              >
-                <span className={`st-dot ${s.cls}`} />
-                {s.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <span className="ov-step-name" title={t.text}>
-        {t.text}
-      </span>
-      <span className="ov-tl">
-        {t.due ? <span className={`ov-tl-pill ${cur.cls}`}>{dateLabel(t.due)}</span> : <span className="ov-tl-none">—</span>}
-      </span>
-      <button className="ov-docs" onClick={() => onOpen(t.noteId)} title={t.notePath}>
-        {t.noteTitle}
-      </button>
-    </div>
-  );
-}
-
-/** Fallback accents for a project with no life-area. Tokens, so they follow the
- *  theme like everything else. */
-const PROJECT_COLORS = [
-  "var(--v-cyan)",
-  "var(--v-lilac)",
-  "var(--v-pink)",
-  "var(--v-green)",
-  "var(--v-amber)",
-  "var(--v-azure)",
-];
-
-function toggleSet(s: Set<string>, key: string): Set<string> {
-  const next = new Set(s);
-  if (next.has(key)) next.delete(key);
-  else next.add(key);
-  return next;
-}
-
-function ago(ms: number): string {
-  const d = Date.now() - ms;
-  if (d < 60_000) return "just now";
-  if (d < 3_600_000) return `${Math.floor(d / 60_000)}m ago`;
-  if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`;
-  return `${Math.floor(d / 86_400_000)}d ago`;
-}

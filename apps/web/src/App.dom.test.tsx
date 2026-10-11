@@ -123,6 +123,12 @@ describe("addresses", () => {
     expect(mounted.project).toBe(before);
   });
 
+  it("the Projects board's area filter is in its address (R8)", async () => {
+    at("/projects?area=school");
+    render(<App />);
+    expect(await view()).toMatch(/^overview area=school/);
+  });
+
   it("an address this app does not know goes to Today", async () => {
     at("/dashboard");
     render(<App />);

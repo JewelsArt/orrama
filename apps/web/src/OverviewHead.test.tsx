@@ -1,15 +1,20 @@
 /**
- * The Overview project head must not nest one control inside another.
+ * The Projects board's row (structure.md §2.4).
  *
- * It was a single <button> wrapping the Sleep/Cancel/Wake buttons (and a
- * role="link" name and a role="switch" Gantt toggle): invalid HTML, a React
- * DOM-nesting warning on every board render, and controls a screen reader
- * cannot reach on their own. Rendered to static markup in every state the
- * board can show, then walked tag by tag.
+ * No control sits inside another. The old head was one big <button> wrapping its Sleep, Cancel
+ * and Wake buttons: invalid HTML, a React nesting warning on every render, and controls a
+ * screen reader could not reach on their own. The new row's whole width opens the project, so
+ * the same mistake is one `<a>` away: rendered to static markup in every state the board shows,
+ * then walked tag by tag.
+ *
+ * And what the row says: the next date is the next OPEN step's (it used to be the earliest due
+ * date of any step, done or not), the key deadline the next open `#deadline` step, and Orr's
+ * flag counts what is off about the project once, not twice.
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { OverviewHead } from "./OverviewHead.js";
+import type { DashboardTask } from "./api.js";
+import { boardProject, nextDate, ProjectRow, ProjectSteps } from "./OverviewHead.js";
 
 const INTERACTIVE_TAGS = new Set(["button", "a", "input", "select", "textarea"]);
 const INTERACTIVE_ROLES = /\brole="(button|link|switch|checkbox|menuitem|option|tab)"/;
@@ -33,49 +38,97 @@ function nestedControls(html: string): string[] {
   return found;
 }
 
+let line = 0;
+const task = (text: string, over: Partial<DashboardTask> = {}): DashboardTask =>
+  ({ line: ++line, checked: false, status: "todo", text, raw: `- [ ] ${text}`, indent: 0, noteId: "n-p", notePath: "04-Projects/thesis.md", noteTitle: "Thesis", project: "Thesis", object: null, ...over }) as DashboardTask;
+
 const base = {
+  slug: "thesis",
+  projectId: "p-1",
   name: "Thesis",
-  pct: 40,
-  donePct: 40,
-  workPct: 10,
-  nextDue: "2026-10-19",
-  onToggle: () => {},
-  onToggleGantt: () => {},
-  onLifecycle: () => {},
-  onCancel: () => {},
+  href: "/projects/thesis",
+  noteId: "n-p",
+  area: { id: "school", label: "School", color: "var(--c3)" },
+  status: "on-track",
+  total: 3,
+  done: 1,
+  deadline: "2027-01-19",
+  people: [
+    { id: "n-iv", title: "Ines Vermaat", kind: "person" as const },
+    { id: "n-ks", title: "Kade Social", kind: "company" as const },
+  ],
+  warnings: [],
 };
+const tasks = [
+  task("Pick a supervisor", { checked: true, status: "done", due: "2020-01-02" }),
+  task("Research plan submitted", { key: true, due: "2099-10-19" }),
+  task("Ask Thijs to sign", { due: "2099-10-08", noteId: "n-other", noteTitle: "Weekly meetings" }),
+];
 
-describe("OverviewHead", () => {
+describe("ProjectRow", () => {
+  const p = boardProject({ ...base, tasks });
+  const flagged = boardProject({ ...base, status: "", tasks });
+  const menu = [{ label: "Pause", onSelect: () => {} }];
   const states = {
-    active: { ...base, open: true, parked: false, sleeping: false, gantt: false, onOpenProject: () => {} },
-    "active, gantt on, folded": { ...base, open: false, parked: false, sleeping: false, gantt: true, onOpenProject: () => {} },
-    sleeping: { ...base, open: true, parked: true, sleeping: true, gantt: false, onOpenProject: () => {} },
-    cancelled: { ...base, open: true, parked: true, sleeping: false, gantt: false, onOpenProject: () => {} },
-    "no workspace": { ...base, open: true, parked: false, sleeping: false, gantt: false },
+    folded: <ProjectRow p={p} open={false} onToggle={() => {}} onOpen={() => {}} menu={menu} />,
+    unfolded: <ProjectRow p={p} open onToggle={() => {}} onOpen={() => {}} menu={menu} />,
+    "flagged, no menu": <ProjectRow p={flagged} open={false} onToggle={() => {}} onOpen={() => {}} menu={[]} />,
+    steps: <ProjectSteps p={p} canEdit all={false} onAll={() => {}} onCheck={() => {}} onStatus={() => {}} onOpenStep={() => {}} links={<a href="/projects/thesis">Open the project</a>} />,
+    "every step, read only": <ProjectSteps p={p} canEdit={false} all onAll={() => {}} onCheck={() => {}} onStatus={() => {}} onOpenStep={() => {}} links={null} />,
   };
-
-  for (const [state, props] of Object.entries(states)) {
+  for (const [state, el] of Object.entries(states)) {
     it(`nests no control inside another (${state})`, () => {
-      expect(nestedControls(renderToStaticMarkup(<OverviewHead {...props} />))).toEqual([]);
+      expect(nestedControls(renderToStaticMarkup(el))).toEqual([]);
     });
   }
 
-  it("still offers every action, each as its own control", () => {
-    const active = renderToStaticMarkup(<OverviewHead {...states.active} />);
-    expect(active).toContain('aria-expanded="true"');
-    expect(active).toMatch(/<button[^>]*class="ov-pname link"/);
-    expect(active).toMatch(/<button[^>]*role="switch"[^>]*aria-checked="false"/);
-    expect(active).toMatch(/>Sleep<\/button>/);
-    expect(active).toMatch(/>Cancel<\/button>/);
-
-    const cancelled = renderToStaticMarkup(<OverviewHead {...states.cancelled} />);
-    expect(cancelled).toMatch(/>Wake<\/button>/);
-    expect(cancelled).not.toMatch(/>Cancel<\/button>/);
-    expect(renderToStaticMarkup(<OverviewHead {...states.sleeping} />)).toMatch(/>Cancel<\/button>/);
+  it("offers every action, each as its own control", () => {
+    const html = renderToStaticMarkup(states.folded);
+    expect(html).toMatch(/<a class="pr-link" href="\/projects\/thesis">Thesis<\/a>/);
+    expect(html).toMatch(/<button[^>]*class="chev"[^>]*aria-expanded="false"/);
+    expect(html).toMatch(/<button[^>]*aria-label="More for Thesis"[^>]*aria-haspopup="menu"/);
+    const steps = renderToStaticMarkup(states.steps);
+    expect(steps).toMatch(/role="checkbox"[^>]*aria-label="Complete Research plan submitted"/);
+    expect(steps).toMatch(/<button[^>]*aria-label="Status of Research plan submitted"/);
+    expect(steps).toMatch(/in <span class="nm">Weekly meetings<\/span>/);
   });
 
   it("the walker does catch a nested control", () => {
     expect(nestedControls('<button class="a"><span><button class="b">x</button></span></button>')).toEqual(["button.a > button.b"]);
-    expect(nestedControls('<button class="a"><span role="link" tabindex="0">x</span></button>')).toEqual(["button.a > span"]);
+    expect(nestedControls('<div role="button" class="a"><span role="checkbox" tabindex="0">x</span></div>')).toEqual(["div.a > span"]);
+  });
+});
+
+describe("what the row says", () => {
+  it("the next date is the next OPEN step's, never a done one's (§2.4)", () => {
+    const p = boardProject({ ...base, tasks });
+    expect(p.next?.text).toBe("Ask Thijs to sign");
+    expect(nextDate(p.next)?.big).toBe("Thu 8 Oct 2099");
+  });
+
+  it("the key deadline is the next open #deadline step, else the note's deadline", () => {
+    expect(boardProject({ ...base, tasks }).key?.text).toBe("Research plan submitted");
+    const none = boardProject({ ...base, tasks: tasks.filter((t) => !t.key) });
+    expect(none.key).toBeNull();
+    expect(renderToStaticMarkup(<ProjectRow p={none} open={false} onToggle={() => {}} onOpen={() => {}} menu={[]} />)).toContain("Deadline");
+  });
+
+  it("a late step says how late, and when it was due", () => {
+    const d = nextDate(task("Late one", { due: "2020-03-03" }));
+    expect(d?.late).toBe(true);
+    expect(d?.big).toMatch(/days late$/);
+    expect(d?.small).toBe("was Tue 3 Mar 2020");
+  });
+
+  it("Orr's flag counts a missing status once, whether the graph says so or not", () => {
+    expect(boardProject({ ...base, status: "", tasks }).flags).toEqual(["No status yet: pick one."]);
+    expect(boardProject({ ...base, status: "", tasks, warnings: ["Thesis has no status"] }).flags).toEqual(["Thesis has no status"]);
+    expect(boardProject({ ...base, status: "waiting", tasks }).flags).toHaveLength(1);
+    expect(boardProject({ ...base, tasks }).flags).toEqual([]);
+  });
+
+  it("a project's shelf follows its word, then its steps", () => {
+    expect(boardProject({ ...base, status: "sleeping", tasks }).shelf).toBe("paused");
+    expect(boardProject({ ...base, status: "", total: 3, done: 3, tasks }).shelf).toBe("completed");
   });
 });

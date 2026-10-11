@@ -1,843 +1,152 @@
-/* Projects, still the Overview board (Overview.tsx, OverviewHead.tsx, Gantt.tsx).
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+/* Projects (Overview.tsx, OverviewHead.tsx), from the board projects.html, and the Gantt
+   (Gantt.tsx), which lives in a project's Timeline tab and keeps its own classes, restyled
+   through tokens only (structure.md §6, "Kept as they are"). */
 
-/* ---- overview (Monday-style glass board) ---- */
-/* One column, because there is one child. This was a two-column grid with a
-   288px side panel; the panel went away in the dashboard rebuild and the track
-   did not, so 304px of every window went to nothing — and the board, squeezed
-   by exactly that much, could no longer fit the steps table (see .ov-steps). */
-.overview {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  padding: 22px 24px 26px;
-  overflow: hidden;
-}
-.board {
-  overflow: auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-right: 4px;
-}
-.ov-top {
-  flex: none;
-  margin-bottom: 2px;
-}
-.board > .ov-bar,
-.board > .ov-digest {
-  flex: none;
-}
-.ov-h1 {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.ov-sub {
-  margin: 4px 0 0;
-  color: var(--text-dim);
-  font-size: 14px;
-}
+.pjs { padding: 20px 36px 40px; display: flex; flex-direction: column; gap: 12px; }
+.pjs > * { max-width: 1280px; width: 100%; }
+.pjs code { font-family: var(--mono); font-size: 12px; }
+.pjs-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pjs-filters .lbl { font-size: 13px; font-weight: 650; color: var(--ink-3); margin-right: 4px; }
+.pjs-filters .chip .n { color: var(--ink-3); font-weight: 500; }
+.pjs-board { padding: 8px 18px; }
+.pjs-empty { padding: 22px 24px; }
+.oprop.pjs-digest { margin: 0; }
 
-/* selector bar */
-.ov-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 10px 12px;
-  border-radius: 16px;
-  background: var(--glass);
-  border: 1px solid var(--glass-brd);
-  box-shadow: inset 0 1px 0 var(--glass-hi);
-}
-.ov-bar-lbl {
-  font: 600 11px var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.seg {
-  display: flex;
-  gap: 2px;
-  border: 1px solid var(--glass-brd);
-  border-radius: 10px;
-  padding: 3px;
-  background: var(--glass-2);
-}
-.seg-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 12px;
-  border: none;
-  background: none;
-  border-radius: 7px;
-  color: var(--text-dim);
-  cursor: pointer;
-  font: 500 12.5px var(--font-ui);
-}
-.seg-btn:hover {
-  color: var(--text);
-}
-.seg-btn.active {
-  background: var(--panel-strong);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--glass-brd);
-}
-.seg-btn .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-.seg-count {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-faint);
-}
-.ov-bar-meta {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
+/* One grid for the head and every row. */
+.pjs .pg { display: grid; grid-template-columns: 36px minmax(0, 1fr) 124px 150px 170px 128px 34px 58px; gap: 14px; align-items: center; }
+.pjs .ph { padding: 0 8px 8px; margin: 0 -8px; font-size: 12.5px; font-weight: 650; color: var(--ink-3); border-bottom: 1px solid var(--line-2); }
+.pr-wrap { position: relative; }
+.pr-wrap + .pr-wrap::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; border-top: 1px solid var(--line); z-index: 1; }
+.pr-row { position: relative; min-height: 52px; padding: 7px 8px; margin: 0 -8px; border-radius: var(--r-2); cursor: pointer; }
+.pr-row:hover { background: var(--hover); }
+.pr-row:focus-within { box-shadow: inset 0 0 0 1px var(--line-2); }
+.pr-row .pr { width: 34px; height: 34px; display: block; }
+.pr-row .x { min-width: 0; }
+.pr-row .t { font-weight: 650; font-size: 15px; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pr-row .t .ui-dot { width: 8px; height: 8px; }
+/* The name is the row's link, and it stretches over the whole row (§1.7 #7); the controls
+   at the end sit above it. */
+.pr-link { color: var(--ink); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-link::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-2); }
+.pr-link:focus-visible { outline: none; }
+.pr-link:focus-visible::after { box-shadow: var(--focus-ring); }
+.pr-row .m { display: block; color: var(--ink-3); font-size: 13px; line-height: 18px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-row .m em { font-style: normal; color: var(--ink-2); }
+.pr-row .m2 { display: none; align-items: center; gap: 8px; margin-top: 4px; }
+.pr-row .d { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.pr-row .d small { display: block; font-size: 12px; color: var(--ink-3); font-weight: 450; }
+.pr-row .d.late { color: var(--late); }
+.pr-row .none { color: var(--ink-3); font-size: 13px; font-weight: 450; }
+.pr-row .c-key { min-width: 0; overflow: hidden; }
+.pr-row .c-key > span { display: flex; min-width: 0; }
+.pr-row .c-key .chip-dl { display: inline-flex; max-width: 100%; min-width: 0; }
+.pr-row .c-key .kt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-row .c-key .kd { flex: none; white-space: nowrap; }
+.pr-row .who { display: flex; align-items: center; gap: 4px; }
+.pr-row .who .more { font-size: 12px; color: var(--ink-3); margin-left: 2px; }
+.pr-row .flag { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); padding: 3px 5px; border-radius: 6px; }
+.pr-row .flag .hd { width: 16px; height: 16px; }
+.pr-row .c-end { position: relative; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.pr-row .c-flag { position: relative; z-index: 2; }
+.pr-row .chev, .pr-row .ov-act { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--ink-3); cursor: pointer; }
+.pr-row .chev:hover, .pr-row .ov-act:hover { background: var(--panel); color: var(--ink); }
+.pr-row .chev:focus-visible, .pr-row .ov-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.pr-row .ov-act { opacity: 0; }
+.pr-row:hover .ov-act, .pr-row:focus-within .ov-act, .pr-row .ov-act[aria-expanded="true"] { opacity: 1; }
+.pr-row.open .chev svg { transform: rotate(90deg); }
+.status.archived, .status.cancelled { --st: var(--ink-3); }
 
-/* AI digest */
-.ov-digest,
-.digest {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  padding: 13px 16px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--glass-brd));
-  background: linear-gradient(100deg, color-mix(in srgb, var(--accent) 16%, transparent), var(--glass-2));
-  font-size: 13px;
-  line-height: 1.5;
-}
-.ov-digest p,
-.digest p {
-  margin: 0;
-}
-.ov-digest-ic {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, var(--accent) 26%, transparent);
-  color: var(--text);
-  font-size: 13px;
-}
-.ov-ai-tag {
-  font: 700 9.5px var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-radius: 5px;
-  padding: 2px 6px;
-  margin-right: 4px;
-}
+/* An unfolded project: its steps, done ones sinking. */
+.pjs .steps { margin: 0 -8px 8px 52px; padding: 4px 8px 10px; border-left: 1.5px solid var(--line-2); }
+.pjs .steps > .none { margin: 6px 8px; color: var(--ink-3); font-size: 13px; }
+.pjs .st { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 128px 30px; gap: 12px; align-items: center; min-height: 32px; padding: 3px 8px; border-radius: var(--r-2); cursor: pointer; }
+.pjs .st:hover { background: var(--hover); }
+.pjs .st .stt { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pjs .st .stt .chip-dl { margin-left: 6px; vertical-align: 1px; }
+.pjs .st .nt { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.pjs .st .nt .nm { color: var(--ink-2); }
+.pjs .st .dd { font-size: 13px; color: var(--ink-3); white-space: nowrap; text-align: right; }
+.pjs .st .dd.late { color: var(--late); font-weight: 600; }
+.pjs .st.done .stt { color: var(--ink-3); text-decoration: line-through; text-decoration-thickness: 1px; }
+.pjs .st.done { opacity: .75; }
+.pjs .st .sta { display: flex; justify-content: flex-end; opacity: 0; }
+.pjs .st:hover .sta, .pjs .st:focus-within .sta { opacity: 1; }
+.pjs .steps .sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 6px 8px 0; font-size: 13px; }
+.pjs .steps .sub .lk { color: var(--accent); font-weight: 600; text-decoration: none; }
+.pjs .steps .sub .ent-link.lk { color: var(--accent); }
+.pjs .steps .sub .q3 { margin-left: auto; }
 
-/* project group */
-.ov-project {
-  flex: none;
-  border-radius: 16px;
-  overflow: hidden;
-  background: var(--glass);
-  border: 1px solid var(--glass-brd);
-  border-left: 3px solid var(--pc, var(--accent));
-  box-shadow: var(--card-shadow), inset 0 1px 0 var(--glass-hi);
-}
-.ov-project-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 13px 16px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text);
-  text-align: left;
-}
-.ov-chev {
-  color: var(--text-faint);
-  display: inline-flex;
-  flex: none;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-.ov-pname {
-  font-weight: 750;
-  font-size: 15px;
-  letter-spacing: -0.01em;
-}
-button.ov-pname {
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
-}
-.ov-battery {
-  display: flex;
-  height: 8px;
-  width: 170px;
-  flex: none;
-  border-radius: 5px;
-  overflow: hidden;
-  background: var(--panel-strong);
-  margin-left: 8px;
-}
-.ov-battery i {
-  display: block;
-  height: 100%;
-}
-.ov-battery .d {
-  background: var(--ok);
-}
-.ov-battery .w {
-  background: var(--warn);
-}
-.ov-pct {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text-dim);
-  font-weight: 600;
-}
-.ov-due {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  flex: none;
-}
+/* The shelves under the board. */
+.pjs-shelves { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 2px 4px 0; }
+.pjs-shelves .shelf { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; color: var(--ink-3); min-width: 0; }
+.shelf-head { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: 6px; background: none; font: inherit; font-weight: 650; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.shelf-head:hover { background: var(--hover); color: var(--ink); }
+.shelf-head:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.shelf-names .ui-nm { color: var(--ink-2); font-weight: 500; text-decoration: none; }
+.pjs-shelf .pr-row { opacity: .9; }
 
-/* steps table */
-.ov-steps {
-  padding: 0 8px 10px;
-  border-top: 1px solid var(--border);
-  /* Queried, not the viewport: this table's width comes from the board, which
-     the rail and the page padding move independently of the window. A media
-     query got this wrong in both directions — it fired while the table still
-     fit, and it stayed quiet while the table was already broken. */
-  container-type: inline-size;
-}
-.ov-steps-head,
-.ov-step {
-  display: grid;
-  grid-template-columns: 132px minmax(0, 1fr) 116px 170px;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-}
-/* Below the width all four columns need, drop them by how little they carry:
-   the source note first, then the date. Status is a control and Step is the
-   row's identity, so those two are the pair that always survives. Without this
-   the STEP track collapsed to 0 and its header printed over TIMELINE. */
-@container (max-width: 588px) {
-  .ov-steps-head,
-  .ov-step {
-    grid-template-columns: 132px minmax(0, 1fr) 116px;
-  }
-  .ov-th-note,
-  .ov-step .ov-docs {
-    display: none;
-  }
-}
-@container (max-width: 428px) {
-  .ov-steps-head,
-  .ov-step {
-    grid-template-columns: 104px minmax(0, 1fr);
-  }
-  .ov-th-timeline,
-  .ov-step .ov-tl {
-    display: none;
-  }
-}
-.ov-steps-head {
-  font: 600 10px var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  border-bottom: 1px solid var(--border);
-}
-.ov-step {
-  border-radius: 9px;
-}
-.ov-step:hover {
-  background: var(--panel);
-}
-.st {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 7px;
-  font: 700 12px var(--font-ui);
-  color: var(--solid-text);
-  white-space: nowrap;
-  cursor: pointer;
-  width: 100%;
-}
-.st.done {
-  background: var(--ok);
-}
-.st.work {
-  background: var(--warn);
-}
-.st.todo {
-  background: var(--panel-strong);
-  color: var(--text-dim);
-  font-weight: 600;
-}
-.st.blocked {
-  background: var(--danger);
-}
-.st-caret {
-  margin-left: 5px;
-  font-size: 9px;
-  line-height: 1;
-  opacity: 0.65;
-}
-
-/* status dropdown */
-.st-wrap {
-  position: relative;
-}
-.st-menu {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 168px;
-  padding: 5px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--bg-overlay);
-  border: 1px solid var(--glass-brd);
-  border-radius: 10px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
-}
-.st-opt {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border: none;
-  border-radius: 7px;
-  background: none;
-  color: var(--text);
-  font: 500 12.5px var(--font-ui);
-  text-align: left;
-  cursor: pointer;
-}
-.st-opt:hover {
-  background: var(--panel);
-}
-.st-opt.sel {
-  background: var(--panel);
-  font-weight: 700;
-}
-.st-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  flex: none;
-}
-.st-dot.done {
-  background: var(--ok);
-}
-.st-dot.work {
-  background: var(--warn);
-}
-.st-dot.blocked {
-  background: var(--danger);
-}
-.st-dot.todo {
-  background: var(--text-faint);
-}
-.ov-step.is-done {
-  opacity: 0.62;
-}
-.ov-step.is-done:hover {
-  opacity: 1;
-}
-
-/* Completed-projects sub-page toggle */
-.ov-completed-tab {
-  margin-left: 10px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--panel-strong);
-  color: var(--text-dim);
-  font: 600 12px var(--font-ui);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ov-completed-tab svg.i { vertical-align: -2px; margin: 0 2px 0 -3px; }
-.ov-completed-tab:hover {
-  color: var(--text);
-  border-color: var(--glass-brd);
-}
-.ov-completed-tab.on {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.ov-remove {
-  margin-left: 12px;
-  padding: 4px 10px;
-  border-radius: 7px;
-  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
-  font: 600 11.5px var(--font-ui);
-  cursor: pointer;
-}
-.ov-remove:hover {
-  background: color-mix(in srgb, var(--danger) 20%, transparent);
-}
-.ov-step-name {
-  font-size: 13.5px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ov-tl {
-  display: flex;
-}
-.ov-tl-pill {
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-dim);
-  background: var(--panel-strong);
-  border-radius: 6px;
-  padding: 3px 8px;
-}
-.ov-tl-none {
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-.ov-docs {
-  /* inline-BLOCK, not inline-flex: the label is a bare text node, and a flex
-     container will not ellipsize its anonymous item — it clipped the note title
-     mid-word instead. */
-  display: inline-block;
-  vertical-align: middle;
-  padding: 4px 9px;
-  border-radius: 7px;
-  font-size: 12px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
-  cursor: pointer;
-  width: fit-content;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ov-more {
-  margin: 6px 10px 2px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  cursor: pointer;
-  text-align: left;
-}
-.ov-more:hover {
-  color: var(--accent);
-}
-.ov-step-empty {
-  padding: 12px 10px;
-  color: var(--text-faint);
-  font-size: 13px;
-}
-
-/* table ⇄ Gantt switch in the project head */
-.ov-gantt-sw {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  padding: 3px 9px 3px 4px;
-  border-radius: 999px;
-  border: 1px solid var(--glass-brd);
-  background: var(--panel-strong);
-  font: 600 10.5px var(--font-mono);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-}
-.ov-gantt-sw i {
-  width: 22px;
-  height: 12px;
-  border-radius: 999px;
-  background: var(--panel-strong);
-  border: 1px solid var(--glass-brd);
-  position: relative;
-  transition: background 0.15s;
-}
-.ov-gantt-sw i::after {
-  content: "";
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  transition: transform 0.15s, background 0.15s;
-}
-.ov-gantt-sw.on {
-  color: var(--pc, var(--accent));
-  border-color: color-mix(in srgb, var(--pc, var(--accent)) 40%, transparent);
-}
-.ov-gantt-sw.on i {
-  background: color-mix(in srgb, var(--pc, var(--accent)) 30%, transparent);
-}
-.ov-gantt-sw.on i::after {
-  transform: translateX(10px);
-  background: var(--pc, var(--accent));
-}
-
-/* Gantt panel */
-.ov-steps-gantt {
-  padding: 0 0 10px;
-}
-.gantt {
-  --gantt-weekend: color-mix(in srgb, var(--text) 4%, transparent);
-}
-/* Names sit still on the left; only the timeline scrolls. A bar no longer has
-   to carry its own label, which is what made short bars unreadable. */
-.gantt-split { display: grid; grid-template-columns: 210px minmax(0, 1fr); }
-.gantt-names { border-right: 1px solid var(--border); padding-bottom: 10px; min-width: 0; }
-.gantt-names-head { height: 26px; border-bottom: 1px solid var(--border); }
-.gantt-names > .gantt-name:first-of-type { margin-top: 8px; }
-.gantt-name {
-  display: block;
-  width: 100%;
-  height: 30px;
-  padding: 0 10px 0 2px;
-  border: none;
-  background: none;
-  text-align: left;
-  font-size: 12px;
-  color: var(--text-dim);
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 30px;
-}
-.gantt-name:hover { color: var(--text); }
-.gantt-name.done { color: var(--text-faint); text-decoration: line-through; }
-.gantt-more {
-  display: block;
-  margin: 6px 0 0 8px;
-  border: none;
-  background: none;
-  color: var(--text-faint);
-  font: 600 11.5px var(--font-ui);
-  cursor: pointer;
-}
-.gantt-more:hover { color: var(--accent); }
-.gantt-scroll {
-  overflow-x: auto;
-  padding: 0 8px;
-}
-.gantt-canvas {
-  position: relative;
-  min-width: 100%;
-}
-.gantt-head {
-  display: flex;
-  height: 26px;
-  align-items: flex-end;
-  border-bottom: 1px solid var(--border);
-}
-.gantt-d {
-  width: var(--gantt-day);
-  flex: none;
-  font: 600 9.5px var(--font-mono);
-  color: var(--text-faint);
-  padding-bottom: 4px;
-  white-space: nowrap;
-}
-.gantt-d b {
-  color: var(--text-dim);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.gantt-d.today {
-  color: var(--pc, var(--accent));
-}
-.gantt-rows {
-  position: relative;
-  padding: 8px 0 10px;
-  min-height: 56px;
-}
-.gantt-today {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: var(--gantt-day);
-  background: color-mix(in srgb, var(--pc, var(--accent)) 8%, transparent);
-  border-left: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 45%, transparent);
-  pointer-events: none;
-}
-.gantt-row {
-  position: relative;
-  height: 30px;
-}
-.gantt-bar {
-  position: absolute;
-  top: 3px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  border-radius: 7px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  background: color-mix(in srgb, var(--pc, var(--accent)) 26%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pc, var(--accent)) 50%, transparent);
-}
-.gantt-bar.done {
-  background: color-mix(in srgb, var(--ok) 22%, transparent);
-  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
-}
-.gantt-bar.work {
-  background: color-mix(in srgb, var(--warn) 24%, transparent);
-  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
-}
-.gantt-bar.dragging {
-  cursor: grabbing;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-}
-.gantt-grip {
-  width: 7px;
-  align-self: stretch;
-  flex: none;
-  cursor: ew-resize;
-  border-radius: 6px;
-}
-.gantt-grip:hover {
-  background: color-mix(in srgb, var(--text) 20%, transparent);
-}
-.gantt-unset {
-  position: absolute;
-  top: 6px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: none;
-  background: none;
-  color: var(--text-faint);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.gantt-row:hover .gantt-unset {
-  opacity: 1;
-}
-.gantt-unset:hover {
-  color: var(--warn);
-}
-.gantt-empty {
-  position: absolute;
-  top: 14px;
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-.gantt-strip {
-  margin: 8px 16px 0;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border);
-}
-.gantt-strip-lbl {
-  display: block;
-  font: 600 10px var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-bottom: 7px;
-}
-.gantt-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.gantt-chip {
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--text-dim);
-  background: var(--panel-strong);
-  border: 1px solid var(--glass-brd);
-  cursor: grab;
-}
-.gantt-chip:active {
-  cursor: grabbing;
-}
-
-.orphaned {
-  border: 1px solid var(--glass-brd);
-  border-left: 3px solid var(--warn);
-  color: var(--warn);
-  border-radius: 14px;
-  padding: 10px 14px;
-  font-size: 13px;
-  background: var(--glass);
-}
-
-.who {
-  padding: 18px;
-  overflow: auto;
-  border-radius: 16px;
-  border: 1px solid var(--glass-brd);
-  background: var(--glass);
-  box-shadow: var(--card-shadow), inset 0 1px 0 var(--glass-hi);
-}
-.who h2 {
-  margin: 0 0 12px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
-
-@media (max-width: 980px) {  .who {
-    display: none;
-  }
-}
-
-/* project lifecycle on the board */
-.ov-shelves { display: flex; gap: 6px; flex-wrap: wrap; }
-.ov-life { display: inline-flex; gap: 4px; margin-left: 8px; opacity: 0; transition: opacity 0.12s ease; }
-.ov-project:hover .ov-life, .ov-project:focus-within .ov-life { opacity: 1; }
-.ov-life-btn {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-dim);
-  border-radius: 999px;
-  padding: 3px 10px;
-  font: 600 10.5px var(--font-ui);
-  cursor: pointer;
-}
-.ov-life-btn:hover { color: var(--text); border-color: var(--border-strong); }
-.ov-life-btn.danger:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
-.ov-state {
-  font: 600 10px var(--font-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 9px;
-}
-/* a parked project is present but quiet */
-.ov-project.parked { opacity: 0.62; }
-.ov-project.parked:hover { opacity: 1; }
-
-/* ---- project workspace (opened from the Overview board) ---- */
-.ov-pname.link { cursor: pointer; }
-.ov-pname.link:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-/* ═══ Phone layout ═══════════════════════════════════════════════════════════
-   Below 760px the left rail becomes a bottom tab bar. Two reasons, both about
-   hands rather than pixels: a side rail puts navigation under the far edge of a
-   thumb's arc, and vertical space is the scarce axis on a phone — a 60px column
-   costs 16% of a 375px screen to show seven icons.
-
-   Everything here is additive. The desktop rules are untouched; this block only
-   reorders the same markup, so no component knows it is on a phone. */
+/* ---- phone: a list of project rows; tap opens the project ------------------------------- */
 @media (max-width: 760px) {
-  /* ---- Overview ----
-     The step row is a rigid `104px 159px` grid. At 375px that leaves ~159px for
-     the step name, so "write ADR for CRDT choice" truncated to "write ADR for
-     CRDT cho…" and the row scrolled sideways inside its card. Scrolling a table
-     to read a task name is not a phone interface, so the row stacks instead:
-     the name first, at full width, and its status control underneath. Taller,
-     but nothing is hidden and the pill is a comfortable target. */
-  .ov-steps-head {
-    display: none; /* column headings mean nothing once the row is stacked */
-  }
-  /* Name takes the room that is left and WRAPS; the pill keeps its natural
-     width on the right. Stacking them worked but cost ~92px a row, which turned
-     six steps into a long scroll — this reads the same and costs about half. */
-  .ov-step {
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    padding: 11px 0;
-    align-items: center;
-  }
-  .ov-step-name {
-    order: 1;
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    min-width: 0;
-    line-height: 1.35;
-  }
-  .st-wrap {
-    order: 2;
-    justify-self: end;
-  }
-  .ov-docs {
-    order: 3;
-  }
-  /* The timeline is a wide date band with no room to say anything useful here. */
-  .ov-tl,
-  .ov-th-timeline,
-  .ov-gantt-sw {
-    display: none;
-  }
+  .pjs { padding: 0 12px 24px; gap: 10px; }
+  /* The top bar says Projects; the header keeps only its actions. */
+  .pjs > header .phead { min-height: 0; justify-content: flex-end; }
+  .pjs > header .phead h1, .pjs > header .phead .meta, .pjs > header .phead .sp { display: none; }
+  .pjs > header .phead .btn { height: 36px; min-height: 0; }
+  .pjs-board { padding: 4px 12px; }
+  .pjs-filters { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
+  .pjs-filters .lbl { display: none; }
+  .pjs-filters .chip { flex: none; min-height: 0; height: 32px; }
+  .pjs .ph, .pjs .steps, .shelf-names, .pjs-shelf .ov-act { display: none; }
+  .pjs .pg { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; }
+  .pr-row { align-items: start; min-height: 60px; }
+  .pr-row .c-status, .pr-row .c-key, .pr-row .c-who, .pr-row .c-end { display: none; }
+  .pr-row .c-date { grid-column: 3; grid-row: 1; text-align: right; }
+  .pr-row .d small { display: none; }
+  .pr-row .d { font-size: 13px; }
+  .pr-row .c-flag { position: absolute; right: 8px; bottom: 8px; }
+  .pr-row .m2 { display: flex; }
+  .pjs-shelves { flex-direction: column; gap: 6px; }
+  .shelf-head { min-height: 0; }
+}
 
-  /* The life-area filter is a segmented control 393px wide in a 313px card, so
-     its last option was sliced off mid-word. Filters are fine to swipe. */
-  .seg,
-  .ov-life {
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .seg::-webkit-scrollbar,
-  .ov-life::-webkit-scrollbar {
-    display: none;
-  }
-  .seg > *,
-  .ov-life > * {
-    flex: 0 0 auto;
-  }
-  .ov-due {
-    min-width: 0;
-  }
+/* ---- the Gantt (Gantt.tsx), in a project's Timeline -------------------------------------- */
+.gantt { --gantt-weekend: color-mix(in srgb, var(--ink) 4%, transparent); }
+/* Names sit still on the left; only the timeline scrolls. */
+.gantt-split { display: grid; grid-template-columns: 210px minmax(0, 1fr); }
+.gantt-names { border-right: 1px solid var(--line); padding-bottom: 10px; min-width: 0; }
+.gantt-names-head { height: 26px; border-bottom: 1px solid var(--line); }
+.gantt-names > .gantt-name:first-of-type { margin-top: 8px; }
+.gantt-name { display: block; width: 100%; height: 30px; padding: 0 10px 0 14px; border: none; background: none; text-align: left; font: inherit; font-size: 12.5px; color: var(--ink-2); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 30px; }
+.gantt-name:hover { color: var(--ink); background: var(--hover); }
+.gantt-name:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.gantt-name.done { color: var(--ink-3); text-decoration: line-through; }
+.gantt-more { display: block; margin: 6px 0 0 14px; border: none; background: none; color: var(--ink-3); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.gantt-more:hover { color: var(--accent); }
+.gantt-scroll { overflow-x: auto; padding: 0 8px; }
+.gantt-canvas { position: relative; min-width: 100%; }
+.gantt-head { display: flex; height: 26px; align-items: flex-end; border-bottom: 1px solid var(--line); }
+.gantt-d { width: var(--gantt-day); flex: none; font-size: 10.5px; font-weight: 600; color: var(--ink-3); padding-bottom: 4px; white-space: nowrap; }
+.gantt-d b { color: var(--ink-2); }
+.gantt-d.today { color: var(--sun-ink); }
+.gantt-rows { position: relative; padding: 8px 0 10px; min-height: 56px; }
+.gantt-today { position: absolute; top: 0; bottom: 0; width: var(--gantt-day); background: var(--sun-wash); border-left: 2px solid var(--sun); pointer-events: none; }
+.gantt-row { position: relative; height: 30px; }
+.gantt-bar { position: absolute; top: 3px; height: 24px; display: flex; align-items: center; border-radius: var(--r-1); cursor: grab; touch-action: none; user-select: none; background: color-mix(in srgb, var(--pc, var(--ink-3)) 24%, var(--surface)); border: 1px solid color-mix(in srgb, var(--pc, var(--ink-3)) 60%, var(--surface)); }
+.gantt-bar.done { background: var(--panel); border-color: var(--line-2); }
+.gantt-bar.work { background: color-mix(in srgb, var(--pc, var(--ink-3)) 40%, var(--surface)); }
+.gantt-bar.dragging { cursor: grabbing; box-shadow: var(--shadow-pop); }
+.gantt-grip { width: 7px; align-self: stretch; flex: none; cursor: ew-resize; border-radius: var(--r-1); }
+.gantt-grip:hover { background: color-mix(in srgb, var(--ink) 20%, transparent); }
+.gantt-unset { position: absolute; top: 5px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: none; background: none; color: var(--ink-3); cursor: pointer; opacity: 0; }
+.gantt-row:hover .gantt-unset, .gantt-unset:focus-visible { opacity: 1; }
+.gantt-unset:hover { color: var(--late); background: var(--hover); }
+.gantt-empty { position: absolute; top: 14px; margin: 0; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+.gantt-strip { margin: 8px 16px 0; padding-top: 8px; border-top: 1px dashed var(--line-2); }
+.gantt-strip-lbl { display: block; font-size: 12.5px; font-weight: 650; color: var(--ink-3); margin-bottom: 7px; }
+.gantt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gantt-chip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 10px; border-radius: var(--r-1); font-size: 12.5px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line-2); cursor: grab; }
+.gantt-chip:active { cursor: grabbing; }
+@media (max-width: 760px) {
+  .gantt-split { grid-template-columns: 120px minmax(0, 1fr); }
+  .gantt-name, .gantt-unset, .gantt-more { min-height: 0; }
 }
