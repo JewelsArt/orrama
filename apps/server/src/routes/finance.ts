@@ -33,6 +33,8 @@ import {
   parseStatement,
   byTime,
   parseSubscriptions,
+  parseLedger,
+  CADENCES,
   payslipUsable,
   savingsPlan,
   inMainPocket,
@@ -497,7 +499,7 @@ const rowSchema = z.object({
   // Trimmed and length-capped: these land in a Markdown table a human reads.
   service: z.string().trim().min(1).max(80),
   amount: z.string().trim().min(1).max(24),
-  cadence: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
+  cadence: z.enum(CADENCES),
   // Either a date or nothing; anything else would sit in the table as noise the
   // parser silently drops, which reads as "the app lost my entry".
   next: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).default(""),
@@ -534,8 +536,12 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
     const areaNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "finance"));
 
-    const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
-    const income = incomeNote ? parseSubscriptions(incomeNote.content, today) : [];
+    // Rows the ledgers could not read are counted nowhere and reported, so
+    // the page can name them (FIN-005, FIN-006).
+    const subsLedger = subsNote ? parseLedger(subsNote.content, today) : { items: [], unreadable: [] };
+    const incomeLedger = incomeNote ? parseLedger(incomeNote.content, today) : { items: [], unreadable: [] };
+    const subscriptions = subsLedger.items;
+    const income = incomeLedger.items;
     const payslips = slipNote ? parsePayslipTable(slipNote.content) : [];
 
 
@@ -741,12 +747,14 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         items: income,
         count: income.length,
         activity: activityFor(income, "in"),
+        unreadable: incomeLedger.unreadable,
       },
       subscriptions: {
         totals: monthlyTotals(subscriptions),
         items: subscriptions,
         count: subscriptions.length,
         activity: activityFor(subscriptions, "out"),
+        unreadable: subsLedger.unreadable,
       },
       payslips,
       savings,

@@ -1030,3 +1030,7 @@
 .fin-sub-extra { font-size: 11.5px; line-height: 1.45; }
 .fin-sub-extra.over { color: var(--fin-pos); }
 .fin-sub-extra.under { color: var(--fin-neg); }
+
+/* Ledger rows left out of the totals (FIN-005/006): the system Notice, one line per row. */
+.fin-unreadables { margin-bottom: 14px; }
+.fin-unreadable { display: block; }

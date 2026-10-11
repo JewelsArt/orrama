@@ -469,7 +469,15 @@ export const activitySchema = o({
   /** The statement descriptors this line matched, biggest first. */
   merchants: z.array(z.string()),
 });
-export const ledgerSchema = o({ totals, items: z.array(moneyItemSchema), count: z.number(), activity: z.record(activitySchema) });
+/** A ledger row left out of every total because its amount or cadence could not be read. */
+export const unreadableRowSchema = o({ service: z.string(), line: z.number(), field: z.enum(["amount", "cadence"]), text: z.string() });
+export const ledgerSchema = o({
+  totals,
+  items: z.array(moneyItemSchema),
+  count: z.number(),
+  activity: z.record(activitySchema),
+  unreadable: z.array(unreadableRowSchema),
+});
 
 export const payslipRowSchema = o({
   month: z.string(),

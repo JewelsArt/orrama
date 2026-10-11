@@ -19,8 +19,25 @@
 import { parseMoneyWithCurrency } from "./money.js";
 import { appendRow, cells, isRule, mapHeader } from "./table.js";
 
-/** How often a charge repeats. `custom` carries an explicit day count. */
-export type Cadence = "weekly" | "monthly" | "quarterly" | "yearly";
+/**
+ * How often a charge repeats. Each is a whole number of weeks or of months
+ * (`STEP`); anything a ledger cell says that is not one of these is not read
+ * as one of them (audit FIN-006).
+ */
+export const CADENCES = ["weekly", "biweekly", "4-weekly", "monthly", "2-monthly", "quarterly", "half-yearly", "yearly"] as const;
+export type Cadence = (typeof CADENCES)[number];
+
+/** One period of each cadence, in the unit it is counted in. */
+const STEP: Record<Cadence, { unit: "week" | "month"; every: number }> = {
+  weekly: { unit: "week", every: 1 },
+  biweekly: { unit: "week", every: 2 },
+  "4-weekly": { unit: "week", every: 4 },
+  monthly: { unit: "month", every: 1 },
+  "2-monthly": { unit: "month", every: 2 },
+  quarterly: { unit: "month", every: 3 },
+  "half-yearly": { unit: "month", every: 6 },
+  yearly: { unit: "month", every: 12 },
+};
 
 export interface Subscription {
   service: string;
@@ -62,28 +79,63 @@ export interface Subscription {
   note: string;
 }
 
-const CADENCE: Record<string, Cadence> = {
-  weekly: "weekly",
-  week: "weekly",
-  wk: "weekly",
-  monthly: "monthly",
-  month: "monthly",
-  mo: "monthly",
-  quarterly: "quarterly",
-  quarter: "quarterly",
-  yearly: "yearly",
-  year: "yearly",
-  annual: "yearly",
-  annually: "yearly",
-  yr: "yearly",
+/**
+ * What people write in the cadence column, English and Dutch (and the French
+ * a Revolut-era note picks up). "Bimonthly" is deliberately absent: it means
+ * twice a month to some and every two months to others, and guessing is how
+ * a row ends up counted at the wrong rate.
+ */
+const CADENCE_WORDS: Record<string, Cadence> = {
+  weekly: "weekly", week: "weekly", wk: "weekly", wekelijks: "weekly", hebdomadaire: "weekly",
+  biweekly: "biweekly", "bi-weekly": "biweekly", fortnightly: "biweekly", fortnight: "biweekly",
+  "other week": "biweekly", tweewekelijks: "biweekly", "2-wekelijks": "biweekly",
+  "four-weekly": "4-weekly", "four weekly": "4-weekly", vierwekelijks: "4-weekly", "4-wekelijks": "4-weekly",
+  monthly: "monthly", month: "monthly", mo: "monthly", pm: "monthly", "p/m": "monthly",
+  maand: "monthly", maandelijks: "monthly", mensuel: "monthly",
+  "other month": "2-monthly", tweemaandelijks: "2-monthly",
+  quarterly: "quarterly", quarter: "quarterly", kwartaal: "quarterly", trimestriel: "quarterly",
+  "half-yearly": "half-yearly", "half yearly": "half-yearly", halfyearly: "half-yearly",
+  "half-year": "half-yearly", "half year": "half-yearly", semiannual: "half-yearly",
+  "semi-annual": "half-yearly", semiannually: "half-yearly", "semi-annually": "half-yearly",
+  semester: "half-yearly", halfjaarlijks: "half-yearly", semestriel: "half-yearly",
+  yearly: "yearly", year: "yearly", yr: "yearly", annual: "yearly", annually: "yearly",
+  annum: "yearly", "p/y": "yearly", pa: "yearly", jaar: "yearly", jaarlijks: "yearly", annuel: "yearly",
 };
 
-/** Months per period — weekly is 52/12 so a weekly charge sums honestly. */
-const PER_MONTH: Record<Cadence, number> = {
-  weekly: 52 / 12,
-  monthly: 1,
-  quarterly: 1 / 3,
-  yearly: 1 / 12,
+/** "every 2 weeks", "4-weekly", "6 months", "every 12 months" → the cadence it names, if any. */
+const COUNTED = /^(\d{1,2}|one|two|four|six|twelve)[ -]?(weeks?|weekly|wks?|months?|monthly|mos?|years?|yearly)$/;
+const NUMBER_WORDS: Record<string, number> = { one: 1, two: 2, four: 4, six: 6, twelve: 12 };
+
+/**
+ * The cadence a ledger cell names. An EMPTY cell is monthly — a reasonable
+ * default for a blank, and what every hand-kept ledger so far assumes. A word
+ * this does not know is `null`, never monthly: "half-yearly" read as monthly
+ * counted an insurance six times over, "biweekly" at less than half, and a
+ * Dutch 4-weekly salary one payment a year short (audit FIN-006).
+ */
+export function readCadence(raw: string): Cadence | null {
+  const text = raw
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\.$/, "")
+    .replace(/^(per|every|each|once a|once every) /, "");
+  if (text === "") return "monthly";
+  const word = CADENCE_WORDS[text];
+  if (word) return word;
+  const counted = COUNTED.exec(text);
+  if (!counted) return null;
+  const n = NUMBER_WORDS[counted[1]!] ?? Number(counted[1]);
+  const unit = counted[2]!.startsWith("y") ? "month" : counted[2]!.startsWith("w") ? "week" : "month";
+  const months = counted[2]!.startsWith("y") ? n * 12 : n;
+  const every = unit === "week" ? n : months;
+  return CADENCES.find((c) => STEP[c].unit === unit && STEP[c].every === every) ?? null;
+}
+
+/** Periods per month — weekly is 52/12 so a weekly charge sums honestly. */
+const perMonth = (cadence: Cadence) => {
+  const { unit, every } = STEP[cadence];
+  return unit === "week" ? 52 / 12 / every : 1 / every;
 };
 
 /**
@@ -95,8 +147,6 @@ const PER_MONTH: Record<Cadence, number> = {
 const parseAmount = parseMoneyWithCurrency;
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-
-const MONTHS_PER: Record<Cadence, number> = { weekly: 0, monthly: 1, quarterly: 3, yearly: 12 };
 
 /**
  * Step a YYYY-MM-DD forward by `n` periods FROM THE ANCHOR, in UTC so no DST
@@ -111,12 +161,13 @@ const MONTHS_PER: Record<Cadence, number> = { weekly: 0, monthly: 1, quarterly: 
  */
 export function advanceBy(date: string, cadence: Cadence, n: number): string {
   const d = new Date(`${date}T00:00:00Z`);
-  if (cadence === "weekly") {
-    d.setUTCDate(d.getUTCDate() + 7 * n);
+  const { unit, every } = STEP[cadence];
+  if (unit === "week") {
+    d.setUTCDate(d.getUTCDate() + 7 * every * n);
   } else {
     const day = d.getUTCDate();
     d.setUTCDate(1);
-    d.setUTCMonth(d.getUTCMonth() + MONTHS_PER[cadence] * n);
+    d.setUTCMonth(d.getUTCMonth() + every * n);
     const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
     d.setUTCDate(Math.min(day, last));
   }
@@ -126,6 +177,13 @@ export function advanceBy(date: string, cadence: Cadence, n: number): string {
 /** Step a YYYY-MM-DD forward by one period. */
 export function advance(date: string, cadence: Cadence): string {
   return advanceBy(date, cadence, 1);
+}
+
+/** Whole periods from `a` to `b`, by estimate — within one of the truth either way. */
+function periodsBetween(a: string, b: string, cadence: Cadence): number {
+  const { unit, every } = STEP[cadence];
+  if (unit === "week") return Math.floor((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / (86_400_000 * 7 * every));
+  return Math.floor(((+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7))) / every);
 }
 
 /**
@@ -140,16 +198,9 @@ export function advance(date: string, cadence: Cadence): string {
  * range before the note's date still shows the charges in it.
  */
 export function chargeDates(anchor: string, cadence: Cadence, from: string, to: string): string[] {
-  if (!ISO.test(anchor) || from > to || !(cadence in MONTHS_PER)) return [];
+  if (!ISO.test(anchor) || from > to || !(cadence in STEP)) return [];
   // Start a period or two before `from`, by estimate, then walk forward.
-  const days = (Date.parse(`${from}T00:00:00Z`) - Date.parse(`${anchor}T00:00:00Z`)) / 86_400_000;
-  let n =
-    cadence === "weekly"
-      ? Math.floor(days / 7) - 1
-      : Math.floor(
-          ((+from.slice(0, 4) - +anchor.slice(0, 4)) * 12 + (+from.slice(5, 7) - +anchor.slice(5, 7))) /
-            MONTHS_PER[cadence],
-        ) - 1;
+  let n = periodsBetween(anchor, from, cadence) - 1;
   const out: string[] = [];
   // Bounded: a weekly line over a ten-year range is ~520 dates.
   for (let i = 0; i < 1000; i++, n++) {
@@ -173,15 +224,7 @@ export function nextCharge(from: string, cadence: Cadence, today: string): strin
   // anchor after any short month, and its 800-step cap — about fifteen years
   // of weeklies — could return a date in the PAST, which the agenda then drew
   // as a phantom overdue charge.
-  const days = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
-  let n =
-    cadence === "weekly"
-      ? Math.floor(days / 7)
-      : Math.floor(
-          ((+today.slice(0, 4) - +from.slice(0, 4)) * 12 + (+today.slice(5, 7) - +from.slice(5, 7))) /
-            MONTHS_PER[cadence],
-        );
-  n = Math.max(0, n);
+  let n = Math.max(0, periodsBetween(from, today, cadence));
   let d = advanceBy(from, cadence, n);
   // The estimate lands within a period either way; a couple of corrections is
   // all it can ever need, and the bound is there so a bad input cannot spin.
@@ -221,14 +264,36 @@ const HEADERS: Record<string, string> = {
   notes: "note",
 };
 
+/** A ledger row that was left out of every total, and why — shown, not dropped. */
+export interface UnreadableRow {
+  service: string;
+  /** 1-based line in the note, so the page can say where to look. */
+  line: number;
+  field: "amount" | "cadence";
+  /** The cell as written. */
+  text: string;
+}
+
 /**
  * Read every Markdown table in the note and return the subscriptions found. A
  * table only counts if its header names both a service and an amount, so prose
  * tables elsewhere in the note are ignored rather than half-parsed.
  */
 export function parseSubscriptions(content: string, today: string): Subscription[] {
+  return parseLedger(content, today).items;
+}
+
+/**
+ * The ledger's lines, and the rows it could not read. A row whose amount or
+ * cadence is not understood is left out of every total — a half-read row
+ * would put a wrong number on the dashboard — and reported, so the page can
+ * say which row and why rather than show a total that silently lacks it
+ * (audit FIN-005, FIN-006).
+ */
+export function parseLedger(content: string, today: string): { items: Subscription[]; unreadable: UnreadableRow[] } {
   const lines = content.split(/\r?\n/);
   const out: Subscription[] = [];
+  const unreadable: UnreadableRow[] = [];
   let cols: string[] | null = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -252,10 +317,20 @@ export function parseSubscriptions(content: string, today: string): Subscription
       return at === -1 ? "" : (row[at] ?? "");
     };
     const service = get("service").replace(/^\*+|\*+$/g, "").trim();
-    const money = parseAmount(get("amount"));
-    if (!service || !money) continue;
+    const amountText = get("amount").trim();
+    // A blank row is not a row; a named one with no readable amount is.
+    if (!service && !amountText) continue;
+    const money = parseAmount(amountText);
+    if (!service || !money) {
+      unreadable.push({ service, line: i + 1, field: "amount", text: amountText });
+      continue;
+    }
 
-    const cadence = CADENCE[get("cadence").toLowerCase().trim()] ?? "monthly";
+    const cadence = readCadence(get("cadence"));
+    if (!cadence) {
+      unreadable.push({ service, line: i + 1, field: "cadence", text: get("cadence").trim() });
+      continue;
+    }
     const raw = get("next").trim();
     const next = ISO.test(raw) ? nextCharge(raw, cadence, today) : null;
 
@@ -266,7 +341,7 @@ export function parseSubscriptions(content: string, today: string): Subscription
       cadence,
       next,
       anchor: ISO.test(raw) ? raw : null,
-      monthly: Math.round(money.amount * PER_MONTH[cadence] * 100) / 100,
+      monthly: Math.round(money.amount * perMonth(cadence) * 100) / 100,
       match: get("match")
         .split(",")
         .map((m) => m.trim().toLowerCase())
@@ -275,7 +350,7 @@ export function parseSubscriptions(content: string, today: string): Subscription
       note: get("note"),
     });
   }
-  return out;
+  return { items: out, unreadable };
 }
 
 /**

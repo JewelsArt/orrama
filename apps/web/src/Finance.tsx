@@ -5,6 +5,7 @@ import { chargeDates, type Cadence } from "@basalt/core/subscriptions";
 import type { FinancePage } from "./App.js";
 import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
+import { Notice } from "./ui/states.js";
 import {
   IconBoulder,
   IconCash,
@@ -1175,7 +1176,7 @@ function FinanceOverview({
             <span className="fin-count">{d.subscriptions.count}</span>
           </span>
           <b style={{ color: "var(--cat-azure)" }}>{perCurrency(d.subscriptions.totals)}</b>
-          <span className="fin-jump-sub">a month — subscriptions, rent and tuition</span>
+          <span className="fin-jump-sub">a month — subscriptions, rent and tuition{notCounted(d.subscriptions)}</span>
           <NextUp items={d.subscriptions.items} />
           <span className="fin-hero-go">Open the calendar →</span>
         </button>
@@ -1186,7 +1187,7 @@ function FinanceOverview({
             <span className="fin-count">{d.income.count}</span>
           </span>
           <b style={{ color: "var(--fin-pos)" }}>{perCurrency(d.income.totals)}</b>
-          <span className="fin-jump-sub">a month, across {d.income.count} sources</span>
+          <span className="fin-jump-sub">a month, across {d.income.count} sources{notCounted(d.income)}</span>
           <NextUp items={d.income.items} />
           <span className="fin-hero-go">Open the calendar →</span>
         </button>
@@ -1545,6 +1546,41 @@ function ChargeCalendar({
   );
 }
 
+/** " · 2 rows not counted", or nothing: the overview's half of FIN-006. */
+const notCounted = (l: Ledger) =>
+  l.unreadable.length ? ` · ${l.unreadable.length} ${l.unreadable.length === 1 ? "row" : "rows"} not counted` : "";
+
+/**
+ * The rows a ledger left out of its totals, by name, line and cell — a row
+ * the parser cannot read must not simply vanish from the sum (FIN-005/006).
+ */
+function UnreadableRows({ ledger, noteId, onOpenNote }: { ledger: Ledger; noteId: string | null; onOpenNote: (id: string) => void }) {
+  const rows = ledger.unreadable;
+  if (rows.length === 0) return null;
+  return (
+    <div className="fin-unreadables">
+      <Notice
+        title={`${rows.length} ${rows.length === 1 ? "row is" : "rows are"} not counted`}
+        text={
+          <>
+            {rows.map((r) => (
+              <span key={r.line} className="fin-unreadable">
+                Line {r.line}, {r.service || "a row with no name"}:{" "}
+                {r.field === "cadence"
+                  ? `“${r.text}” is not a cadence this ledger knows (weekly, every 2 weeks, 4-weekly, monthly, quarterly, half-yearly, yearly).`
+                  : r.text
+                    ? `“${r.text}” is not one amount.`
+                    : "no amount."}
+              </span>
+            ))}
+          </>
+        }
+        actions={noteId ? <button className="fin-link" onClick={() => onOpenNote(noteId)}>Open note</button> : undefined}
+      />
+    </div>
+  );
+}
+
 /** What the two ledgers are called on screen. "Commitments" rather than
  *  "Subscriptions" because the note holds rent and tuition too, and neither is
  *  a subscription — it is the same word the savings plan already uses for the
@@ -1650,6 +1686,8 @@ function LedgerPage({
         </div>
         {noteId && <button className="fin-link" onClick={() => onOpenNote(noteId)}>Open note</button>}
       </header>
+
+      <UnreadableRows ledger={ledger} noteId={noteId} onOpenNote={onOpenNote} />
 
       <section className="fin-card fin-span">
         <div className="fin-card-head">

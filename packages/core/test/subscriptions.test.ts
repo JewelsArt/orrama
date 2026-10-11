@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, appendMoneyRow, chargeDates, monthlyTotals, nextCharge, parseSubscriptions } from "../src/subscriptions.js";
+import { advance, advanceBy, appendMoneyRow, chargeDates, monthlyTotals, nextCharge, parseLedger, parseSubscriptions, readCadence } from "../src/subscriptions.js";
 
 const NOTE = `---
 title: Subscriptions
@@ -208,5 +208,76 @@ describe("chargeDates counts every charge from the note's own date (audit FIN-00
     const [rent] = parseSubscriptions("| Service | Amount | Every | Next |\n|---|---|---|---|\n| Rent | 609 | monthly | 2026-08-31 |", "2026-09-15");
     expect(rent!.next).toBe("2026-09-30");
     expect(rent!.anchor).toBe("2026-08-31");
+  });
+});
+
+describe("cadences beyond the four, and no silent monthly (audit FIN-006)", () => {
+  const table = (rows: string) => `| Service | Amount | Every | Next |\n|---|---|---|---|\n${rows}`;
+
+  it("reads half-yearly, per semester, biweekly and 4-weekly at their true monthly rate", () => {
+    const subs = parseSubscriptions(
+      table(
+        "| Car insurance | 300 | half-yearly | 2027-01-01 |\n| Tuition | 1300 | per semester | 2027-02-01 |\n| Cleaner | 40 | biweekly | 2026-10-09 |\n| Salary | 1200 | 4-weekly | 2026-10-23 |",
+      ),
+      "2026-10-02",
+    );
+    expect(subs.map((s) => [s.service, s.cadence, s.monthly])).toEqual([
+      ["Car insurance", "half-yearly", 50],
+      ["Tuition", "half-yearly", 216.67],
+      ["Cleaner", "biweekly", 86.67],
+      ["Salary", "4-weekly", 1300],
+    ]);
+  });
+
+  it("knows the ways people write them", () => {
+    expect(readCadence("every 2 weeks")).toBe("biweekly");
+    expect(readCadence("Fortnightly")).toBe("biweekly");
+    expect(readCadence("4-wekelijks")).toBe("4-weekly");
+    expect(readCadence("every 4 weeks")).toBe("4-weekly");
+    expect(readCadence("every 6 months")).toBe("half-yearly");
+    expect(readCadence("semi-annual")).toBe("half-yearly");
+    expect(readCadence("every 3 months")).toBe("quarterly");
+    expect(readCadence("per kwartaal")).toBe("quarterly");
+    expect(readCadence("every 2 months")).toBe("2-monthly");
+    expect(readCadence("every year")).toBe("yearly");
+    expect(readCadence("jaarlijks")).toBe("yearly");
+    expect(readCadence("Monthly")).toBe("monthly");
+    expect(readCadence("every 5 weeks")).toBeNull();
+    // Twice a month to some, every two months to others: not guessed.
+    expect(readCadence("bimonthly")).toBeNull();
+  });
+
+  it("leaves an unknown cadence out of every total, and says which row", () => {
+    const { items, unreadable } = parseLedger(
+      table("| Gym | 25 | monthly | 2026-10-05 |\n| Club | 60 | every so often | 2026-10-05 |\n| Cleaner | 40 | biweekly | |"),
+      "2026-10-02",
+    );
+    expect(items.map((s) => s.service)).toEqual(["Gym", "Cleaner"]);
+    expect(unreadable).toEqual([{ service: "Club", line: 4, field: "cadence", text: "every so often" }]);
+    expect(monthlyTotals(items)).toEqual([{ currency: "EUR", monthly: 111.67 }]);
+  });
+
+  it("reports a row whose amount it cannot read instead of dropping it silently", () => {
+    const { items, unreadable } = parseLedger(table("| Gym | 10.99 EUR / 12 months | monthly | |\n| Netflix | | monthly | |\n| | | | |"), "2026-10-02");
+    expect(items).toEqual([]);
+    expect(unreadable).toEqual([
+      { service: "Gym", line: 3, field: "amount", text: "10.99 EUR / 12 months" },
+      { service: "Netflix", line: 4, field: "amount", text: "" },
+    ]);
+  });
+
+  it("still reads an empty cadence cell as monthly", () => {
+    const [gym] = parseSubscriptions(table("| Gym | 25 |  | |"), "2026-10-02");
+    expect(gym!.cadence).toBe("monthly");
+    expect(gym!.monthly).toBe(25);
+  });
+
+  it("steps the new cadences from the anchor", () => {
+    expect(advanceBy("2026-10-09", "biweekly", 1)).toBe("2026-10-23");
+    expect(advanceBy("2026-10-23", "4-weekly", 2)).toBe("2026-12-18");
+    expect(advanceBy("2026-08-31", "half-yearly", 1)).toBe("2027-02-28");
+    expect(advanceBy("2026-08-31", "half-yearly", 2)).toBe("2027-08-31");
+    expect(nextCharge("2026-01-02", "biweekly", "2026-10-02")).toBe("2026-10-09");
+    expect(chargeDates("2026-10-09", "biweekly", "2026-10-01", "2026-10-31")).toEqual(["2026-10-09", "2026-10-23"]);
   });
 });
