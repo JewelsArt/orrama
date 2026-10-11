@@ -67,6 +67,7 @@ import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
+import { officeRefusal, readOfficeFile, TooLargeError, XLSX_CAPS } from "../zip.js";
 
 export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } as const;
 
@@ -230,8 +231,12 @@ export async function readStatementFile(abs: string): Promise<Statement> {
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
   try {
-    await wb.xlsx.readFile(abs);
-  } catch {
+    // Every part inflated within XLSX_CAPS before exceljs sees it (zip.ts, audit INP-004).
+    const buf = await readOfficeFile(abs, XLSX_CAPS);
+    // exceljs's d.ts redeclares Buffer as an ArrayBuffer; at run time it takes a Node Buffer.
+    await wb.xlsx.load(buf as unknown as ArrayBuffer);
+  } catch (err) {
+    if (err instanceof TooLargeError) return { ...parseStatementTable([]), problem: "the workbook is too large to read" };
     return parseStatementTable([]);
   }
   const table: (string | number)[][] = [];
@@ -1397,9 +1402,11 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const abs = path.join(dir, name);
     if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "not found");
 
+    const buf = await readOfficeFile(abs, XLSX_CAPS).catch(officeRefusal("workbook"));
     const { default: ExcelJS } = await import("exceljs");
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(abs);
+    // exceljs's d.ts redeclares Buffer as an ArrayBuffer; at run time it takes a Node Buffer.
+    await wb.xlsx.load(buf as unknown as ArrayBuffer).catch(officeRefusal("workbook"));
 
     const cell = (v: unknown): string => {
       if (v === null || v === undefined) return "";

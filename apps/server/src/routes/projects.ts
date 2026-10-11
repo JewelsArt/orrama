@@ -13,6 +13,7 @@ import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
+import { DOCX_CAPS, officeRefusal, readOfficeFile, XLSX_CAPS } from "../zip.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
@@ -556,8 +557,10 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const dir = filesDirFor(store.vaultRoot, req.params.slug);
     const abs = path.join(dir, name);
     if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
+    // Every part inflated within DOCX_CAPS before mammoth sees a byte (zip.ts).
+    const buf = await readOfficeFile(abs, DOCX_CAPS).catch(officeRefusal("document"));
     const { convertToHtml } = await import("mammoth");
-    const res = await convertToHtml({ path: abs });
+    const res = await convertToHtml({ buffer: buf }).catch(officeRefusal("document"));
     // An allowlist rebuild, not a scrub: a link keeps its target only for
     // http(s), mailto, tel and #anchors (see docHtml.ts).
     return { html: sanitizeDocHtml(res.value), messages: res.messages.length };
@@ -577,9 +580,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const abs = path.join(dir, name);
     if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
 
+    const buf = await readOfficeFile(abs, XLSX_CAPS).catch(officeRefusal("workbook"));
     const { default: ExcelJS } = await import("exceljs");
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.readFile(abs);
+    // exceljs's d.ts redeclares Buffer as an ArrayBuffer; at run time it takes a Node Buffer.
+    await wb.xlsx.load(buf as unknown as ArrayBuffer).catch(officeRefusal("workbook"));
 
     const cell = (v: unknown): string => {
       if (v === null || v === undefined) return "";

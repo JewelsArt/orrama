@@ -18,7 +18,7 @@ process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { readPptx, sniffImage, SLIDE_CAPS } = await import("../src/slides.js");
-const { deck, zip, NS, PNG, SVG, EMF } = await import("./helpers/pptx.js");
+const { deck, zip, NS, PNG, SVG, EMF, para, rels, slideXml, sp } = await import("./helpers/pptx.js");
 
 
 describe("readPptx", () => {
@@ -82,6 +82,48 @@ describe("readPptx", () => {
   it("anything that is not a zip is an error, not a crash", () => {
     expect(() => readPptx(Buffer.from("definitely not a deck"))).toThrow();
     expect(() => readPptx(zip({ "word/document.xml": "<w:document/>" }))).toThrow(/not a PowerPoint/);
+  });
+});
+
+/**
+ * A small file can still be a lot of work: the per-part cap held, but one 8 MB
+ * slide listed twenty times was parsed twenty times (11 s on the event loop),
+ * nothing bounded the XML across parts, and 5,000 nested elements overflowed
+ * the stack (audit INP-004).
+ */
+describe("readPptx on a deck built to be expensive", () => {
+  const deckOf = (slides: string[], ids = slides.map((_, i) => `rId${i + 1}`)) =>
+    zip({
+      "ppt/presentation.xml": `<?xml version="1.0"?><p:presentation ${NS}><p:sldIdLst>${ids.map((id, i) => `<p:sldId id="${256 + i}" r:id="${id}"/>`).join("")}</p:sldIdLst></p:presentation>`,
+      "ppt/_rels/presentation.xml.rels": rels(slides.map((_, i) => [`rId${i + 1}`, "slide", `slides/slide${i + 1}.xml`])),
+      ...Object.fromEntries(slides.map((x, i) => [`ppt/slides/slide${i + 1}.xml`, x])),
+    });
+
+  it("a slide listed forty times is read once", { timeout: 30_000 }, () => {
+    const big = slideXml(sp(null, para("x").repeat(20_000)));
+    const d = readPptx(deckOf([big], Array(40).fill("rId1")));
+    expect(d.slideCount).toBe(1);
+    expect(d.slides).toHaveLength(1);
+    expect(d.truncated).toBe(false);
+  });
+
+  it("all the XML one preview reads shares a budget, and the deck stops at the last slide that fitted", { timeout: 30_000 }, () => {
+    const slideBytes = 3 * 1024 * 1024;
+    const big = slideXml(sp(null, para("y").repeat(Math.ceil(slideBytes / para("y").length))));
+    const d = readPptx(deckOf(Array(8).fill(big)));
+    const fit = Math.floor(SLIDE_CAPS.xmlBudget / Buffer.byteLength(big));
+    expect(fit).toBeLessThan(8);
+    expect(d.slideCount).toBe(8);
+    expect(d.slides).toHaveLength(fit);
+    expect(d.truncated).toBe(true);
+    expect(d.slides.every((s) => s.blocks.length > 0)).toBe(true); // whole slides, none half-read
+  });
+
+  it("a part nested past any real slide is refused, not a stack overflow; ordinary nesting still reads", () => {
+    const nested = (depth: number) => slideXml(sp(null, "<a:g>".repeat(depth) + para("deep text") + "</a:g>".repeat(depth)));
+    expect(() => readPptx(deckOf([nested(5000)]))).toThrow(/nested too deeply/);
+    const ok = readPptx(deckOf([nested(150)]));
+    expect(ok.slides[0]!.title).toBe("deep text");
   });
 });
 

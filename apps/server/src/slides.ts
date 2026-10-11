@@ -11,14 +11,14 @@
  * WMF and TIFF are dropped too — the webview cannot draw them — and counted, so
  * the reader can say what it left out.
  *
- * The zip is read here with node:zlib rather than a library, because what
+ * The zip is read with node:zlib (zip.ts) rather than a library, because what
  * matters is the ceiling: every part is inflated with `maxOutputLength`, so a
  * part that lies about its size (a zip bomb) stops at the cap instead of
- * filling memory.
+ * filling memory, and all the XML one preview reads shares one budget.
  */
 import path from "node:path";
-import zlib from "node:zlib";
 import { Parser } from "htmlparser2";
+import { extract, readCentralDirectory, type ZipEntry } from "./zip.js";
 
 /** Enough to read a long deck; the caps keep the JSON and the DOM sane. */
 export const SLIDE_CAPS = {
@@ -26,6 +26,15 @@ export const SLIDE_CAPS = {
   fileBytes: 80 * 1024 * 1024,
   /** Any one XML part, inflated. */
   xmlBytes: 8 * 1024 * 1024,
+  /**
+   * Every XML part the preview reads, inflated, together. Parsing costs ~70 ms
+   * per MB on the event loop: twenty references to one 8 MB slide took 11 s
+   * (audit INP-004). A real deck is far under it; past it the preview stops
+   * at the last slide that fitted and says it was cut short.
+   */
+  xmlBudget: 16 * 1024 * 1024,
+  /** Elements inside elements. A real slide is a few dozen deep; 5,000 overflowed the stack. */
+  depth: 256,
   slides: 150,
   /** Characters of text per slide, notes included. */
   textPerSlide: 20_000,
@@ -56,62 +65,6 @@ export interface DeckPreview {
   omittedImages: number;
 }
 
-// ---- zip ------------------------------------------------------------------
-
-interface ZipEntry {
-  method: number;
-  compSize: number;
-  size: number;
-  offset: number;
-}
-
-function readCentralDirectory(buf: Buffer): Map<string, ZipEntry> {
-  const EOCD = 0x06054b50;
-  let eocd = -1;
-  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65_557); i--) {
-    if (buf.readUInt32LE(i) === EOCD) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) throw new Error("not a zip archive");
-  const count = buf.readUInt16LE(eocd + 10);
-  let p = buf.readUInt32LE(eocd + 16);
-  const entries = new Map<string, ZipEntry>();
-  for (let i = 0; i < count; i++) {
-    if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) throw new Error("corrupt zip directory");
-    const nameLen = buf.readUInt16LE(p + 28);
-    const extraLen = buf.readUInt16LE(p + 30);
-    const commentLen = buf.readUInt16LE(p + 32);
-    entries.set(buf.toString("utf8", p + 46, p + 46 + nameLen), {
-      method: buf.readUInt16LE(p + 10),
-      compSize: buf.readUInt32LE(p + 20),
-      size: buf.readUInt32LE(p + 24),
-      offset: buf.readUInt32LE(p + 42),
-    });
-    p += 46 + nameLen + extraLen + commentLen;
-  }
-  return entries;
-}
-
-/** One part's bytes, or null when it is absent, unsupported or over `max`. */
-function extract(buf: Buffer, entries: Map<string, ZipEntry>, name: string, max: number): Buffer | null {
-  const e = entries.get(name);
-  if (!e || e.size > max) return null;
-  const lh = e.offset;
-  if (lh + 30 > buf.length || buf.readUInt32LE(lh) !== 0x04034b50) return null;
-  const start = lh + 30 + buf.readUInt16LE(lh + 26) + buf.readUInt16LE(lh + 28);
-  const data = buf.subarray(start, start + e.compSize);
-  try {
-    if (e.method === 0) return data.length <= max ? data : null;
-    // The declared size is the zip's claim; maxOutputLength is the enforcement.
-    if (e.method === 8) return zlib.inflateRawSync(data, { maxOutputLength: max });
-  } catch {
-    return null;
-  }
-  return null;
-}
-
 // ---- xml ------------------------------------------------------------------
 
 interface XmlNode {
@@ -128,6 +81,8 @@ function parseXml(xml: string): XmlNode {
   const parser = new Parser(
     {
       onopentag(name, attrs) {
+        // Everything below walks the tree; a part nested past any real slide is refused (a 422).
+        if (stack.length > SLIDE_CAPS.depth) throw new Error("presentation nested too deeply");
         const node: XmlNode = { name, attrs, children: [], text: "" };
         stack[stack.length - 1]!.children.push(node);
         stack.push(node);
@@ -148,10 +103,13 @@ function parseXml(xml: string): XmlNode {
 
 const local = (name: string) => name.slice(name.indexOf(":") + 1);
 
+/** Every node below `node`, in document order. A stack, not recursion: a recursive generator costs a frame per level for every node. */
 function* walk(node: XmlNode): Generator<XmlNode> {
-  for (const c of node.children) {
-    yield c;
-    yield* walk(c);
+  const stack = [...node.children].reverse();
+  while (stack.length > 0) {
+    const n = stack.pop()!;
+    yield n;
+    for (let i = n.children.length - 1; i >= 0; i--) stack.push(n.children[i]!);
   }
 }
 const find = (node: XmlNode, name: string) => {
@@ -180,13 +138,13 @@ function paragraphText(p: XmlNode): string {
   return out.replace(/[ \t]+$/g, "");
 }
 
-function relationships(buf: Buffer, entries: Map<string, ZipEntry>, part: string): Map<string, { target: string; type: string }> {
+/** A part's relationships, read through `xml` (the deck's budgeted reader). */
+function relationships(xml: (part: string) => XmlNode | null, part: string): Map<string, { target: string; type: string }> {
   const dir = path.posix.dirname(part);
-  const relsPath = path.posix.join(dir, "_rels", `${path.posix.basename(part)}.rels`);
-  const bytes = extract(buf, entries, relsPath, SLIDE_CAPS.xmlBytes);
+  const tree = xml(path.posix.join(dir, "_rels", `${path.posix.basename(part)}.rels`));
   const rels = new Map<string, { target: string; type: string }>();
-  if (!bytes) return rels;
-  for (const n of walk(parseXml(bytes.toString("utf8")))) {
+  if (!tree) return rels;
+  for (const n of walk(tree)) {
     if (local(n.name) !== "Relationship" || n.attrs["TargetMode"] === "External") continue;
     const id = n.attrs["Id"];
     const target = n.attrs["Target"];
@@ -274,20 +232,32 @@ const textOf = (shape: XmlNode) =>
 
 export function readPptx(buf: Buffer): DeckPreview {
   if (buf.length > SLIDE_CAPS.fileBytes) throw new Error("presentation too large to preview");
-  const entries = readCentralDirectory(buf);
+  const entries = new Map<string, ZipEntry>(readCentralDirectory(buf).map((e) => [e.name, e]));
+  let xmlLeft = SLIDE_CAPS.xmlBudget;
+  let outOfBudget = false;
   const xml = (part: string) => {
-    const bytes = extract(buf, entries, part, SLIDE_CAPS.xmlBytes);
-    return bytes ? parseXml(bytes.toString("utf8")) : null;
+    const bytes = extract(buf, entries, part, Math.min(SLIDE_CAPS.xmlBytes, xmlLeft));
+    // A part that is there but did not fit what is left: the deck ran out, not the part.
+    if (!bytes && entries.has(part) && xmlLeft < SLIDE_CAPS.xmlBytes) outOfBudget = true;
+    if (!bytes) return null;
+    xmlLeft -= bytes.length;
+    return parseXml(bytes.toString("utf8"));
   };
 
   const pres = xml("ppt/presentation.xml");
   if (!pres) throw new Error("not a PowerPoint presentation");
-  const presRels = relationships(buf, entries, "ppt/presentation.xml");
+  const presRels = relationships(xml, "ppt/presentation.xml");
   // Deck order is the sldIdLst, not the file names: slide7.xml can come first.
-  const order = [...walk(pres)]
-    .filter((n) => local(n.name) === "sldId")
-    .map((n) => presRels.get(relAttr(n, "id") ?? "")?.target)
-    .filter((t): t is string => !!t && entries.has(t));
+  // A part listed twice is read once — a real deck never repeats one, and a
+  // crafted one repeated an 8 MB slide to be parsed over and over.
+  const order = [
+    ...new Set(
+      [...walk(pres)]
+        .filter((n) => local(n.name) === "sldId")
+        .map((n) => presRels.get(relAttr(n, "id") ?? "")?.target)
+        .filter((t): t is string => !!t && entries.has(t)),
+    ),
+  ];
 
   const media: Record<string, string> = {};
   const mediaKey = new Map<string, string | null>();
@@ -308,12 +278,12 @@ export function readPptx(buf: Buffer): DeckPreview {
     return key;
   };
 
-  const slides: Slide[] = order.slice(0, SLIDE_CAPS.slides).map((part, i) => {
+  const readSlide = (part: string, i: number): Slide => {
     const slide: Slide = { n: i + 1, title: "", hidden: false, blocks: [], images: [], notes: "" };
     const tree = xml(part);
     if (!tree) return slide;
     slide.hidden = tree.children.find((c) => local(c.name) === "sld")?.attrs["show"] === "0";
-    const rels = relationships(buf, entries, part);
+    const rels = relationships(xml, part);
 
     let firstText: { at: number; count: number; bulleted: boolean } | null = null;
     for (const shape of shapes(tree)) {
@@ -360,7 +330,15 @@ export function readPptx(buf: Buffer): DeckPreview {
     }
     capText(slide);
     return slide;
-  });
+  };
+
+  const slides: Slide[] = [];
+  for (const part of order.slice(0, SLIDE_CAPS.slides)) {
+    const slide = readSlide(part, slides.length);
+    // The slide the budget ran out in is left out, not shown half-read.
+    if (outOfBudget) break;
+    slides.push(slide);
+  }
 
   return { slides, slideCount: order.length, truncated: order.length > slides.length, media, omittedImages };
 }
