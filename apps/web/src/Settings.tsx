@@ -1,981 +1,252 @@
-import { useCallback, useEffect, useState } from "react";
-import { Dialog } from "./dialog.js";
-import { api, enrolTouchId, SESSION_ENDED, touchIdAvailable, type Me, type SessionInfo } from "./api.js";
-import { CHARACTERS, CharacterAvatar } from "./avatars.js";
-import { IconMoon, IconPlus, IconSignOut, IconSun, IconX } from "./icons.js";
-import { PALETTE_SLOTS, type VisionProfile } from "./palette.js";
-import { VisionEditor } from "./VisionEditor.js";
-import type { AiConfig, ApiToken as ApiTokenRow, Feed, MailAccount, Webhook as WebhookRow } from "@basalt/schema/responses";
-import { dateLabel } from "./ui/dates.js";
+/**
+ * Settings, rebuilt as a page (structure.md §3): eight sections, each at its own address
+ * (`/settings/<section>`), each saying whether it lives on this device, your account or this
+ * server. On the desktop the sections are listed on the left and one shows on the right; on the
+ * phone `/settings` is the list (More → Settings) and each section is its own screen.
+ *
+ * The sections are in `settings/`: they keep everything the old one-long-form did (avatar,
+ * name, theme, colour vision and the palette editor, the AI provider, model, key and
+ * instructions, calendars, mail, the published planning link, passcode and Touch ID, sessions,
+ * API tokens, webhooks, sign out), and everything that cannot be undone asks first (WEB-017).
+ */
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import type { AiConfig, Feed, MailAccount, Member, ServerSettings } from "@basalt/schema/responses";
+import { api, type Me, type SessionInfo } from "./api.js";
+import type { VisionProfile } from "./palette.js";
+import { AccessSection } from "./settings/Access.js";
+import { AiSection } from "./settings/Ai.js";
+import { AppearanceSection, type ThemeChoice } from "./settings/Appearance.js";
+import { ConnectionsSection } from "./settings/Connections.js";
+import { DeveloperSection } from "./settings/Developer.js";
+import { DeviceSection } from "./settings/Device.js";
+import { NotesSection } from "./settings/NotesSettings.js";
+import { findSettings, SECOND_GROUP, SectionIcon, SECTIONS } from "./settings/parts.js";
+import { SignedInSection } from "./settings/SignedIn.js";
+import { YouSection } from "./settings/You.js";
+import { Button } from "./ui/controls.js";
+import { SearchField } from "./ui/fields.js";
+import { Icon } from "./ui/Icon.js";
+import { Avatar, avatarName, AVATAR_NAMES } from "./ui/orr/Orr.js";
+import { navigate, routeHref, type SettingsSection } from "./ui/router.js";
+import { Skeleton } from "./ui/states.js";
 
-/** A token row; `token` only on the one answer that creates it, shown once. */
-type ApiToken = ApiTokenRow & { token?: string };
-/** A webhook row; `secret` only on the answer that creates it, shown once. */
-type Webhook = WebhookRow & { secret?: string };
+export type { ThemeChoice };
 
-/* The palette swap is CSS: `data-vision` on <html> re-declares the colour
-   families. The same attribute on the swatch strip below re-declares them for
-   that subtree only, so each row previews its own mode without switching the
-   app — you pick the one whose swatches look most separated to YOU, which is
-   the honest test when you may not know your own diagnosis. */
-const VISIONS = [
-  { id: "none", label: "Standard", hint: "The default palette" },
-  { id: "deuteranopia", label: "Deuteranopia", hint: "Reduced green sensitivity — the most common form" },
-  { id: "protanopia", label: "Protanopia", hint: "Reduced red sensitivity" },
-  { id: "tritanopia", label: "Tritanopia", hint: "Reduced blue sensitivity — rare" },
-];
-const SWATCHES = ["--v-pink", "--v-amber", "--v-green", "--v-cyan", "--v-azure", "--v-lilac", "--v-magenta"];
+const plain = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+const open = (section: SettingsSection) => (e: MouseEvent) => {
+  if (!plain(e)) return;
+  e.preventDefault();
+  navigate({ kind: "settings", section });
+};
 
-export function Settings({
-  me,
-  theme,
-  onTheme,
-  vision,
-  onVision,
-  profiles,
-  onProfiles,
-  onUpdate,
-  onClose,
-  onSignOut,
-}: {
+export interface SettingsProps {
   me: Me;
-  theme: string;
-  onTheme: (t: string) => void;
+  /** The section in the address; none is the list on the phone and You on the desktop. */
+  section?: SettingsSection;
+  theme: ThemeChoice;
+  /** What the page shows now (Match this device resolves to one of the two). */
+  shown: "light" | "dark";
+  onTheme: (t: ThemeChoice) => void;
   vision: string;
   onVision: (v: string) => void;
   profiles: VisionProfile[];
   onProfiles: (p: VisionProfile[]) => void;
   onUpdate: (me: Me) => void;
-  onClose: () => void;
   onSignOut: () => void;
-}) {
-  const [name, setName] = useState(me.displayName);
-  const [saving, setSaving] = useState(false);
-  /** The profile being edited; `isNew` decides whether Cancel leaves anything behind. */
-  const [editing, setEditing] = useState<{ profile: VisionProfile; isNew: boolean } | null>(null);
+}
 
-  /* A new profile starts from the palette on screen, not from black: the seven
-     wells are pre-filled with whatever the active mode resolves to, so editing
-     is a nudge from something that already works rather than a blank canvas. */
-  const newProfile = (): VisionProfile => {
-    const cs = getComputedStyle(document.documentElement);
-    return {
-      id: `p${Date.now().toString(36)}`,
-      name: "My palette",
-      colors: PALETTE_SLOTS.map(({ token }) => cs.getPropertyValue(`--v-${token}`).trim() || "#888888"),
-      brand: cs.getPropertyValue("--fin-hero-a").trim() || "#6f49ca",
-    };
-  };
+export function Settings(props: SettingsProps) {
+  const { me, section } = props;
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [server, setServer] = useState<ServerSettings | null>(null);
+  const [q, setQ] = useState("");
 
-  const patch = async (body: { avatar?: string; displayName?: string }) => {
-    setSaving(true);
-    try {
-      onUpdate(await api<Me>("PATCH", "/api/me", body));
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    api<Member[]>("GET", "/api/members")
+      .then(setMembers)
+      .catch(() => setMembers([]));
+    if (me.isOwner)
+      api<ServerSettings>("GET", "/api/settings/server")
+        .then(setServer)
+        .catch(() => setServer(null));
+  }, [me.isOwner]);
+
+  /** Orr & AI is the owner's; Access only exists with a second account (§3.1). */
+  const visible = useMemo(
+    () => SECTIONS.filter((s) => (s.id === "ai" ? me.isOwner : s.id === "access" ? (members?.length ?? 0) > 1 : true)),
+    [me.isOwner, members],
+  );
+  const shown = section ?? "you";
+  const known = visible.some((s) => s.id === shown);
+  // An address for a section this server doesn't have (Access with one account) goes to You.
+  useEffect(() => {
+    if (section && !known && members !== null) navigate({ kind: "settings", section: "you" }, { replace: true });
+  }, [section, known, members]);
+
+  const results = findSettings(q, new Set(visible.map((s) => s.id)));
+  const searchKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && results[0]) {
+      e.preventDefault();
+      navigate({ kind: "settings", section: results[0].section });
+      setQ("");
     }
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <Dialog label="Settings" className="settings">
-        <header className="settings-head">
-          <span>Settings</span>
-          <button className="ghost" onClick={onClose} aria-label="Close">
-            <IconX />
-          </button>
-        </header>
-
-        <section>
-          <h3>Character</h3>
-          <div className="char-grid">
-            {CHARACTERS.map((c) => (
-              <button
-                key={c.id}
-                className={`char-pick ${me.avatar === c.id ? "active" : ""}`}
-                title={c.name}
-                disabled={saving}
-                onClick={() => patch({ avatar: c.id })}
-              >
-                <CharacterAvatar id={c.id} size={40} />
-                <span>{c.name}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h3>Profile</h3>
-          <form
-            className="settings-row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (name.trim() && name !== me.displayName) void patch({ displayName: name });
-            }}
-          >
-            <input value={name} onChange={(e) => setName(e.target.value)} aria-label="Display name" />
-            <button className="primary" disabled={saving || name.trim() === me.displayName}>
-              Save
-            </button>
-          </form>
-          <p className="settings-meta">
-            @{me.username} · {me.email}
-            {me.teams.length > 0 && <> · {me.teams.map((t) => t.name).join(", ")}</>}
-            {me.isOwner && <> · workspace owner</>}
-          </p>
-        </section>
-
-        <section>
-          <h3>Theme</h3>
-          <div className="settings-row">
-            <button className={`theme-pick ${theme === "command" ? "active" : ""}`} onClick={() => onTheme("command")}>
-              <IconMoon /> Graphite (dark)
-            </button>
-            <button className={`theme-pick ${theme === "light" || theme === "paper" ? "active" : ""}`} onClick={() => onTheme("light")}>
-              <IconSun /> Frost (light)
-            </button>
-          </div>
-        </section>
-
-        <section>
-          <h3>Colour vision</h3>
-          <p className="settings-note">
-            Where colour carries meaning — category wedges, sector pills, money in and out — these swap the palette for
-            hues that stay apart for your eyes. Ground, type and layout are unchanged.
-          </p>
-          <div className="vision-list">
-            {VISIONS.map((v) => (
-              <button
-                key={v.id}
-                className={`vision-pick ${vision === v.id ? "active" : ""}`}
-                onClick={() => onVision(v.id)}
-                aria-pressed={vision === v.id}
-              >
-                <span className="vision-swatches" data-vision={v.id} aria-hidden="true">
-                  {SWATCHES.map((c) => (
-                    <i key={c} style={{ background: `var(${c})` }} />
-                  ))}
+    <div className={section ? "set has-sec" : "set"}>
+      <nav className="set-nav" aria-label="Settings">
+        <h1>Settings</h1>
+        <SearchField label="Find a setting" placeholder="Find a setting" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={searchKey} />
+        {q.trim() ? (
+          results.length > 0 ? (
+            results.map((r) => (
+              <a key={r.label} className="set-ni" href={routeHref({ kind: "settings", section: r.section })} onClick={(e) => (open(r.section)(e), setQ(""))}>
+                <SectionIcon id={r.section} />
+                <span>
+                  {r.label}
+                  <small>{SECTIONS.find((s) => s.id === r.section)!.label}</small>
                 </span>
-                <span className="vision-txt">
-                  <strong>{v.label}</strong>
-                  <em>{v.hint}</em>
-                </span>
-              </button>
-            ))}
-
-            {/* Hand-built profiles. Their swatches are inline values rather than
-                a data-vision lookup — that is the whole difference between these
-                and the four above, which are CSS. */}
-            {profiles.map((p) => (
-              <div key={p.id} className={`vision-pick ${vision === `custom:${p.id}` ? "active" : ""}`}>
-                <button className="vision-choose" onClick={() => onVision(`custom:${p.id}`)} aria-pressed={vision === `custom:${p.id}`}>
-                  <span className="vision-swatches" aria-hidden="true">
-                    {[...p.colors, ...(p.brand ? [p.brand] : [])].map((c, i) => (
-                      <i key={i} style={{ background: c }} />
-                    ))}
-                  </span>
-                  <span className="vision-txt">
-                    <strong>{p.name}</strong>
-                    <em>Your palette</em>
-                  </span>
-                </button>
-                <button className="vision-edit" onClick={() => setEditing({ profile: p, isNew: false })}>Edit</button>
-              </div>
-            ))}
-
-            <button className="vision-add" onClick={() => setEditing({ profile: newProfile(), isNew: true })}>
-              <IconPlus /> New profile
-            </button>
-          </div>
-        </section>
-
-        <CalendarSection />
-        <MailSection />
-        {me.isOwner && <AiSection />}
-        <TokensSection />
-        <WebhooksSection />
-
-        {editing && (
-          <VisionEditor
-            profile={editing.profile}
-            surface={getComputedStyle(document.documentElement).getPropertyValue("--surface").trim()}
-            mode={theme === "command" ? "dark" : "light"}
-            heroFallback={getComputedStyle(document.documentElement).getPropertyValue("--fin-hero-a").trim()}
-            pinned={{
-              ok: getComputedStyle(document.documentElement).getPropertyValue("--ok").trim(),
-              warn: getComputedStyle(document.documentElement).getPropertyValue("--warn").trim(),
-              danger: getComputedStyle(document.documentElement).getPropertyValue("--danger").trim(),
-            }}
-            onSave={(p) => {
-              onProfiles(editing.isNew ? [...profiles, p] : profiles.map((x) => (x.id === p.id ? p : x)));
-              onVision(`custom:${p.id}`);
-              setEditing(null);
-            }}
-            onDelete={
-              editing.isNew
-                ? null
-                : (id) => {
-                    onProfiles(profiles.filter((x) => x.id !== id));
-                    // Deleting the profile you are wearing has to put something
-                    // back on, or every category token stays at its last value.
-                    if (vision === `custom:${id}`) onVision("none");
-                    setEditing(null);
-                  }
-            }
-            onClose={() => setEditing(null)}
-          />
+              </a>
+            ))
+          ) : (
+            <p className="set-none">No setting called that.</p>
+          )
+        ) : (
+          visible.map((s) => (
+            <div key={s.id} style={{ display: "contents" }}>
+              {s.id === SECOND_GROUP && <div className="set-sep" />}
+              <a
+                className={s.id === shown ? "set-ni on" : "set-ni"}
+                href={routeHref({ kind: "settings", section: s.id })}
+                aria-current={s.id === shown ? "page" : undefined}
+                onClick={open(s.id)}
+              >
+                <SectionIcon id={s.id} />
+                <span>{s.label}</span>
+              </a>
+            </div>
+          ))
         )}
+        <p className="set-foot">
+          {server ? `Orrama ${server.version} · reading ${server.notes} notes in ${server.notesFolder}` : "Orrama"}
+        </p>
+      </nav>
 
-        <Security />
+      <div className="set-body">{known ? <Section {...props} id={shown} members={members ?? []} /> : <Skeleton rows={4} label="Loading Settings" />}</div>
 
-        <Sessions />
-
-        <button className="settings-signout ghost" onClick={onSignOut}>
-          <IconSignOut /> Sign out
-        </button>
-      </Dialog>
+      {!section && <PhoneList {...props} visible={visible.map((s) => s.id)} server={server} />}
     </div>
   );
 }
 
-/**
- * Where this account is signed in. Signing a session out here ends it on the
- * server: its token stops working, and its live sync closes.
- */
-function Sessions() {
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [confirming, setConfirming] = useState(false);
+function Section({ id, members, ...p }: SettingsProps & { id: SettingsSection; members: Member[] }) {
+  const meta = SECTIONS.find((s) => s.id === id)!;
+  switch (id) {
+    case "you":
+      return <YouSection key={p.me.id} meta={meta} me={p.me} onUpdate={p.onUpdate} />;
+    case "appearance":
+      return (
+        <AppearanceSection
+          meta={meta}
+          theme={p.theme}
+          shown={p.shown}
+          onTheme={p.onTheme}
+          vision={p.vision}
+          onVision={p.onVision}
+          profiles={p.profiles}
+          onProfiles={p.onProfiles}
+        />
+      );
+    case "ai":
+      return <AiSection meta={meta} />;
+    case "notes":
+      return <NotesSection meta={meta} owner={p.me.isOwner} />;
+    case "connections":
+      return <ConnectionsSection meta={meta} />;
+    case "device":
+      return <DeviceSection meta={meta} me={p.me} />;
+    case "sessions":
+      return <SignedInSection meta={meta} onSignOut={p.onSignOut} />;
+    case "developer":
+      return <DeveloperSection meta={meta} />;
+    case "access":
+      return <AccessSection meta={meta} members={members} />;
+  }
+}
 
-  const load = useCallback(async () => {
-    try {
-      setSessions(await api<SessionInfo[]>("GET", "/api/auth/sessions"));
-    } catch {
-      setSessions([]);
-    }
-  }, []);
+/**
+ * The phone's Settings (§1.6): your Orr on top, then the sections in two groups, each row
+ * saying where it stands (the theme, the model, how many notes…), and Sign out at the foot.
+ */
+function PhoneList({ me, theme, onSignOut, visible, server }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null }) {
+  const [ai, setAi] = useState<AiConfig | null>(null);
+  const [mail, setMail] = useState<MailAccount | null>(null);
+  const [feeds, setFeeds] = useState<Feed[] | null>(null);
+  const [sessions, setSessions] = useState<SessionInfo[] | null>(null);
+  const [passcode, setPasscode] = useState<boolean | null>(null);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (me.isOwner)
+      api<AiConfig>("GET", "/api/admin/ai")
+        .then(setAi)
+        .catch(() => {});
+    api<MailAccount>("GET", "/api/mail/account")
+      .then(setMail)
+      .catch(() => {});
+    api<Feed[]>("GET", "/api/calendar/feeds")
+      .then(setFeeds)
+      .catch(() => {});
+    api<SessionInfo[]>("GET", "/api/auth/sessions")
+      .then(setSessions)
+      .catch(() => {});
+    api<{ passcode: boolean }>("POST", "/api/auth/unlock/options", { email: me.email })
+      .then((r) => setPasscode(r.passcode))
+      .catch(() => {});
+  }, [me.isOwner, me.email]);
 
-  const end = async (id: string) => {
-    await api("DELETE", `/api/auth/sessions/${id}`);
-    await load();
+  const connections = [mail?.connected ? "Gmail" : null, feeds && feeds.length > 0 ? `${feeds.length} ${feeds.length === 1 ? "calendar" : "calendars"}` : null].filter(Boolean).join(", ");
+  const summary: Partial<Record<SettingsSection, string>> = {
+    appearance: theme === "match" ? "Match this device" : theme === "dark" ? "Dark" : "Light",
+    ai: ai ? (ai.configured ? (ai.model ?? "") : "Not set up") : "",
+    notes: server ? `${server.notes} notes` : "",
+    connections: mail && feeds ? connections || "None yet" : "",
+    device: passcode === null ? "" : passcode ? "Passcode on" : "No passcode",
+    sessions: sessions ? `${sessions.length} ${sessions.length === 1 ? "device" : "devices"}` : "",
   };
-
-  /** Everything ends, this browser too — so the app signs out like any ended session. */
-  const everywhere = async () => {
-    await api("POST", "/api/auth/revoke-all");
-    window.dispatchEvent(new Event(SESSION_ENDED));
+  const row = (id: Exclude<SettingsSection, "you">) => {
+    const meta = SECTIONS.find((s) => s.id === id)!;
+    return (
+      <a key={id} className="set-prow" href={routeHref({ kind: "settings", section: id })} onClick={open(id)}>
+        <SectionIcon id={id} size={20} />
+        <b>{meta.label}</b>
+        <small>{summary[id] ?? ""}</small>
+        <Icon name="chev-r" size={14} />
+      </a>
+    );
   };
-
-  const when = (ms: number | null) => (ms ? dateLabel(ms) : "—");
+  const rest = visible.filter((id): id is Exclude<SettingsSection, "you"> => id !== "you");
+  const cut = rest.findIndex((id) => id === SECOND_GROUP);
+  const who = AVATAR_NAMES.find((a) => a.id === avatarName(me.avatar))!;
 
   return (
-    <section>
-      <h3>Signed in</h3>
-      <p className="integr-hint">Every device and browser signed in to this account. Signing one out ends it everywhere its token was copied.</p>
-      {sessions.map((s) => (
-        <div key={s.id} className="integr-row">
-          <span className="integr-main">
-            {s.label}
-            <span className="integr-sub">
-              {s.current ? "this device · " : ""}since {when(s.createdAt)} · seen {when(s.lastSeenAt)}
-            </span>
-          </span>
-          {!s.current && (
-            <button className="ghost danger" title="Sign out this session" onClick={() => void end(s.id)}>
-              <IconX />
-            </button>
-          )}
-        </div>
-      ))}
-      <div className="integr-row" title="Ends every session, this one too, and removes every API token, Touch ID device, the passcode and the calendar feed link.">
-        <span className="integr-main">
-          Sign out everywhere
-          <span className="integr-sub">sessions · tokens · devices · passcode</span>
+    <div className="set-list">
+      <a className="set-pme" href={routeHref({ kind: "settings", section: "you" })} onClick={open("you")}>
+        <Avatar name={me.avatar} size={56} />
+        <span>
+          <b>{me.displayName}</b>
+          <small>{who.name} · Your account</small>
         </span>
-        {confirming ? (
-          <>
-            <button className="ghost" onClick={() => setConfirming(false)}>Cancel</button>
-            <button className="ghost danger" onClick={() => void everywhere()}>Sign out everywhere</button>
-          </>
-        ) : (
-          <button className="ghost danger" onClick={() => setConfirming(true)}>Sign out everywhere…</button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-/* ---------- integrations: calendar feeds (ICS in + out, no Google API) ---------- */
-
-function CalendarSection() {
-  const [feeds, setFeeds] = useState<Feed[]>([]);
-  const [label, setLabel] = useState("");
-  const [url, setUrl] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [icsToken, setIcsToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    void api<Feed[]>("GET", "/api/calendar/feeds").then(setFeeds);
-    void api<{ token: string | null }>("GET", "/api/me/ics-token").then((r) => setIcsToken(r.token));
-  }, []);
-
-  const add = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const feed = await api<Feed>("POST", "/api/calendar/feeds", { label, url });
-      setFeeds([...feeds, feed]);
-      setLabel("");
-      setUrl("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const feedUrl = icsToken ? `${location.origin}/ics/${icsToken}.ics` : null;
-
-  return (
-    <section>
-      <h3>Calendar</h3>
-      <p className="integr-hint">
-        Subscribe to any calendar by its ICS address — in Google Calendar: Settings → your calendar →{" "}
-        <em>Secret address in iCal format</em>. Events show in Planning as a read-only layer only you can see.
-      </p>
-      {feeds.map((f) => (
-        <div key={f.id} className="integr-row">
-          <span className="integr-main">
-            {f.label}
-            <span className="integr-sub">{f.lastError ? `error: ${f.lastError}` : (f.host ?? "")}</span>
-          </span>
-          {f.lastError && <span className="integr-bad">!</span>}
-          <button
-            className="ghost"
-            title="Refresh now"
-            onClick={async () => {
-              const updated = await api<Feed>("POST", `/api/calendar/feeds/${f.id}/refresh`);
-              setFeeds(feeds.map((x) => (x.id === f.id ? { ...x, ...updated } : x)));
-            }}
-          >
-            ↻
-          </button>
-          <button
-            className="ghost danger"
-            title="Remove feed"
-            onClick={async () => {
-              await api("DELETE", `/api/calendar/feeds/${f.id}`);
-              setFeeds(feeds.filter((x) => x.id !== f.id));
-            }}
-          >
-            <IconX />
-          </button>
-        </div>
-      ))}
-      <form
-        className="settings-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (label.trim() && url.trim() && !busy) void add();
-        }}
-      >
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (Uni, Scooperz…)" aria-label="Feed label" style={{ flex: "0 1 140px" }} />
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…/basic.ics" aria-label="Feed URL" />
-        <button className="primary" disabled={busy || !label.trim() || !url.trim()}>
-          <IconPlus />
-        </button>
-      </form>
-      {error && <p className="integr-error">{error}</p>}
-
-      <h3 style={{ marginTop: 14 }}>Publish my planning</h3>
-      {feedUrl ? (
-        <>
-          <div className="integr-row">
-            <span className="integr-main integr-url" title={feedUrl}>
-              {feedUrl}
-            </span>
-            <button
-              className="ghost"
-              onClick={async () => {
-                await navigator.clipboard.writeText(feedUrl);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? "copied" : "copy"}
-            </button>
-            <button
-              className="ghost"
-              title="Rotate URL (old one stops working)"
-              onClick={async () => setIcsToken((await api<{ token: string }>("POST", "/api/me/ics-token")).token)}
-            >
-              ↻
-            </button>
-            <button
-              className="ghost danger"
-              title="Disable feed"
-              onClick={async () => {
-                await api("DELETE", "/api/me/ics-token");
-                setIcsToken(null);
-              }}
-            >
-              <IconX />
-            </button>
-          </div>
-          <p className="integr-hint">Add this URL in Google Calendar (Other calendars → From URL) or Apple Calendar — your blocks and events, everywhere.</p>
-        </>
-      ) : (
-        <div className="settings-row">
-          <button className="theme-pick" onClick={async () => setIcsToken((await api<{ token: string }>("POST", "/api/me/ics-token")).token)}>
-            Create private feed URL
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-/* ---------- integrations: personal mail account (IMAP/SMTP, app password) ---------- */
-
-function MailSection() {
-  const [acct, setAcct] = useState<MailAccount | null>(null);
-  const [email, setEmail] = useState("");
-  const [appPassword, setAppPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    void api<MailAccount>("GET", "/api/mail/account").then(setAcct);
-  }, []);
-
-  const connect = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const next = await api<MailAccount>("POST", "/api/mail/account", { email, appPassword });
-      setAcct(next);
-      setEmail("");
-      setAppPassword("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section>
-      <h3>Mail</h3>
-      {acct?.connected ? (
-        <>
-          <div className="integr-row">
-            <span className="integr-main">
-              {acct.email}
-              <span className="integr-sub">{acct.lastError ? `error: ${acct.lastError}` : "connected · read & reply in the Mail tab"}</span>
-            </span>
-            {acct.lastError && <span className="integr-bad">!</span>}
-            <button
-              className="ghost danger"
-              title="Disconnect mail"
-              onClick={async () => {
-                await api("DELETE", "/api/mail/account");
-                setAcct({ connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null });
-              }}
-            >
-              <IconX />
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <p className="integr-hint">
-            Connect Gmail with an <em>app password</em> (not your normal password): enable 2-Step Verification, then Google Account → Security →{" "}
-            <em>App passwords</em> → generate one for “Mail”. It stays encrypted on this machine — mail never leaves your server.
-          </p>
-          <form
-            className="settings-col"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (email.trim() && appPassword.trim() && !busy) void connect();
-            }}
-          >
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" aria-label="Email address" />
-            <div className="settings-row">
-              <input
-                type="password"
-                value={appPassword}
-                onChange={(e) => setAppPassword(e.target.value)}
-                placeholder="app password (16 chars)"
-                aria-label="App password"
-                autoComplete="off"
-              />
-              <button className="primary" disabled={busy || !email.trim() || !appPassword.trim()}>
-                {busy ? "Connecting…" : "Connect"}
-              </button>
-            </div>
-          </form>
-          {error && <p className="integr-error">{error}</p>}
-        </>
-      )}
-    </section>
-  );
-}
-
-/* ---------- the agent: provider, model, key, instructions ---------- */
-
-/**
- * The AI the Ask panel and the agent use. This lived on the Admin screen, which
- * the rail stopped showing — so the only place to change the key, the model or
- * the agent's instructions could not be reached. Owners only (the server
- * checks); a key is write-only: the field stays empty, blank keeps it.
- *
- * "ChatGPT plan" has no key: Continue with ChatGPT signs in on OpenAI's page
- * and comes back here (apps/server/src/chatgpt.ts), and the agent then runs on
- * the plan's allowance.
- */
-function AiSection() {
-  const [cfg, setCfg] = useState<AiConfig | null>(null);
-  const [provider, setProvider] = useState("anthropic");
-  const [model, setModel] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [planModels, setPlanModels] = useState<{ slug: string; name: string }[]>([]);
-  const [status, setStatus] = useState("");
-
-  const load = useCallback(async () => {
-    try {
-      const c = await api<AiConfig>("GET", "/api/admin/ai");
-      setCfg(c);
-      setProvider(c.provider ?? (c.chatgpt.connected ? "chatgpt" : "anthropic"));
-      setModel(c.model ?? "");
-      setBaseUrl(c.baseUrl);
-      setInstructions(c.instructions);
-    } catch {
-      setCfg(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const connected = !!cfg?.chatgpt.connected;
-  useEffect(() => {
-    if (provider !== "chatgpt" || !connected) return;
-    api<{ slug: string; name: string }[]>("GET", "/api/admin/ai/chatgpt/models")
-      .then(setPlanModels)
-      .catch(() => setPlanModels([]));
-  }, [provider, connected]);
-
-  const run = async (fn: () => Promise<unknown>, ok: string) => {
-    try {
-      await fn();
-      setApiKey("");
-      await load();
-      setStatus(ok);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "could not save");
-    }
-  };
-
-  const signIn = async () => {
-    try {
-      const { url } = await api<{ url: string }>("POST", "/api/admin/ai/chatgpt/start");
-      window.location.href = url;
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "could not start sign-in");
-    }
-  };
-
-  if (!cfg) return null;
-  const plan = provider === "chatgpt";
-  return (
-    <section>
-      <h3>AI</h3>
-      <p className="integr-hint">
-        {cfg.configured && cfg.provider === "chatgpt"
-          ? `Using your ChatGPT plan${cfg.chatgpt.email ? ` (${cfg.chatgpt.email})` : ""} · ${cfg.model}. Requests count against the plan's allowance.`
-          : cfg.configured
-            ? `Using ${cfg.provider} · ${cfg.model}. The key is encrypted on this machine; requests go straight from your server to the provider.`
-            : "Bring your own key, or use a ChatGPT Plus or Pro plan — nothing is sent anywhere until you set one up."}
-      </p>
-      <form
-        className="settings-col"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (plan) void run(() => api("POST", "/api/admin/ai", { provider, model }), "AI saved.");
-          else void run(() => api("POST", "/api/admin/ai", { provider, model, apiKey, baseUrl: provider === "openai-compatible" ? baseUrl : "" }), "AI saved.");
-        }}
-      >
-        <select value={provider} onChange={(e) => setProvider(e.target.value)} aria-label="Provider">
-          <option value="chatgpt">ChatGPT plan (Plus or Pro)</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="google">Google (Gemini)</option>
-          <option value="openai-compatible">OpenAI-compatible</option>
-        </select>
-        {plan && !connected && (
-          <div className="settings-row">
-            <button type="button" className="primary" onClick={() => void signIn()}>
-              Continue with ChatGPT
-            </button>
-          </div>
-        )}
-        {plan && connected && (
-          <>
-            <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model">
-              {!planModels.some((m) => m.slug === model) && <option value={model}>{model || "Choose a model"}</option>}
-              {planModels.map((m) => (
-                <option key={m.slug} value={m.slug}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <div className="settings-row">
-              <button className="primary" disabled={!model}>
-                Save
-              </button>
-              <button type="button" className="ghost" onClick={() => window.open(cfg.chatgpt.manageUsage, "_blank", "noopener")}>
-                Manage usage
-              </button>
-              <button type="button" className="ghost" onClick={() => void run(() => api("POST", "/api/admin/ai/chatgpt/disconnect"), "ChatGPT disconnected.")}>
-                Disconnect
-              </button>
-            </div>
-          </>
-        )}
-        {!plan && (
-          <>
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="model, e.g. claude-sonnet-5 or gemini-2.5-flash" aria-label="Model" />
-            {provider === "openai-compatible" && (
-              <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL, e.g. https://llm.example.com/v1" aria-label="Base URL" />
-            )}
-            <div className="settings-row">
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={cfg.configured && cfg.provider === provider ? "API key (leave blank to keep the current one)" : "API key"}
-                aria-label="API key"
-                autoComplete="off"
-              />
-              <button className="primary" disabled={!model.trim()}>
-                Save
-              </button>
-            </div>
-          </>
-        )}
-      </form>
-
-      <p className="integr-hint">
-        Agent instructions — how it should work for you (tone, priorities, habits). Added to a built-in guide that already covers projects,
-        tasks and the calendar, and to your vault’s CLAUDE.md.
-      </p>
-      <form
-        className="settings-col"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run(() => api("POST", "/api/admin/ai/instructions", { instructions }), "Instructions saved.");
-        }}
-      >
-        <textarea
-          rows={6}
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="e.g. Be direct and structured. Push me on deadlines."
-          aria-label="Agent instructions"
-        />
-        <div className="settings-row">
-          <button className="primary" disabled={instructions === cfg.instructions}>
-            Save instructions
-          </button>
-        </div>
-      </form>
-      {status && <p className="settings-meta">{status}</p>}
-    </section>
-  );
-}
-
-/* ---------- integrations: personal API tokens ---------- */
-
-function TokensSection() {
-  const [tokens, setTokens] = useState<ApiToken[]>([]);
-  const [label, setLabel] = useState("");
-  const [fresh, setFresh] = useState<ApiToken | null>(null);
-
-  useEffect(() => {
-    void api<ApiToken[]>("GET", "/api/tokens").then(setTokens);
-  }, []);
-
-  return (
-    <section>
-      <h3>API tokens</h3>
-      <p className="integr-hint">
-        Scripts and shortcuts call the API as you: <code>Authorization: Bearer bslt_…</code>
-      </p>
-      {tokens.map((t) => (
-        <div key={t.id} className="integr-row">
-          <span className="integr-main">
-            {t.label}
-            <span className="integr-sub">
-              {t.prefix}… · {t.lastUsedAt ? `used ${dateLabel(t.lastUsedAt)}` : "never used"}
-            </span>
-          </span>
-          <button
-            className="ghost danger"
-            title="Revoke token"
-            onClick={async () => {
-              await api("DELETE", `/api/tokens/${t.id}`);
-              setTokens(tokens.filter((x) => x.id !== t.id));
-              if (fresh?.id === t.id) setFresh(null);
-            }}
-          >
-            <IconX />
-          </button>
-        </div>
-      ))}
-      {fresh?.token && (
-        <div className="integr-reveal">
-          <span className="integr-url">{fresh.token}</span>
-          <button className="ghost" onClick={() => void navigator.clipboard.writeText(fresh.token!)}>
-            copy
-          </button>
-          <span className="integr-sub">shown once — store it now</span>
-        </div>
-      )}
-      <form
-        className="settings-row"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!label.trim()) return;
-          const t = await api<ApiToken>("POST", "/api/tokens", { label });
-          setTokens([...tokens, t]);
-          setFresh(t);
-          setLabel("");
-        }}
-      >
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label (Shortcut, n8n…)" aria-label="Token label" />
-        <button className="primary" disabled={!label.trim()}>
-          <IconPlus />
-        </button>
-      </form>
-    </section>
-  );
-}
-
-/* ---------- integrations: outgoing webhooks ---------- */
-
-const HOOK_EVENTS = ["note.changed", "task.completed"];
-
-function WebhooksSection() {
-  const [hooks, setHooks] = useState<Webhook[]>([]);
-  const [url, setUrl] = useState("");
-  const [events, setEvents] = useState<Set<string>>(new Set(["task.completed"]));
-  const [fresh, setFresh] = useState<Webhook | null>(null);
-  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
-  /** The server records a class, not the far end's code (safeFetch.ts): say it in words. */
-  const hookResult = (s: number | null) => (s === 200 ? "delivered" : s === 400 ? "refused" : s === 500 ? "server error" : "unreachable or not allowed");
-
-  useEffect(() => {
-    void api<Webhook[]>("GET", "/api/webhooks").then(setHooks);
-  }, []);
-
-  return (
-    <section>
-      <h3>Webhooks</h3>
-      <p className="integr-hint">POST to your URL when something you can read changes. Signed with the secret (HMAC-SHA256).</p>
-      {hooks.map((h) => (
-        <div key={h.id} className="integr-row">
-          <span className="integr-main integr-url" title={h.url}>
-            {h.url}
-            <span className="integr-sub">
-              {h.events.join(", ")}
-              {h.lastFiredAt !== null && ` · last: ${hookResult(h.lastStatus)}`}
-              {testStatus[h.id] && ` · test: ${testStatus[h.id]}`}
-            </span>
-          </span>
-          <button
-            className="ghost"
-            title="Send test ping"
-            onClick={async () => {
-              const r = await api<{ status: number | null }>("POST", `/api/webhooks/${h.id}/test`);
-              setTestStatus({ ...testStatus, [h.id]: hookResult(r.status) });
-            }}
-          >
-            test
-          </button>
-          <button
-            className="ghost danger"
-            title="Delete webhook"
-            onClick={async () => {
-              await api("DELETE", `/api/webhooks/${h.id}`);
-              setHooks(hooks.filter((x) => x.id !== h.id));
-              if (fresh?.id === h.id) setFresh(null);
-            }}
-          >
-            <IconX />
-          </button>
-        </div>
-      ))}
-      {fresh?.secret && (
-        <div className="integr-reveal">
-          <span className="integr-url">{fresh.secret}</span>
-          <button className="ghost" onClick={() => void navigator.clipboard.writeText(fresh.secret!)}>
-            copy
-          </button>
-          <span className="integr-sub">signing secret — shown once</span>
-        </div>
-      )}
-      <form
-        className="settings-row"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!url.trim() || events.size === 0) return;
-          const h = await api<Webhook>("POST", "/api/webhooks", { url, events: [...events] });
-          setHooks([...hooks, h]);
-          setFresh(h);
-          setUrl("");
-        }}
-      >
-        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks.example.com/…" aria-label="Webhook URL" />
-        <button className="primary" disabled={!url.trim() || events.size === 0}>
-          <IconPlus />
-        </button>
-      </form>
-      <div className="integr-checks">
-        {HOOK_EVENTS.map((ev) => (
-          <label key={ev}>
-            <input
-              type="checkbox"
-              checked={events.has(ev)}
-              onChange={() => {
-                const next = new Set(events);
-                if (next.has(ev)) next.delete(ev);
-                else next.add(ev);
-                setEvents(next);
-              }}
-            />
-            {ev}
-          </label>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-
-/**
- * Quick unlock. Both of these are conveniences over an account that already
- * exists — the password remains the credential and the only way out of a
- * passcode lockout, so neither control can lock anyone out of their own vault.
- */
-function Security() {
-  const [passcode, setPasscode] = useState("");
-  const [status, setStatus] = useState("");
-  const [hasTouchId, setHasTouchId] = useState(false);
-  const [devices, setDevices] = useState<{ id: string; label: string }[]>([]);
-
-  const loadDevices = useCallback(async () => {
-    try {
-      setDevices(await api<{ id: string; label: string }[]>("GET", "/api/auth/webauthn/credentials"));
-    } catch {
-      setDevices([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    void touchIdAvailable().then(setHasTouchId);
-    void loadDevices();
-  }, [loadDevices]);
-
-  const save = async () => {
-    if (!/^\d{4}$/.test(passcode)) return setStatus("Four digits, please.");
-    try {
-      await api("POST", "/api/auth/passcode", { passcode });
-      setPasscode("");
-      setStatus("Passcode set.");
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "could not save");
-    }
-  };
-
-  const remove = async () => {
-    await api("DELETE", "/api/auth/passcode");
-    setStatus("Passcode removed. You will be asked for your password.");
-  };
-
-  const enrol = async () => {
-    setStatus("");
-    try {
-      await enrolTouchId("This Mac");
-      await loadDevices();
-      setStatus("Touch ID enrolled.");
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      // Cancelling the system prompt is a normal choice, not an error to report.
-      if (!/NotAllowed|abort/i.test(msg)) setStatus("Could not enrol Touch ID on this device.");
-    }
-  };
-
-  const revoke = async (id: string) => {
-    await api("DELETE", `/api/auth/webauthn/credentials/${id}`);
-    await loadDevices();
-  };
-
-  return (
-    <section>
-      <h3>Unlock</h3>
-      <p className="settings-note">
-        A shortcut for this device. Your password still works, and is the only way back in if the
-        passcode is locked out.
-      </p>
-      <div className="settings-row">
-        <label htmlFor="passcode-input">4-digit passcode</label>
-        <input
-          id="passcode-input"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={4}
-          value={passcode}
-          placeholder="••••"
-          onChange={(e) => setPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-        />
-        <button className="ghost" onClick={save} disabled={passcode.length !== 4}>
-          Save
-        </button>
-        <button className="ghost" onClick={remove}>
-          Remove
-        </button>
-      </div>
-
-      {hasTouchId && (
-        <div className="settings-row">
-          <label>Touch ID</label>
-          <button className="ghost" onClick={enrol}>
-            {devices.length ? "Add another device" : "Enable Touch ID"}
-          </button>
-        </div>
-      )}
-      {!hasTouchId && (
-        <p className="settings-meta">
-          This device does not offer Touch ID to the browser, so the passcode is the quick way in.
-        </p>
-      )}
-      {devices.map((d) => (
-        <div className="settings-row" key={d.id}>
-          <label>{d.label}</label>
-          <button className="ghost" onClick={() => void revoke(d.id)}>
-            Remove
-          </button>
-        </div>
-      ))}
-
-      {status && <p className="settings-meta">{status}</p>}
-    </section>
+        <Icon name="chev-r" size={14} />
+      </a>
+      <nav className="set-pgroup" aria-label="Settings">
+        {rest.slice(0, cut).map(row)}
+      </nav>
+      <nav className="set-pgroup" aria-label="Settings on this device and server">
+        {rest.slice(cut).map(row)}
+      </nav>
+      <Button className="set-psignout" danger onClick={onSignOut}>
+        Sign out of this device
+      </Button>
+    </div>
   );
 }

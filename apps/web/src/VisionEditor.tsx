@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Dialog } from "./dialog.js";
 import { iconFor } from "./Finance.js";
-import { IconX } from "./icons.js";
+import { Button } from "./ui/controls.js";
+import { Layer } from "./ui/overlays.js";
 import { BRAND_SLOT, PALETTE_SLOTS, type VisionProfile, closestPair, contrast, deriveInk, profileVars } from "./palette.js";
 
 /* Sample figures for the preview. Seeded, not Math.random: the numbers must sit
@@ -110,8 +110,9 @@ export function VisionEditor({
   const close = useMemo(() => closestPair(draft.colors), [draft.colors]);
 
   return (
-    <div className="vised-backdrop" onClick={onClose}>
-      <Dialog label="Edit colour profile" className="vised" onEscape={onClose}>
+    // A sheet in the overlay stack, over Settings: what it asks (Delete's confirm) is a dialog,
+    // so it goes over the editor instead of replacing it and losing the edits.
+    <Layer kind="sheet" label="Edit colour profile" scrim className="vised" onClose={onClose}>
         <header className="vised-head">
           <input
             ref={firstField}
@@ -123,15 +124,15 @@ export function VisionEditor({
           />
           <div className="vised-actions">
             {onDelete && (
-              <button className="vised-del" onClick={() => onDelete(draft.id)}>Delete</button>
+              <Button danger onClick={() => onDelete(draft.id)}>
+                Delete
+              </Button>
             )}
-            <button className="vised-cancel" onClick={onClose}>Cancel</button>
-            <button className="vised-save" onClick={() => onSave({ ...draft, brand, name: draft.name.trim() || "Custom" })}>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button kind="solid" onClick={() => onSave({ ...draft, brand, name: draft.name.trim() || "Custom" })}>
               Save
-            </button>
-            <button className="vised-x" onClick={onClose} aria-label="Close">
-              <IconX />
-            </button>
+            </Button>
+            <Button kind="quiet" icon="x" onClick={onClose} aria-label="Close" />
           </div>
         </header>
 
@@ -219,7 +220,6 @@ export function VisionEditor({
             </div>
           </div>
         </div>
-      </Dialog>
-    </div>
+    </Layer>
   );
 }

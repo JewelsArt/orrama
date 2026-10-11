@@ -98,16 +98,18 @@ describe("addresses", () => {
     expect(await view()).toMatch(/category=work/);
   });
 
-  it("Settings has an address and opens over the page you were on; closing goes back", async () => {
-    const user = userEvent.setup();
+  it("Settings is a page at its address, with its section; Back returns to where you were", async () => {
     at("/projects/thesis");
     render(<App />);
     await screen.findByText(/^project/);
     act(() => void window.history.pushState({ depth: 1 }, "", "/settings/ai"));
     await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
-    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["project", "settings"]);
-    await user.click(screen.getByRole("button", { name: "close settings" }));
-    await waitFor(() => expect(path()).toBe("/projects/thesis"));
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["settings"]);
+    expect(await view()).toMatch(/section=ai/);
+    expect(document.title).toBe("Orr & AI · Orrama");
+    act(() => void window.history.replaceState({ depth: 0 }, "", "/projects/thesis"));
+    await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["project"]);
   });
 
   it("an address this app does not know goes to Today", async () => {
@@ -153,7 +155,7 @@ describe("the shell", () => {
     await view();
     await user.click(screen.getByRole("link", { name: "Jules: Settings" }));
     expect(path()).toBe("/settings/you");
-    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["dashboard", "settings"]);
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["settings"]);
   });
 
   it("on the phone, More holds the other places and Settings, with your Orr on top", async () => {
@@ -168,6 +170,16 @@ describe("the shell", () => {
     await user.click([...more.querySelectorAll<HTMLElement>(".more-row")].find((e) => e.textContent === "Money")!);
     expect(path()).toBe("/money");
     expect(screen.queryByRole("dialog", { name: "More" })).toBeNull();
+  });
+
+  it("on the phone, a Settings section's Back goes to the list of sections", async () => {
+    const user = userEvent.setup();
+    at("/settings/connections");
+    render(<App />);
+    await view();
+    expect(screen.getByRole("heading", { level: 1, name: "Connections" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(path()).toBe("/settings");
   });
 
   it("the phone's top bar has Back only on a page deeper than its tab", async () => {
@@ -285,7 +297,7 @@ describe("keys", () => {
 describe("overlays (WEB-018)", () => {
   const open = () => screen.queryAllByTestId("view").map((v) => v.dataset.view);
 
-  it("Find, Capture and Settings are labelled dialogs, and Escape closes each", async () => {
+  it("Find and Capture are labelled dialogs and Escape closes each; ⌘, opens the Settings page", async () => {
     at("/today");
     render(<App />);
     await view();
@@ -298,16 +310,15 @@ describe("overlays (WEB-018)", () => {
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     expect(open()).not.toContain("capture");
     fireEvent.keyDown(document.body, { key: ",", metaKey: true });
-    expect(open()).toContain("settings");
-    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
-    await waitFor(() => expect(open()).not.toContain("settings"));
-    expect(path()).toBe("/today");
+    expect(open()).toEqual(["settings"]);
+    expect(path()).toBe("/settings");
+    expect(screen.queryByRole("dialog")).toBeNull(); // a page, not a modal (§3)
   });
 
   it("⌘K from Settings opens Find over it, and Escape closes Find alone", async () => {
     at("/settings/you");
     render(<App />);
-    await screen.findByRole("button", { name: "close settings" });
+    await screen.findByText(/^settings/);
     fireEvent.keyDown(document.activeElement!, { key: "k", metaKey: true });
     expect(topLayer()?.kind).toBe("palette");
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
@@ -327,7 +338,8 @@ describe("overlays (WEB-018)", () => {
     expect(screen.queryByRole("dialog", { name: "Edit colour profile" })).toBeNull();
     expect(open()).toContain("settings");
     await user.keyboard("{Escape}");
-    await waitFor(() => expect(open()).not.toContain("settings"));
+    expect(open()).toEqual(["settings"]); // the page stays: Escape is for what floats
+    expect(path()).toBe("/settings/you");
   });
 
   it("toasts show in the app: the shell mounts the one place they appear", async () => {
@@ -466,13 +478,16 @@ describe("when a page breaks (WEB-011)", () => {
     vi.restoreAllMocks();
   });
 
-  it("an overlay that breaks leaves the page it was over", async () => {
+  it("Settings breaking stays in its page, and the rail still works", async () => {
+    const user = userEvent.setup();
     vi.spyOn(console, "error").mockImplementation(() => {});
     crash.add("settings");
     at("/settings/ai");
     render(<App />);
     expect(await screen.findByText("Settings hit an error.")).toBeTruthy();
-    expect(screen.getByTestId("view").dataset.view).toBe("dashboard");
+    const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
+    await user.click([...rail.querySelectorAll<HTMLElement>(".ri")].find((a) => a.textContent === "Today")!);
+    expect(await view()).toMatch(/^dashboard/);
     vi.restoreAllMocks();
   });
 

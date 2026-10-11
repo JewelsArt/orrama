@@ -56,7 +56,7 @@ vi.mock("../Finance.js", () => ({
     ["back", () => p.onBack()],
   ]),
 }));
-/** A box Settings opens over itself, the way its colour profile editor does. */
+/** A box the Settings page opens over itself, the way its colour profile editor does. */
 function ProfileEditor() {
   const [open, setOpen] = useState(false);
   return (
@@ -75,7 +75,6 @@ vi.mock("../Settings.js", () => ({
   Settings: stub(
     "settings",
     (p) => [
-      ["close settings", () => p.onClose()],
       ["theme light", () => p.onTheme("light")],
       ["theme dark", () => p.onTheme("command")], // the word Settings has always sent
       ["theme match", () => p.onTheme("match")],

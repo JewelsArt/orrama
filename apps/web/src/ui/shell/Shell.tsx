@@ -61,7 +61,8 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, c
   useEffect(() => setMore(false), [route]);
   const inSettings = route.kind === "settings";
   const deep = isDeep(route);
-  const backTo = here ? placeRoute(here) : { kind: "today" as const };
+  // A Settings section goes back to the list of sections (on the phone, each is its own screen).
+  const backTo: Route = here ? placeRoute(here) : route.kind === "settings" && route.section ? { kind: "settings" } : { kind: "today" };
   const MORE: Place[] = ["orrery", "projects", "people", "mail", "money"];
 
   return (

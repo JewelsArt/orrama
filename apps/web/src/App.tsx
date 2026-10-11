@@ -15,6 +15,7 @@ import { Planning } from "./Planning.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
+import { SECTIONS as SETTINGS_SECTIONS } from "./settings/parts.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, removeKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
@@ -145,7 +146,7 @@ export function titleOf(r: Route): string {
     case "money":
       return r.merchant ?? r.category ?? (r.page ? MONEY_TITLES[r.page] : "Money");
     case "settings":
-      return "Settings";
+      return (r.section && SETTINGS_SECTIONS.find((s) => s.id === r.section)?.label) || "Settings";
     default:
       return PLACES.find((p) => p.place === placeOf(r))?.label ?? "Orrama";
   }
@@ -186,27 +187,21 @@ export function App() {
   const [forcePassword, setForcePassword] = useState(false);
   /*
    * Where you are is the address (structure.md §1.2): reload keeps your place, and the
-   * browser's Back and Forward, Android's back gesture and links all work. The page under
-   * Settings is the last place you were, since Settings still opens over a page.
+   * browser's Back and Forward, Android's back gesture and links all work. Settings is a page
+   * like the others (§3), at `/settings/<section>`.
    */
   useState(() => canonical()); // once: `/` → `/today`, old forms written in full
   const parsed = useRoute();
   const route = useMemo<Route>(() => parsed ?? { kind: "today" }, [parsed]);
   const notes = useNotePaths(!!me);
-  const [under, setUnder] = useState<Route>(route.kind === "settings" ? { kind: "today" } : route);
-  useEffect(() => {
-    if (route.kind !== "settings") setUnder(route);
-  }, [route]);
-  const shown = route.kind === "settings" ? under : route;
+  const shown = route;
   const view = viewOfRoute(shown, notes.idOf);
-  const settingsOpen = route.kind === "settings";
   const navigate = useCallback((next: View) => go(routeOfView(next, notes.pathOf)), [notes.pathOf]);
   const goBack = useCallback(() => {
     const p = placeOf(shown);
     historyBack(p === "money" ? { kind: "money" } : p === "projects" ? { kind: "projects" } : { kind: "today" });
   }, [shown]);
   const openSettings = useCallback(() => go({ kind: "settings" }), []);
-  const closeSettings = useCallback(() => historyBack(under), [under]);
   // A note opened by its id gets its readable address as soon as the tree knows its path.
   useEffect(() => {
     if (route.kind !== "notes" || !route.id) return;
@@ -466,8 +461,27 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      <ErrorBoundary key={routeHref(shown)} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
-        {view.kind === "dashboard" ? (
+      <ErrorBoundary key={routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
+        {route.kind === "settings" ? (
+          <Settings
+            me={me}
+            section={route.section}
+            theme={matchDevice ? "match" : shownOf(theme)}
+            shown={themeShown}
+            onTheme={changeTheme}
+            vision={vision}
+            onVision={setVision}
+            profiles={profiles}
+            onProfiles={setProfiles}
+            onUpdate={setMe}
+            onSignOut={() => {
+              disconnectWs();
+              void signOut();
+              setMe(null);
+              go({ kind: "today" }, { replace: true });
+            }}
+          />
+        ) : view.kind === "dashboard" ? (
           <Dashboard
             me={me}
             onOpenNote={openNote}
@@ -507,7 +521,7 @@ export function App() {
       </ErrorBoundary>
 
       {/* The overlays these screens draw themselves join the overlay stack (§1.4, WEB-018):
-          their place in the order (⌘K over Settings, not under it), Escape, dialog semantics
+          their place in the order (⌘K over a dialog, not under it), Escape, dialog semantics
           where they had none, focus kept inside and given back. Each screen moves to the
           system's own Palette, Sheet or Panel in its wave. */}
       {askOpen && (
@@ -539,32 +553,6 @@ export function App() {
       )}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
       <Toaster />
-      {settingsOpen && (
-        <ErrorBoundary what="Settings" onLeave={{ label: "Close", run: closeSettings }}>
-          {/* Settings draws its own dialog (role, Tab trap): the layer adds Escape and the order.
-              It is a sheet in that order, so what it opens (the colour profile editor, a
-              confirm) goes over it instead of replacing it. */}
-          <Layer kind="sheet" label="Settings" role={null} trap={false} onClose={closeSettings}>
-            <Settings
-              me={me}
-              theme={accountTheme(themeShown)}
-              onTheme={changeTheme}
-              vision={vision}
-              onVision={setVision}
-              profiles={profiles}
-              onProfiles={setProfiles}
-              onUpdate={setMe}
-              onClose={closeSettings}
-              onSignOut={() => {
-                disconnectWs();
-                void signOut();
-                setMe(null);
-                go({ kind: "today" }, { replace: true });
-              }}
-            />
-          </Layer>
-        </ErrorBoundary>
-      )}
     </Shell>
   );
 }
