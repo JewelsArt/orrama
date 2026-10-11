@@ -66,6 +66,28 @@ export async function contactRoutes(app: FastifyInstance, _db: Db, store: VaultS
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
+  /**
+   * A person's sector, set from the People page. Written by core's front-matter
+   * writer, never by text surgery in the browser: the page used to rewrite the
+   * first line anywhere in the note that began `sector:` — a body line too — or
+   * split on the first `\n---`, which in a note with no front matter is a rule in
+   * the body (WEB-022). Front matter that does not parse is not rewritten: the
+   * change is refused, not silently dropped.
+   */
+  app.patch("/api/contacts/:id", { preHandler: [app.authenticate] }, async (req) => {
+    const user = store.aclUser(req.userId);
+    const note = store.requireReadable(user, (req.params as { id: string }).id);
+    if (!note.tags.some((t) => t.tag === "contact")) throw new HttpError(400, "not a contact note");
+    const sector = str((req.body as Record<string, unknown> | null)?.["sector"]).trim();
+    if (!sector || sector.length > 60 || /[\r\n]/.test(sector)) throw new HttpError(400, "sector must be one line, 1–60 characters");
+    const next = updateFrontmatter(note.content, (d) => ({ ...d, sector }));
+    if (next === note.content && str(note.frontmatter["sector"]) !== sector) {
+      throw new HttpError(409, "this note's front matter could not be read, so its sector was not changed; fix it in the note");
+    }
+    if (next !== note.content) store.write(user, note.path, next);
+    return { ok: true };
+  });
+
   /** Edit the card fields in place. Front-matter only: the body is preserved
    *  byte-for-byte, and `store.write` still runs the normal edit ACL. */
   app.patch("/api/companies/:id", { preHandler: [app.authenticate] }, async (req) => {

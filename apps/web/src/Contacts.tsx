@@ -46,26 +46,9 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
     if (!selectedContact) return;
     setIsUpdatingTag(true);
     try {
-      const note = await api<{ id: string; path: string; content: string; hash: string }>(
-        "GET",
-        `/api/vault/note/${selectedContact.id}`
-      );
-      
-      let newContent = note.content;
-      if (/^sector:/m.test(newContent)) {
-        newContent = newContent.replace(/^sector:.*$/m, `sector: ${newSector}`);
-      } else {
-        const parts = newContent.split("\n---");
-        if (parts.length >= 2) {
-          parts[0] += `\nsector: ${newSector}`;
-          newContent = parts.join("\n---");
-        }
-      }
+      // WEB-022: the server sets it with core's front-matter writer; the page never edits note text.
+      await api("PATCH", `/api/contacts/${selectedContact.id}`, { sector: newSector });
 
-      // baseContent: an Obsidian edit landing between this read and the write is
-      // merged in rather than overwritten (packages/sync/src/merge.ts).
-      await api("PUT", "/api/vault/note", { path: note.path, content: newContent, baseHash: note.hash, baseContent: note.content });
-      
       const updatedContact = { ...selectedContact, sector: newSector };
       setSelectedContact(updatedContact);
       
