@@ -1,121 +1,214 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
-import { Confirm, type ConfirmRequest } from "./Confirm.js";
-import { IconMail, IconReply, IconSend, IconX } from "./icons.js";
-import type { MailAccount as Account, InboxItem, MailCategory, MailMessage, PendingDraft } from "@basalt/schema/responses";
-import { dateLabel, dateTimeLabel, timeLabel } from "./ui/dates.js";
-import { PlainText } from "./mail/plainText.js";
-
-type MailTab = MailCategory | "all";
-
-/** Gmail's tab glyphs: a tray, a price tag, two people, an info dot. */
-const IconTray = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 13h4l1.5 2.5h5L16 13h4" />
-    <path d="M4 13 6 5h12l2 8v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
-  </svg>
-);
-const IconTag = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20.6 13.4 12 4.8H5v7l8.6 8.6a1.7 1.7 0 0 0 2.4 0l4.6-4.6a1.7 1.7 0 0 0 0-2.4z" />
-    <circle cx="8.5" cy="8.5" r="1.2" />
-  </svg>
-);
-const IconPeople = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="9" cy="8" r="3.2" />
-    <path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0" />
-    <path d="M16.5 5.5a3 3 0 0 1 0 5.6M17.6 14.4a5.4 5.4 0 0 1 3.6 5.1" />
-  </svg>
-);
-const IconInfo = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M12 11v5M12 8h.01" />
-  </svg>
-);
-const IconForum = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 12a7 7 0 0 1-9.6 6.5L5 20l1.5-4.4A7 7 0 1 1 20 12z" />
-  </svg>
-);
-const IconStack = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 7h16M4 12h16M4 17h16" />
-  </svg>
-);
-
 /**
- * Gmail's tabs in Gmail's order, plus an "All" that Gmail does not have —
- * because Gmail's tabs *hide* mail, and this inbox was one flat list before.
- * Primary is always shown even when empty: it is the one tab you look for, and
- * its absence reads as breakage rather than as "no personal mail today".
+ * Mail (structure.md §2.8): reading and answering mail without leaving. The list and the message
+ * side by side on the desktop; on the phone the list, then the message on its own screen with
+ * Back, then the reply on its own (§1.6).
+ *
+ * Addresses (§1.2): `/mail` the list, `/mail/<uid>` a message, `/mail/waiting` the drafts Orr is
+ * holding, and `?write=new|reply|forward` or `?draft=<id>` the composer over whichever page it
+ * opened from (mail/compose.ts).
+ *
+ * This file holds the state and every request the screen makes (the contract test scans this
+ * folder's top level for GETs); the pieces it draws are in mail/.
  */
-const CATEGORIES: { id: MailTab; label: string; icon: () => React.ReactNode }[] = [
-  { id: "primary", label: "Primary", icon: IconTray },
-  { id: "promotions", label: "Promotions", icon: IconTag },
-  { id: "social", label: "Social", icon: IconPeople },
-  { id: "updates", label: "Updates", icon: IconInfo },
-  { id: "forums", label: "Forums", icon: IconForum },
-  { id: "all", label: "All", icon: IconStack },
-];
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Company, Contact, GraphRelations, InboxItem, MailAccount as Account, MailMessage, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import { api, isAbort, latestOnly, type Me } from "./api.js";
+import { Confirm, type ConfirmRequest } from "./Confirm.js";
+import { readKey, writeKey } from "./storage.js";
+import { LinkButton } from "./ui/controls.js";
+import { goBack, navigate, routeHref, useLocation, useRoute, type Route } from "./ui/router.js";
+import { EmptyState, Skeleton } from "./ui/states.js";
+import { toast } from "./ui/overlays.js";
+import { Composer } from "./mail/Composer.js";
+import { composeHref, composeOf, emptyDraft, forwardDraft, replyDraft, stagedDraft, type Compose, type Draft } from "./mail/compose.js";
+import { DraftCard } from "./mail/DraftCard.js";
+import { MailList, type RowLook } from "./mail/MailList.js";
+import { imagesAllowed, setImagesAllowed } from "./mail/MessageBody.js";
+import { addressOf, entitySlug, matchSender, projectSlugs, type Sender } from "./mail/people.js";
+import { Reader, type Relation } from "./mail/Reader.js";
+import { mailTabs, validTab, type MailTab } from "./mail/tabs.js";
+import { Waiting } from "./mail/Waiting.js";
 
-interface Draft {
-  to: string;
-  subject: string;
-  body: string;
-  inReplyTo?: string;
-  references?: string;
-  /** Set when this came from a staged draft, so sending clears the stored row. */
-  id?: string;
-  createdBy?: "agent" | "token";
+const TAB_KEY = "basalt-mail-tab";
+const SETTINGS: Route = { kind: "settings", section: "connections" };
+
+interface People {
+  contacts: Contact[];
+  companies: Company[];
+  projects: ProjectRow[];
 }
 
-const fmtDate = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const today = new Date();
-  const sameDay = d.toDateString() === today.toDateString();
-  return sameDay ? timeLabel(d) : dateLabel(d);
-};
+export function Mail(_props: { me: Me }) {
+  const route = useRoute();
+  const href = useLocation();
+  const at = useMemo<Extract<Route, { kind: "mail" }>>(() => (route?.kind === "mail" ? route : { kind: "mail" }), [route]);
+  const uid = at.id && /^\d+$/.test(at.id) ? Number(at.id) : null;
+  const path = routeHref(at);
+  const compose = composeOf(href.includes("?") ? href.slice(href.indexOf("?")) : "");
 
-export function Mail({ me }: { me: Me }) {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [messages, setMessages] = useState<InboxItem[] | null>(null);
-  const [tab, setTab] = useState<MailTab>(() => (localStorage.getItem("basalt-mail-tab") as MailTab | null) ?? "all");
+  const [listFailed, setListFailed] = useState(false);
+  const [loadingList, setLoadingList] = useState(false);
+  const [pending, setPending] = useState<PendingDraft[]>([]);
+  const [draftsLoaded, setDraftsLoaded] = useState(false);
+  const [people, setPeople] = useState<People>({ contacts: [], companies: [], projects: [] });
+
+  const [storedTab, setStoredTab] = useState<string | null>(() => readKey(TAB_KEY));
+  const tabs = useMemo(() => mailTabs(messages ?? []), [messages]);
+  const tab = validTab(storedTab, tabs);
   const pickTab = (t: MailTab) => {
-    localStorage.setItem("basalt-mail-tab", t);
-    setTab(t);
+    writeKey(TAB_KEY, t);
+    setStoredTab(t);
   };
 
-  // Only offer a tab once mail has actually landed in it — an empty Forums tab
-  // is noise, and a server without Gmail's categories files everything as Primary.
-  const tabs = CATEGORIES.filter(
-    (c) => c.id === "all" || c.id === "primary" || (messages ?? []).some((m) => m.category === c.id),
-  );
-  const shown = (messages ?? []).filter((m) => tab === "all" || m.category === tab);
-  const [listError, setListError] = useState<string | null>(null);
-  const [loadingList, setLoadingList] = useState(false);
-
-  const [selected, setSelected] = useState<number | null>(null);
   const [message, setMessage] = useState<MailMessage | null>(null);
   const [loadingMsg, setLoadingMsg] = useState(false);
+  const [msgFailed, setMsgFailed] = useState(false);
   // Click one message, then another: the first one's body must not land last.
   const [nextMessage] = useState(latestOnly);
+  const [images, setImages] = useState(imagesAllowed);
+  const [relations, setRelations] = useState<Relation[]>([]);
+  const [sendingDraft, setSendingDraft] = useState<string | null>(null);
+  const [failedDraft, setFailedDraft] = useState<string | null>(null);
 
-  const [draft, setDraftState] = useState<Draft | null>(null);
-  const [pending, setPending] = useState<PendingDraft[]>([]);
+  /* ---- loading ------------------------------------------------------------------------- */
+
+  const loadDrafts = useCallback(async () => {
+    setPending(await api<PendingDraft[]>("GET", "/api/mail/drafts").catch(() => []));
+    setDraftsLoaded(true);
+  }, []);
+
+  const loadInbox = useCallback(async () => {
+    setLoadingList(true);
+    setListFailed(false);
+    try {
+      const r = await api<{ email: string; messages: InboxItem[] }>("GET", "/api/mail/inbox?limit=80");
+      setMessages(r.messages);
+    } catch {
+      // What failed is said in words (the list's notice), never the server's text.
+      setListFailed(true);
+      setMessages((prev) => prev ?? []);
+    } finally {
+      setLoadingList(false);
+    }
+  }, []);
+
+  /** The people and companies a sender can be, and the projects a relation can open. */
+  const loadPeople = useCallback(async () => {
+    const [contacts, companies, projects] = await Promise.all([
+      api<Contact[]>("GET", "/api/contacts").catch(() => []),
+      api<Company[]>("GET", "/api/companies").catch(() => []),
+      api<ProjectRow[]>("GET", "/api/projects").catch(() => []),
+    ]);
+    setPeople({ contacts, companies, projects });
+  }, []);
+
+  useEffect(() => {
+    void api<Account>("GET", "/api/mail/account")
+      .then((a) => {
+        setAccount(a);
+        if (a.connected) {
+          void loadInbox();
+          void loadDrafts();
+          void loadPeople();
+        }
+      })
+      .catch(() => setAccount(null));
+  }, [loadInbox, loadDrafts, loadPeople]);
+
+  const [retry, setRetry] = useState(0);
+  const connected = !!account?.connected;
+  useEffect(() => {
+    if (uid === null || !connected) return;
+    setMsgFailed(false);
+    setLoadingMsg(true);
+    const signal = nextMessage();
+    api<MailMessage>("GET", `/api/mail/message/${uid}`, undefined, { signal })
+      .then((m) => {
+        setMessage(m);
+        // Reflect the read state in the list without a full refetch.
+        setMessages((prev) => prev?.map((x) => (x.uid === uid ? { ...x, seen: true } : x)) ?? prev);
+      })
+      .catch((e) => {
+        if (isAbort(e)) return;
+        setMessage(null);
+        setMsgFailed(true);
+      })
+      .finally(() => {
+        // A newer message is loading: its skeleton is not ours to stop.
+        if (!signal.aborted) setLoadingMsg(false);
+      });
+  }, [uid, connected, nextMessage, retry]);
+
+  /* ---- who the senders are ---------------------------------------------------------------- */
+
+  const senderOf = useCallback((from: string, fromName: string): Sender => matchSender(from, fromName, people.contacts, people.companies), [people]);
+  const slugs = useMemo(() => projectSlugs(people.projects), [people.projects]);
+  const look = useCallback(
+    (m: InboxItem): RowLook => {
+      const s = senderOf(m.from, m.fromName);
+      const name = m.fromName || m.from || "Unknown sender";
+      const where = s.contact ? (s.company?.name ?? s.companyName) : undefined;
+      return { who: where ? `${name} · ${where}` : name, company: s.kind === "company" };
+    },
+    [senderOf],
+  );
+  const contactNameOf = useCallback(
+    (to: string): string | undefined => {
+      const a = addressOf(to);
+      return people.contacts.find((c) => c.email && c.email.toLowerCase().split(/[,;\s]+/).includes(a))?.name;
+    },
+    [people.contacts],
+  );
+
+  const shown = message && message.uid === uid ? message : null;
+  const sender = shown ? senderOf(shown.from, shown.fromName) : undefined;
+  const contactId = sender?.contact?.id;
+  const companyId = sender?.company?.id;
+  // How you know the sender, from the knowledge graph: "supervises Graduation thesis". On a vault
+  // without an ontology there are no typed relations, and the line says only role and company.
+  useEffect(() => {
+    setRelations([]);
+    if (!contactId) return;
+    let live = true;
+    api<GraphRelations>("GET", `/api/graph/relations?entity=${encodeURIComponent(contactId)}`)
+      .then((g) => {
+        if (!live) return;
+        const out: Relation[] = [];
+        for (const r of g.relations)
+          for (const t of r.to) {
+            if (t.id === companyId || t.id === contactId || out.some((o) => o.title === t.title)) continue;
+            const project = slugs.get(t.id);
+            const person = people.contacts.find((c) => c.id === t.id);
+            const company = people.companies.find((c) => c.id === t.id);
+            const to: Route = project
+              ? { kind: "project", slug: project }
+              : person
+                ? { kind: "person", slug: entitySlug(person.path) }
+                : company
+                  ? { kind: "company", slug: entitySlug(company.path) }
+                  : { kind: "notes", id: t.id };
+            out.push({ relation: r.relation.replace(/[_-]+/g, " "), title: t.title, to });
+          }
+        setRelations(out.slice(0, 2));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [contactId, companyId, slugs, people.contacts, people.companies]);
+
+  /* ---- leaving the composer, and going places ------------------------------------------------ */
+
   /*
    * Each draft gets its own composer (WEB-006). The composer copies its draft into its fields
    * once, so a second draft shown in the same instance kept the first one's text under the
-   * second one's id and headers: Send mailed A's words threaded to B and deleted B unsent. A
-   * new key for every draft opened, even the same one again, starts a fresh composer.
+   * second one's id and headers: Send mailed A's words threaded to B and deleted B unsent. The
+   * key is the composer's address plus a count bumped each time one is opened, so every draft,
+   * even the same one again, starts a fresh composer.
    */
   const [composerKey, setComposerKey] = useState(0);
-  const setDraft = useCallback((d: Draft | null) => {
-    setDraftState(d);
-    if (d) setComposerKey((k) => k + 1);
-  }, []);
   /** Whether the open composer holds something the user typed; it would be lost by leaving. */
   const dirty = useRef(false);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
@@ -134,423 +227,218 @@ export function Mail({ me }: { me: Me }) {
     });
   }, []);
 
-  const loadDrafts = useCallback(async () => {
-    setPending(await api<PendingDraft[]>("GET", "/api/mail/drafts").catch(() => []));
-  }, []);
+  const go = useCallback((to: Route | string) => leaveComposer(() => navigate(to)), [leaveComposer]);
+  const openCompose = useCallback(
+    (c: Compose) =>
+      leaveComposer(() => {
+        setComposerKey((k) => k + 1);
+        navigate(composeHref(path, c));
+      }),
+    [leaveComposer, path],
+  );
+  /** Close the composer: back to the page it opened over. */
+  const closeComposer = useCallback(() => {
+    dirty.current = false;
+    goBack(at);
+  }, [at]);
 
+  /* ---- drafts ------------------------------------------------------------------------------ */
+
+  const composingDraft = compose?.kind === "draft" ? compose.id : null;
   const discardDraft = useCallback(
     async (id: string) => {
       await api("DELETE", `/api/mail/drafts/${id}`).catch(() => {});
+      if (composingDraft === id) closeComposer();
       void loadDrafts();
     },
-    [loadDrafts],
+    [composingDraft, closeComposer, loadDrafts],
   );
 
-  const loadInbox = useCallback(async () => {
-    setLoadingList(true);
-    setListError(null);
-    try {
-      const r = await api<{ email: string; messages: InboxItem[] }>("GET", "/api/mail/inbox?limit=80");
-      setMessages(r.messages);
-    } catch (e) {
-      setListError(e instanceof Error ? e.message : String(e));
-      setMessages([]);
-    } finally {
-      setLoadingList(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void api<Account>("GET", "/api/mail/account").then((a) => {
-      setAccount(a);
-      if (a.connected) {
-        void loadInbox();
+  /** Send a staged draft from its card: exactly the text the card shows, by the one send path. */
+  const sendDraft = useCallback(
+    async (p: PendingDraft) => {
+      setSendingDraft(p.id);
+      setFailedDraft(null);
+      try {
+        await api("POST", "/api/mail/send", { to: p.to, subject: p.subject, body: p.body, inReplyTo: p.inReplyTo ?? undefined, references: p.references ?? undefined });
+        await api("DELETE", `/api/mail/drafts/${p.id}`).catch(() => {});
+        toast(`Sent to ${contactNameOf(p.to) ?? p.to}.`);
         void loadDrafts();
+      } catch {
+        setFailedDraft(p.id);
+      } finally {
+        setSendingDraft(null);
       }
-    });
-  }, [loadInbox, loadDrafts]);
+    },
+    [loadDrafts, contactNameOf],
+  );
 
-  const openNow = useCallback(async (uid: number) => {
-    setSelected(uid);
-    setMessage(null);
-    setDraft(null);
-    setLoadingMsg(true);
-    const signal = nextMessage();
-    try {
-      const m = await api<MailMessage>("GET", `/api/mail/message/${uid}`, undefined, { signal });
-      setMessage(m);
-      // Reflect the read state in the list without a full refetch.
-      setMessages((prev) => prev?.map((x) => (x.uid === uid ? { ...x, seen: true } : x)) ?? prev);
-    } catch (e) {
-      if (isAbort(e)) return;
-      setMessage(null);
-      setListError(e instanceof Error ? e.message : String(e));
-    } finally {
-      // A newer message is loading: its spinner is not ours to stop.
-      if (!signal.aborted) setLoadingMsg(false);
-    }
-  }, [nextMessage, setDraft]);
-  const open = useCallback((uid: number) => leaveComposer(() => void openNow(uid)), [leaveComposer, openNow]);
+  const waitingRoute: Route = { kind: "mail", waiting: true };
+  const card = (p: PendingDraft, withWaiting: boolean) => (
+    <DraftCard
+      draft={p}
+      toName={contactNameOf(p.to)}
+      sending={sendingDraft === p.id}
+      failed={failedDraft === p.id}
+      onSend={() => void sendDraft(p)}
+      onEdit={() => openCompose({ kind: "draft", id: p.id })}
+      onDiscard={() => void discardDraft(p.id)}
+      waitingHref={withWaiting ? routeHref(waitingRoute) : undefined}
+      onWaiting={withWaiting ? () => go(waitingRoute) : undefined}
+    />
+  );
 
-  const replyTo = (m: MailMessage) =>
-    setDraft({
-      to: m.from,
-      subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`,
-      body: "",
-      inReplyTo: m.messageId ?? undefined,
-      references: [m.references, m.messageId].filter(Boolean).join(" ") || undefined,
-    });
+  /* ---- the screen -------------------------------------------------------------------------- */
 
-  if (account === undefined) return <div className="mail-empty">Loading…</div>;
-
-  if (!account?.connected) {
+  if (account === undefined)
     return (
-      <div className="mail">
-        <div className="mail-empty">
-          <IconMail />
-          <h2>Mail isn’t connected yet</h2>
-          <p>
-            Open <strong>Settings → Mail</strong> and connect your Gmail with an app password. Your inbox and messages stay on this machine —
-            nothing is sent anywhere but Google.
-          </p>
+      <div className="mail ui mail-off">
+        <div className="mread">
+          <Skeleton rows={4} label="Opening Mail" />
         </div>
       </div>
     );
-  }
 
-  return (
-    <div className="mail">
-      <div className="mail-list">
-        <header className="mail-list-head">
-          <span className="mail-addr">{account.email}</span>
-          <div className="mail-head-actions">
-            <button className="ghost" title="Compose" onClick={() => leaveComposer(() => { setSelected(null); setMessage(null); setDraft({ to: "", subject: "", body: "" }); })}>
-              <IconSend />
-            </button>
-            <button className="ghost" title="Refresh" disabled={loadingList} onClick={() => void loadInbox()}>
-              ↻
-            </button>
-          </div>
-        </header>
-        {listError && <p className="mail-list-error">{listError}</p>}
-        {pending.length > 0 && (
-          <div className="mail-pending">
-            <p className="mail-pending-head">
-              Waiting for you · {pending.length}
-              <span className="mail-pending-sub">Prepared for you — nothing is sent until you review and press Send.</span>
-            </p>
-            {pending.map((p) => (
-              <div key={p.id} className="mail-pending-row">
-                <button
-                  className="mail-pending-open"
-                  onClick={() =>
-                    leaveComposer(() => {
-                      setSelected(null);
-                      setMessage(null);
-                      setDraft({
-                        to: p.to,
-                        subject: p.subject,
-                        body: p.body,
-                        inReplyTo: p.inReplyTo ?? undefined,
-                        references: p.references ?? undefined,
-                        id: p.id,
-                        createdBy: p.createdBy,
-                      });
-                    })
-                  }
-                >
-                  <span className="mail-pending-to">To {p.to}</span>
-                  <span className="mail-pending-subject">{p.subject || "(no subject)"}</span>
-                  <span className="mail-pending-src">{p.createdBy === "agent" ? "drafted by the agent" : "drafted via API token"}</span>
-                </button>
-                <button className="ghost mail-pending-x" onClick={() => void discardDraft(p.id)} aria-label="Discard draft">
-                  <IconX />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {tabs.length > 1 && (
-          <div className="mail-tabs" role="tablist" aria-label="Categories">
-            {tabs.map((c) => {
-              const unread = (messages ?? []).filter((m) => (c.id === "all" || m.category === c.id) && !m.seen).length;
-              return (
-                <button
-                  key={c.id}
-                  role="tab"
-                  aria-selected={tab === c.id}
-                  className={`mail-tab ${tab === c.id ? "active" : ""}`}
-                  onClick={() => pickTab(c.id)}
-                >
-                  <c.icon />
-                  {c.label}
-                  {unread > 0 && <i>{unread}</i>}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <div className="mail-rows">
-          {loadingList && !messages?.length ? (
-            <p className="mail-hint">Fetching inbox…</p>
-          ) : messages && messages.length === 0 && !listError ? (
-            <p className="mail-hint">Inbox is empty.</p>
-          ) : shown.length === 0 ? (
-            <p className="mail-hint">
-              {tab === "primary"
-                ? `No personal mail in the last ${messages?.length ?? 0} — everything recent is filed under the other tabs.`
-                : `Nothing in ${CATEGORIES.find((c) => c.id === tab)?.label}.`}
-            </p>
-          ) : (
-            shown.map((m, i) => (
-              <button
-                key={m.uid}
-                className={`mail-row ${selected === m.uid ? "active" : ""} ${m.seen ? "" : "unread"} ${i === 0 ? "firstvis" : ""}`}
-                onClick={() => void open(m.uid)}
+  if (!account?.connected)
+    return (
+      <div className="mail ui mail-off">
+        <div className="mread">
+          <h2>Mail</h2>
+          <EmptyState
+            pose="mail"
+            title="Mail isn't connected yet."
+            text="Connect your Gmail with an app password. Messages are read from Google when you open them and never stored, and nothing is sent anywhere but Google."
+            actions={
+              <LinkButton
+                kind="solid"
+                href={routeHref(SETTINGS)}
+                onClick={(e) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
+                  e.preventDefault();
+                  navigate(SETTINGS);
+                }}
               >
-                <span className="mail-row-dot" aria-hidden />
-                <span className="mail-row-main">
-                  <span className="mail-row-top">
-                    <span className="mail-row-from">{m.fromName || m.from || "(unknown)"}</span>
-                    <span className="mail-row-date">{fmtDate(m.date)}</span>
-                  </span>
-                  <span className="mail-row-subject">{m.subject}</span>
-                </span>
-              </button>
-            ))
-          )}
+                Connect Gmail
+              </LinkButton>
+            }
+          />
         </div>
       </div>
+    );
 
-      <div className="mail-pane">
-        {draft ? (
+  let draft: Draft | null | "gone" = null;
+  if (compose?.kind === "new") draft = emptyDraft();
+  else if (compose?.kind === "reply") draft = shown ? replyDraft(shown) : null;
+  else if (compose?.kind === "forward") draft = shown ? forwardDraft(shown) : null;
+  else if (compose?.kind === "draft") {
+    const p = pending.find((d) => d.id === compose.id);
+    draft = p ? stagedDraft(p) : draftsLoaded ? "gone" : null;
+  }
+
+  const unread = (messages ?? []).filter((m) => !m.seen).length;
+  const replyCard = shown?.messageId ? pending.find((p) => p.inReplyTo === shown.messageId) : undefined;
+  const provider = /gmail/i.test(account.imapHost ?? "") ? "Gmail" : (account.email ?? "Mail");
+
+  let pane;
+  if (compose) {
+    pane =
+      draft === "gone" ? (
+        <div className="mread">
+          <EmptyState pose="mail" title="That draft is gone." text="It was sent or discarded. Drafts still waiting are under Waiting for you." />
+        </div>
+      ) : draft ? (
+        <div className="mread mread-compose">
           <Composer
-            key={composerKey}
+            key={`${compose.kind}:${compose.kind === "draft" ? compose.id : ""}#${composerKey}`}
             draft={draft}
-            from={account.email!}
+            from={account.email ?? ""}
             onDirty={(d) => {
               dirty.current = d;
             }}
-            onClose={() => { dirty.current = false; setDraft(null); }}
-            onSent={() => { dirty.current = false; setDraft(null); void loadInbox(); void loadDrafts(); }}
+            onClose={closeComposer}
+            onSent={() => {
+              dirty.current = false;
+              closeComposer();
+              void loadInbox();
+              void loadDrafts();
+            }}
           />
-        ) : loadingMsg ? (
-          <div className="mail-empty">Opening…</div>
-        ) : message ? (
-          <article className="mail-message">
-            <header className="mail-msg-head">
-              <h1>{message.subject}</h1>
-              <div className="mail-msg-meta">
-                <span className="mail-msg-from">
-                  <strong>{message.fromName || message.from}</strong>
-                  {message.fromName && <span className="mail-msg-addr">&lt;{message.from}&gt;</span>}
-                </span>
-                <span className="mail-msg-date">{message.date ? dateTimeLabel(message.date) : ""}</span>
-              </div>
-              <div className="mail-msg-to">to {message.to}</div>
-              <button className="primary mail-reply-btn" onClick={() => replyTo(message)}>
-                <IconReply /> Reply
-              </button>
-            </header>
-            <MessageBody message={message} />
-          </article>
-        ) : (
-          <div className="mail-empty">
-            <IconMail />
-            <p>Select a message to read it.</p>
-          </div>
-        )}
-      </div>
-      <Confirm request={confirm} onClose={() => setConfirm(null)} />
-    </div>
-  );
-}
-
-/**
- * Read a message the way it was written.
- *
- * HTML wins when the message has it: the plain-text alternative of a marketing
- * email is a wall of bracketed tracking URLs, which is what this pane used to
- * show. The HTML goes into an iframe that cannot run scripts and whose CSP
- * blocks everything except images, styles and fonts; links open in the real
- * browser.
- *
- * `allow-same-origin` is there so we can *measure* the rendered document and
- * size the frame to it — one scrollbar for the whole message, like a mail
- * client, instead of a fixed box with dead space. It is safe here precisely
- * because `allow-scripts` is absent: nothing inside can execute, so nothing can
- * use that origin.
- */
-function MessageBody({ message }: { message: MailMessage }) {
-  // Images load by default (what every mail client does); the choice is
-  // remembered, so blocking trackers stays one click away and stays chosen.
-  const [images, setImages] = useState(() => localStorage.getItem("basalt-mail-images") !== "off");
-  const frame = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(320);
-
-  const setImagesPref = (on: boolean) => {
-    localStorage.setItem("basalt-mail-images", on ? "on" : "off");
-    setImages(on);
-  };
-
-  /** Grow the frame to its content, and again as images arrive. */
-  useEffect(() => {
-    const el = frame.current;
-    if (!el) return;
-    let stop = false;
-    const measure = () => {
-      const doc = el.contentDocument;
-      if (!doc?.body || stop) return;
-      const next = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
-      if (next > 0) setHeight(next + 8);
-    };
-    const onLoad = () => {
-      measure();
-      const doc = el.contentDocument;
-      for (const img of doc?.images ?? []) img.addEventListener("load", measure, { once: true });
-      // Late reflows (web fonts, slow images) — a few cheap re-measures.
-      for (const t of [150, 500, 1200, 2500]) setTimeout(measure, t);
-    };
-    el.addEventListener("load", onLoad);
-    return () => {
-      stop = true;
-      el.removeEventListener("load", onLoad);
-    };
-  }, [message.uid, images]);
-
-  if (message.html) {
-    const csp = images
-      ? "default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline'; font-src data: https:"
-      : "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:";
-    return (
-      <div className="mail-body-wrap">
-        <div className="mail-images-bar">
-          {images ? (
-            <>
-              <span>Images are loading from the sender.</span>
-              <button className="ct-btn" onClick={() => setImagesPref(false)}>
-                Block images
-              </button>
-            </>
-          ) : (
-            <>
-              <span>Remote images are blocked — they can tell the sender you opened this.</span>
-              <button className="ct-btn" onClick={() => setImagesPref(true)}>
-                Show images
-              </button>
-            </>
-          )}
         </div>
-        <iframe
-          key={`${message.uid}-${images}`}
-          ref={frame}
-          className="mail-body-html"
-          style={{ height }}
-          sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-          referrerPolicy="no-referrer"
-          title="Message content"
-          srcDoc={`<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>html,body{background:#fff;color:#111;overflow-x:hidden;} body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:4px 2px;} img{max-width:100%;height:auto;} a{color:#2f6fdd;} table{max-width:100%;}</style>${message.html}`}
-        />
+      ) : (
+        <div className="mread">
+          <Skeleton rows={4} label="Opening the composer" />
+        </div>
+      );
+  } else if (at.waiting) {
+    pane = <Waiting pending={pending} loaded={draftsLoaded} card={(p) => card(p, false)} />;
+  } else if (uid !== null) {
+    pane = (
+      <Reader
+        message={shown}
+        loading={loadingMsg}
+        failed={msgFailed}
+        onRetry={() => setRetry((n) => n + 1)}
+        me={account.email ?? ""}
+        sender={sender}
+        personSlug={sender?.contact ? entitySlug(sender.contact.path) : undefined}
+        companySlug={sender?.company ? entitySlug(sender.company.path) : undefined}
+        relations={relations}
+        images={images}
+        onImages={(on) => {
+          setImagesAllowed(on);
+          setImages(on);
+        }}
+        onReply={() => openCompose({ kind: "reply" })}
+        onForward={() => openCompose({ kind: "forward" })}
+        onGo={go}
+        draft={replyCard ? card(replyCard, true) : undefined}
+      />
+    );
+  } else {
+    pane = (
+      <div className="mread mread-idle">
+        {messages && unread === 0 && pending.length === 0 && !listFailed ? (
+          <EmptyState pose="mail" title="Everything's answered." text="Nothing waits for you, and no drafts." />
+        ) : (
+          <p className="mhint">Pick a message to read it.</p>
+        )}
       </div>
     );
   }
-  if (message.text.trim())
-    return (
-      <div className="mail-body">
-        <PlainText text={message.text} />
-      </div>
-    );
-  return <div className="mail-body mail-hint">(no content)</div>;
-}
-
-function Composer({
-  draft,
-  from,
-  onDirty,
-  onClose,
-  onSent,
-}: {
-  draft: Draft;
-  from: string;
-  onDirty: (dirty: boolean) => void;
-  onClose: () => void;
-  onSent: () => void;
-}) {
-  const [to, setTo] = useState(draft.to);
-  const [subject, setSubject] = useState(draft.subject);
-  const [body, setBody] = useState(draft.body);
-  const changed = to !== draft.to || subject !== draft.subject || body !== draft.body;
-  useEffect(() => {
-    onDirty(changed);
-  }, [changed, onDirty]);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    bodyRef.current?.focus();
-  }, []);
-
-  const send = async () => {
-    setSending(true);
-    setError(null);
-    try {
-      await api("POST", "/api/mail/send", { to, subject, body, inReplyTo: draft.inReplyTo, references: draft.references });
-      // The staged row has served its purpose once the real message is away.
-      if (draft.id) await api("DELETE", `/api/mail/drafts/${draft.id}`).catch(() => {});
-      setSent(true);
-      setTimeout(onSent, 700);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : String(e));
-      setSending(false);
-    }
-  };
 
   return (
-    <form
-      className="mail-composer"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (to.trim() && !sending && !sent) void send();
-      }}
-    >
-      <header className="mail-composer-head">
-        <span>{draft.inReplyTo ? "Reply" : "New message"}</span>
-        <button type="button" className="ghost" onClick={onClose} aria-label={draft.id ? "Close" : "Discard"}>
-          <IconX />
-        </button>
-      </header>
-      {draft.id && (
-        <p className="mail-composer-flag">
-          {draft.createdBy === "agent" ? "The agent wrote this draft." : "An API-token client wrote this draft."} Check the
-          recipient and wording — sending is yours.
-        </p>
-      )}
-      <label className="mail-field">
-        <span>From</span>
-        <input value={from} disabled />
-      </label>
-      <label className="mail-field">
-        <span>To</span>
-        <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com" autoComplete="off" />
-      </label>
-      <label className="mail-field">
-        <span>Subject</span>
-        <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
-      </label>
-      <textarea ref={bodyRef} className="mail-composer-body" aria-label="Message" value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your message…" />
-      {error && <p className="mail-list-error">{error}</p>}
-      <div className="mail-composer-actions">
-        <button className="primary" disabled={sending || sent || !to.trim()}>
-          <IconSend /> {sent ? "Sent" : sending ? "Sending…" : "Send"}
-        </button>
-        {/* A staged draft outlives this composer — closing leaves it in "Waiting
-            for you", so don't call that discarding. It's dropped from the list. */}
-        <button type="button" className="ghost" onClick={onClose}>
-          {draft.id ? "Close" : "Discard"}
-        </button>
-      </div>
-    </form>
+    <div className="mail ui" data-screen={compose || uid !== null || at.waiting ? "pane" : "list"}>
+      <MailList
+        provider={provider}
+        address={account.email ?? ""}
+        loading={loadingList}
+        failed={listFailed}
+        messages={messages}
+        tabs={tabs}
+        tab={tab}
+        onTab={pickTab}
+        selected={uid}
+        look={look}
+        hrefOf={(u) => routeHref({ kind: "mail", id: String(u) })}
+        onOpen={(u) => go({ kind: "mail", id: String(u) })}
+        pending={pending}
+        toNameOf={(to) => contactNameOf(to) ?? to}
+        draftHref={(id) => composeHref(path, { kind: "draft", id })}
+        onDraft={(id) => openCompose({ kind: "draft", id })}
+        onDiscardDraft={(id) => void discardDraft(id)}
+        waitingHref={routeHref(waitingRoute)}
+        onWaiting={() => go(waitingRoute)}
+        onCheck={() => {
+          void loadInbox();
+          void loadDrafts();
+        }}
+        onWrite={() => openCompose({ kind: "new" })}
+        onRetry={() => void loadInbox()}
+        settingsHref={routeHref(SETTINGS)}
+        onSettings={() => go(SETTINGS)}
+      />
+      {pane}
+      <Confirm request={confirm} onClose={() => setConfirm(null)} />
+    </div>
   );
 }

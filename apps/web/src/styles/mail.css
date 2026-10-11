@@ -1,253 +1,151 @@
-/* Mail (Mail.tsx).
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+/* Mail (Mail.tsx, mail/*). From the boards mockups/screens/mail.html and mail-read.html: the list
+   on the paper ground, the message in a white box beside it (the calm reading pane), Orr's drafts
+   in his warm bar. On the phone the list and the message are two screens (structure.md §1.6).
+   Everything is scoped under .mail; the system's own pieces (buttons, tabs, rings, the draft
+   bar, notices, empty states) come from ui/ui.css. */
 
-/* ---- Mail view ---- */
 .mail {
+  display: grid;
+  grid-template-columns: 404px minmax(0, 1fr);
   height: 100%;
-  display: flex;
   min-height: 0;
 }
-.mail-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
-  padding: 40px;
-  color: var(--text-dim);
-}
-.mail-empty svg { width: 30px; height: 30px; opacity: 0.5; }
-.mail-empty h2 { margin: 4px 0 0; font-size: 18px; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
-.mail-empty p { margin: 0; max-width: 380px; font-size: 13px; line-height: 1.55; }
 
-/* list column */
-.mail-list {
-  width: 340px;
-  flex: 0 0 340px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-right: 1px solid var(--glass-brd);
-}
-.mail-list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 16px 16px 12px;
-  border-bottom: 1px solid var(--glass-brd);
-}
-.mail-addr {
-  font: 600 12px var(--font-mono);
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mail-head-actions { display: flex; gap: 2px; flex: 0 0 auto; }
-.mail-list-error, .mail-hint {
-  margin: 0;
-  padding: 12px 16px;
-  font-size: 12.5px;
-  color: var(--text-faint);
-}
-.mail-list-error { color: var(--danger); }
+/* ---- the list --------------------------------------------------------------------------- */
+.mail .mlist { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.mail .mlist-top { display: flex; align-items: center; gap: 8px; padding: 18px 16px 10px 22px; flex: none; }
+.mail .mlist-top h1 { margin: 0; font-size: 26px; line-height: 32px; font-weight: 750; letter-spacing: -0.02em; }
+.mail .mlist-top .acct { color: var(--ink-3); font-size: 13px; margin-top: 4px; display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail .mlist-top .acct i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.mail .mlist-top .acct i.bad { background: var(--late); }
+.mail .mlist-top .sp { flex: 1; }
+.mail .mnotice { margin: 0 12px 10px; flex: none; }
 
-/* Drafts staged by the agent / an API token: held back until a human sends them. */
-.mail-pending {
-  border-bottom: 1px solid var(--glass-brd);
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-}
-.mail-pending-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 10px 16px 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.mail-pending-sub {
-  font-size: 11.5px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--text-faint);
-}
-.mail-pending-row { display: flex; align-items: center; gap: 4px; padding: 0 8px 0 16px; }
-.mail-pending-open {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-  padding: 8px 0;
-  background: none;
-  border: 0;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-}
-.mail-pending-to { font-size: 11.5px; color: var(--text-faint); font-family: var(--font-mono); }
-.mail-pending-subject {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mail-pending-src { font-size: 11px; color: var(--text-faint); }
-.mail-pending-x { flex: none; }
-.mail-composer-flag {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border: 1px solid var(--glass-brd);
-  font-size: 12px;
-  color: var(--text-dim);
-}
+/* Waiting for you: the drafts Orr is holding */
+.mail .wait { margin: 2px 12px 10px; padding: 10px 12px 6px; border-radius: var(--r-3); background: var(--surface); border: 1px solid var(--card-line); box-shadow: var(--shadow-card); flex: none; }
+.mail .wait h3 { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; }
+.mail .wait h3 .hd { width: 16px; height: 16px; }
+.mail .wait h3 a { color: inherit; text-decoration: none; }
+.mail .wait p { margin: 2px 0 6px 24px; font-size: 12.5px; line-height: 17px; color: var(--ink-3); }
+.mail .dr { position: relative; display: flex; align-items: center; margin: 0 -6px; border-radius: 8px; }
+.mail .dr:hover { background: var(--hover); }
+.mail .dr-open { flex: 1; min-width: 0; display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 6px; border-radius: 8px; color: inherit; text-decoration: none; }
+.mail .dr-open svg.i { color: var(--ink-3); }
+.mail .dr-open:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mail .dr .t { font-weight: 600; font-size: 13.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail .dr .m { font-size: 12px; color: var(--ink-3); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail .dr .r { font-size: 12px; color: var(--ink-3); }
+/* Discard sits at the row's end, under the pointer (§1.7 #7) */
+.mail .dr-x { position: absolute; right: 2px; opacity: 0; }
+.mail .dr:hover .dr-x, .mail .dr-x:focus-visible { opacity: 1; }
+.mail .dr:hover .r { visibility: hidden; }
 
-.mail-tabs { display: flex; gap: 0; padding: 6px 6px 0; scrollbar-width: none; border-bottom: 1px solid var(--border); flex: none; overflow-x: auto; }
-.mail-tab {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  border: none;
-  background: none;
-  color: var(--text-dim);
-  font: 600 11.5px var(--font-ui);
-  padding: 8px 9px 9px;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.mail-tab:hover { color: var(--text); }
-.mail-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.mail-tab i { font-style: normal; font: 700 10px var(--font-mono); color: var(--accent); }
-.mail-tabs::-webkit-scrollbar { display: none; }
-.mail-tab svg { width: 14px; height: 14px; flex: none; opacity: 0.7; }
-.mail-tab.active svg { opacity: 1; color: var(--accent); }
+/* the category tabs; what doesn't fit is in More */
+.mail .mtabs { position: relative; padding: 0 12px; flex: none; }
+.mail .mtabs button { flex: none; white-space: nowrap; }
+/* a hidden copy of every tab, measured to decide how many fit (MailList) */
+.mail .mtabs-ruler { position: absolute; left: 0; top: 0; display: flex; gap: 2px; visibility: hidden; pointer-events: none; height: 0; overflow: visible; }
+.mail .mtabs button { height: 36px; font-size: 13.5px; padding: 0 8px; }
+.mail .mtabs .mtab-more { position: relative; display: flex; align-items: center; gap: 4px; color: var(--ink-3); font-weight: 600; border: 0; background: none; border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: var(--r-1) var(--r-1) 0 0; cursor: pointer; }
+.mail .mtabs .mtab-more:hover { color: var(--ink); background: var(--hover); }
+.mail .mtabs .mtab-more:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-.mail-rows { flex: 1; overflow: auto; min-height: 0; }
-.mail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  width: 100%;
-  text-align: left;
-  padding: 11px 16px;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--glass-brd);
-  cursor: pointer;
-  color: var(--text);
-}
-.mail-row.firstvis { border-top: none; }
-.mail-row:hover { background: var(--panel); }
-.mail-row.active { background: var(--accent-dim); }
-.mail-row-dot {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: transparent;
-}
-.mail-row.unread .mail-row-dot { background: var(--accent); }
-.mail-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mail-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.mail-row-from {
-  font-size: 13px;
-  font-weight: 550;
-  color: var(--text-dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mail-row.unread .mail-row-from { font-weight: 750; color: var(--text); }
-.mail-row-date { flex: 0 0 auto; font: 500 11px var(--font-mono); color: var(--text-faint); }
-.mail-row-subject {
-  font-size: 12.5px;
-  color: var(--text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mail-row.unread .mail-row-subject { color: var(--text-dim); }
+/* the messages */
+.mail .list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 12px; }
+.mail .mr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 11px; padding: 9px 10px 10px; border-radius: var(--r-2); cursor: pointer; position: relative; color: inherit; text-decoration: none; }
+.mail .mr + .mr::before { content: ""; position: absolute; left: 10px; right: 10px; top: 0; border-top: 1px solid var(--line); }
+.mail .mr:hover { background: var(--hover); }
+.mail .mr:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mail .mr.on { background: var(--surface); box-shadow: inset 0 0 0 1px var(--card-line), var(--shadow-card); }
+.mail .mr.on:focus-visible { box-shadow: inset 0 0 0 1px var(--card-line), var(--focus-ring); }
+.mail .mr.on::before, .mail .mr.on + .mr::before, .mail .mr:hover::before, .mail .mr:hover + .mr::before { border-color: transparent; }
+.mail .mr .ring, .mail .mr .sq { width: 28px; height: 28px; font-size: 10.5px; grid-row: span 2; }
+.mail .mr .mwho { font-size: 14px; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail .mr .mwhen { font-size: 12.5px; color: var(--ink-3); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mail .mr .msub { grid-column: 2 / 4; font-size: 13.5px; line-height: 18px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail .mr.unread .mwho, .mail .mr.unread .msub b { font-weight: 750; color: var(--ink); }
+.mail .mr.unread .mwhen { color: var(--accent); font-weight: 650; }
+.mail .mr.unread::after { content: ""; position: absolute; left: 2px; top: 19px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.mail .mhint { margin: 0; padding: 12px 10px; font-size: 13.5px; line-height: 19px; color: var(--ink-3); }
 
-/* reading / composing pane */
-.mail-pane { flex: 1; min-width: 0; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
-.mail-message { padding: 26px 30px 40px; max-width: 860px; width: 100%; }
-.mail-msg-head { flex: none; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 18px; }
-.mail-msg-head h1 { margin: 0 0 12px; font-size: 21px; font-weight: 750; letter-spacing: -0.02em; line-height: 1.3; }
-.mail-msg-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.mail-msg-from { font-size: 14px; color: var(--text); }
-.mail-msg-addr { margin-left: 6px; font: 500 12px var(--font-mono); color: var(--text-faint); }
-.mail-msg-date { font: 500 12px var(--font-mono); color: var(--text-faint); }
-.mail-msg-to { margin-top: 4px; font-size: 12.5px; color: var(--text-faint); }
-.mail-reply-btn { margin-top: 14px; display: inline-flex; align-items: center; gap: 7px; }
-.mail-body { font-size: 14px; line-height: 1.6; color: var(--text); word-break: break-word; }
-.mail-body p { margin: 0 0 2px; }
-.mail-body p.mail-gap { height: 10px; margin: 0; }
-.mail-body a { color: var(--accent); }
+/* ---- the message: the calm reading pane ------------------------------------------------- */
+.mail .mread { overflow-y: auto; min-height: 0; min-width: 0; padding: 22px 40px 40px; margin: 12px 12px 12px 0; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); }
+.mail .mread > * { max-width: 760px; }
+.mail .mread h2 { margin: 0 0 14px; font-size: 26px; line-height: 32px; font-weight: 750; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+.mail .mread-idle { display: grid; place-items: center; }
+.mail .mread-idle > * { max-width: 420px; }
+.mail .from { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.mail .from .ring, .mail .from .sq { width: 38px; height: 38px; font-size: 13px; }
+.mail .from .nm2 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.mail .from .nm2 > a, .mail .from .nm2 > b { font-weight: 700; font-size: 15.5px; }
+.mail .from .nm2 .addr { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
+.mail .from .mrel { display: block; margin-top: 1px; font-size: 13.5px; color: var(--ink-2); }
+.mail .from .dt { color: var(--ink-3); font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.mail .from .dt span { display: block; font-size: 12.5px; }
+.mail .acts2 { display: flex; gap: 8px; margin: 16px 0 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 
-/* HTML mail is sized to its content, so the message scrolls with the page */
-.mail-body-wrap { display: flex; flex-direction: column; gap: 10px; }
-.mail-body-html {
-  display: block;
-  width: 100%;
-  border: none;
-  background: #fff;
-  color-scheme: light;
-}
-.mail-images-bar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--panel);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-.mail-images-bar span { flex: 1; }
-.mail-images-bar .ct-btn { flex: 0 0 auto; padding: 5px 12px; font-size: 12px; }
+/* the body: plain text in our type; HTML as its sender drew it, on white, sized to itself */
+.mail .mbody { font-size: 16px; line-height: 26px; color: var(--ink); overflow-wrap: anywhere; }
+.mail .mbody p { margin: 0; }
+.mail .mbody p.mail-gap { height: 14px; }
+.mail .mbody a { color: var(--accent); }
+.mail .mempty { color: var(--ink-3); font-size: 14px; }
+.mail .mbody-wrap { display: flex; flex-direction: column; gap: 10px; }
+.mail .mbody-html { display: block; width: 100%; border: 0; border-radius: var(--r-2); background: #fff; color-scheme: light; }
+.mail .mimages { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--ink-3); font-size: 13px; }
 
-/* composer */
-.mail-composer { display: flex; flex-direction: column; gap: 10px; padding: 22px 26px 30px; max-width: 720px; width: 100%; }
-.mail-composer-head { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-.mail-field { display: flex; align-items: center; gap: 10px; }
-.mail-field > span { flex: 0 0 58px; font: 600 12px var(--font-mono); color: var(--text-faint); }
-.mail-field > input {
-  flex: 1;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 10px;
-  color: var(--text);
+/* Orr's draft, under the message it answers and on Waiting for you */
+.mail .mdraft { margin-top: 22px; border: 1px solid var(--line-2); border-radius: var(--r-3); background: var(--surface); overflow: hidden; }
+.mail .mdraft .draftbar { border-radius: 0; }
+.mail .mdraft .draftbar .hd, .mail .mdraft .draftbar svg.i { width: 16px; height: 16px; }
+.mail .mdraft .dto { padding: 12px 18px 0; font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
+.mail .mdraft .dto b { color: var(--ink-2); font-weight: 600; }
+.mail .mdraft .dbody { padding: 12px 18px 6px; font-size: 15px; line-height: 24px; color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail .mdraft .notice { margin: 4px 18px 8px; }
+.mail .mdraft .dacts { display: flex; gap: 8px; padding: 6px 18px 14px; }
+
+/* Waiting for you, as a page */
+.mail .mwait h2 { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.mail .mwait h2 .hd { width: 22px; height: 22px; }
+.mail .mwait-sub { margin: 0 0 4px; color: var(--ink-3); font-size: 14px; }
+.mail .mwait .ui-empty { margin-top: 22px; }
+
+/* ---- writing ---------------------------------------------------------------------------- */
+.mail .mcompose { display: flex; flex-direction: column; gap: 14px; }
+.mail .mc-head { display: flex; align-items: center; gap: 12px; }
+.mail .mc-head h2 { margin: 0; font-size: 22px; line-height: 28px; }
+.mail .mc-from { flex: 1; min-width: 0; color: var(--ink-3); font-size: 13px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail .mcompose .mc-body { min-height: 280px; font-size: 15px; line-height: 23px; }
+.mail .mc-acts { display: flex; align-items: center; gap: 8px; }
+
+/* not connected, and the first load */
+.mail.mail-off { display: block; padding: 12px; }
+.mail.mail-off .mread { margin: 0; max-width: 760px; }
+
+/* ===== Phone: the list is one screen, the message (or the composer) the next ============== */
+@media (max-width: 760px) {
+  .mail { display: block; }
+  .mail[data-screen="list"] > .mread { display: none; }
+  .mail[data-screen="pane"] > .mlist { display: none; }
+  .mail .mlist { overflow: visible; }
+  .mail .mlist-top { padding: 0 12px 8px 16px; }
+  .mail .mlist-top h1 { display: none; } /* the top bar says Mail */
+  .mail .wait { margin: 4px 12px 8px; }
+  .mail .list { overflow: visible; padding: 4px 6px 12px; }
+  .mail .mr { min-height: 48px; }
+  .mail .dr-x { opacity: 1; position: static; }
+  .mail .dr .r { display: none; }
+  .mail .mread { margin: 0; padding: 4px 16px 24px; border: 0; border-radius: 0; box-shadow: none; overflow: visible; min-height: 100%; }
+  .mail .mread h2 { font-size: 21px; line-height: 27px; margin-bottom: 12px; }
+  .mail .from { grid-template-columns: 34px minmax(0, 1fr); }
+  .mail .from .ring, .mail .from .sq { width: 34px; height: 34px; }
+  .mail .from .nm2 .addr { display: none; }
+  .mail .from .dt { grid-column: 2; text-align: left; font-size: 12.5px; }
+  .mail .from .dt span { display: none; }
+  .mail .acts2 { margin: 12px 0 14px; padding-bottom: 12px; }
+  .mail .mbody { font-size: 15.5px; line-height: 24px; }
+  .mail .mdraft .dbody { font-size: 14.5px; line-height: 22px; }
+  .mail .mc-from { display: none; }
+  .mail .mc-head .btn.icon { margin-left: auto; }
+  .mail.mail-off { padding: 0; }
 }
-.mail-field > input:disabled { color: var(--text-faint); }
-.mail-composer-body {
-  min-height: 260px;
-  resize: vertical;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  color: var(--text);
-  font: 400 14px var(--font-ui);
-  line-height: 1.55;
-}
-.mail-composer-actions { display: flex; align-items: center; gap: 10px; }
-.mail-composer-actions .primary { display: inline-flex; align-items: center; gap: 7px; }

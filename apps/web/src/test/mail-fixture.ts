@@ -108,7 +108,7 @@ export const DRAFTS: PendingDraft[] = [
   },
 ];
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+export const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
 /**
  * Stub `fetch` with a connected Gmail account holding INBOX and DRAFTS (copies: a test may
