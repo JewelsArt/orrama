@@ -506,11 +506,22 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
     const open = tasks.filter((t) => !t.checked).length;
     const done = tasks.filter((t) => t.checked).length;
     const context = recent.map((n) => `<note title="${n.title}">\n${n.content.slice(0, 1500)}\n</note>`).join("\n");
-    const digest = await callProvider(
-      c,
-      "Write a crisp morning digest for a team dashboard: what changed, what got completed, what looks stale, and 1-2 suggested connections between notes that discuss the same topic but aren't linked. Max 120 words. Plain prose, no headers.",
-      `Open tasks: ${open}, completed: ${done}.\nRecently edited notes:\n${context}`,
-    );
+    let digest: string;
+    try {
+      digest = await callProvider(
+        c,
+        "Write a crisp morning digest for a team dashboard: what changed, what got completed, what looks stale, and 1-2 suggested connections between notes that discuss the same topic but aren't linked. Max 120 words. Plain prose, no headers.",
+        `Open tasks: ${open}, completed: ${done}.\nRecently edited notes:\n${context}`,
+      );
+    } catch (err) {
+      // The error carries the whole prompt — the ten notes' text — and the
+      // generic handler logged all of it to server.log (audit AI-008). Log
+      // the provider's words and status only, and say who failed.
+      const msg = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+      const status = (err as { statusCode?: unknown }).statusCode;
+      req.log.warn({ status: typeof status === "number" ? status : null }, `ai/digest: the provider did not answer: ${msg}`);
+      throw new HttpError(502, `The AI provider did not answer: ${msg}`);
+    }
     digestCache.set(cacheKey, { day, digest });
     return { digest, cached: false };
   });

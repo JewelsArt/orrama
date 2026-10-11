@@ -35,7 +35,7 @@ import { settingsRoutes } from "./routes/settings.js";
 import { initWebhooks } from "./webhooks.js";
 import { sessionUser } from "./sessions.js";
 import { eq } from "drizzle-orm";
-import { privateLogFiles, reqSerializer, rotateLogIfLarge } from "./logging.js";
+import { errSerializer, privateLogFiles, reqSerializer, rotateLogIfLarge } from "./logging.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -171,7 +171,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
 
   // URLs in the log are redacted: no query strings, no /ics/<token> (logging.ts).
   const app = Fastify({
-    logger: { level: "info", serializers: { req: reqSerializer }, ...(opts.logStream ? { stream: opts.logStream } : {}) },
+    logger: { level: "info", serializers: { req: reqSerializer, err: errSerializer }, ...(opts.logStream ? { stream: opts.logStream } : {}) },
   });
   // Before anything else, routes and static files alike: a request must be
   // addressed to a name this server answers to (`allowedHost`).

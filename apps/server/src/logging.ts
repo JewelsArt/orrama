@@ -37,6 +37,26 @@ export function reqSerializer(req: FastifyRequest) {
 }
 
 /**
+ * Fields of a logged error that carry what was sent or received. The AI SDK's
+ * errors hold the whole request — APICallError.requestBodyValues is the
+ * prompt, notes and all, and RetryError repeats it once per attempt in
+ * `errors`/`lastError` — and pino copied every one into server.log (audit
+ * AI-008). They are left out, whoever throws them.
+ */
+const BODY_FIELDS = new Set(["requestBodyValues", "responseBody", "responseHeaders", "errors", "lastError", "aggregateErrors", "data", "value", "text", "prompt"]);
+
+/** Replaces pino's `err` serializer: type, message, stack and the error's own fields, less any body. */
+export function errSerializer(err: Error, depth = 0): { [key: string]: unknown; type: string; message: string; stack: string } {
+  const out: { [key: string]: unknown; type: string; message: string; stack: string } = { type: err.constructor?.name ?? "Error", message: err.message, stack: err.stack ?? "" };
+  for (const [k, v] of Object.entries(err)) {
+    if (!BODY_FIELDS.has(k) && !(k in out)) out[k] = v;
+  }
+  delete out["cause"];
+  if (err.cause instanceof Error && depth < 3) out["cause"] = errSerializer(err.cause, depth + 1);
+  return out;
+}
+
+/**
  * Make the log file readable by its owner only.
  *
  * launchd opens StandardOutPath with the default umask, so the log came out
