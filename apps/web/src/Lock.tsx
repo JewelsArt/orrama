@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, lastEmail, setToken, touchIdAvailable, unlockWithTouchId, type Me } from "./api.js";
-import { IconMark } from "./icons.js";
+import { OrramaMark, OrramaWordmark } from "./ui/orr/logo.js";
 
 const LENGTH = 4;
 
@@ -101,7 +101,7 @@ export function Lock({ onUnlock, onUsePassword }: { onUnlock: (me: Me) => void; 
     <div className="login-page">
       <div className="login-card lock-card">
         <div className="wordmark login-wordmark">
-          <IconMark size={24} /> basalt
+          <OrramaMark height={30} /> <OrramaWordmark height={19} title="Orrama" />
         </div>
         <p className="login-tagline">{email || "Locked"}</p>
 

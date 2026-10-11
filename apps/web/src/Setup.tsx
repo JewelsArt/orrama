@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, rememberEmail, setToken, type Me } from "./api.js";
-import { IconMark } from "./icons.js";
+import { OrramaMark, OrramaWordmark } from "./ui/orr/logo.js";
 
 /**
  * First run. Shown when GET /api/auth/status reports an empty install, which is
@@ -54,7 +54,7 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
         <div className="wordmark login-wordmark">
-          <IconMark size={24} /> basalt
+          <OrramaMark height={30} /> <OrramaWordmark height={19} title="Orrama" />
         </div>
         <p className="login-tagline">Create your account. This is your vault and your server.</p>
         <label>
@@ -95,7 +95,7 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
           {busy ? "Creating\u2026" : "Create account"}
         </button>
         <p className="login-hint">
-          Stored on this machine only. Nothing is sent anywhere - there is no Basalt account service.
+          Stored on this machine only. Nothing is sent anywhere - there is no Orrama account service.
         </p>
       </form>
     </div>

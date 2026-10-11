@@ -61,10 +61,11 @@ a {
   background: transparent;
 }
 
-/* Animated theme toggle — a circular wipe of the new theme, growing out of the
-   rail's toggle button (after Sol Kiernan's "Light/Dark mode button animation").
-   The button sets --rx/--ry to its own centre and --r-end to the distance to the
-   furthest viewport corner, then swaps the theme inside startViewTransition.
+/* Animated theme change — a circular wipe of the new theme, growing out of the
+   control that asked for it (Settings → Appearance, ⌘K; after Sol Kiernan's
+   "Light/Dark mode button animation"). App sets --rx/--ry to that control's
+   centre and --r-end to the distance to the furthest viewport corner, then swaps
+   the theme inside startViewTransition.
 
    HISTORY, because this reverses an earlier decision on purpose. The first
    version avoided clip-path exactly because clip-path is not compositor-
@@ -110,48 +111,8 @@ html.rippling::view-transition-new(root) {
   }
 }
 
-/* The icon is lifted out of the root snapshot so it turns over on its own rather
-   than being swapped instantly by the wipe front — which, since the wipe starts
-   at this very button, would otherwise happen on frame one. Sits above the new
-   root so the clip never crops it. */
-.theme-ic {
-  position: relative;
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  flex: none;
-  view-transition-name: theme-ic;
-}
-.rail-item .theme-ic svg {
-  position: absolute;
-  inset: 0;
-}
-::view-transition-group(theme-ic) {
-  z-index: 10001;
-}
-::view-transition-old(theme-ic) {
-  animation: theme-ic-out 0.42s cubic-bezier(0.4, 0, 0.6, 1) both;
-}
-::view-transition-new(theme-ic) {
-  animation: theme-ic-in 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
-}
-@keyframes theme-ic-out {
-  to {
-    opacity: 0;
-    transform: rotate(-80deg) scale(0.4);
-  }
-}
-@keyframes theme-ic-in {
-  from {
-    opacity: 0;
-    transform: rotate(80deg) scale(0.4);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  html.rippling::view-transition-new(root),
-  ::view-transition-old(theme-ic),
-  ::view-transition-new(theme-ic) {
+  html.rippling::view-transition-new(root) {
     animation: none;
   }
 }

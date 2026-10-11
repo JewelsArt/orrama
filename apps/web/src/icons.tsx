@@ -32,64 +32,6 @@ const base = {
   "aria-hidden": true,
 };
 
-/** Basalt mark: three interlocking columns, like the causeway. */
-/**
- * Three basalt columns seen from above — the Giant's Causeway view — each drawn
- * as a cube.
- *
- * There is not a single stroke in here. Every edge is the seam where two fills
- * meet, which is why it stays clean at 18px: an outline plus internal edges
- * clogs the interiors long before the silhouette gives out.
- *
- * ONE HUE, THREE LIGHTNESSES (oklch 280 degrees, the brand violet). Every cube
- * wears the same three tones in the same places, because one light source lights
- * every cube the same way. Do not grade the cubes front-to-back on top of this —
- * an earlier version did, the two systems of shading fought, and the third cube
- * all but disappeared.
- *
- * The cells are pulled very slightly apart on purpose. Sharing walls makes them
- * a honeycomb, which reads as bees before it reads as rock; a hair of gap turns
- * them back into separate columns that happen to pack, which is the actual
- * claim. Do not close the gaps to "tidy" it.
- *
- * It fills more of the 16 box than the nav icons around it (roughly 1.2 units
- * of margin against their 2). That is deliberate: those sit in a row and need
- * matching optical weight, this one sits alone above the rule and was reading
- * small next to the wordmark.
- *
- * These are fixed hex values, so unlike the rest of icons.tsx the mark does NOT
- * follow currentColor or --logo. That is deliberate: a brand mark that changes
- * colour is not much of a brand mark. The cost is that it no longer tracks a
- * custom palette — swap the six literals for color-mix() over currentColor if
- * that trade is ever worth reversing.
- */
-const FACE = { top: "#8c90ff", left: "#6760ed", right: "#493eb9" };
-
-export const IconMark = ({ size = 18 }: { size?: number }) => (
-  <svg {...base} width={size} height={size} stroke="none">
-    {/* top cell */}
-    <path d="M4.92 3 L8 1.22 L11.08 3 L8 4.78 Z" fill={FACE.top} />
-    <path d="M4.92 6.55 L4.92 3 L8 4.78 L8 8.33 Z" fill={FACE.left} />
-    <path d="M11.08 3 L11.08 6.55 L8 8.33 L8 4.78 Z" fill={FACE.right} />
-    {/* lower-left cell */}
-    <path d="M1.2 9.45 L4.28 7.67 L7.36 9.45 L4.28 11.22 Z" fill={FACE.top} />
-    <path d="M1.2 13 L1.2 9.45 L4.28 11.22 L4.28 14.78 Z" fill={FACE.left} />
-    <path d="M7.36 9.45 L7.36 13 L4.28 14.78 L4.28 11.22 Z" fill={FACE.right} />
-    {/* lower-right cell */}
-    <path d="M8.64 9.45 L11.72 7.67 L14.8 9.45 L11.72 11.22 Z" fill={FACE.top} />
-    <path d="M8.64 13 L8.64 9.45 L11.72 11.22 L11.72 14.78 Z" fill={FACE.left} />
-    <path d="M14.8 9.45 L14.8 13 L11.72 14.78 L11.72 11.22 Z" fill={FACE.right} />
-  </svg>
-);
-
-export const IconDashboard = () => drawn("sunrise");
-
-export const IconArchitecture = () => drawn("notes");
-
-export const IconPlanning = () => drawn("calendar");
-
-export const IconOverview = () => drawn("projects");
-
 export const IconSearch = () => drawn("search");
 
 export const IconAsk = () => drawn("ask");
@@ -138,28 +80,12 @@ export const IconOther = () => (
   <svg {...base}><circle cx="4" cy="8" r="1.1" /><circle cx="8" cy="8" r="1.1" /><circle cx="12" cy="8" r="1.1" /></svg>
 );
 
-/** Finance: a banknote — money as an object, not a chart or a currency sign. */
-export const IconFinance = () => drawn("money");
-
-/** Back: a plain left arrow — the same glyph every browser and OS uses. */
-export const IconBack = () => drawn("back");
-
-/** Reload: a full circular arrow, so it reads as "again", not "undo". */
-export const IconRefresh = () => (
-  <svg {...base}>
-    <path d="M13.5 8a5.5 5.5 0 1 1-1.7-3.97" />
-    <path d="M13.5 2.5v3.2h-3.2" />
-  </svg>
-);
-
 export const IconSignOut = () => (
   <svg {...base}>
     <path d="M6.5 2.5 H3 V13.5 H6.5" />
     <path d="M10 5 L13 8 L10 11 M13 8 H6" />
   </svg>
 );
-
-export const IconContacts = () => drawn("people");
 
 export const IconMail = () => drawn("mail");
 

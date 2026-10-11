@@ -116,3 +116,100 @@ describe("addresses", () => {
     expect(path()).toBe("/today");
   });
 });
+
+describe("the shell", () => {
+  it("lists the eight places in order, then Find, Ask Orr and your Orr; no Reload, Dark or Back", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
+    const items = [...rail.querySelectorAll(".ri")].map((e) => e.textContent);
+    expect(items).toEqual(["Today", "Planning", "Notes", "Orrery", "Projects", "People", "Mail", "Money", "Find", "Ask Orr"]);
+    expect(rail.textContent).not.toMatch(/Reload|Dark|Light|Back|your vault|Ask vault/);
+    expect(rail.querySelector("kbd, .kbd, .rail-kbd")).toBeNull(); // keys live in tooltips (§8 #5)
+    expect(rail.querySelector(".ri[data-tip]")?.getAttribute("data-tip")).toBe("Today  1");
+    expect(screen.getByRole("link", { name: "Jules: Settings" })).toBeTruthy();
+  });
+
+  it("lights the place you are in, and its address is the rail's link", async () => {
+    const user = userEvent.setup();
+    at("/today");
+    render(<App />);
+    await view();
+    const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
+    const projects = [...rail.querySelectorAll<HTMLAnchorElement>(".ri")].find((a) => a.textContent === "Projects")!;
+    expect(projects.getAttribute("href")).toBe("/projects");
+    await user.click(projects);
+    expect(path()).toBe("/projects");
+    expect(projects.getAttribute("aria-current")).toBe("page");
+    expect(document.title).toBe("Projects · Orrama");
+  });
+
+  it("your Orr opens Settings → You", async () => {
+    const user = userEvent.setup();
+    at("/today");
+    render(<App />);
+    await view();
+    await user.click(screen.getByRole("link", { name: "Jules: Settings" }));
+    expect(path()).toBe("/settings/you");
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["dashboard", "settings"]);
+  });
+
+  it("on the phone, More holds the other places and Settings, with your Orr on top", async () => {
+    const user = userEvent.setup();
+    at("/today");
+    render(<App />);
+    await view();
+    await user.click(screen.getByRole("button", { name: /^More/ }));
+    const more = screen.getByRole("dialog", { name: "More" });
+    expect([...more.querySelectorAll(".more-row")].map((e) => e.textContent)).toEqual(["Orrery", "Projects", "People", "Mail", "Money", "Settings"]);
+    expect(more.querySelector(".more-me")?.textContent).toMatch(/Jules/);
+    await user.click([...more.querySelectorAll<HTMLElement>(".more-row")].find((e) => e.textContent === "Money")!);
+    expect(path()).toBe("/money");
+    expect(screen.queryByRole("dialog", { name: "More" })).toBeNull();
+  });
+
+  it("the phone's top bar has Back only on a page deeper than its tab", async () => {
+    at("/projects");
+    const { unmount } = render(<App />);
+    await view();
+    expect(document.querySelector(".ptop .back")).toBeNull();
+    unmount();
+    at("/projects/thesis");
+    render(<App />);
+    await view();
+    expect(document.querySelector(".ptop .back")).not.toBeNull();
+    expect(document.querySelector(".ptop h1")?.textContent).toBe("Thesis");
+  });
+
+  it("says Orrama while it boots", async () => {
+    let answer!: (r: Response) => void;
+    vi.stubGlobal("fetch", async (url: string) =>
+      url === "/api/me" ? new Promise<Response>((r) => (answer = r)) : new Response(JSON.stringify({ needsSetup: false }), { status: 200 }),
+    );
+    at("/today");
+    render(<App />);
+    expect(screen.getByRole("img", { name: "Orrama" })).toBeTruthy();
+    answer(new Response("{}", { status: 401 }));
+  });
+
+  it("shows the update note after a ship, and only then", async () => {
+    let build = "aaa";
+    serve();
+    const base = globalThis.fetch;
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) =>
+      url === "/api/health" ? new Response(JSON.stringify({ ok: true, notes: 1, build }), { status: 200 }) : base(url, init),
+    );
+    at("/today");
+    render(<App />);
+    await view();
+    await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+    expect(screen.queryByText("Update ready")).toBeNull();
+    build = "bbb"; // pnpm ship
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getAllByText("Update ready").length).toBeGreaterThan(0);
+  });
+});

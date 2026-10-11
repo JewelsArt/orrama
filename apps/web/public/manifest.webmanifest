@@ -1,13 +1,13 @@
 {
-  "name": "Basalt",
-  "short_name": "Basalt",
+  "name": "Orrama",
+  "short_name": "Orrama",
   "description": "Your knowledge, on plain Markdown files.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f4f4f8",
-  "theme_color": "#f4f4f8",
+  "background_color": "#F3EFE8",
+  "theme_color": "#F3EFE8",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

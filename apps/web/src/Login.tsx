@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api, rememberEmail, setToken, type Me } from "./api.js";
-import { IconMark } from "./icons.js";
+import { OrramaMark, OrramaWordmark } from "./ui/orr/logo.js";
 
 export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
   const [email, setEmail] = useState("");
@@ -28,7 +28,7 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
     <div className="login-page">
       <form className="login-card" onSubmit={submit}>
         <div className="wordmark login-wordmark">
-          <IconMark size={24} /> basalt
+          <OrramaMark height={30} /> <OrramaWordmark height={19} title="Orrama" />
         </div>
         <p className="login-tagline">Your knowledge. Your files. Your server.</p>
         <label>

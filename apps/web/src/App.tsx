@@ -2,12 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
-import { CharacterAvatar } from "./avatars.js";
 import { Contacts } from "./Contacts.js";
 import { Finance } from "./Finance.js";
 import { Project } from "./Project.js";
 import { Dashboard } from "./Dashboard.js";
-import { IconArchitecture, IconAsk, IconBack, IconContacts, IconDashboard, IconFinance, IconMail, IconMark, IconMoon, IconOverview, IconPlanning, IconRefresh, IconSearch, IconSun } from "./icons.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
@@ -19,7 +17,9 @@ import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, writeKey } from "./storage.js";
-import { canGoBack, canonical, goBack as historyBack, navigate as go, placeOf, useRoute, type MoneyPage, type Route } from "./ui/router.js";
+import { OrramaMark } from "./ui/orr/logo.js";
+import { canonical, goBack as historyBack, navigate as go, placeOf, PLACES, useRoute, type MoneyPage, type Route } from "./ui/router.js";
+import { Shell } from "./ui/shell/Shell.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
@@ -34,16 +34,6 @@ export type View =
   | { kind: "contacts" }
   | { kind: "finance"; category?: string; merchant?: string; page?: FinancePage; month?: string }
   | { kind: "mail" };
-
-const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; ownerOnly?: boolean }[] = [
-  { kind: "dashboard", label: "Dashboard", icon: IconDashboard },
-  { kind: "architecture", label: "Architecture", icon: IconArchitecture },
-  { kind: "planning", label: "Planning", icon: IconPlanning },
-  { kind: "overview", label: "Overview", icon: IconOverview },
-  { kind: "contacts", label: "Contacts", icon: IconContacts },
-  { kind: "mail", label: "Mail", icon: IconMail },
-  { kind: "finance", label: "Finance", icon: IconFinance },
-];
 
 /** Finance's own name for its "all spending" page, when it is opened as a category. */
 const SPENDING_PAGE = "__spending";
@@ -120,6 +110,42 @@ export function viewOfRoute(r: Route, idOf: (path: string) => string | undefined
   }
 }
 
+/** A slug or a file name, said as words: "graduation-thesis" → "Graduation thesis". */
+const words = (s: string) => {
+  const w = s.split("/").pop()!.replace(/[-_]+/g, " ").trim();
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+const MONEY_TITLES: Record<MoneyPage, string> = { spending: "Spending", documents: "Documents", subscriptions: "Subscriptions", income: "Income", savings: "Saving" };
+
+/**
+ * The page's title for the phone's top bar and the window: the place, or for a page inside
+ * one, what the address names. A screen with a better name (a project's real title) gives it
+ * in its wave.
+ */
+export function titleOf(r: Route): string {
+  switch (r.kind) {
+    case "notes":
+      return r.path ? words(r.path) : "Notes";
+    case "notes-health":
+      return "Orr noticed";
+    case "project":
+    case "person":
+    case "company":
+    case "conversation":
+      return words(r.slug);
+    case "document":
+      return r.path.split("/").pop()!;
+    case "mail":
+      return r.waiting ? "Waiting for you" : "Mail";
+    case "money":
+      return r.merchant ?? r.category ?? (r.page ? MONEY_TITLES[r.page] : "Money");
+    case "settings":
+      return "Settings";
+    default:
+      return PLACES.find((p) => p.place === placeOf(r))?.label ?? "Orrama";
+  }
+}
+
 /** A note's address is its vault path without ".md". */
 const notePath = (path: string) => path.replace(/\.md$/i, "");
 
@@ -192,8 +218,6 @@ export function App() {
     return Array.isArray(saved) ? (saved as VisionProfile[]) : [];
   });
   const [paletteOpen, setPaletteOpen] = useState(false);
-  // A project workspace is opened from the board, so the rail keeps Overview lit.
-  const activeKind: View["kind"] = view.kind === "project" ? "overview" : view.kind;
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
@@ -337,17 +361,20 @@ export function App() {
 
   const openNote = useCallback((noteId: string) => navigate({ kind: "architecture", noteId }), [navigate]);
 
-  const isLight = theme !== "command" && theme !== "dark";
-  const toggleTheme = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      const next = isLight ? "command" : "light";
+  /*
+   * A theme change, with the circular wipe (it left the rail with the Dark button, §8 #4, and
+   * stays for Settings → Appearance and ⌘K). It grows out of the control that asked for it:
+   * the focused element, which is the button just clicked or pressed.
+   */
+  const changeTheme = useCallback(
+    (next: string) => {
       const root = document.documentElement;
+      if (next === root.dataset.theme) return setTheme(next);
 
-      // Origin is the BUTTON's centre, not the pointer. The wipe should grow out
-      // of the control that caused it, and a keyboard activation reports
-      // clientX/clientY of 0 — which bloomed the whole theme out of the top-left
-      // corner of the window.
-      const r = e.currentTarget.getBoundingClientRect();
+      // Origin is the CONTROL's centre, not the pointer: a keyboard activation reports
+      // clientX/clientY of 0, which bloomed the whole theme out of the top-left corner.
+      const at = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+      const r = at?.getBoundingClientRect() ?? new DOMRect(innerWidth / 2, innerHeight / 2, 0, 0);
       const x = r.left + r.width / 2;
       const y = r.top + r.height / 2;
       // Radius at which the circle has swallowed the viewport: the distance to
@@ -372,7 +399,7 @@ export function App() {
       root.classList.add("rippling");
       start.call(document, swap).finished.finally(() => root.classList.remove("rippling"));
     },
-    [isLight],
+    [],
   );
 
   useEffect(() => {
@@ -416,7 +443,12 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate, goBack]);
 
-  if (me === undefined || needsSetup === undefined) return <div className="boot">basalt</div>;
+  if (me === undefined || needsSetup === undefined)
+    return (
+      <div className="boot">
+        <OrramaMark height={44} title="Orrama" />
+      </div>
+    );
   if (me === null && needsSetup) return <Setup onDone={setMe} />;
   // A device that has signed in before gets the quick-unlock screen; it offers
   // "use password instead", which is also the only way out of a passcode lockout.
@@ -425,89 +457,16 @@ export function App() {
   }
   if (me === null) return <Login onLogin={setMe} />;
 
-  const firstTeam = me.teams[0];
-
   return (
-    <div className="shell">
-      <nav className="rail" aria-label="Main">
-        <div className="rail-brand">
-          <IconMark size={26} />
-          <span>basalt</span>
-        </div>
-
-        <button
-          className="rail-item rail-back"
-          onClick={goBack}
-          disabled={!canGoBack()}
-          title={canGoBack() ? "Back" : "Nothing to go back to"}
-          aria-label={canGoBack() ? "Back" : "Back (nothing to go back to)"}
-        >
-          <IconBack />
-          <span>Back</span>
-          <kbd className="rail-kbd">⌘[</kbd>
-        </button>
-
-        <div className="rail-nav" role="tablist" aria-orientation="vertical">
-          {NAV.filter((n) => !n.ownerOnly || me.isOwner).map((n, i) => (
-            <button
-              key={n.kind}
-              role="tab"
-              aria-selected={activeKind === n.kind}
-              className={`rail-item ${activeKind === n.kind ? "active" : ""}`}
-              onClick={() => navigate({ kind: n.kind } as View)}
-            >
-              <n.icon />
-              <span>{n.label}</span>
-              {!n.ownerOnly && <kbd className="rail-kbd">{i + 1}</kbd>}
-            </button>
-          ))}
-        </div>
-
-        <div className="rail-tools">
-          <button className="rail-item" onClick={() => setPaletteOpen(true)}>
-            <IconSearch />
-            <span>Search</span>
-            <kbd className="rail-kbd">⌘K</kbd>
-          </button>
-          <button className="rail-item" onClick={() => setAskOpen((v) => !v)}>
-            <IconAsk />
-            <span>Ask vault</span>
-          </button>
-          <button
-            className={`rail-item ${updateReady ? "has-update" : ""}`}
-            onClick={() => location.reload()}
-            aria-label={updateReady ? "A new build is available. Reload" : "Reload the app"}
-          >
-            <IconRefresh />
-            <span>{updateReady ? "Update ready" : "Reload"}</span>
-            <kbd className="rail-kbd">⌘R</kbd>
-          </button>
-          <button className="rail-item theme-toggle" onClick={toggleTheme} aria-label={isLight ? "Switch to dark" : "Switch to light"}>
-            {/* Wrapped so it carries its own view-transition-name: the sun and
-                the moon are the "old" and "new" snapshots of this one box, which
-                is what lets them turn into each other. */}
-            <span className="theme-ic">{isLight ? <IconMoon /> : <IconSun />}</span>
-            <span>{isLight ? "Dark" : "Light"}</span>
-          </button>
-        </div>
-
-        <div className="rail-spacer" />
-
-        <button
-          className="account"
-          onClick={openSettings}
-          aria-haspopup="dialog"
-          aria-label={`Account: ${me.displayName}. Open settings`}
-        >
-          <CharacterAvatar id={me.avatar} size={32} />
-          <span className="account-text">
-            <span className="account-name">{me.displayName}</span>
-            <span className="account-team">your vault</span>
-          </span>
-        </button>
-      </nav>
-
-      <main className="content">
+    <Shell
+      route={route}
+      title={titleOf(route)}
+      me={me}
+      updateReady={updateReady}
+      askOpen={askOpen}
+      onFind={() => setPaletteOpen(true)}
+      onAsk={() => setAskOpen((v) => !v)}
+    >
         {view.kind === "dashboard" ? (
           <Dashboard
             me={me}
@@ -545,7 +504,6 @@ export function App() {
             onBack={goBack}
           />
         )}
-      </main>
 
       {askOpen && <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />}
       {paletteOpen && (
@@ -562,7 +520,7 @@ export function App() {
         <Settings
           me={me}
           theme={theme}
-          onTheme={setTheme}
+          onTheme={changeTheme}
           vision={vision}
           onVision={setVision}
           profiles={profiles}
@@ -577,6 +535,6 @@ export function App() {
           }}
         />
       )}
-    </div>
+    </Shell>
   );
 }
