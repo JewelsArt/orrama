@@ -7,7 +7,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { assertValidEnv, envProblems } from "../src/env.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-env-"));
@@ -72,6 +72,44 @@ describe("environment", () => {
       await expect(buildServer()).rejects.toThrow(/environment is not valid[\s\S]*BASALT_PLAN_AI_TIMEOUT_MS/);
     } finally {
       delete process.env.BASALT_PLAN_AI_TIMEOUT_MS;
+    }
+  });
+});
+
+/**
+ * A secret set to "" is a missing secret (audit REG-002). `??` kept the empty
+ * string, the placeholder check did not know it, and the length rule skipped
+ * it as falsy — so BASALT_SECRET_KEY= booted and encrypted the mail password
+ * and AI key under sha256(""), which anyone can compute.
+ */
+describe("empty or short secrets", () => {
+  const REAL = "6f1c0b9a4d2e8f37a1b5c9d0e4f8a2b6c3d7";
+  /** The boot guard, run against a fresh env module under these variables. */
+  const guard = async (vars: Record<string, string>) => {
+    const saved = { ...process.env };
+    delete process.env.BASALT_ALLOW_DEV_SECRETS;
+    Object.assign(process.env, vars);
+    vi.resetModules();
+    try {
+      const fresh = await import("../src/env.js");
+      return () => fresh.assertProductionSecrets();
+    } finally {
+      process.env = saved;
+    }
+  };
+  afterAll(() => vi.resetModules());
+
+  it("refuse to boot, naming the variable", async () => {
+    expect(await guard({ BASALT_JWT_SECRET: REAL, BASALT_SECRET_KEY: "" })).toThrow(/Refusing to start: BASALT_SECRET_KEY is empty/);
+    expect(await guard({ BASALT_JWT_SECRET: "", BASALT_SECRET_KEY: REAL })).toThrow(/Refusing to start: BASALT_JWT_SECRET is empty/);
+    expect(await guard({ BASALT_JWT_SECRET: REAL, BASALT_SECRET_KEY: "x".repeat(20) })).toThrow(/BASALT_SECRET_KEY/);
+    expect(await guard({ BASALT_JWT_SECRET: REAL, BASALT_SECRET_KEY: REAL })).not.toThrow();
+  });
+
+  it("are listed as environment problems", () => {
+    for (const name of ["BASALT_JWT_SECRET", "BASALT_SECRET_KEY"]) {
+      const problems = envProblems({ ...good, [name]: "" });
+      expect(problems.some((p) => p.startsWith(`${name} is set but empty`)), JSON.stringify(problems)).toBe(true);
     }
   });
 });

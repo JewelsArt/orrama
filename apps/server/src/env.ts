@@ -18,6 +18,9 @@ const PLACEHOLDER_SECRETS = new Set([
   "change-me-32-bytes-of-entropy!!",
 ]);
 
+/** The shortest secret accepted; `openssl rand -hex 32` gives 64. */
+const MIN_SECRET_LENGTH = 32;
+
 export const env = {
   port: Number(process.env.PORT ?? 4623),
   host: process.env.HOST ?? "127.0.0.1",
@@ -87,13 +90,15 @@ export function assertProductionSecrets(
   allowDevSecrets = process.env.BASALT_ALLOW_DEV_SECRETS === "1",
 ): void {
   if (allowDevSecrets) return;
-  const bad = [
-    PLACEHOLDER_SECRETS.has(env.jwtSecret) ? "BASALT_JWT_SECRET" : null,
-    PLACEHOLDER_SECRETS.has(env.secretKey) ? "BASALT_SECRET_KEY" : null,
-  ].filter(Boolean);
+  // Empty or short counts too, not only the known placeholders: `??` keeps
+  // an empty string, so `BASALT_SECRET_KEY=` (an empty <string/> in the
+  // plist, an unset compose variable) booted and encrypted every stored
+  // credential under sha256("") — a key anyone can compute (audit REG-002).
+  const weak = (v: string) => PLACEHOLDER_SECRETS.has(v) || v.length < MIN_SECRET_LENGTH;
+  const bad = [weak(env.jwtSecret) ? "BASALT_JWT_SECRET" : null, weak(env.secretKey) ? "BASALT_SECRET_KEY" : null].filter(Boolean);
   if (bad.length === 0) return;
   throw new Error(
-    `Refusing to start: ${bad.join(" and ")} still ${bad.length > 1 ? "hold" : "holds"} a placeholder value. ` +
+    `Refusing to start: ${bad.join(" and ")} ${bad.length > 1 ? "are" : "is"} empty, shorter than ${MIN_SECRET_LENGTH} characters, or a placeholder value. ` +
       `Generate real secrets (e.g. \`openssl rand -hex 32\`) and set them in the environment. ` +
       `For a throwaway install you do not mind anyone reading, set BASALT_ALLOW_DEV_SECRETS=1 instead. ` +
       `Rotating BASALT_SECRET_KEY on an existing database needs \`pnpm --dir apps/server rotate-secret-key\` ` +
@@ -155,11 +160,13 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
   if (allow !== undefined && allow !== "" && allow !== "1" && allow !== "0") {
     out.push(`BASALT_ALLOW_DEV_SECRETS=${JSON.stringify(allow)} means nothing — it is "1" or unset`);
   }
-  // A real secret is long; `openssl rand -hex 32` gives 64 characters.
+  // A real secret is long; `openssl rand -hex 32` gives 64 characters. Set
+  // but empty is the same mistake, not "unset" (REG-002).
   if (allow !== "1") {
     for (const name of ["BASALT_JWT_SECRET", "BASALT_SECRET_KEY"]) {
       const v = e[name];
-      if (v && !PLACEHOLDER_SECRETS.has(v) && v.length < 32) out.push(`${name} is ${v.length} characters; use at least 32 (openssl rand -hex 32)`);
+      if (v === "") out.push(`${name} is set but empty; use at least ${MIN_SECRET_LENGTH} characters (openssl rand -hex 32)`);
+      else if (v !== undefined && !PLACEHOLDER_SECRETS.has(v) && v.length < MIN_SECRET_LENGTH) out.push(`${name} is ${v.length} characters; use at least ${MIN_SECRET_LENGTH} (openssl rand -hex 32)`);
     }
   }
   return out;
