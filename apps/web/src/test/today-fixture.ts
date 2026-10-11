@@ -104,9 +104,9 @@ export const RELATIONS: Record<string, GraphRelations> = {
 };
 
 export const INBOX: InboxItem[] = [
-  { uid: 101, from: "Ines Vermaat <i.vermaat@westerdok.example>", fromName: "Ines Vermaat", subject: "Re: Research plan — section 3", date: "2026-10-08T08:01:00.000Z", seen: false, messageId: null, category: "primary" },
-  { uid: 102, from: "news@shop.example", fromName: "Shop", subject: "Sale", date: "2026-10-08T07:00:00.000Z", seen: false, messageId: null, category: "promotions" },
-  { uid: 103, from: "x@example.com", fromName: "Read Already", subject: "Old", date: "2026-10-07T07:00:00.000Z", seen: true, messageId: null, category: "primary" },
+  { uid: 101, from: "Ines Vermaat <i.vermaat@westerdok.example>", fromName: "Ines Vermaat", subject: "Re: Research plan — section 3", date: new Date(2026, 9, 8, 10, 1).toISOString(), seen: false, messageId: null, category: "primary" },
+  { uid: 102, from: "news@shop.example", fromName: "Shop", subject: "Sale", date: new Date(2026, 9, 8, 9, 0).toISOString(), seen: false, messageId: null, category: "promotions" },
+  { uid: 103, from: "x@example.com", fromName: "Read Already", subject: "Old", date: new Date(2026, 9, 7, 9, 0).toISOString(), seen: true, messageId: null, category: "primary" },
 ];
 export const DRAFTS: PendingDraft[] = [
   { id: "d1", to: "i.vermaat@westerdok.example", subject: "Re: Research plan — section 3", body: "…", inReplyTo: null, references: null, createdBy: "agent", createdAt: 1 },
