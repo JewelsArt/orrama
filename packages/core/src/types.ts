@@ -140,6 +140,9 @@ export interface VaultTask extends ParsedTask {
 }
 
 export interface ProjectProgress {
+  /** The project's identity: its tag (`project/thesis`) or folder. */
+  key: string;
+  /** Its display name — two projects may share one. */
   project: string;
   total: number;
   done: number;

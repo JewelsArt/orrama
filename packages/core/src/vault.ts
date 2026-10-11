@@ -42,6 +42,67 @@ export function generateNoteId(): NoteId {
     .slice(2, 6)}`;
 }
 
+/** Where project notes conventionally live: `04-Projects/<slug>.md`. */
+export const PROJECTS_DIR = "04-Projects";
+
+/**
+ * The one grammar for a project's slug (audit REG-017). The tag
+ * `project/<slug>` registers a project, the board opens `/api/projects/<slug>`
+ * and its documents live in `04-Projects/<slug>/files/`: three places that
+ * used three grammars, so `project/my_thesis` got a card on the board that
+ * every route answered 404. A slug is one path segment in the tag grammar's
+ * alphabet: a letter or digit of any script first, then letters, marks,
+ * digits, `_` and `-`, at most 64 — never `.`, `/` or `\`. A nested tag
+ * (`project/thesis/2026`) is not a project anywhere.
+ */
+export const PROJECT_SLUG_RE = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_-]{0,63}$/u;
+
+/** The slug of a `project/<slug>` tag, or null when the tag names no project. */
+export function projectSlugOf(tag: string): string | null {
+  if (!tag.startsWith("project/")) return null;
+  const slug = tag.slice("project/".length);
+  return PROJECT_SLUG_RE.test(slug) ? slug : null;
+}
+
+/**
+ * The note that *is* the project, as opposed to a note that merely belongs to
+ * it. Conventional path first, tag second, and the order matters: once a project
+ * has working notes carrying its tag, a tag-first lookup can land on a chapter
+ * draft and read the project's status, deadline, id — and name — off the wrong
+ * note. Every surface that needs the project note must use this, or the board,
+ * the dashboard and the workspace will disagree about which note that is.
+ */
+export function projectNoteFor(notes: IndexedNote[], key: string): IndexedNote | undefined {
+  const slug = key.startsWith("project/") ? key.slice("project/".length) : key;
+  const conventional = notes.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`);
+  if (conventional) return conventional;
+  // Without one, a FIXED choice among the tagged notes. "The first one the
+  // index lists" moved with every save — a write re-inserts its note at the
+  // end — so with two tagged notes the project note flipped on each write:
+  // a decision landed in one, the next capture in the other, and the page
+  // showed whichever was current. In 04-Projects/ first, then the note made
+  // first (ids are time-ordered), then path.
+  const rank = (n: IndexedNote) => (n.path.startsWith(`${PROJECTS_DIR}/`) ? 0 : 1);
+  let best: IndexedNote | undefined;
+  for (const n of notes) {
+    if (!n.tags.some((t) => t.tag === key)) continue;
+    if (!best || rank(n) < rank(best) || (rank(n) === rank(best) && (n.id < best.id || (n.id === best.id && n.path < best.path)))) best = n;
+  }
+  return best;
+}
+
+/**
+ * What a project is called: its project note's own `title:` — not the title
+ * of whichever tagged note was indexed first, which is what registration
+ * froze (audit COR-004). A project note with no `title:` keeps `fallback`, the
+ * name it was registered under: a filename like `python-finance` reads worse
+ * than the name the board has always shown (Jules's call, 11 Oct 2026).
+ */
+export function projectName(note: IndexedNote | undefined, fallback: string): string {
+  const t = note?.frontmatter["title"];
+  return typeof t === "string" && t.trim() ? t.trim() : fallback;
+}
+
 export interface ProjectDef {
   /** "folder:Engineering" or "tag:project/atlas" */
   kind: "folder" | "tag";
@@ -280,24 +341,37 @@ export class VaultIndex {
   }
 
   /**
-   * Project of a note (spec §7.1): nearest ancestor folder that is a project,
-   * else its first `project/...` tag. Returns the project display name or null.
+   * The project a note belongs to (spec §7.1), by its KEY: the nearest
+   * ancestor folder that is a project, else its first front-matter
+   * `project/…` tag that names one. The key is the project's identity; its
+   * name is only what it is called, and two projects may share one — keyed
+   * by name, they merged on every surface (audit COR-004). Only front matter
+   * binds a note, as registration and CLAUDE.md say: an inline
+   * `#project/thesis` in a daily note poured its errands into the project
+   * (audit COR-006).
    */
-  projectOf(note: IndexedNote, projects: ProjectDef[]): string | null {
+  projectKeyOf(note: IndexedNote, projects: ProjectDef[]): string | null {
     const folderProjects = projects.filter((p) => p.kind === "folder");
     let cur = note.folder;
     while (true) {
       const hit = folderProjects.find((p) => p.key === cur);
-      if (hit) return hit.name;
+      if (hit) return hit.key;
       if (cur === "") break;
       const idx = cur.lastIndexOf("/");
       cur = idx === -1 ? "" : cur.slice(0, idx);
     }
-    for (const { tag } of note.tags) {
+    for (const { tag, line } of note.tags) {
+      if (line !== 0) continue;
       const hit = projects.find((p) => p.kind === "tag" && p.key === tag);
-      if (hit) return hit.name;
+      if (hit) return hit.key;
     }
     return null;
+  }
+
+  /** The display name of the project a note belongs to (projectKeyOf), or null. */
+  projectOf(note: IndexedNote, projects: ProjectDef[]): string | null {
+    const key = this.projectKeyOf(note, projects);
+    return key === null ? null : (projects.find((p) => p.key === key)?.name ?? null);
   }
 
   /** All tasks across readable notes, with project attribution. */
@@ -313,29 +387,27 @@ export class VaultIndex {
     return out;
   }
 
-  /** Real, computed progress per project — no manual status (spec §6.2). */
+  /** Real, computed progress per project, keyed by the project's key — no manual status (spec §6.2). */
   progress(user: AclUser | undefined, grants: FolderGrant[], projects: ProjectDef[]): ProjectProgress[] {
     const byProject = new Map<string, ProjectProgress>();
-    const notesByProject = new Map<string, number>();
     const notes = user ? filterReadable(user, this.all(), grants) : this.all();
     for (const note of notes) {
-      const project = this.projectOf(note, projects);
-      if (!project) continue;
+      const key = this.projectKeyOf(note, projects);
+      if (key === null) continue;
       const mtime = note.mtimeMs ?? 0;
-      notesByProject.set(project, Math.max(notesByProject.get(project) ?? 0, mtime));
-    }
-    for (const task of this.tasks(user, grants, projects)) {
-      if (!task.project) continue;
-      let p = byProject.get(task.project);
+      let p = byProject.get(key);
       if (!p) {
-        p = { project: task.project, total: 0, done: 0, assignees: [], lastActivityMs: notesByProject.get(task.project) };
-        byProject.set(task.project, p);
+        p = { key, project: projects.find((d) => d.key === key)!.name, total: 0, done: 0, assignees: [], lastActivityMs: mtime };
+        byProject.set(key, p);
       }
-      p.total++;
-      if (task.checked) p.done++;
-      else if (task.assignee && !p.assignees.includes(task.assignee)) p.assignees.push(task.assignee);
+      p.lastActivityMs = Math.max(p.lastActivityMs ?? 0, mtime);
+      for (const task of note.tasks) {
+        p.total++;
+        if (task.checked) p.done++;
+        else if (task.assignee && !p.assignees.includes(task.assignee)) p.assignees.push(task.assignee);
+      }
     }
-    return [...byProject.values()].sort((a, b) => a.project.localeCompare(b.project));
+    return [...byProject.values()].filter((p) => p.total > 0).sort((a, b) => a.project.localeCompare(b.project) || a.key.localeCompare(b.key));
   }
 
   /**

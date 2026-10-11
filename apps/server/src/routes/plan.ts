@@ -114,9 +114,10 @@ type Team = { id: string; slug: string; name: string; color: string };
  */
 export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: Team | null) {
     const allProjects = db.select().from(tables.projects).all();
+    const named = new Map(store.projects().map((d) => [d.key, d.name])); // named by the project note, as on the board (COR-004)
     const projectDefs = allProjects
       .filter((p) => !p.hidden && (team === null || p.teamId === team.id || p.teamId === null))
-      .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
+      .map((p) => ({ kind: p.kind, key: p.key, name: named.get(p.key) ?? p.name }));
     const open = store.index
       .tasks(user, store.grants(), projectDefs)
       // The whole-vault plan (the Planning tab) takes every open task; a team

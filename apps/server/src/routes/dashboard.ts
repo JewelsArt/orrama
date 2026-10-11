@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { canRead } from "@basalt/core";
+import { canRead, projectName, projectSlugOf } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { projectNoteFor } from "./projects.js";
@@ -22,21 +22,26 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const grants = store.grants();
     const allProjects = db.select().from(tables.projects).all();
     const teamProjects = allProjects.filter((p) => !p.hidden && (p.teamId === team.id || p.teamId === null));
-    const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
-    const domainByName = new Map(teamProjects.map((p) => [p.name, p.domain ?? null]));
-    // The workspace page is addressed by slug, so the board carries it.
-    const slugByName = new Map(teamProjects.map((p) => [p.name, p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key]));
+    // Every lookup below is by KEY: two projects may share a name, and keyed by
+    // name they were one card with both task lists (audit COR-004). A project
+    // is named by its project note, one the caller can read.
+    const readable = store.readable(user);
+    const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.kind === "tag" ? projectName(projectNoteFor(readable, p.key), p.name) : p.name }));
+    const domainByKey = new Map(teamProjects.map((p) => [p.key, p.domain ?? null]));
+    // The workspace page is addressed by slug, so the board carries it — only
+    // a slug the workspace route accepts (REG-017).
+    const slugByKey = new Map(teamProjects.map((p) => [p.key, p.kind === "tag" ? projectSlugOf(p.key) : p.key]));
     // Lifecycle lives in the project note's front-matter (sleeping, cancelled,
     // on-track…), so the board reads it from the note, not from a column.
-    const readable = store.readable(user);
-    const statusByName = new Map(
+    const statusByKey = new Map(
       teamProjects.map((p) => {
         const note = projectNoteFor(readable, p.key);
         const raw = note?.frontmatter["status"];
-        return [p.name, typeof raw === "string" ? raw.trim().toLowerCase() : ""];
+        return [p.key, typeof raw === "string" ? raw.trim().toLowerCase() : ""];
       }),
     );
-    const idByName = new Map(teamProjects.map((p) => [p.name, p.id]));
+    const idByKey = new Map(teamProjects.map((p) => [p.key, p.id]));
+    const keyOf = new Map(readable.map((n) => [n.id, store.index.projectKeyOf(n, projectDefs)]));
 
     // Progress + open tasks, from the requester's readable universe only.
     const progress = store.index.progress(user, grants, projectDefs);
@@ -47,15 +52,15 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     // Active work floats up, done sinks to the bottom, so the board reads as
     // "what's left": in-progress → to-do → blocked → done.
     const statusRank = (t: { status: string }) => (t.status === "done" ? 3 : t.status === "in-progress" ? 0 : t.status === "blocked" ? 2 : 1);
-    const byProject = progress.map((p) => ({
+    const byProject = progress.map(({ key, ...p }) => ({
       ...p,
-      projectId: idByName.get(p.project) ?? null,
-      slug: slugByName.get(p.project) ?? null,
-      status: statusByName.get(p.project) ?? "",
-      domain: domainByName.get(p.project) ?? null,
+      projectId: idByKey.get(key) ?? null,
+      slug: slugByKey.get(key) ?? null,
+      status: statusByKey.get(key) ?? "",
+      domain: domainByKey.get(key) ?? null,
       // ALL steps (done + open) so the board reads like a plan, not just a to-do list.
       tasks: tasks
-        .filter((t) => t.project === p.project)
+        .filter((t) => keyOf.get(t.noteId) === key)
         .map((t) => ({
           ...t,
           object: t.blockId ? (objByKey.get(`${t.noteId}:${t.blockId}`) ?? null) : null,
@@ -104,10 +109,10 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
       .map((o) => ({ id: o.id, noteId: o.noteId, blockId: o.blockId, updatedAt: o.updatedAt }));
 
     // Registered projects with no checkbox tasks yet still belong on the board.
-    const seen = new Set(byProject.map((p) => p.project));
+    const seen = new Set(progress.map((p) => p.key));
     const emptyProjects = projectDefs
-      .filter((d) => !seen.has(d.name))
-      .map((d) => ({ project: d.name, projectId: idByName.get(d.name) ?? null, total: 0, done: 0, assignees: [] as string[], lastActivityMs: undefined, domain: domainByName.get(d.name) ?? null, tasks: [] as (typeof byProject)[number]["tasks"] }));
+      .filter((d) => !seen.has(d.key))
+      .map((d) => ({ project: d.name, projectId: idByKey.get(d.key) ?? null, total: 0, done: 0, assignees: [] as string[], lastActivityMs: undefined, domain: domainByKey.get(d.key) ?? null, tasks: [] as (typeof byProject)[number]["tasks"] }));
     const projects = [...byProject, ...emptyProjects].sort((a, b) => a.project.localeCompare(b.project));
 
     return { team, projects, members, orphaned };

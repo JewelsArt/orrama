@@ -104,20 +104,27 @@ describe("VaultIndex", () => {
     expect(idxErin.get("only/marketing")).toBeUndefined();
   });
 
-  it("attributes tasks to projects via folder and tag", () => {
+  it("attributes tasks to projects via folder and front-matter tag", () => {
     const v = vault();
     const tasks = v.tasks(undefined, [], projects);
     const kick = tasks.find((t) => t.text === "draft spec");
     const road = tasks.find((t) => t.text === "publish roadmap");
-    expect(kick?.project).toBe("Atlas");
-    expect(road?.project).toBe("Atlas"); // via #project/atlas tag
+    expect(kick?.project).toBe("Atlas"); // via the Engineering/Atlas folder
+    // Roadmap only MENTIONS #project/atlas in its body: that binds nothing
+    // (COR-006). It used to join the project, and its tasks with it.
+    expect(road?.project).toBeNull();
+    const tagged = new VaultIndex([{ path: "Notes/Plan.md", content: "---\ntags: [project/atlas]\n---\n- [ ] plan it\n" }]);
+    expect(tagged.tasks(undefined, [], projects)[0]?.project).toBe("Atlas"); // via the front-matter tag
   });
 
-  it("computes real progress with open-task assignees", () => {
+  it("computes real progress with open-task assignees, one entry per project key", () => {
     const v = vault();
-    const [p] = v.progress(undefined, [], projects);
-    expect(p).toMatchObject({ project: "Atlas", total: 4, done: 1 });
-    expect(p!.assignees.sort()).toEqual(["erin", "mara"]);
+    // The folder project and the tag project are both called "Atlas"; they are
+    // two projects (COR-004). Only the folder one has tasks here.
+    const all = v.progress(undefined, [], projects);
+    expect(all.map((p) => p.key)).toEqual(["Engineering/Atlas"]);
+    expect(all[0]).toMatchObject({ project: "Atlas", total: 3, done: 1 });
+    expect(all[0]!.assignees.sort()).toEqual(["erin", "mara"]);
   });
 
   it("task lists are ACL-filtered (§5.4: dashboard aggregates leak nothing)", () => {

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, isoLocal, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
+import { appendToSection, canEdit, canRead, isoLocal, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
@@ -17,7 +17,8 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
 
-export const PROJECTS_DIR = "04-Projects";
+// In core since the store names projects by their note (COR-004); here for the routes that import them.
+export { PROJECTS_DIR, projectNoteFor };
 export const DOMAINS = ["personal", "professional", "academic"] as const;
 export type Domain = (typeof DOMAINS)[number];
 
@@ -52,34 +53,7 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain)
   ].join("\n");
 }
 
-const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && /^project\/[a-z0-9]/i.test(t.tag);
-
-/**
- * The note that *is* the project, as opposed to a note that merely belongs to
- * it. Conventional path first, tag second, and the order matters: once a project
- * has working notes carrying its tag, a tag-first lookup can land on a chapter
- * draft and read the project's status, deadline and id off the wrong note.
- * Every surface that needs the project note must use this, or the board, the
- * dashboard and the workspace will disagree about which note that is.
- */
-export const projectNoteFor = (notes: IndexedNote[], key: string): IndexedNote | undefined => {
-  const slug = key.startsWith("project/") ? key.slice("project/".length) : key;
-  const conventional = notes.find((n) => n.path === `${PROJECTS_DIR}/${slug}.md`);
-  if (conventional) return conventional;
-  // Without one, a FIXED choice among the tagged notes. "The first one the
-  // index lists" moved with every save — a write re-inserts its note at the
-  // end — so with two tagged notes the project note flipped on each write:
-  // a decision landed in one, the next capture in the other, and the page
-  // showed whichever was current. In 04-Projects/ first, then the note made
-  // first (ids are time-ordered), then path.
-  const rank = (n: IndexedNote) => (n.path.startsWith(`${PROJECTS_DIR}/`) ? 0 : 1);
-  let best: IndexedNote | undefined;
-  for (const n of notes) {
-    if (!n.tags.some((t) => t.tag === key)) continue;
-    if (!best || rank(n) < rank(best) || (rank(n) === rank(best) && (n.id < best.id || (n.id === best.id && n.path < best.path)))) best = n;
-  }
-  return best;
-};
+const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && projectSlugOf(t.tag) !== null;
 
 /** Sections the workspace owns inside the project note. Headings, not database rows. */
 const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "Inbox", people: "People" } as const;
@@ -97,10 +71,10 @@ const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "
  * origin. The AI agent's write_note tool takes a model-supplied path, so a
  * hostile email could start the chain.
  */
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
-
+// One grammar for every project slug, the one registration uses (core
+// PROJECT_SLUG_RE, audit REG-017): one path segment, no `.`, `/` or `\`.
 const assertSlug = (slug: string): string => {
-  if (!SLUG_RE.test(slug)) throw new HttpError(404, "project not found");
+  if (!PROJECT_SLUG_RE.test(slug)) throw new HttpError(404, "project not found");
   return slug;
 };
 
@@ -205,7 +179,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // Before anything is looked up: a slug that cannot be a directory name
     // cannot be a project either, and 404 rather than 400 keeps this from
     // reporting which slugs exist (§5.4).
-    assertSlug(slug);
+    slug = assertSlug(slug.normalize("NFC")); // tags are NFC (parse.ts)
     const user = store.aclUser(userId);
     const row = db.select().from(tables.projects).where(eq(tables.projects.key, `project/${slug}`)).get();
     const grants = store.grants();
@@ -221,10 +195,14 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
   app.get("/api/projects", auth, async (req) => {
     const user = store.aclUser(req.userId);
     const grants = store.grants();
-    const rows = db.select().from(tables.projects).all().filter((p) => !p.hidden);
-    const defs = rows.map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
-    const progress = new Map(store.index.progress(user, grants, defs).map((p) => [p.project, p]));
+    // Only projects whose slug every route accepts: a card that cannot be
+    // opened is worse than none (REG-017). Joined by key, never by name, and
+    // named by the project note the caller can read (COR-004).
+    const defs = store.projects().filter((p) => p.kind !== "tag" || projectSlugOf(p.key) !== null);
+    const rows = db.select().from(tables.projects).all().filter((p) => defs.some((d) => d.key === p.key));
+    const progress = new Map(store.index.progress(user, grants, defs).map((p) => [p.key, p]));
     const readable = store.readable(user);
+    const keyOf = new Map(readable.map((n) => [n.id, store.index.projectKeyOf(n, defs)]));
 
     // Dates per project, from its own open tasks: the Dashboard's Projects card
     // wants "what is next here and how much of it is late", and a project-level
@@ -233,13 +211,14 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const today = iso(new Date());
     const openByProject = new Map<string, { nextDue: string | null; overdue: number }>();
     for (const t of store.index.tasks(user, grants, defs)) {
-      if (t.checked || !t.project) continue;
-      const cur = openByProject.get(t.project) ?? { nextDue: null, overdue: 0 };
+      const key = keyOf.get(t.noteId);
+      if (t.checked || !key) continue;
+      const cur = openByProject.get(key) ?? { nextDue: null, overdue: 0 };
       if (t.due) {
         if (t.due < today) cur.overdue++;
         else if (!cur.nextDue || t.due < cur.nextDue) cur.nextDue = t.due;
       }
-      openByProject.set(t.project, cur);
+      openByProject.set(key, cur);
     }
 
     return rows
@@ -247,14 +226,14 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
         const slug = p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key;
         // The note may live anywhere (a personal project note is still a project).
         const note = projectNoteFor(readable, p.key);
-        const prog = progress.get(p.name);
-        const dates = openByProject.get(p.name);
+        const prog = progress.get(p.key);
+        const dates = openByProject.get(p.key);
         const fm = (note?.frontmatter ?? {}) as Record<string, unknown>;
         const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
         return {
           slug,
           key: p.key,
-          name: p.name,
+          name: projectName(note, p.name),
           domain: p.domain ?? null,
           noteId: note ? note.id : null,
           total: prog?.total ?? 0,
@@ -280,8 +259,12 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const fm = note.frontmatter as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 
-    const defs = row ? [{ kind: row.kind, key: row.key, name: row.name }] : [];
-    const tasks = store.index.tasks(user, grants, defs).filter((t) => t.project === row?.name);
+    // Membership as every other surface decides it: against ALL projects, then
+    // this one's key. With only this project's definition, a note tagged with
+    // two projects counted in both here and in one on the board (COR-006).
+    const defs = store.projects();
+    const inProject = (n: IndexedNote | undefined) => !!row && !!n && store.index.projectKeyOf(n, defs) === row.key;
+    const tasks = store.index.tasks(user, grants, defs).filter((t) => inProject(store.index.get(t.noteId)));
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
 
@@ -311,7 +294,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // carries no project tag deliberately does not appear here.
     const notes = store
       .readable(user)
-      .filter((n) => n.id !== note.id && store.index.projectOf(n, defs) === row?.name)
+      .filter((n) => n.id !== note.id && inProject(n))
       .map((n) => ({
         id: n.id,
         title: n.title,
@@ -337,7 +320,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return {
       slug: req.params.slug,
       key: row?.key ?? `project/${req.params.slug}`,
-      name: row?.name ?? note.title,
+      // The project is the note: its title: is the name (COR-004), not the row's,
+      // which froze whichever tagged note was indexed first.
+      name: projectName(note, row?.name ?? note.title),
       noteId: note.id,
       path: note.path,
       // One of the three, or null — not "" for an absent field, nor whatever text front matter holds.

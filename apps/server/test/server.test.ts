@@ -212,7 +212,8 @@ describe("tasks: file is the source of truth", () => {
 
     // the dashboard parses the tokens back out for the Gantt view
     const dash = await api("GET", "/api/dashboard/engineering", "erin");
-    const atlas = dash.json.projects.find((p: { project: string }) => p.project === "Atlas");
+    // By slug: a project is named by its project note (COR-004), not "Atlas".
+    const atlas = dash.json.projects.find((p: { slug?: string }) => p.slug === "atlas");
     const task = atlas.tasks.find((t: { text: string }) => t.text === "partial checkout spike");
     expect(task).toMatchObject({ start: "2026-07-06", due: "2026-07-10" });
 
@@ -315,7 +316,11 @@ describe("dashboard", () => {
   it("computes real progress per project and per-member activity", async () => {
     const dash = await api("GET", "/api/dashboard/engineering", "erin");
     expect(dash.status).toBe(200);
-    const atlas = dash.json.projects.find((p: { project: string }) => p.project === "Atlas");
+    const atlas = dash.json.projects.find((p: { slug?: string }) => p.slug === "atlas");
+    // Named by its project note, the note the workspace opens (COR-004).
+    const ws = await api("GET", "/api/projects/atlas", "erin");
+    expect(atlas.project).toBe(ws.json.name);
+    expect(ws.json.name).toBe(store.index.get(ws.json.noteId)!.title);
     expect(atlas.total).toBeGreaterThan(4);
     expect(atlas.done).toBeGreaterThanOrEqual(2);
     const erinRow = dash.json.members.find((m: { username: string }) => m.username === "erin");

@@ -19,6 +19,9 @@ import {
   filterReadable,
   generateNoteId,
   parseNote,
+  projectName,
+  projectNoteFor,
+  projectSlugOf,
   stampId,
   titleFromPath,
   validateEdit,
@@ -637,7 +640,9 @@ export class VaultStore {
    * "project/…" (line ≠ 0) are ignored.
    */
   private syncProjectRow(note: IndexedNote): void {
-    const keys = note.tags.filter((t) => t.line === 0 && /^project\/[a-z0-9][\w-]*$/i.test(t.tag)).map((t) => t.tag);
+    // The one slug grammar (core projectSlugOf): a tag registered here is a
+    // project every route can open (audit REG-017).
+    const keys = note.tags.filter((t) => t.line === 0 && projectSlugOf(t.tag) !== null).map((t) => t.tag);
     for (const key of keys) {
       const existing = this.db.select().from(tables.projects).where(eq(tables.projects.key, key)).get();
       if (existing) continue;
@@ -755,13 +760,21 @@ export class VaultStore {
       .all() as FolderGrant[];
   }
 
+  /**
+   * The registered projects, each named by its project note (projectName),
+   * read now: the row's `name` is whichever tagged note was indexed first —
+   * after a rebuild that is walk order, a chapter draft as easily as the
+   * project note (audit COR-004). Names are for display; projects are told
+   * apart by key.
+   */
   projects(): ProjectDef[] {
+    const notes = this.index.all();
     return this.db
       .select()
       .from(tables.projects)
       .all()
       .filter((p) => !p.hidden)
-      .map((p) => ({ kind: p.kind, key: p.key, name: p.name }));
+      .map((p) => ({ kind: p.kind, key: p.key, name: p.kind === "tag" ? projectName(projectNoteFor(notes, p.key), p.name) : p.name }));
   }
 
   /**

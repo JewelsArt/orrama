@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { advance, isoLocal, nextCharge, parseSubscriptions, promoteTaskLine } from "@basalt/core";
+import { advance, isoLocal, nextCharge, parseSubscriptions, projectName, promoteTaskLine } from "@basalt/core";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
@@ -263,6 +263,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
       if (!note) continue;
       const fm = note.frontmatter as Record<string, unknown>;
       const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
+      const name = projectName(note, p.name); // as on the board (COR-004)
       for (const [field, label] of [["start", "starts"], ["deadline", "due"]] as const) {
         const date = str(fm[field]);
         if (!DAY_RE.test(date) || !inRange(date)) continue;
@@ -270,10 +271,10 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
           id: `ms-${p.key}-${field}`,
           kind: "milestone",
           date,
-          title: `${p.name} ${label}`,
+          title: `${name} ${label}`,
           noteId: note.id,
           line: null,
-          source: p.name,
+          source: name,
           amount: null,
           currency: null,
           overdue: field === "deadline" && date < today,
