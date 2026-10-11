@@ -14,7 +14,8 @@
  * not the blank lines around it, not the rest of the note (COR-007, COR-008).
  */
 
-const FENCE = /^\s*(```|~~~)/;
+import { codeLines } from "./parse.js";
+
 const HEADING = /^(#{1,6})\s+(.*?)\s*$/;
 /** A closed ATX heading's trailing `#`s: `## Goals ##` is "Goals". */
 const CLOSING = /(?:^|\s+)#+$/;
@@ -33,16 +34,12 @@ interface Found {
 
 function find(lines: string[], heading: string, level: number): Found | null {
   const want = norm(heading);
-  let inFence = false;
+  const code = codeLines(lines);
   let found: Found | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    if (FENCE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
+    if (code[i]) continue;
     const m = HEADING.exec(line);
     if (!m) continue;
     const at = m[1]!.length;

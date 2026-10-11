@@ -48,7 +48,59 @@ const DUE_RE = /(^|\s)due:(\d{4}-\d{2}-\d{2})/;
 const START_RE = /(^|\s)start:(\d{4}-\d{2}-\d{2})/;
 const PRIORITY_RE = /(^|\s)!p([123])\b/;
 const BLOCK_ID_RE = /\s\^([\w-]+)\s*$/;
-const FENCE_RE = /^(```|~~~)/;
+/** A fence line: its indent, its run of ` or ~ (three or more), and what follows. */
+const FENCE_RE = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
+
+/** Leading whitespace as columns, a tab counting four. */
+const indentOf = (ws: string) => [...ws].reduce((n, c) => n + (c === "\t" ? 4 : 1), 0);
+
+/**
+ * Which lines are code: each fence line and everything between, the way
+ * CommonMark and Obsidian read them (audit COR-013). A fence closes only on a
+ * line of its own character, at least as long as the opening run, with
+ * nothing but spaces after it — a `~~~` block showing a ``` example, or a
+ * ```` block wrapping a ``` one, is one block. A backtick fence's info string
+ * cannot hold a backtick, so a one-line ```js``` is inline code, not a fence.
+ * An unclosed fence runs to the end of the note.
+ *
+ * One exception to CommonMark, for lists: a fence indented four or more is
+ * indented code in a paragraph's place but a fence inside a list item, and
+ * this reader does not track list items. Such a line opens a fence only when
+ * a line that would close it follows, so an indented ``` on its own never
+ * swallows the rest of the note (and an `#only/<team>` in it, ACL-006).
+ *
+ * The one implementation for parse.ts and sections.ts: a fence the parser
+ * skips is a fence the section helpers skip.
+ */
+export function codeLines(lines: readonly string[]): boolean[] {
+  const out = new Array<boolean>(lines.length).fill(false);
+  const closes = (line: string, char: string, len: number) => {
+    const m = FENCE_RE.exec(line.replace(/\r$/, ""));
+    return !!m && m[2]![0] === char && m[2]!.length >= len && m[3]!.trim() === "";
+  };
+  // Per character, the shortest run already known to have no closing line
+  // after some earlier line — so no later one of at least that run has one
+  // either, and a note of many indented openers is read once, not once each.
+  const unclosed: Record<string, number> = {};
+  for (let i = 0; i < lines.length; i++) {
+    const m = FENCE_RE.exec(lines[i]!.replace(/\r$/, ""));
+    if (!m) continue;
+    const run = m[2]!;
+    const char = run[0]!;
+    if (char === "`" && m[3]!.includes("`")) continue;
+    const indented = indentOf(m[1]!) >= 4;
+    if (indented && run.length >= (unclosed[char] ?? Infinity)) continue;
+    let end = i + 1;
+    while (end < lines.length && !closes(lines[end]!, char, run.length)) end++;
+    if (end === lines.length && indented) {
+      unclosed[char] = Math.min(unclosed[char] ?? Infinity, run.length);
+      continue;
+    }
+    for (let j = i; j <= end && j < lines.length; j++) out[j] = true;
+    i = end;
+  }
+  return out;
+}
 
 /** Case-folded, and NFC so an accent typed as one character or as two is one tag. */
 function normalizeTag(t: string): string {
@@ -191,14 +243,10 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
   // A saved chat: front-matter tags count, its text does not (ParsedNote.kind).
   const conversation = data["type"] === "claude-session" || data["type"] === "conversation";
 
-  let inFence = false;
+  const code = codeLines(lines.slice(bodyStart));
   for (let i = bodyStart; i < lines.length; i++) {
     const line = lines[i]!;
-    if (FENCE_RE.test(line.trimStart())) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue; // no links/tags/tasks inside code blocks
+    if (code[i - bodyStart]) continue; // no links/tags/tasks inside code blocks
 
     const hm = HEADING_RE.exec(line);
     if (hm) headings.push({ level: hm[1]!.length, text: hm[2]!.trim(), line: i });
