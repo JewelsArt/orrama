@@ -9,3 +9,31 @@ packages:
 allowBuilds:
   esbuild: true
   better-sqlite3: true
+
+# Advisories reviewed and judged unreachable in Basalt (audit OPS-002). The
+# gate is `pnpm audit --prod --audit-level=high`: it fails on any high or
+# critical advisory in a production dependency that is not listed here. A new
+# entry needs its reason, and goes when the package is bumped past the fix.
+auditConfig:
+  ignoreGhsas:
+    # @fastify/static 8: route-guard bypass, traversal in directory listing,
+    # encoded separators, non-canonical URLs. The static root is the public web
+    # bundle: no guard to bypass, no listing (`list` unset). The fix is the 10.x
+    # major, whose setHeaders change touches the static cache headers in
+    # main.ts: kept on 8 for now (Jules, 2026-10-11).
+    - GHSA-83w8-p2f5-377r
+    - GHSA-pr96-94w5-mx2h
+    - GHSA-x428-ghpx-8j92
+    - GHSA-8pvw-jcv7-9cmj
+    # uuid 8 (via exceljs): a missing bounds check when v3/v5/v6 write into a
+    # caller's buffer. exceljs calls v4 with no buffer.
+    - GHSA-w5hq-g745-h8pq
+    # sprintf-js 1.0 (via mammoth > argparse): unbounded precision. argparse is
+    # mammoth's command-line parser; the library path Basalt calls never loads it.
+    - GHSA-hp3w-g68c-fv3c
+    # vitest 3, @vitest/mocker, tinypool 1: development only, tests run on this
+    # Mac and in CI, nothing ships. The fixes are the vitest 4 major, its own
+    # task (Jules, 2026-10-11).
+    - GHSA-82fw-gwwq-j7x9
+    - GHSA-5gmw-xhrv-c9v3
+    - GHSA-85c8-ppgw-ccpr

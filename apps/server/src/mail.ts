@@ -168,6 +168,31 @@ export interface MailMessage {
   references: string | null;
 }
 
+/**
+ * A message's raw source, as Basalt shows it; the envelope (the IMAP server's
+ * own parse) names the sender. The source is whatever anyone sent: mailparser
+ * runs nodemailer's address parser over every address header, which was
+ * quadratic before nodemailer 10.0.6 — a 62 KB From held the server 3.5 s,
+ * each time the message was opened (audit OPS-002).
+ */
+export async function readMessage(uid: number, source: Buffer, envelope?: FetchMessageObject["envelope"]): Promise<MailMessage> {
+  const parsed = await simpleParser(source);
+  const sender = envelope?.from?.[0];
+  const refs = Array.isArray(parsed.references) ? parsed.references.join(" ") : (parsed.references ?? null);
+  return {
+    uid,
+    from: sender?.address ?? "",
+    fromName: sender?.name || sender?.address || "",
+    to: Array.isArray(parsed.to) ? parsed.to.map((a) => a.text).join(", ") : (parsed.to?.text ?? ""),
+    subject: parsed.subject ?? envelope?.subject ?? "(no subject)",
+    date: parsed.date ? parsed.date.toISOString() : (envelope?.date?.toISOString() ?? null),
+    text: parsed.text ?? "",
+    html: typeof parsed.html === "string" ? parsed.html : null,
+    messageId: parsed.messageId ?? envelope?.messageId ?? null,
+    references: refs,
+  };
+}
+
 /** Full message body for one uid, parsed from the raw source. Marks it read. */
 export async function getMessage(c: MailCreds, uid: number): Promise<MailMessage | null> {
   const client = imapClient(c);
@@ -176,23 +201,10 @@ export async function getMessage(c: MailCreds, uid: number): Promise<MailMessage
   try {
     const msg = await client.fetchOne(String(uid), { source: true, envelope: true, uid: true }, { uid: true });
     if (!msg || !msg.source) return null;
-    const parsed = await simpleParser(msg.source);
-    const sender = msg.envelope?.from?.[0];
+    const message = await readMessage(uid, msg.source, msg.envelope);
     // Opening a message marks it read, matching every mail client.
     await client.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(() => {});
-    const refs = Array.isArray(parsed.references) ? parsed.references.join(" ") : (parsed.references ?? null);
-    return {
-      uid,
-      from: sender?.address ?? "",
-      fromName: sender?.name || sender?.address || "",
-      to: Array.isArray(parsed.to) ? parsed.to.map((a) => a.text).join(", ") : (parsed.to?.text ?? ""),
-      subject: parsed.subject ?? msg.envelope?.subject ?? "(no subject)",
-      date: parsed.date ? parsed.date.toISOString() : (msg.envelope?.date?.toISOString() ?? null),
-      text: parsed.text ?? "",
-      html: typeof parsed.html === "string" ? parsed.html : null,
-      messageId: parsed.messageId ?? msg.envelope?.messageId ?? null,
-      references: refs,
-    };
+    return message;
   } finally {
     lock.release();
     await client.logout().catch(() => {});
