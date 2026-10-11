@@ -18,7 +18,10 @@ import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
-import { canonical, goBack as historyBack, navigate as go, placeOf, PLACES, useRoute, type MoneyPage, type Route } from "./ui/router.js";
+import { isTyping, shellKey } from "./ui/keys.js";
+import { anyLayerOpen } from "./ui/overlays.js";
+import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, useRoute, type MoneyPage, type Route } from "./ui/router.js";
+import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 
@@ -402,46 +405,25 @@ export function App() {
     [],
   );
 
+  /* The keys (structure.md §1.5), decided by shellKey (ui/keys.ts). ⌘R is main.tsx's,
+     outside React, so it still reloads when a view has crashed (WEB-011). */
+  const [keysOpen, setKeysOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement;
-      const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.closest(".cm-editor");
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setPaletteOpen((v) => !v);
-        return;
-      }
-      // The Tauri window defines no menu, so ⌘R has no accelerator bound to it
-      // there and picking up a new build meant quitting and reopening the app.
-      // Handling it here gives the desktop shell the shortcut every browser
-      // already has; in a real browser the native binding fires first and this
-      // is simply never reached.
-      // ⌘[ and ⌘← — the two bindings every macOS app answers to for "back".
-      if ((e.metaKey || e.ctrlKey) && (e.key === "[" || e.key === "ArrowLeft")) {
-        e.preventDefault();
-        goBack();
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "r") {
-        e.preventDefault();
-        location.reload();
-        return;
-      }
-      if (inField || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "c") {
-        e.preventDefault();
-        setCaptureOpen(true);
-      } else if (e.key === "1") navigate({ kind: "dashboard" });
-      else if (e.key === "2") navigate({ kind: "architecture" });
-      else if (e.key === "3") navigate({ kind: "planning" });
-      else if (e.key === "4") navigate({ kind: "overview" });
-      else if (e.key === "5") navigate({ kind: "contacts" });
-      else if (e.key === "6") navigate({ kind: "mail" });
-      else if (e.key === "7") navigate({ kind: "finance" });
+      const action = shellKey(e, isTyping(e.target), anyLayerOpen());
+      if (!action) return;
+      e.preventDefault();
+      if (action.kind === "place") go(placeRoute(action.place));
+      else if (action.kind === "find") setPaletteOpen((v) => !v);
+      else if (action.kind === "ask") setAskOpen((v) => !v);
+      else if (action.kind === "capture") setCaptureOpen(true);
+      else if (action.kind === "settings") go({ kind: "settings" });
+      else if (action.kind === "back") goBack();
+      else if (action.kind === "keys") setKeysOpen(true);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [navigate, goBack]);
+  }, [goBack]);
 
   if (me === undefined || needsSetup === undefined)
     return (
@@ -516,6 +498,7 @@ export function App() {
         />
       )}
       {captureOpen && <QuickCapture onClose={() => setCaptureOpen(false)} />}
+      {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
       {settingsOpen && (
         <Settings
           me={me}

@@ -3,7 +3,7 @@
  * The screens are stubs (test/app-harness.tsx); this is the shell's routing alone.
  */
 import "./test/app-harness.js";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
@@ -211,5 +211,71 @@ describe("the shell", () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(screen.getAllByText("Update ready").length).toBeGreaterThan(0);
+  });
+});
+
+describe("keys", () => {
+  const field = (html: string) => {
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    document.body.append(host);
+    return host;
+  };
+
+  it("⌘← and ⌘[ in a field, a textarea or the editor stay there; on the page ⌘[ goes back (WEB-003)", async () => {
+    const user = userEvent.setup();
+    at("/today");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "open project" }));
+    expect(path()).toBe("/projects/thesis");
+    const host = field('<input aria-label="title"><textarea aria-label="body"></textarea><div class="cm-editor"><div class="cm-content" contenteditable="true">x</div></div>');
+    for (const el of [host.querySelector("input")!, host.querySelector("textarea")!, host.querySelector(".cm-content")!]) {
+      (el as HTMLElement).focus();
+      fireEvent.keyDown(el, { key: "ArrowLeft", metaKey: true });
+      fireEvent.keyDown(el, { key: "[", metaKey: true });
+      expect(path()).toBe("/projects/thesis");
+    }
+    host.remove();
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "[", metaKey: true });
+    await waitFor(() => expect(path()).toBe("/today"));
+  });
+
+  it("the number keys open the eight places, in rail order", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    const seen: string[] = [];
+    for (const key of ["2", "3", "4", "5", "6", "7", "8", "1"]) {
+      fireEvent.keyDown(document.body, { key });
+      seen.push(path());
+    }
+    expect(seen).toEqual(["/planning/week", "/notes", "/orrery", "/projects", "/people", "/mail", "/money", "/today"]);
+  });
+
+  it("? lists every key; the shell's keys stand down while it is open", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    fireEvent.keyDown(document.body, { key: "?", shiftKey: true });
+    const sheet = screen.getByRole("dialog", { name: "Keys" });
+    expect(sheet.textContent).toMatch(/Find/);
+    fireEvent.keyDown(document.body, { key: "5" });
+    expect(path()).toBe("/today");
+  });
+
+  it("⌘K opens Find, ⌘J Ask Orr, c capture, ⌘, Settings", async () => {
+    at("/today");
+    render(<App />);
+    await view();
+    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("search");
+    fireEvent.keyDown(document.body, { key: "k", metaKey: true });
+    fireEvent.keyDown(document.body, { key: "j", metaKey: true });
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("ask");
+    fireEvent.keyDown(document.body, { key: "c" });
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("capture");
+    fireEvent.keyDown(document.body, { key: ",", metaKey: true });
+    expect(path()).toBe("/settings");
   });
 });

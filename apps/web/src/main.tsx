@@ -36,6 +36,16 @@ import { guardStorage } from "./storage.js";
 // that still call localStorage directly keep working (WEB-025).
 guardStorage();
 
+// ⌘R, outside React: the Tauri window has no menu, so nothing else binds it there, and a
+// listener here still works when a view (or the whole app) has crashed (WEB-011). In a real
+// browser the browser's own binding fires first and this is never reached.
+window.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "r") {
+    e.preventDefault();
+    location.reload();
+  }
+});
+
 const root = createRoot(document.getElementById("root")!);
 if (import.meta.env.DEV && location.pathname === "/dev/ui") {
   // The component gallery, for the dev server only: a production build drops this branch and

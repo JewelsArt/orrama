@@ -495,3 +495,9 @@ select.inp { appearance: none; padding-right: 32px; background-image: linear-gra
 .progress .mh b { font-size: 16px; font-weight: 700; }
 .progress .ui-bar { margin: 6px 0 4px; }
 .progress p { margin: 6px 0 0; font-size: 13px; }
+/* The ? sheet: each key, then what it does. */
+.keys-list { margin: 0; display: flex; flex-direction: column; }
+.keys-list > div { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line); }
+.keys-list > div:first-child { border-top: 0; }
+.keys-list dt { display: flex; gap: 6px; flex-wrap: wrap; }
+.keys-list dd { margin: 0; color: var(--ink-2); }
