@@ -4,19 +4,20 @@ import { blankNote, createNote as createNoteAt } from "./newNote.js";
 import type { NoteSync } from "@basalt/sync/client";
 import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
-import { GraphCanvas, type GraphData } from "./GraphCanvas.js";
 import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { onWs, sendEditing } from "./ws.js";
 import { Icon } from "./ui/Icon.js";
 import { NameDialog } from "./ui/NameDialog.js";
+import { LinkButton } from "./ui/controls.js";
+import { EmptyState } from "./ui/states.js";
+import { navigate } from "./ui/router.js";
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
 export function Architecture({ me, noteId, category: initialCategory }: { me: Me; noteId?: string; category?: string }) {
   const [tree, setTree] = useState<TreeNote[]>([]);
-  const [graph, setGraph] = useState<GraphData | null>(null);
   // Seeded from the route so the Dashboard's category donut can open this view
   // already scoped to the slice that was clicked.
   const [category, setCategory] = useState(initialCategory ?? "all");
@@ -38,7 +39,6 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
 
   const loadTree = useCallback(async () => {
     setTree(await api<TreeNote[]>("GET", "/api/vault/tree"));
-    setGraph(await api<GraphData>("GET", "/api/vault/graph"));
   }, []);
 
   /** Close the open note, saving anything still pending first. */
@@ -51,13 +51,6 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     setOpen(null);
   }, [nextOpen]);
   useEffect(() => () => retire(syncRef.current?.sync ?? null), []);
-
-  // Remembered after the note closes so the map can stay anchored on it — that
-  // is what makes the local graph useful: read a note, step back, see its web.
-  const [lastOpenId, setLastOpenId] = useState<string | null>(null);
-  const [shown, setShown] = useState<{ count: number; local: boolean; depth: number; hidden: number }>({ count: 0, local: false, depth: 1, hidden: 0 });
-  // What the file tree is pointing at, mirrored onto the map.
-  const [spotlight, setSpotlight] = useState<{ ids: Set<string>; label: string } | null>(null);
 
   // Esc closes the note and drops you back on the map — the way every editor works.
   useEffect(() => {
@@ -95,7 +88,6 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       syncRef.current = { id, sync: next };
       setSync(next);
       setOpen(note);
-      setLastOpenId(note.id);
       setStatus("saved");
       api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`, undefined, { signal }).then(setRelated, unlessAborted);
     },
@@ -185,8 +177,6 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     () => (category === "all" ? tree : tree.filter((n) => categoryOf(n) === category)),
     [tree, category],
   );
-  const scopedIds = useMemo(() => new Set(scoped.map((n) => n.id)), [scoped]);
-  const allIds = useMemo(() => new Set(tree.map((n) => n.id)), [tree]);
   const catCounts = useMemo(() => {
     const m = new Map<string, number>();
     for (const n of tree) m.set(categoryOf(n), (m.get(categoryOf(n)) ?? 0) + 1);
@@ -260,10 +250,10 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             </button>
           ))}
         </div>
-        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} onSpotlight={setSpotlight} />
+        <FileTree notes={scoped} activeId={open?.id ?? null} colorForId={colorForId} onOpen={openNote} />
         {open && (
           <button className="ft-map ghost" onClick={closeNote}>
-            ← Back to the map
+            Close note
           </button>
         )}
       </aside>
@@ -306,25 +296,24 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
             />
           </>
         ) : (
-          <div className="map-stage">
-            <GraphCanvas
-              graph={graph}
-              visibleIds={allIds}
-              highlightIds={category === "all" ? null : scopedIds}
-              focusId={lastOpenId}
-              spotlight={spotlight}
-              onShown={setShown}
-              onOpen={openNote}
-            />
-            <span className="map-hint">
-              {shown.local
-                ? `${shown.count} of ${tree.length} · local graph, depth ${shown.depth}`
-                : category === "all"
-                  ? `${shown.count} notes${shown.hidden ? ` · ${shown.hidden} conversation${shown.hidden === 1 ? "" : "s"} hidden` : ""}`
-                  : `${shown.count} of ${tree.length} · ${CATEGORIES.find((c) => c.id === category)?.label}`}{" "}
-              · drag a node · scroll to zoom · click to open
-            </span>
-          </div>
+          // The map left Notes for its own place, the Orrery (§8 #3); R7 redraws this page.
+          <EmptyState
+            pose="read"
+            title="Open a note from the list"
+            text="The map of your notes is the Orrery now."
+            actions={
+              <LinkButton
+                href="/orrery"
+                onClick={(e) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
+                  e.preventDefault();
+                  navigate({ kind: "orrery" });
+                }}
+              >
+                Open the Orrery
+              </LinkButton>
+            }
+          />
         )}
       </section>
 
