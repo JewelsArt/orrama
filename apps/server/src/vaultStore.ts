@@ -59,6 +59,9 @@ export interface NoteChangedEvent {
   authorId: string | null;
 }
 
+/** A caller's own check on one write: throws (an HttpError) to refuse it. `path` is canonical, `content` already merged. */
+export type WriteGuard = (w: { path: string; before: IndexedNote | null; content: string }) => void;
+
 /**
  * A vault file's text, and whether its bytes really are UTF-8. Decoding
  * anything else as UTF-8 replaces every invalid byte with U+FFFD; writing that
@@ -874,7 +877,7 @@ export class VaultStore {
    * create-only: a note already at the path — indexed or only on disk, in any
    * spelling — is a 409 and nothing is written (audit WEB-001).
    */
-  write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string, opts: { create?: boolean } = {}): IndexedNote {
+  write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string, opts: { create?: boolean; guard?: WriteGuard } = {}): IndexedNote {
     const { rel: relPath, abs } = this.resolvePath(inputPath);
     const grants = this.grants();
     let existing = this.index.getByPath(relPath);
@@ -926,6 +929,10 @@ export class VaultStore {
       }
       if (existing && base !== existing.content) content = mergeText(base, content, existing.content);
     }
+    // The caller's own rules for this write, judged on the path as the disk
+    // spells it and the text about to land (agentWrites.ts): the agent and API
+    // tokens may not rewrite an agent's standing instructions (audit AI-003).
+    opts.guard?.({ path: relPath, before: existing ?? null, content });
     const after = parseNote(content, titleFromPath(relPath));
     const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
     const afterAcl = { folder, onlyTeams: after.onlyTeams, shareTeams: after.shareTeams };

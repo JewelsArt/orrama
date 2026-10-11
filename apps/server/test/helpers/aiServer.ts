@@ -21,9 +21,13 @@ export async function bootAi(name: string) {
   const logStream = fs.createWriteStream(logPath);
   const built = await buildServer({ logStream });
 
-  // Each test queues the turns it wants; an empty queue answers "done".
-  const queue: Turn[] = [];
-  const llm = await fakeChat(() => queue.shift() ?? { text: "done" });
+  // Each test queues the turns it wants — a turn, or a function of the request
+  // that builds one from what the model was sent; an empty queue answers "done".
+  const queue: (Turn | ((body: any) => Turn))[] = [];
+  const llm = await fakeChat((_n, body) => {
+    const next = queue.shift() ?? { text: "done" };
+    return typeof next === "function" ? next(body) : next;
+  });
 
   const tokens: Record<string, string> = {};
   for (const who of ["jules", "erin", "mara"]) {

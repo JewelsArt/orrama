@@ -114,3 +114,13 @@ export function lastToolResult(body: any): any {
 
 /** An Ask request body: one user message. */
 export const ask = (text: string, extra: object = {}) => ({ messages: [{ id: "m1", role: "user", parts: [{ type: "text", text }] }], ...extra });
+
+/** The tool results an Ask response streamed to the panel, in order. */
+export function toolOutputs(stream: string): any[] {
+  return stream
+    .split("\n")
+    .filter((l) => l.startsWith("data: {"))
+    .map((l) => JSON.parse(l.slice(6)))
+    .filter((e) => e.type === "tool-output-available")
+    .map((e) => e.output);
+}

@@ -16,6 +16,18 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/** A note's id: given as one, or looked up by path in the tree (the note routes take ids). */
+async function noteIdOf(api: Api, idOrPath: string): Promise<string> {
+  if (!idOrPath.includes("/") && !idOrPath.endsWith(".md")) return idOrPath;
+  const tree: { id: string; path: string }[] = await api(`/api/vault/tree`);
+  return tree.find((n) => n.path === idOrPath)?.id ?? idOrPath;
+}
+
+/** Replacing a note with text over a fifth (and 200 characters) shorter — the server's agent has the same rule (routes/ai.ts). */
+const isShrink = (before: string, after: string) => after.length < before.length * 0.8 && before.length - after.length > 200;
+
+const refusal = (text: string): ToolResult => ({ content: [{ type: "text", text: `Error: ${text}` }], isError: true });
+
 export const TOOLS = [
   {
     name: "search_notes",
@@ -105,7 +117,7 @@ export const TOOLS = [
   },
   {
     name: "read_note",
-    description: "Read the full content and metadata of a note by id or path. Last, not first: find the note with find_entities, get_relations, list_summaries or search_notes, then read only that one.",
+    description: "Read the full content and metadata of a note by id or path, with its hash (edit_note needs it to replace the note). Last, not first: find the note with find_entities, get_relations, list_summaries or search_notes, then read only that one.",
     inputSchema: {
       type: "object",
       properties: {
@@ -116,12 +128,14 @@ export const TOOLS = [
   },
   {
     name: "edit_note",
-    description: "Save full content of a note",
+    description: "Replace the whole text of a note, or create a new one at a path. Replacing an existing note needs the hash read_note returned for it: refused without it, or if the note changed since you read it (read it again). Text much shorter than the note is refused unless shrink is true. To add a line, use append_to_note: it never resends text you did not change.",
     inputSchema: {
       type: "object",
       properties: {
         idOrPath: { type: "string", description: "Note ID or path" },
         content: { type: "string", description: "New full content of the note" },
+        hash: { type: "string", description: "The hash read_note returned, to replace an existing note" },
+        shrink: { type: "boolean", description: "Allow the new text to be much shorter than the note (removing text the user asked to remove)" },
       },
       required: ["idOrPath", "content"],
     },
@@ -332,54 +346,34 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     }
 
     case "read_note": {
-      const idOrPath = String(args.idOrPath ?? "");
-      // Resolve path to ID if needed (though API accepts ID, wait, API accepts ID in path `/api/vault/note/:id`. Does it accept path?)
-      // Let's assume we can fetch by ID. If it's a path, we first find it via tree or search.
-      // Actually, the spec says "idOrPath". Wait, the vaultRoutes API `/api/vault/note/:id` checks store.requireReadable which calls index.get(). index.get() might only accept ID.
-      // Let's get the tree to map path to ID if necessary.
-      let noteId = idOrPath;
-      if (idOrPath.includes("/") || idOrPath.endsWith(".md")) {
-        const tree = await api(`/api/vault/tree`);
-        const match = tree.find((n: any) => n.path === idOrPath);
-        if (match) noteId = match.id;
-      }
-      const note = await api(`/api/vault/note/${encodeURIComponent(noteId)}`);
+      const note = await api(`/api/vault/note/${encodeURIComponent(await noteIdOf(api, String(args.idOrPath ?? "")))}`);
       return { content: [{ type: "text", text: JSON.stringify(note, null, 2) }] };
     }
 
     case "edit_note": {
       const idOrPath = String(args.idOrPath ?? "");
       const content = String(args.content ?? "");
-
-      let noteId = idOrPath;
-      let path = idOrPath;
-      let baseHash: string | undefined = undefined;
-      let baseContent: string | undefined = undefined;
-
-      if (idOrPath.includes("/") || idOrPath.endsWith(".md")) {
-        const tree = await api(`/api/vault/tree`);
-        const match = tree.find((n: any) => n.path === idOrPath);
-        if (match) {
-          noteId = match.id;
-          path = match.path;
-        }
-      }
-
+      const hash = typeof args.hash === "string" && args.hash ? args.hash : undefined;
+      let note: { path: string; content: string } | null = null;
       try {
-        // Fetch existing to get path and hash
-        const note = await api(`/api/vault/note/${encodeURIComponent(noteId)}`);
-        path = note.path;
-        baseHash = note.hash;
-        baseContent = note.content;
+        note = await api(`/api/vault/note/${encodeURIComponent(await noteIdOf(api, idOrPath))}`);
       } catch {
-        // Creating a new note, no baseHash
+        // No note there (or none this token can read): a new note.
       }
-
-      // edit_note REPLACES the note, so its base is the text just read: a
-      // change landing between that read and this write is merged, not lost
-      // (and, since the server refuses a stale hash that comes without its
-      // text, not refused either).
-      const saved = await api(`/api/vault/note`, "PUT", { path, content, baseHash, baseContent });
+      if (!note) {
+        // Create-only: a note already at that path, in any spelling, is a 409,
+        // never replaced by text written without reading it.
+        const saved = await api(`/api/vault/note`, "PUT", { path: idOrPath, content, create: true });
+        return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
+      }
+      // Replacing a note means rebuilding it, and a rebuild from anything but
+      // the text read_note returned deletes what it left out (audit AI-001).
+      // The hash is that text's: a note changed since is refused, not merged.
+      if (!hash) return refusal(`${note.path} already exists: read_note it and pass its hash to replace it, or use append_to_note`);
+      if (!args.shrink && isShrink(note.content, content)) {
+        return refusal(`this would cut ${note.path} from ${note.content.length} to ${content.length} characters; send the whole note, or pass shrink: true if removing that text is what the user asked for`);
+      }
+      const saved = await api(`/api/vault/note`, "PUT", { path: note.path, content, baseHash: hash });
       return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
     }
 
@@ -387,14 +381,7 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
       const idOrPath = String(args.idOrPath ?? "");
       const line = String(args.line ?? "");
 
-      let noteId = idOrPath;
-      if (idOrPath.includes("/") || idOrPath.endsWith(".md")) {
-        const tree = await api(`/api/vault/tree`);
-        const match = tree.find((n: any) => n.path === idOrPath);
-        if (match) noteId = match.id;
-      }
-
-      const note = await api(`/api/vault/note/${encodeURIComponent(noteId)}`);
+      const note = await api(`/api/vault/note/${encodeURIComponent(await noteIdOf(api, idOrPath))}`);
       const newContent = note.content + (note.content.endsWith("\n") ? "" : "\n") + line;
 
       const saved = await api(`/api/vault/note`, "PUT", { path: note.path, content: newContent, baseHash: note.hash, baseContent: note.content });
