@@ -3,10 +3,9 @@
  * content — the Markdown file is always the source of truth (spec §7): dashboards
  * call these and write the result back through the normal edit path.
  */
-import { noteLines, parseNote, spliceNoteLines } from "./parse.js";
+import { noteLines, parseNote, spliceNoteLines, TASK_HEAD_RE, TASK_LINE_RE } from "./parse.js";
 import type { ParsedTask, TaskState } from "./types.js";
 
-const TASK_LINE_RE = /^(\s*- \[)( |x|X|\/|b)(\] .*)$/;
 const MARK: Record<TaskState, string> = { todo: " ", "in-progress": "/", blocked: "b", done: "x" };
 
 /**
@@ -31,7 +30,7 @@ export interface TaskLineRef {
 
 /** A task line's words: no indent, checkbox, trailing block id or extra spaces. */
 const words = (s: string) =>
-  s.replace(/^\s*- \[[ xX/b]\]\s*/, "").replace(/\s\^[\w-]+\s*$/, "").replace(/\s+/g, " ").trim();
+  s.replace(TASK_HEAD_RE, "").replace(/\s\^[\w-]+\s*$/, "").replace(/\s+/g, " ").trim();
 
 function sameTask(t: ParsedTask, text: string): boolean {
   const w = words(text);
@@ -94,8 +93,9 @@ export interface TaskDates {
 export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates): string | null {
   const task = locateTask(content, ref);
   if (!task) return null;
-  const m = /^(\s*- \[(?: |x|X|\/|b)\] )(.*)$/.exec(noteLines(content).lines[task.line]!)!;
-  let body = m[2]!;
+  const m = TASK_LINE_RE.exec(noteLines(content).lines[task.line]!)!;
+  const head = `${m[1]}${m[2]}] `;
+  let body = m[3]!.slice(2);
   let blockSuffix = "";
   const bm = /\s\^[\w-]+\s*$/.exec(body);
   if (bm) {
@@ -109,7 +109,7 @@ export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates
     return value === null ? stripped : `${stripped} ${token}:${value}`;
   };
   body = rewrite(rewrite(body, "start", dates.start), "due", dates.due);
-  return spliceNoteLines(content, task.line, task.line + 1, [`${m[1]}${body.replace(/\s+$/, "")}${blockSuffix}`]);
+  return spliceNoteLines(content, task.line, task.line + 1, [`${head}${body.replace(/\s+$/, "")}${blockSuffix}`]);
 }
 
 export function generateBlockId(): string {

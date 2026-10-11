@@ -38,8 +38,20 @@ const NOT_COLOUR = String.raw`(?!(?=[0-9a-fA-F]*[0-9])(?:[0-9a-fA-F]{8}|[0-9a-fA
 export const TAG_RE = new RegExp(String.raw`(^|[\s(])#${NOT_COLOUR}(${TAG_BODY})`, "gu");
 const WHOLE_TAG = new RegExp(`^${NOT_COLOUR}${TAG_BODY}$`, "u");
 
-/** `[/]` = in progress, `[b]` = blocked (the Obsidian Tasks / Minimal convention). */
-const TASK_RE = /^(\s*)- \[( |x|X|\/|b)\] (.*)$/;
+/**
+ * A task line, the one grammar for the parser and the task edits (tasks.ts):
+ * `$1` everything up to the box's `[` — any blockquote/callout `>`s, the
+ * indent, the list marker (`-`, `*`, `+`, `1.` or `1)`) and its spaces —
+ * `$2` the mark, `$3` `] ` and the text. Every checkbox Obsidian draws is a
+ * task (audit COR-014): only `- [ ]` used to be, so a numbered checklist or a
+ * callout's tasks never reached the Dashboard. Edits rewrite `$2` or the
+ * text, never `$1`, so a line keeps its marker and its quote.
+ *
+ * `[/]` = in progress, `[b]` = blocked (the Obsidian Tasks / Minimal convention).
+ */
+export const TASK_LINE_RE = /^((?:[ \t]*>)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[)( |x|X|\/|b)(\] .*)$/;
+/** A task line's head through its box, `- [ ] ` to `> 1. [x] `: what is left is the task's words. */
+export const TASK_HEAD_RE = /^(?:[ \t]*>)*[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[[ xX/b]\]\s*/;
 /** `#deadline` on a task line: a key deadline (see ParsedTask.key). Still indexed as a tag. */
 const KEY_DEADLINE_RE = /(^|\s)#deadline(?![\w/-])/i;
 const HEADING_RE = /^(#{1,6}) (.+)$/;
@@ -192,13 +204,14 @@ export function stripInlineMarkdown(s: string): string {
 }
 
 function parseTaskLine(line: number, raw: string): ParsedTask | null {
-  const m = TASK_RE.exec(raw);
+  const m = TASK_LINE_RE.exec(raw);
   if (!m) return null;
-  const indent = m[1]!.length;
+  // The list's own indent: a quote marker and the one space after it are not indent.
+  const indent = /^[^-*+\d]*/.exec(m[1]!)![0].replace(/>[ \t]?/g, "").length;
   const mark = m[2]!;
   const checked = mark === "x" || mark === "X";
   const status: ParsedTask["status"] = checked ? "done" : mark === "/" ? "in-progress" : mark === "b" ? "blocked" : "todo";
-  let text = m[3]!;
+  let text = m[3]!.slice(2);
 
   let blockId: string | undefined;
   const bm = BLOCK_ID_RE.exec(text);
