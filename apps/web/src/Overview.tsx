@@ -12,7 +12,6 @@ import { Button, Chip } from "./ui/controls.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/layout.js";
 import { NameDialog } from "./ui/NameDialog.js";
-import { HeadMark } from "./ui/orr/Orr.js";
 import type { MenuItem } from "./ui/overlays.js";
 import { navigate } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
@@ -52,7 +51,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const [shelf, setShelf] = useState<Shelf | null>(null);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [creating, setCreating] = useState(false);
-  const [digest, setDigest] = useState<{ configured: boolean; text?: string; loading?: boolean; failed?: boolean } | null>(null);
   const [version, setVersion] = useState(0);
   const areas = useNoteAreas(version);
   const teamRef = useRef<string | null>(null);
@@ -110,9 +108,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   useEffect(() => {
     const ac = new AbortController();
     void load(ac.signal);
-    api<{ configured: boolean }>("GET", "/api/ai/status", undefined, { signal: ac.signal })
-      .then((s) => setDigest({ configured: s.configured }))
-      .catch(() => {});
     return () => ac.abort();
   }, [load]);
 
@@ -253,17 +248,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       </div>
     ));
 
-  const generateDigest = async () => {
-    if (!teamRef.current) return;
-    setDigest((d) => ({ ...(d ?? { configured: true }), loading: true, failed: false }));
-    try {
-      const res = await api<{ digest: string }>("POST", `/api/ai/digest/${teamRef.current}`);
-      setDigest({ configured: true, text: res.digest });
-    } catch {
-      setDigest({ configured: true, failed: true });
-    }
-  };
-
   const create = async (name: string) => {
     const res = await api<{ slug: string }>("POST", "/api/projects", { name, ...(area === "school" ? { domain: "academic" } : area === "work" ? { domain: "professional" } : area === "personal" ? { domain: "personal" } : {}) });
     navigate(tabHref(res.slug, "overview"));
@@ -275,16 +259,9 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
         title="Projects"
         meta={data ? `${shown.length} open · ${openSteps} open ${openSteps === 1 ? "step" : "steps"}` : undefined}
         actions={
-          <>
-            {digest?.configured && !digest.text && (
-              <Button kind="quiet" orr disabled={digest.loading} onClick={() => void generateDigest()}>
-                {digest.loading ? "Orr is reading the board…" : "Today's summary"}
-              </Button>
-            )}
-            <Button icon="plus" onClick={() => setCreating(true)}>
-              New project
-            </Button>
-          </>
+          <Button icon="plus" onClick={() => setCreating(true)}>
+            New project
+          </Button>
         }
       />
 
@@ -301,16 +278,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           ))}
         </div>
       )}
-
-      {digest?.text && (
-        <div className="oprop boxed pjs-digest" role="note">
-          <HeadMark size={18} />
-          <div>
-            <p>{digest.text}</p>
-          </div>
-        </div>
-      )}
-      {digest?.failed && <Notice title="No summary this time" text="Orr could not reach the model. Settings → Orr & AI says which one is set up." />}
 
       {failed && !data && (
         <Notice

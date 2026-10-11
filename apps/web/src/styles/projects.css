@@ -10,7 +10,6 @@
 .pjs-filters .chip .n { color: var(--ink-3); font-weight: 500; }
 .pjs-board { padding: 8px 18px; }
 .pjs-empty { padding: 22px 24px; }
-.oprop.pjs-digest { margin: 0; }
 
 /* One grid for the head and every row. */
 .pjs .pg { display: grid; grid-template-columns: 36px minmax(0, 1fr) 124px 150px 170px 128px 34px 58px; gap: 14px; align-items: center; }
