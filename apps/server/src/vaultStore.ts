@@ -799,13 +799,22 @@ export class VaultStore {
     return filterReadable(user, this.index.all(), this.grants());
   }
 
-  /** The vault's own CLAUDE.md (root, excluded from the index) — the "who I am /
-   *  how to help me" doc, injected into the agent's system prompt as grounding. */
-  vaultGuide(): string | null {
+  /**
+   * The vault's own CLAUDE.md (root; left out of the index at boot) — the
+   * "who I am / how to help me" note the agent reads as grounding — for
+   * `user`, or null when they cannot read it. It is a note like any other,
+   * judged by its folder (the root) and its own #only/#share tags: read raw
+   * for everyone, it put a note a user got a 404 for into their model
+   * context, where they could just ask for it (audit AI-002).
+   */
+  vaultGuide(user: AclUser): string | null {
     try {
       const abs = path.join(this.root, "CLAUDE.md");
       if (!fs.existsSync(abs)) return null;
-      return fs.readFileSync(abs, "utf8").slice(0, 8000);
+      const content = fs.readFileSync(abs, "utf8");
+      const note = parseNote(content, "CLAUDE");
+      if (!canRead(user, { folder: "", onlyTeams: note.onlyTeams, shareTeams: note.shareTeams }, this.grants())) return null;
+      return content.slice(0, 8000);
     } catch {
       return null;
     }
