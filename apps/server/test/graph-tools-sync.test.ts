@@ -14,7 +14,7 @@ const read = (...p: string[]) => fs.readFileSync(path.join(import.meta.dirname, 
 
 describe("graph tool names", () => {
   it("the MCP server lists and handles each", () => {
-    const mcp = read("mcp", "src", "index.ts");
+    const mcp = read("mcp", "src", "tools.ts");
     for (const t of TOOLS) {
       expect(mcp, t).toContain(`name: "${t}"`);
       expect(mcp, t).toContain(`case "${t}"`);
