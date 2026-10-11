@@ -27,6 +27,8 @@ import "./styles/mail.css";
 import "./styles/money.css";
 import "./styles/projects.css";
 import "./styles/shell.css";
+// The design system last: its classes are its own, and it wins any tie with an older rule.
+import "./ui/ui.css";
 import { App } from "./App.js";
 import { guardStorage } from "./storage.js";
 
@@ -34,8 +36,15 @@ import { guardStorage } from "./storage.js";
 // that still call localStorage directly keep working (WEB-025).
 guardStorage();
 
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+const root = createRoot(document.getElementById("root")!);
+if (import.meta.env.DEV && location.pathname === "/dev/ui") {
+  // The component gallery, for the dev server only: a production build drops this branch and
+  // the module with it.
+  void import("./ui/dev/Gallery.js").then(({ Gallery }) => root.render(<Gallery />));
+} else {
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
