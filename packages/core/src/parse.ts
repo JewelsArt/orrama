@@ -151,6 +151,21 @@ function parseTaskLine(line: number, raw: string): ParsedTask | null {
   return { line, checked, status, text: clean, raw, assignee, start, due, priority, blockId, indent, ...(key ? { key } : {}) };
 }
 
+/**
+ * A markdown link target, `%20`-decoded — or as written when it is not valid
+ * percent-encoding. `growth%.png` or `Budget 100% final.md` used to throw
+ * URIError out of parseNote, and a note that throws is skipped at boot, left
+ * stale by the watcher and refused on save (audit COR-002). parseNote must
+ * never throw on user text.
+ */
+function decodeTarget(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
 function frontmatterStrings(value: unknown): string[] {
   if (typeof value === "string") return [value];
   if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
@@ -203,7 +218,7 @@ export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNo
       const raw = m[3]!.replace(/^<|>$/g, "").trim();
       if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith("#")) continue; // external or in-page
       const [pathPart, heading] = raw.split("#");
-      let target = decodeURIComponent(pathPart ?? "").trim();
+      let target = decodeTarget(pathPart ?? "").trim();
       if (!target.toLowerCase().endsWith(".md")) continue;
       target = target.replace(/\.md$/i, "").replace(/^\.\//, "");
       if (target === "") continue;
