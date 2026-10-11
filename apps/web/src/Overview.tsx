@@ -3,7 +3,7 @@ import { api, isAbort, type DashboardData, type DashboardTask, type Me, type Tea
 import { CATEGORIES } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@basalt/schema/responses";
-import { boardProject, ProjectRow, ProjectSteps, type BoardPerson, type BoardProject } from "./OverviewHead.js";
+import { boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
 import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
 import { areaOf, useNoteAreas } from "./projectArea.js";
 import { useTaskCard } from "./ProjectViews.js";
@@ -13,17 +13,9 @@ import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/layout.js";
 import { NameDialog } from "./ui/NameDialog.js";
 import type { MenuItem } from "./ui/overlays.js";
-import { navigate } from "./ui/router.js";
+import { navigate, useRoute } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
 import { onWs } from "./ws.js";
-
-type Shelf = "paused" | "cancelled" | "completed" | "archived";
-const SHELVES: { id: Shelf; label: string }[] = [
-  { id: "paused", label: "Paused" },
-  { id: "cancelled", label: "Cancelled" },
-  { id: "completed", label: "Completed" },
-  { id: "archived", label: "Archived" },
-];
 
 interface Loaded {
   dashboard: DashboardData;
@@ -34,9 +26,10 @@ interface Loaded {
 
 /**
  * Projects (structure.md §2.4, was Overview): every project and its state at a glance, one row
- * each (OverviewHead.tsx), filtered by life area (`/projects?area=school`), with the shelves for
- * paused, cancelled, completed and archived work under the board. Every step, percentage and
- * date is a view over the checkboxes in the notes; status and dates are the notes' front matter.
+ * each (OverviewHead.tsx), filtered by life area (`/projects?area=school`), with three shelves
+ * under the board: Paused, Cancelled and Done (completed and archived work together), each
+ * opened at its own address (`/projects?shelf=done`). Every step, percentage and date is a view
+ * over the checkboxes in the notes; status and dates are the notes' front matter.
  *
  * What it reads, all existing endpoints: the board's steps (`/api/dashboard/<team>`), each
  * project's note and dates (`/api/projects`), the areas (`/api/vault/tree`), the people a project
@@ -48,7 +41,8 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const [failed, setFailed] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [allSteps, setAllSteps] = useState<Set<string>>(new Set());
-  const [shelf, setShelf] = useState<Shelf | null>(null);
+  const route = useRoute();
+  const shelf = route?.kind === "projects" ? (route.shelf ?? null) : null;
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
@@ -146,6 +140,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           done: p.done,
           tasks: p.tasks,
           deadline: row?.deadline ?? null,
+          lastActivityMs: p.lastActivityMs,
           people: (noteId && data.people.get(noteId)) || [],
           warnings: (noteId && data.warnings.get(noteId)) || [],
         });
@@ -158,6 +153,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const shown = active
     .filter(inArea)
     .sort((a, b) => (a.next?.due ?? "9999").localeCompare(b.next?.due ?? "9999") || a.name.localeCompare(b.name));
+  const shelved = shelf ? shelfRows(projects, shelf).filter(inArea) : [];
   const openSteps = shown.reduce((s, p) => s + (p.total - p.done), 0);
   const areaCounts = CATEGORIES.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length })).filter((c) => c.n > 0 || c.id === area);
 
@@ -180,7 +176,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
     const items: (MenuItem | "-")[] = [
       p.shelf === "active" ? { label: "Pause", onSelect: () => void setLifecycle(p, "paused") } : { label: "Back on the board", onSelect: () => void setLifecycle(p, "on-track") },
     ];
-    if (p.shelf !== "completed") items.push({ label: "Mark completed", onSelect: () => void setLifecycle(p, "completed") });
+    if (p.shelf !== "done") items.push({ label: "Mark completed", onSelect: () => void setLifecycle(p, "completed") });
     if (p.shelf !== "cancelled")
       items.push({
         label: "Cancel…",
@@ -268,11 +264,11 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       {areaCounts.length > 0 && (
         <div className="pjs-filters" role="group" aria-label="Area">
           <span className="lbl">Area</span>
-          <Chip on={!area} onClick={() => navigate({ kind: "projects" })}>
+          <Chip on={!area} onClick={() => navigate({ kind: "projects", shelf: shelf ?? undefined })}>
             All <span className="n">{active.length}</span>
           </Chip>
           {areaCounts.map((c) => (
-            <Chip key={c.id} dot={c.color} on={area === c.id} onClick={() => navigate({ kind: "projects", area: area === c.id ? undefined : c.id })}>
+            <Chip key={c.id} dot={c.color} on={area === c.id} onClick={() => navigate({ kind: "projects", area: area === c.id ? undefined : c.id, shelf: shelf ?? undefined })}>
               {c.label} <span className="n">{c.n}</span>
             </Chip>
           ))}
@@ -330,7 +326,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
               pose="carry"
               title={area ? `Nothing open in ${CATEGORIES.find((c) => c.id === area)?.label ?? area}` : "Nothing open"}
               text="Everything here is paused, finished or put away: the shelves below have it."
-              actions={area ? <Button onClick={() => navigate({ kind: "projects" })}>Show every area</Button> : <Button onClick={() => setCreating(true)}>Make a project</Button>}
+              actions={area ? <Button onClick={() => navigate({ kind: "projects", shelf: shelf ?? undefined })}>Show every area</Button> : <Button onClick={() => setCreating(true)}>Make a project</Button>}
             />
           )}
         </div>
@@ -339,11 +335,11 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       {data && (
         <div className="pjs-shelves">
           {SHELVES.map((s) => {
-            const on = projects.filter((p) => p.shelf === s.id && inArea(p));
+            const on = shelfRows(projects, s.id).filter(inArea);
             if (on.length === 0) return null;
             return (
               <div key={s.id} className="shelf">
-                <button type="button" className="shelf-head" aria-expanded={shelf === s.id} onClick={() => setShelf(shelf === s.id ? null : s.id)}>
+                <button type="button" className="shelf-head" aria-expanded={shelf === s.id} onClick={() => navigate({ kind: "projects", area, shelf: shelf === s.id ? undefined : s.id })}>
                   <Icon name={shelf === s.id ? "chev-d" : "chev-r"} size={14} />
                   {s.label} {on.length}
                 </button>
@@ -362,9 +358,9 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           })}
         </div>
       )}
-      {data && shelf && (
+      {data && shelf && shelved.length > 0 && (
         <section className="card pjs-board pjs-shelf" aria-label={`${SHELVES.find((s) => s.id === shelf)!.label} projects`}>
-          {rows(projects.filter((p) => p.shelf === shelf && inArea(p)), true)}
+          {rows(shelved, true)}
         </section>
       )}
 

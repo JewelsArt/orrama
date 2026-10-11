@@ -2,9 +2,12 @@
  * The Projects board after Jules's answers to R8 (F1, 11 October).
  *
  * No summary of today at the top: no board draws it and Today already says what's due, so the
- * page neither offers it nor asks whether a model is set up.
+ * page neither offers it nor asks whether a model is set up. Finished work is one shelf, Done:
+ * a project whose status is completed or archived (or whose every step is ticked) sits on it,
+ * newest first, and the shelf opens at its own address. The notes' statuses are never written.
  */
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const server = vi.hoisted(() => ({ calls: [] as string[] }));
@@ -64,10 +67,16 @@ vi.mock("./api.js", async (orig) => {
 });
 
 const { Overview } = await import("./Overview.js");
+const { useRoute } = await import("./ui/router.js");
 const ME = { id: "u-1", username: "jules", isOwner: true } as never;
 
-const Board = () => <Overview me={ME} onOpenNote={() => {}} />;
+/** The board as App mounts it: the area from the address. */
+function Board() {
+  const r = useRoute();
+  return <Overview me={ME} area={r?.kind === "projects" ? r.area : undefined} onOpenNote={() => {}} />;
+}
 const at = (href: string) => window.history.replaceState({ depth: 0 }, "", href);
+const shelves = () => [...document.querySelectorAll<HTMLButtonElement>(".shelf-head")];
 
 beforeEach(() => {
   server.calls = [];
@@ -81,5 +90,32 @@ describe("Projects (F1)", () => {
     expect(screen.queryByRole("button", { name: /summary/i })).toBeNull();
     expect(screen.queryByText(/Orr is reading the board/)).toBeNull();
     expect(server.calls.filter((c) => c.includes("/api/ai/"))).toEqual([]);
+  });
+
+  it("puts completed and archived work on one Done shelf, and nothing else", async () => {
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    expect(shelves().map((b) => b.textContent)).toEqual(["Paused 1", "Cancelled 1", "Done 3"]);
+    expect(screen.queryByText(/^Completed/)).toBeNull();
+    expect(screen.queryByText(/^Archived/)).toBeNull();
+  });
+
+  it("opens Done at its address, newest first", async () => {
+    const user = userEvent.setup();
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    await user.click(shelves().find((b) => b.textContent === "Done 3")!);
+    expect(location.pathname + location.search).toBe("/projects?shelf=done");
+    const done = await screen.findByRole("region", { name: "Done projects" });
+    expect(within(done).getAllByRole("link").map((a) => a.textContent)).toEqual(["Summer report", "Literature review", "CV v4"]);
+  });
+
+  it("Done follows the area filter", async () => {
+    at("/projects?area=school&shelf=done");
+    render(<Board />);
+    const done = await screen.findByRole("region", { name: "Done projects" });
+    expect(within(done).getAllByRole("link").map((a) => a.textContent)).toEqual(["Literature review"]);
+    expect(shelves().map((b) => b.textContent)).toEqual(["Done 1"]);
+    await act(async () => {});
   });
 });

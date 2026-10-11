@@ -135,6 +135,26 @@ describe("addresses", () => {
     expect(await view()).toMatch(/^overview area=school/);
   });
 
+  it("the old Completed and Archived shelf addresses open Done (F1)", async () => {
+    at("/projects?area=school&shelf=archived");
+    render(<App />);
+    expect(await view()).toMatch(/^overview area=school/);
+    expect(path()).toBe("/projects?area=school&shelf=done");
+  });
+
+  it("opening a shelf or picking an area keeps the board mounted (F1)", async () => {
+    at("/projects");
+    render(<App />);
+    await view();
+    const before = mounted.overview;
+    act(() => void window.history.pushState({ depth: 1 }, "", "/projects?shelf=done"));
+    await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
+    act(() => void window.history.pushState({ depth: 2 }, "", "/projects?area=work&shelf=done"));
+    await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(await view()).toMatch(/^overview area=work/);
+    expect(mounted.overview).toBe(before);
+  });
+
   it("an address this app does not know goes to Today", async () => {
     at("/dashboard");
     render(<App />);

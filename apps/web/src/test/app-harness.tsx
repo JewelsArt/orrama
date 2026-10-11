@@ -49,10 +49,20 @@ vi.mock("../orrery/Orrery.js", () => {
   return { Orrery: (p: P) => <Orrery area={p.route.area} center={p.route.center} topic={p.route.topic} /> };
 });
 vi.mock("../Planning.js", () => ({ Planning: stub("planning") }));
-vi.mock("../Overview.js", () => ({ Overview: stub("overview") }));
-/** How many times the project page was mounted: its tabs are addresses, not new pages. */
-const counts = vi.hoisted(() => ({ project: 0 }));
+/** How many times the project page and the board were mounted: their tabs, area and shelves are addresses, not new pages. */
+const counts = vi.hoisted(() => ({ project: 0, overview: 0 }));
 export const mounted = counts;
+vi.mock("../Overview.js", () => {
+  const Stub = stub("overview");
+  return {
+    Overview: (p: P) => {
+      useEffect(() => {
+        counts.overview++;
+      }, []);
+      return <Stub {...p} />;
+    },
+  };
+});
 vi.mock("../Project.js", () => {
   const Stub = stub("project");
   return {

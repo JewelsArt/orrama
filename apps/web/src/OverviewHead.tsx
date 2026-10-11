@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { DashboardTask } from "./api.js";
 import { daysTo, type Category } from "./categories.js";
-import { shelfOf, statusOf, statusProblems, type Shelf } from "./entity/index.js";
+import { shelfOf, statusOf, statusProblems } from "./entity/index.js";
 import { statusLook } from "./entity/StatusMenu.js";
 import { dueOf, StepMenu, taskState } from "./ProjectViews.js";
 import { Checkbox, DeadlineChip, ProgressRing, Ring, Square } from "./ui/controls.js";
@@ -22,6 +22,37 @@ import { Menu, type MenuItem } from "./ui/overlays.js";
  * renders without the API client.
  */
 
+/**
+ * Where a project sits on this page: on the board, or on one of three shelves under it. The
+ * ontology keeps completed and archived as two words (the project page's menu writes either),
+ * but finished work is one shelf here, **Done** (Jules, 11 Oct: one shelf is enough). A note's
+ * status is never rewritten for it.
+ */
+export type BoardShelf = "active" | "paused" | "cancelled" | "done";
+
+export const SHELVES: { id: Exclude<BoardShelf, "active">; label: string }[] = [
+  { id: "paused", label: "Paused" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "done", label: "Done" },
+];
+
+/** The project's shelf on this page: completed and archived (`shelfOf`) both land on Done. */
+export function boardShelf(p: { status: string | null | undefined; total: number; done: number }): BoardShelf {
+  const s = shelfOf(p);
+  return s === "completed" || s === "archived" ? "done" : s;
+}
+
+/**
+ * A shelf's rows, in its order. Done is newest first: the last time anything in the project's
+ * notes changed (the board's `lastActivityMs`), the nearest the vault comes to when it was
+ * finished; a project with no steps has none and goes last. The other shelves keep the board's
+ * order, by name.
+ */
+export function shelfRows(projects: BoardProject[], shelf: BoardShelf): BoardProject[] {
+  const on = projects.filter((p) => p.shelf === shelf);
+  return shelf === "done" ? on.sort((a, b) => (b.lastActivityMs ?? -1) - (a.lastActivityMs ?? -1) || a.name.localeCompare(b.name)) : on;
+}
+
 export interface BoardPerson {
   id: string;
   title: string;
@@ -38,13 +69,15 @@ export interface BoardProject {
   noteId: string | null;
   area: Category | null;
   status: string;
-  shelf: Shelf;
+  shelf: BoardShelf;
   total: number;
   done: number;
   tasks: DashboardTask[];
   next: DashboardTask | null;
   key: DashboardTask | null;
   deadline: string | null;
+  /** When anything in the project's notes last changed (epoch ms); none without steps. */
+  lastActivityMs?: number;
   people: BoardPerson[];
   /** What Orr noticed: no status, a word outside the vocabulary, the graph's warnings. */
   flags: string[];
@@ -75,6 +108,7 @@ export function boardProject(input: {
   done: number;
   tasks: DashboardTask[];
   deadline: string | null;
+  lastActivityMs?: number;
   people: BoardPerson[];
   warnings: string[];
 }): BoardProject {
@@ -85,7 +119,7 @@ export function boardProject(input: {
   const own = input.warnings.some((w) => /status/i.test(w)) ? [] : statusProblems(input.status);
   return {
     ...input,
-    shelf: shelfOf(input),
+    shelf: boardShelf(input),
     next,
     key,
     flags: [...own, ...input.warnings],

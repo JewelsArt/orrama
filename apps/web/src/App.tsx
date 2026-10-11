@@ -492,13 +492,15 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      {/* One page, one key: moving inside the Orrery, Planning, Notes, People's list or a
-          project (its tabs) must not remount the page. Each entity page is its own. */}
+      {/* One page, one key: moving inside the Orrery, Planning, Notes, People's list, Projects
+          (its area and shelves) or a project (its tabs) must not remount the page. Each entity
+          page is its own. */}
       <ErrorBoundary
         key={
           shown.kind === "orrery" ? "/orrery"
           : shown.kind === "planning" ? "/planning"
           : shown.kind === "notes" ? "/notes"
+          : shown.kind === "projects" ? "/projects"
           : shown.kind === "project" ? routeHref({ kind: "project", slug: shown.slug })
           : shown.kind === "people" ? "/people"
           : routeHref(shown)

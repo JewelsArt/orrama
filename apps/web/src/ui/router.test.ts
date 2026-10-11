@@ -24,6 +24,8 @@ describe("addresses", () => {
     ["/orrery?topic=forecasting", { kind: "orrery", topic: "forecasting" }],
     ["/projects", { kind: "projects" }],
     ["/projects?area=school", { kind: "projects", area: "school" }],
+    ["/projects?shelf=done", { kind: "projects", shelf: "done" }],
+    ["/projects?area=school&shelf=paused", { kind: "projects", area: "school", shelf: "paused" }],
     ["/projects/graduation-thesis", { kind: "project", slug: "graduation-thesis" }],
     ["/projects/graduation-thesis/timeline", { kind: "project", slug: "graduation-thesis", tab: "timeline" }],
     ["/projects/graduation-thesis/documents", { kind: "project", slug: "graduation-thesis", tab: "documents" }],
@@ -64,6 +66,12 @@ describe("addresses", () => {
     expect(parse("/notes/map")).toEqual({ kind: "orrery" }); // the map left Notes
     expect(parse("/today/")).toEqual({ kind: "today" });
     expect(parse("/settings/nonsense")).toEqual({ kind: "settings" });
+  });
+
+  it("sends the old Completed and Archived shelves to Done (F1), and ignores a shelf it does not know", () => {
+    expect(parse("/projects?shelf=completed")).toEqual({ kind: "projects", shelf: "done" });
+    expect(parse("/projects?area=work&shelf=archived")).toEqual({ kind: "projects", area: "work", shelf: "done" });
+    expect(parse("/projects?shelf=active")).toEqual({ kind: "projects" });
   });
 
   it("does not claim addresses it does not know", () => {

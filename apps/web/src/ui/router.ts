@@ -26,6 +26,7 @@ export const PLACES: { place: Place; label: string; key: string }[] = [
 
 export type MoneyPage = "spending" | "documents" | "subscriptions" | "income" | "savings";
 export type ProjectTab = "timeline" | "documents" | "todo";
+export type ProjectShelf = "paused" | "cancelled" | "done";
 export type SettingsSection = "you" | "appearance" | "ai" | "notes" | "connections" | "device" | "sessions" | "developer" | "access";
 
 export type Route =
@@ -35,8 +36,8 @@ export type Route =
   | { kind: "notes"; path?: string; id?: string }
   | { kind: "notes-health" }
   | { kind: "orrery"; center?: string; area?: string; topic?: string }
-  /** The board, filtered to one life area (`?area=school`). */
-  | { kind: "projects"; area?: string }
+  /** The board, filtered to one life area (`?area=school`), with a shelf open (`?shelf=done`). */
+  | { kind: "projects"; area?: string; shelf?: ProjectShelf }
   | { kind: "project"; slug: string; tab?: ProjectTab }
   /** The search and the sector filter, so a filtered list is a link too. */
   | { kind: "people"; q?: string; sector?: string }
@@ -50,6 +51,14 @@ export type Route =
 
 const MONEY_PAGES = new Set<MoneyPage>(["spending", "documents", "subscriptions", "income", "savings"]);
 const PROJECT_TABS = new Set<ProjectTab>(["timeline", "documents", "todo"]);
+/** The shelves under the Projects board; Completed and Archived were one shelf each before Done. */
+const PROJECT_SHELVES = new Map<string, ProjectShelf>([
+  ["paused", "paused"],
+  ["cancelled", "cancelled"],
+  ["done", "done"],
+  ["completed", "done"],
+  ["archived", "done"],
+]);
 const SECTIONS = new Set<SettingsSection>(["you", "appearance", "ai", "notes", "connections", "device", "sessions", "developer", "access"]);
 const SCALES = new Set(["day", "week", "month"]);
 
@@ -94,7 +103,13 @@ export function parseRoute(pathname: string, search = ""): Route | null {
       return r;
     }
     case "projects":
-      if (!rest[0]) return opt("area") ? { kind: "projects", area: opt("area") } : { kind: "projects" };
+      if (!rest[0]) {
+        const r: Route = { kind: "projects" };
+        if (opt("area")) r.area = opt("area");
+        const shelf = PROJECT_SHELVES.get(opt("shelf") ?? "");
+        if (shelf) r.shelf = shelf;
+        return r;
+      }
       return rest[1] && PROJECT_TABS.has(rest[1] as ProjectTab) ? { kind: "project", slug: rest[0], tab: rest[1] as ProjectTab } : { kind: "project", slug: rest[0] };
     case "people":
       if (rest[0]) return { kind: "person", slug: rest[0] };
@@ -148,7 +163,7 @@ export function routeHref(r: Route): string {
     case "orrery":
       return `/orrery${query({ center: r.center, area: r.area, topic: r.topic })}`;
     case "projects":
-      return `/projects${query({ area: r.area })}`;
+      return `/projects${query({ area: r.area, shelf: r.shelf })}`;
     case "project":
       return `/projects/${enc(r.slug)}${r.tab ? `/${r.tab}` : ""}`;
     case "people":

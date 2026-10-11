@@ -14,7 +14,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { DashboardTask } from "./api.js";
-import { boardProject, nextDate, ProjectRow, ProjectSteps } from "./OverviewHead.js";
+import { boardProject, boardShelf, nextDate, ProjectRow, ProjectSteps, shelfRows } from "./OverviewHead.js";
 
 const INTERACTIVE_TAGS = new Set(["button", "a", "input", "select", "textarea"]);
 const INTERACTIVE_ROLES = /\brole="(button|link|switch|checkbox|menuitem|option|tab)"/;
@@ -129,6 +129,29 @@ describe("what the row says", () => {
 
   it("a project's shelf follows its word, then its steps", () => {
     expect(boardProject({ ...base, status: "sleeping", tasks }).shelf).toBe("paused");
-    expect(boardProject({ ...base, status: "", total: 3, done: 3, tasks }).shelf).toBe("completed");
+    expect(boardProject({ ...base, status: "", total: 3, done: 3, tasks }).shelf).toBe("done");
+  });
+});
+
+describe("the Done shelf (F1)", () => {
+  const steps = { total: 3, done: 1 };
+  it("completed and archived both land on Done, in any spelling the note has", () => {
+    for (const status of ["completed", "archived", "done", "finished", "Archived"]) expect(boardShelf({ status, ...steps })).toBe("done");
+    // Every step ticked, whatever the note says (or does not), is finished too.
+    expect(boardShelf({ status: "", total: 3, done: 3 })).toBe("done");
+  });
+
+  it("nothing else does", () => {
+    expect(boardShelf({ status: "paused", ...steps })).toBe("paused");
+    expect(boardShelf({ status: "cancelled", total: 3, done: 3 })).toBe("cancelled");
+    for (const status of ["planned", "on-track", "at-risk", "", "waiting"]) expect(boardShelf({ status, ...steps })).toBe("active");
+    expect(boardShelf({ status: "", total: 0, done: 0 })).toBe("active");
+  });
+
+  it("is newest first: the latest change in the project's notes, undated last", () => {
+    const p = (name: string, status: string, lastActivityMs?: number) => boardProject({ ...base, slug: name, name, status, tasks: [], lastActivityMs });
+    const list = [p("CV v4", "completed", 100), p("Summer report", "archived", 300), p("Lisbon trip", "cancelled", 400), p("Old notes", "archived"), p("Literature review", "completed", 200)];
+    expect(shelfRows(list, "done").map((x) => x.name)).toEqual(["Summer report", "Literature review", "CV v4", "Old notes"]);
+    expect(shelfRows(list, "cancelled").map((x) => x.name)).toEqual(["Lisbon trip"]);
   });
 });
