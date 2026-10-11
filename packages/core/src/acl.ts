@@ -38,6 +38,19 @@ function ancestors(folder: string): string[] {
 }
 
 /**
+ * A vault path (or one segment of it) as the filesystem compares it: APFS and
+ * NTFS fold letter case, and APFS also folds Unicode normalisation, so
+ * `Engineering`, `engineering` and a decomposed `Re\u0301sume\u0301` name one folder
+ * with their composed and differently-cased spellings. The server resolves every
+ * path to the spelling on disk before it gets here (VaultStore.resolvePath);
+ * folding here as well means a grant row typed in another case still covers
+ * the folder it names (audit ACL-001, REG-006).
+ */
+export function foldPath(p: string): string {
+  return p.normalize("NFC").toLowerCase();
+}
+
+/**
  * Folder baseline (§5.1): walk up from the note's folder; the FIRST ancestor that has
  * any explicit grant decides — the user's role there is their max role across their
  * teams' grants at that folder, or null if their teams have none. This makes a
@@ -47,11 +60,12 @@ function ancestors(folder: string): string[] {
 export function folderRole(user: AclUser, folder: string, grants: FolderGrant[]): Role | null {
   const byFolder = new Map<string, FolderGrant[]>();
   for (const g of grants) {
-    const list = byFolder.get(g.folder) ?? [];
+    const key = foldPath(g.folder);
+    const list = byFolder.get(key) ?? [];
     list.push(g);
-    byFolder.set(g.folder, list);
+    byFolder.set(key, list);
   }
-  for (const anc of ancestors(folder)) {
+  for (const anc of ancestors(foldPath(folder))) {
     const here = byFolder.get(anc);
     if (!here || here.length === 0) continue;
     let role: Role | null = null;
@@ -84,18 +98,17 @@ export const PERSONAL_ROOT = "Personal";
  * the same physical file. With an exact match, the lower-case spelling returned
  * null, §5.3 was skipped entirely, and folder grants decided instead — so a
  * teammate with a grant on the vault root could read and overwrite another
- * user's personal notes by changing one letter. resolvePath canonicalises the
- * path but deliberately preserves its case, so this is the layer that has to
- * fold it.
+ * user's personal notes by changing one letter. resolvePath now hands over the
+ * spelling on disk, and this folds as well, like folderRole (foldPath).
  *
  * The username is lower-cased on the way out to match `users.username`, which
  * registration stores lower-cased.
  */
 export function personalOwner(folder: string): string | null {
-  const lower = folder.toLowerCase();
+  const lower = foldPath(folder);
   const root = PERSONAL_ROOT.toLowerCase();
   if (lower === root) return "";
-  if (lower.startsWith(root + "/")) return (folder.split("/")[1] ?? "").toLowerCase();
+  if (lower.startsWith(root + "/")) return lower.split("/")[1] ?? "";
   return null;
 }
 

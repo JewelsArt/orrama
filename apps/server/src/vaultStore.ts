@@ -33,6 +33,7 @@ import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
 import { writeFileAtomic } from "./atomicWrite.js";
+import { AmbiguousPathError, listedExactly, onDisk, sameFile } from "./diskPath.js";
 
 /** How long after a folder appears it is read again (lookAgainLater). The
  *  gap it covers is microseconds wide; this is margin for a busy event loop. */
@@ -237,7 +238,7 @@ export class VaultStore {
       const absPath = path.basename(watched) === evPath ? watched : path.resolve(watched, evPath);
       if (!absPath.toLowerCase().endsWith(".md") || path.basename(absPath).startsWith(".")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
-      if (relPath.startsWith("..") || !this.index.getByPath(relPath) || fs.existsSync(absPath)) return;
+      if (relPath.startsWith("..") || !this.index.getByPath(relPath) || listedExactly(this.root, relPath)) return;
       this.settleLater("unlink", relPath, absPath);
     });
     // Without a listener, chokidar's "error" (EACCES on a folder or file the
@@ -391,8 +392,15 @@ export class VaultStore {
   private ownerElsewhere(id: string, rel: string): IndexedNote | undefined {
     const holder = this.index.get(id);
     if (!holder || holder.path === rel) return undefined;
+    const holderAbs = path.join(this.root, holder.path);
+    // On a case-insensitive volume the holder's old spelling still opens a
+    // file after a case-only rename — THIS file. Reading it "confirmed" a copy,
+    // and restamping each spelling as a copy of the other ran forever (audit
+    // STO-012). The holder is elsewhere only if the directory still lists its
+    // name and that name is another file.
+    if (!listedExactly(this.root, holder.path) || sameFile(holderAbs, path.join(this.root, rel))) return undefined;
     try {
-      return carriedId(fs.readFileSync(path.join(this.root, holder.path), "utf8")) === id ? holder : undefined;
+      return carriedId(fs.readFileSync(holderAbs, "utf8")) === id ? holder : undefined;
     } catch {
       return undefined;
     }
@@ -444,8 +452,10 @@ export class VaultStore {
       try {
         // Gone again by the time the debounce settled: it is an unlink now,
         // whatever the event said (and a "raw" settle may have been replaced
-        // by chokidar's own "add" for the same path).
-        if (!fs.existsSync(absPath)) return this.forget(relPath);
+        // by chokidar's own "add" for the same path). Gone includes "renamed
+        // to another spelling": existsSync says yes to every spelling of a
+        // file on a case-insensitive volume, the directory listing does not.
+        if (!listedExactly(this.root, relPath)) return this.forget(relPath);
         const { content, utf8 } = readNote(absPath);
 
         // Our own write coming back round: the file still holds exactly what we
@@ -465,8 +475,8 @@ export class VaultStore {
       // A save that replaces the file (ours are atomic: temp file, then rename;
       // some editors do the same) can reach us as unlink + add, and the two
       // share one debounce, so the unlink may be the one that fires. The file
-      // is still there: it changed, it did not go.
-      if (fs.existsSync(absPath)) return this.handleExternalChange("change", relPath, absPath);
+      // is still there, under this exact name: it changed, it did not go.
+      if (listedExactly(this.root, relPath)) return this.handleExternalChange("change", relPath, absPath);
       this.forget(relPath);
     }
   }
@@ -772,16 +782,32 @@ export class VaultStore {
    * rejected here too — a bare `startsWith(root)` would accept a sibling
    * directory that merely shares the prefix (`../vault-evil/x.md`).
    *
+   * The result is also spelled the way the disk spells it (diskPath.ts): on
+   * APFS `shared/eng secret.md` IS `Shared/Eng Secret.md`, so it must be that
+   * note — found in the index, judged by its tags and its folder's grant, and
+   * merged into — not a fresh untagged note renamed over it (audit ACL-001).
+   * `asNamed` keeps the last segment as the caller spelled it (a rename's
+   * target) and reports which existing entry, if any, that name already means.
+   *
    * Callers must use the returned `rel`/`abs`, never the string they passed in.
    */
-  private resolvePath(input: string): { rel: string; abs: string } {
-    const abs = path.resolve(this.root, input);
-    const rel = path.relative(this.root, abs).split(path.sep).join("/");
-    if (rel === "" || rel === ".." || rel.startsWith("../") || path.isAbsolute(rel)) {
+  private resolvePath(input: string, opts: { asNamed?: boolean } = {}): { rel: string; abs: string; taken?: string } {
+    const given = path.relative(this.root, path.resolve(this.root, input)).split(path.sep).join("/");
+    if (given === "" || given === ".." || given.startsWith("../") || path.isAbsolute(given)) {
       throw new HttpError(400, "invalid path");
     }
-    if (!rel.toLowerCase().endsWith(".md")) throw new HttpError(400, "only .md files live in the vault");
-    return { rel, abs };
+    if (!given.toLowerCase().endsWith(".md")) throw new HttpError(400, "only .md files live in the vault");
+    let disk: { rel: string; found: boolean };
+    try {
+      disk = onDisk(this.root, given);
+    } catch (err) {
+      if (err instanceof AmbiguousPathError) throw new HttpError(409, err.message);
+      throw err;
+    }
+    if (!opts.asNamed) return { rel: disk.rel, abs: path.join(this.root, disk.rel) };
+    const cut = disk.rel.lastIndexOf("/");
+    const rel = (cut === -1 ? "" : disk.rel.slice(0, cut + 1)) + given.slice(given.lastIndexOf("/") + 1);
+    return { rel, abs: path.join(this.root, rel), taken: disk.found ? disk.rel : undefined };
   }
 
   /** Create or update a note. Returns the updated note. */
@@ -802,6 +828,14 @@ export class VaultStore {
     // A file that is not UTF-8 was read with U+FFFD for every byte that did
     // not decode; saving over it writes those (audit STO-011). Refuse.
     if (disk && !disk.utf8) throw new HttpError(409, `This note ${NOT_UTF8}`);
+    // A file the index does not hold at this path yet (just saved by Obsidian,
+    // or renamed and the watcher not settled) is still a note: take it in
+    // first, so this is judged and merged as an edit of it, never as a
+    // creation that replaces it.
+    if (!existing && disk) {
+      this.ingest(relPath, abs, disk.content, true);
+      existing = this.index.getByPath(relPath);
+    }
     if (existing) {
       const before = existing.content;
       if (disk && disk.content !== before) {
@@ -901,15 +935,17 @@ export class VaultStore {
     // Both ends are canonicalised first, for the same reason as write(): the
     // destination folder the ACL judges must be where the file actually lands.
     const { rel: fromPath, abs: absFrom } = this.resolvePath(inputFrom);
-    const { rel: toPath, abs: absTo } = this.resolvePath(inputTo);
+    const { rel: toPath, abs: absTo, taken } = this.resolvePath(inputTo, { asNamed: true });
     const note = this.index.getByPath(fromPath);
     if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
     // fs.renameSync REPLACES an existing destination. Moving onto a note that
     // exists destroyed it on disk and then failed half-way (500), leaving the
     // index and the notes table disagreeing about the path — which stopped the
     // next boot. Checked on disk as well as in the index: the file may not
-    // have been indexed yet, or may not be a note we can see.
-    if (toPath !== fromPath && (this.index.getByPath(toPath) || fs.existsSync(absTo))) {
+    // have been indexed yet, or may not be a note we can see. On disk means
+    // any spelling of the name (`taken`, from the directory listing): the one
+    // file it may be is the note itself, renamed only in case.
+    if (toPath !== fromPath && (this.index.getByPath(toPath) || (taken !== undefined ? taken !== fromPath : fs.existsSync(absTo)))) {
       throw new HttpError(409, "a note already exists at that path");
     }
     const toFolder = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : "";

@@ -1,0 +1,253 @@
+/**
+ * One path identity: the spelling on disk (audit STO-012, ACL-001, REG-006).
+ *
+ * APFS and NTFS are case-insensitive (and APFS normalisation-insensitive), so
+ * `Shared/eng secret.md` and `Shared/Eng Secret.md` are one file. Basalt
+ * compared them as strings: an API write to the other spelling was judged as
+ * the creation of a fresh, untagged note — past `#only/` and subfolder grants
+ * — and renamed over the real file; a case-only rename in Obsidian made the
+ * watcher take each spelling for a copy of the other and restamp the file
+ * with alternating ids, forever. Now every path a caller sends is resolved to
+ * the entry the directory actually holds, matched case- and NFC-insensitively
+ * (VaultStore.resolvePath), and the watcher only believes names the directory
+ * lists exactly.
+ */
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { and, eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-path-identity-"));
+process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
+process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+
+const VAULT = process.env.BASALT_VAULT_DIR;
+fs.mkdirSync(VAULT, { recursive: true });
+await import("../src/seed.js");
+const { buildServer } = await import("../src/main.js");
+const { tables } = await import("../src/db.js");
+
+/** Whether this volume folds case — the watcher half only means anything where it does. */
+const CASE_INSENSITIVE = (() => {
+  const probe = path.join(process.env.BASALT_DATA_DIR!, "CaseProbe");
+  fs.writeFileSync(probe, "");
+  const folds = fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "caseprobe"));
+  fs.rmSync(probe);
+  return folds;
+})();
+
+type Built = Awaited<ReturnType<typeof buildServer>>;
+let b: Built;
+const tokens: Record<string, string> = {};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const abs = (rel: string) => path.join(VAULT, rel);
+const read = (rel: string) => fs.readFileSync(abs(rel), "utf8");
+const restamps: string[] = [];
+
+const put = async (who: string, body: Record<string, unknown>) => {
+  const res = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${tokens[who]}` }, payload: body });
+  return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
+};
+const indexPaths = (prefix: string) =>
+  b.store.index
+    .all()
+    .map((n) => n.path)
+    .filter((p) => p.toLowerCase().startsWith(prefix.toLowerCase()))
+    .sort();
+
+beforeAll(async () => {
+  b = await buildServer();
+  for (const who of ["jules", "mara"]) {
+    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+  }
+  const warn = console.warn;
+  console.warn = (...a: unknown[]) => {
+    if (String(a[0]).includes("carries note id")) restamps.push(String(a[0]));
+    warn(...a);
+  };
+});
+afterAll(async () => {
+  await b.app.close();
+  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+});
+
+describe("API writes resolve to the note on disk (ACL-001)", () => {
+  it("a non-member writing a case variant of an #only note's path is refused, and the note is untouched", async () => {
+    const real = "Shared/Eng Secret.md";
+    expect((await put("jules", { path: real, content: "---\ntitle: Eng Secret\ntags: [only/engineering]\n---\n# Eng secret\n" })).status).toBe(200);
+    const before = read(real);
+    // mara (marketing) edits Shared/ but is not in engineering.
+    expect((await put("mara", { path: real, content: "pwned\n" })).status).toBe(403);
+    const variant = await put("mara", { path: "Shared/eng secret.md", content: "pwned by mara\n" });
+    expect(variant.status).toBe(403);
+    expect(fs.readdirSync(abs("Shared"))).toContain("Eng Secret.md");
+    expect(fs.readdirSync(abs("Shared"))).not.toContain("eng secret.md");
+    expect(read(real)).toBe(before);
+    expect(indexPaths("Shared/eng secret")).toEqual([real]);
+  });
+
+  it("a case-variant folder is judged by the grant of the folder on disk", async () => {
+    // Make marketing an editor of the vault root. Engineering's own grant
+    // still says engineering only; `engineering/` used to miss it and fall
+    // through to the root, where mara may edit.
+    const mkt = b.db.select().from(tables.teams).where(eq(tables.teams.slug, "marketing")).get()!;
+    const rootGrant = and(eq(tables.folderGrants.teamId, mkt.id), eq(tables.folderGrants.folder, ""));
+    b.db.update(tables.folderGrants).set({ role: "editor" }).where(rootGrant).run();
+    try {
+      const real = "Engineering/Atlas Roadmap.md";
+      const before = read(real);
+      expect((await put("mara", { path: real, content: "roadmap overwritten by mara\n" })).status).toBe(403);
+      const res = await put("mara", { path: "engineering/Atlas Roadmap.md", content: "roadmap overwritten by mara\n" });
+      expect(res.status).toBe(403);
+      expect(read(real)).toBe(before);
+      expect(fs.readdirSync(VAULT)).not.toContain("engineering");
+    } finally {
+      b.db.update(tables.folderGrants).set({ role: "viewer" }).where(rootGrant).run();
+    }
+  });
+
+  it("an owner write to a case variant edits that note — same id, merged, one index entry", async () => {
+    const real = "Shared/Meeting Notes 2026-07-01.md";
+    const note = b.store.index.getByPath(real)!;
+    const before = read(real);
+    const res = await put("jules", { path: "shared/meeting notes 2026-07-01.md", content: before.replace("Cross-team sync.", "Cross-team sync, edited.") });
+    expect(res.status).toBe(200);
+    expect(res.json.id).toBe(note.id);
+    expect(res.json.path).toBe(real);
+    expect(read(real)).toContain("Cross-team sync, edited.");
+    expect(read(real)).toContain("[[Atlas Roadmap]] on track");
+    expect(fs.readdirSync(abs("Shared"))).toContain("Meeting Notes 2026-07-01.md");
+    expect(indexPaths("Shared/Meeting Notes")).toEqual([real]);
+  });
+
+  it("a name stored decomposed (NFD) is reached by its composed (NFC) spelling", async () => {
+    const nfd = "Shared/Re\u0301sume\u0301.md";
+    fs.writeFileSync(abs(nfd), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
+    await sleep(800);
+    const held = b.store.index.all().find((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md");
+    expect(held).toBeDefined();
+    const res = await put("jules", { path: "Shared/R\u00e9sum\u00e9.md", content: "---\ntitle: R\u00e9sum\u00e9\n---\nv2\n" });
+    expect(res.status).toBe(200);
+    expect(res.json.id).toBe(held!.id);
+    expect(res.json.path).toBe(held!.path);
+    expect(b.store.index.all().filter((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md")).toHaveLength(1);
+  });
+
+  it("a file on disk the watcher has not settled yet is still that note, not a creation", async () => {
+    // Obsidian just saved it; the watcher waits 300 ms. A write in between
+    // used to be judged as the creation of an untagged note.
+    fs.writeFileSync(abs("Shared/Fresh Secret.md"), "---\ntitle: Fresh Secret\ntags: [only/engineering]\n---\nsecret\n");
+    const res = await put("mara", { path: "Shared/fresh secret.md", content: "pwned\n" });
+    expect(res.status).toBe(403);
+    expect(read("Shared/Fresh Secret.md")).toContain("secret\n");
+    expect(read("Shared/Fresh Secret.md")).not.toContain("pwned");
+  });
+
+  it("a brand-new note keeps the spelling it was given", async () => {
+    const res = await put("jules", { path: "Shared/Brand New Idea.md", content: "hello\n" });
+    expect(res.status).toBe(200);
+    expect(res.json.path).toBe("Shared/Brand New Idea.md");
+    expect(fs.readdirSync(abs("Shared"))).toContain("Brand New Idea.md");
+  });
+
+  it("a move that only changes a note's case renames it in place", async () => {
+    const res = await b.app.inject({
+      method: "POST",
+      url: "/api/vault/move",
+      headers: { authorization: `Bearer ${tokens.jules}` },
+      payload: { fromPath: "Shared/Brand New Idea.md", toPath: "Shared/brand new idea.md" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(fs.readdirSync(abs("Shared"))).toContain("brand new idea.md");
+    expect(fs.readdirSync(abs("Shared"))).not.toContain("Brand New Idea.md");
+    expect(indexPaths("Shared/brand new idea")).toEqual(["Shared/brand new idea.md"]);
+  });
+
+  it("a move onto another note's case variant is refused", async () => {
+    const res = await b.app.inject({
+      method: "POST",
+      url: "/api/vault/move",
+      headers: { authorization: `Bearer ${tokens.jules}` },
+      payload: { fromPath: "Shared/brand new idea.md", toPath: "shared/eng secret.md" },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(read("Shared/Eng Secret.md")).toContain("# Eng secret");
+  });
+});
+
+describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Basalt (STO-012)", () => {
+  const settle = async () => {
+    await sleep(1500);
+  };
+
+  it("leaves one index entry under the new spelling, with its id, and never rewrites the file", async () => {
+    fs.mkdirSync(abs("Notes"), { recursive: true });
+    fs.writeFileSync(abs("Notes/Meeting notes.md"), "# Meeting\n\n- [ ] follow up\n");
+    await settle();
+    const id = b.store.index.getByPath("Notes/Meeting notes.md")?.id;
+    expect(id).toMatch(/^n-/);
+    const stamped = read("Notes/Meeting notes.md");
+    restamps.length = 0;
+
+    fs.renameSync(abs("Notes/Meeting notes.md"), abs("Notes/Meeting Notes.md"));
+    const mtime = fs.statSync(abs("Notes/Meeting Notes.md")).mtimeMs;
+    await settle();
+    expect(fs.readdirSync(abs("Notes"))).toEqual(["Meeting Notes.md"]);
+    expect(indexPaths("Notes/")).toEqual(["Notes/Meeting Notes.md"]);
+    expect(b.store.index.getByPath("Notes/Meeting Notes.md")?.id).toBe(id);
+    expect(read("Notes/Meeting Notes.md")).toBe(stamped);
+    expect(fs.statSync(abs("Notes/Meeting Notes.md")).mtimeMs).toBe(mtime);
+    expect(restamps).toEqual([]);
+
+    // …and back.
+    fs.renameSync(abs("Notes/Meeting Notes.md"), abs("Notes/Meeting notes.md"));
+    await settle();
+    expect(fs.readdirSync(abs("Notes"))).toEqual(["Meeting notes.md"]);
+    expect(indexPaths("Notes/")).toEqual(["Notes/Meeting notes.md"]);
+    expect(b.store.index.getByPath("Notes/Meeting notes.md")?.id).toBe(id);
+    expect(read("Notes/Meeting notes.md")).toBe(stamped);
+    expect(restamps).toEqual([]);
+  });
+
+  it("a late event for the old spelling does not bring it back", async () => {
+    // chokidar reports the old spelling as "change" or "unlink", in either
+    // order with the new one's "add"; existsSync says yes to it either way.
+    const id = b.store.index.getByPath("Notes/Meeting notes.md")?.id;
+    const settle = (b.store as unknown as { handleExternalChange(e: string, rel: string, abs: string): void }).handleExternalChange.bind(b.store);
+    for (const event of ["change", "unlink", "add"]) {
+      settle(event, "Notes/Meeting Notes.md", abs("Notes/Meeting Notes.md"));
+      expect(indexPaths("Notes/")).toEqual(["Notes/Meeting notes.md"]);
+      expect(b.store.index.getByPath("Notes/Meeting notes.md")?.id).toBe(id);
+    }
+    expect(restamps).toEqual([]);
+  });
+
+  it("a case-only rename of a folder moves every note in it, ids kept, nothing rewritten", async () => {
+    fs.mkdirSync(abs("Box"), { recursive: true });
+    fs.writeFileSync(abs("Box/One.md"), "one\n");
+    fs.writeFileSync(abs("Box/Two.md"), "two\n");
+    await settle();
+    const ids = ["Box/One.md", "Box/Two.md"].map((p) => b.store.index.getByPath(p)?.id);
+    const bytes = ["Box/One.md", "Box/Two.md"].map(read);
+    restamps.length = 0;
+
+    fs.renameSync(abs("Box"), abs("box"));
+    await settle();
+    expect(indexPaths("Box/")).toEqual(["box/One.md", "box/Two.md"]);
+    expect(["box/One.md", "box/Two.md"].map((p) => b.store.index.getByPath(p)?.id)).toEqual(ids);
+    expect(["box/One.md", "box/Two.md"].map(read)).toEqual(bytes);
+    expect(fs.readdirSync(VAULT)).toContain("box");
+    expect(restamps).toEqual([]);
+  });
+
+  it("a real copy is still a copy: it gets its own id", async () => {
+    fs.copyFileSync(abs("Notes/Meeting notes.md"), abs("Notes/Meeting notes copy.md"));
+    await settle();
+    const orig = b.store.index.getByPath("Notes/Meeting notes.md")!;
+    const copy = b.store.index.getByPath("Notes/Meeting notes copy.md")!;
+    expect(copy.id).not.toBe(orig.id);
+    expect(restamps).toHaveLength(1);
+  });
+});

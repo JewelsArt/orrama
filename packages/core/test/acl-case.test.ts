@@ -61,3 +61,25 @@ describe("personalOwner is case-insensitive, because the filesystem is", () => {
     }
   });
 });
+
+describe("folder grants match the folder the filesystem means (ACL-001, REG-006)", () => {
+  // Engineering's own grant restricts it to engineering; marketing edits the
+  // root. `engineering/x.md` IS `Engineering/x.md` on APFS, so it must be
+  // judged by the Engineering grant, not fall through to the root.
+  const grants = [...rootEditor("marketing"), { team: "engineering", folder: "Engineering", role: "editor" as const }];
+
+  it("a case variant of a restricted folder is still restricted", () => {
+    for (const folder of ["Engineering", "engineering", "ENGINEERING/Specs"]) {
+      expect(canEdit(mara, noteIn(folder), grants)).toBe(false);
+      expect(canRead(mara, noteIn(folder), grants)).toBe(false);
+      expect(canEdit(erin, noteIn(folder), grants)).toBe(true);
+    }
+  });
+
+  it("a grant row typed in another case or normalisation still covers its folder", () => {
+    const nfd = [{ team: "engineering", folder: "Re\u0301sume\u0301s", role: "editor" as const }];
+    expect(canEdit(erin, noteIn("R\u00e9sum\u00e9s/2026"), nfd)).toBe(true);
+    expect(canEdit(erin, noteIn("r\u00e9sum\u00e9s"), nfd)).toBe(true);
+    expect(canEdit(mara, noteIn("R\u00e9sum\u00e9s"), nfd)).toBe(false);
+  });
+});
