@@ -171,7 +171,7 @@
    - Aliases onto the new tokens (the block below). Old surfaces, text, borders, radii and the
      life areas now follow the new system.
    - The old palette families, kept at their old values (the two blocks after it): --v-* fills,
-     --ink-* text hues, --cat-* spending ramp, --t-* sectors, the Finance hero, --on-vivid. They
+     --ink-* text hues, --cat-b, --t-* sectors, the brand slot (--fin-hero-*), --on-vivid. They
      colour things the new system has no slot for yet; each wave deletes the ones its screens
      stop reading, and vision.css still solves them for colour vision.
 
@@ -194,7 +194,6 @@
   --vault-work: var(--c1); --vault-personal: var(--c2); --vault-school: var(--c3);
   --vault-tools: var(--c4); --vault-knowledge: var(--c5); --vault-other: var(--c-other);
   --area-professional: var(--c1); --area-personal: var(--c2); --area-academic: var(--c3);
-  --fin-ground: var(--ground); --fin-surface: var(--surface); --fin-pos: var(--ok); --fin-neg: var(--late);
   --cat-a: var(--accent);
   /* JetBrains Mono and Plus Jakarta Sans are gone (structure.md §8 #14): old mono labels take
      the system mono, everything else Figtree. */
@@ -228,14 +227,6 @@
   --v-azure: #0084fc;
   --v-lilac: #824af6;
   --v-magenta: #c739af;
-  --cat-pink: #F72585;
-  --cat-cyan: #0098cb;
-  --cat-magenta: #B5179E;
-  --cat-azure: #4361EE;
-  --cat-purple: #7209B7;
-  --cat-lilac: #9c83f2;
-  --cat-slate: #7c8296;
-  --cat-tail: #ced0de;
   --fin-hero-a: #6f49ca;
   --fin-hero-b: #8d71e6;
   --t-finance: var(--ink-green);
@@ -270,14 +261,6 @@
   --v-azure: #31b0ff;
   --v-lilac: #a88dff;
   --v-magenta: #f289db;
-  --cat-pink: #F72585;
-  --cat-cyan: #4CC9F0;
-  --cat-magenta: #ce4eb7;
-  --cat-azure: #4895EF;
-  --cat-purple: #974edc;
-  --cat-lilac: #b7a1ff;
-  --cat-slate: #8f97ab;
-  --cat-tail: #3b3c48;
   --fin-hero-a: #6f49ca;
   --fin-hero-b: #8d71e6;
   --pink: var(--ink-pink);

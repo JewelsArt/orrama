@@ -16,11 +16,11 @@
    claim wherever the maths leaves room, so most stay recognisable.
 
    WHAT DOES NOT CHANGE. Ground, surfaces, borders, type, layout, and the
-   Finance hero gradient. A vision mode is a palette swap and nothing else, so
+   brand colour. A vision mode is a palette swap and nothing else, so
    it composes with either theme — six real surfaces, all checked.
 
-   STATUS gets picked separately. --ok/--warn/--danger and Finance's
-   --fin-pos/--fin-neg are the one place the app leans on green-vs-red, which is
+   STATUS gets picked separately. --ok/--warn/--danger are the one place the
+   app leans on green-vs-red, which is
    exactly what red-green blindness removes. Under deuteranopia and protanopia
    positive becomes the bluest member of the set and negative the warmest, which
    is the long-standing convention for the same reason; tritanopia keeps green
@@ -54,8 +54,6 @@
   --ok: var(--ink-azure);
   --warn: var(--ink-magenta);
   --danger: var(--ink-pink);
-  --fin-pos: var(--ink-azure);
-  --fin-neg: var(--ink-pink);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -69,12 +67,6 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }
 
 /* light + protanopia — worst pair under this vision: fills ΔE 17.8, ink ΔE 12.4,
@@ -102,8 +94,6 @@
   --ok: var(--ink-azure);
   --warn: var(--ink-amber);
   --danger: var(--ink-red);
-  --fin-pos: var(--ink-azure);
-  --fin-neg: var(--ink-red);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -117,12 +107,6 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }
 
 /* light + tritanopia — worst pair under this vision: fills ΔE 21.8, ink ΔE 14.5,
@@ -150,8 +134,6 @@
   --ok: var(--ink-green);
   --warn: var(--ink-azure);
   --danger: var(--ink-pink);
-  --fin-pos: var(--ink-green);
-  --fin-neg: var(--ink-pink);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -165,12 +147,6 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }
 
 /* dark + deuteranopia — worst pair under this vision: fills ΔE 14.5, ink ΔE 11.6,
@@ -200,8 +176,6 @@
   --ok: var(--ink-azure);
   --warn: var(--ink-green);
   --danger: var(--ink-amber);
-  --fin-pos: var(--ink-azure);
-  --fin-neg: var(--ink-amber);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -215,12 +189,6 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }
 
 /* dark + protanopia — worst pair under this vision: fills ΔE 18.3, ink ΔE 14.2,
@@ -250,8 +218,6 @@
   --ok: var(--ink-cyan);
   --warn: var(--ink-amber);
   --danger: var(--ink-red);
-  --fin-pos: var(--ink-cyan);
-  --fin-neg: var(--ink-red);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -265,12 +231,6 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }
 
 /* dark + tritanopia — worst pair under this vision: fills ΔE 22.9, ink ΔE 18.9,
@@ -300,8 +260,6 @@
   --ok: var(--ink-green);
   --warn: var(--ink-azure);
   --danger: var(--ink-magenta);
-  --fin-pos: var(--ink-green);
-  --fin-neg: var(--ink-magenta);
 
   /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
      already used here, so each area keeps its colour-vision-safe colour; --late follows the
@@ -315,10 +273,4 @@
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
-  --cat-pink: var(--v-pink);
-  --cat-cyan: var(--v-cyan);
-  --cat-magenta: var(--v-magenta);
-  --cat-azure: var(--v-azure);
-  --cat-purple: var(--v-lilac);
-  --cat-lilac: var(--v-lilac);
 }

@@ -229,14 +229,6 @@ export function profileVars(
     vars[`--v-${token}`] = fill;
     vars[`--ink-${token}`] = deriveInk(fill, surface, mode);
   });
-  // Finance's own ramp yields to the profile, as it does in every vision mode:
-  // its donut is the one place colour alone carries the meaning.
-  vars["--cat-cyan"] = vars["--v-cyan"]!;
-  vars["--cat-pink"] = vars["--v-pink"]!;
-  vars["--cat-azure"] = vars["--v-azure"]!;
-  vars["--cat-magenta"] = vars["--v-magenta"]!;
-  vars["--cat-lilac"] = vars["--v-lilac"]!;
-  vars["--cat-purple"] = vars["--v-lilac"]!;
   // Orrama's five life areas (tokens.css --c1…--c5) follow the profile's area fills, in the
   // same order the vault's categories used them.
   vars["--c1"] = vars["--v-pink"]!; // Work
@@ -255,7 +247,6 @@ export function profileVars(
 /** Every property profileVars can set, so switching profiles clears cleanly. */
 export const PROFILE_VAR_NAMES = [
   ...PALETTE_SLOTS.flatMap(({ token }) => [`--v-${token}`, `--ink-${token}`]),
-  "--cat-cyan", "--cat-pink", "--cat-azure", "--cat-magenta", "--cat-lilac", "--cat-purple",
   "--c1", "--c2", "--c3", "--c4", "--c5",
   "--ok", "--warn", "--danger", "--late",
   "--fin-hero-a", "--fin-hero-b", "--accent", "--logo", "--focus", "--cat-a",
