@@ -117,6 +117,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/graph/relations", () => "/api/graph/relations?entity=Fixture%20Co", R.graphRelationsResponse],
   ["/api/graph/path", () => "/api/graph/path?from=Fixture%20Person&to=Fixture%20Co", R.graphPathResponse],
   ["/api/graph/summaries", () => "/api/graph/summaries?type=conversation", R.graphSummariesResponse],
+  ["/api/graph/warnings", () => "/api/graph/warnings", R.graphWarningsResponse],
   ["/api/contacts", () => "/api/contacts", R.contactsResponse],
   ["/api/companies", () => "/api/companies", R.companiesResponse],
   ["/api/people/context", () => "/api/people/context", R.peopleContextResponse],

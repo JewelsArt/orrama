@@ -26,6 +26,7 @@ import { planRoutes } from "./routes/plan.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { contactRoutes } from "./routes/contacts.js";
 import { graphRoutes } from "./routes/graph.js";
+import { noticedRoutes } from "./routes/noticed.js";
 import { peopleRoutes } from "./routes/people.js";
 import { financeRoutes } from "./routes/finance.js";
 import { homeRoutes } from "./routes/home.js";
@@ -273,6 +274,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   await calendarRoutes(app, db, store, calendar);
   await contactRoutes(app, db, store);
   await graphRoutes(app, store);
+  await noticedRoutes(app, store);
   await peopleRoutes(app, store);
   await homeRoutes(app, db, store);
   await financeRoutes(app, db, store);

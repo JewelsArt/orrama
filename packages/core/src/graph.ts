@@ -74,6 +74,23 @@ export interface GraphWarning {
   code: WarningCode;
   note: NoteId;
   message: string;
+  /** What a fix needs, as data: the message is for a model, this is for a button. */
+  detail?: WarningDetail;
+}
+
+export interface WarningDetail {
+  /** The relation that failed (`unresolved-object`, `range-mismatch`). */
+  relation?: string;
+  /** The name as written, which is not a note (`unresolved-object`). */
+  target?: string;
+  /** The note it pointed at, of the wrong kind, and that kind (`range-mismatch`). */
+  object?: NoteId;
+  found?: string;
+  /** The tag naming a project no note carries (`document-orphan`). */
+  tag?: string;
+  /** The `status:` field and the status tags, as the ontology reads them (`project-status-conflict`). */
+  field?: string;
+  tags?: string[];
 }
 
 export interface BuildOptions {
@@ -122,8 +139,8 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
   const visible = new Set(notes.map((n) => n.id));
   const warnings: GraphWarning[] = [];
   const rule = (code: WarningCode) => ontology.rules.some((r) => r.kind === "warn" && r.id === code);
-  const warn = (code: WarningCode, note: IndexedNote, message: string) => {
-    if (rule(code)) warnings.push({ code, note: note.id, message });
+  const warn = (code: WarningCode, note: IndexedNote, message: string, detail?: WarningDetail) => {
+    if (rule(code)) warnings.push({ code, note: note.id, message, ...(detail ? { detail } : {}) });
   };
 
   // ── entities ──────────────────────────────────────────────────────────
@@ -151,7 +168,10 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
       if (type === "project") {
         if (!status) warn("project-without-status", n, `${n.title} has no status`);
         else if (fromTags.some((t) => t !== status)) {
-          warn("project-status-conflict", n, `${n.title}: status ${fromField ? `field says ${fromField}` : "tags say " + fromTags[0]}, tags say ${fromTags.filter((t) => t !== status).join(", ")}`);
+          warn("project-status-conflict", n, `${n.title}: status ${fromField ? `field says ${fromField}` : "tags say " + fromTags[0]}, tags say ${fromTags.filter((t) => t !== status).join(", ")}`, {
+            ...(fromField ? { field: fromField } : {}),
+            tags: fromTags,
+          });
         }
       }
     }
@@ -190,11 +210,11 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
     }
     const obj = index.resolveLink(target);
     if (!obj || !visible.has(obj.id)) {
-      warn("unresolved-object", src, `${src.title}: ${rel.id} → "${target}" is not a note`);
+      warn("unresolved-object", src, `${src.title}: ${rel.id} → "${target}" is not a note`, { relation: rel.id, target });
       return;
     }
     if (!rel.range.includes(typeOf(obj.id))) {
-      warn("range-mismatch", src, `${src.title}: ${rel.id} → ${obj.title} is a ${typeOf(obj.id)}, expected ${rel.range.join(" or ")}`);
+      warn("range-mismatch", src, `${src.title}: ${rel.id} → ${obj.title} is a ${typeOf(obj.id)}, expected ${rel.range.join(" or ")}`, { relation: rel.id, object: obj.id, found: typeOf(obj.id) });
       return;
     }
     add({ subject: src.id, relation: rel.id, object: obj.id, via, source: src.id, where, ...(text ? { text: true as const } : {}) });
@@ -231,7 +251,7 @@ export function buildGraph(index: VaultIndex, ontology: Ontology, opts: BuildOpt
             if (!tag.startsWith(`${family}/`)) continue;
             const project = projectByKey.get(tag);
             if (project) assert(rel, n, project.path, false, "tag", `tag ${tag}`);
-            else if (typeOf(n.id) === "document") warn("document-orphan", n, `${n.title} is tagged ${tag} but no project note carries it`);
+            else if (typeOf(n.id) === "document") warn("document-orphan", n, `${n.title} is tagged ${tag} but no project note carries it`, { tag });
           }
         }
       }

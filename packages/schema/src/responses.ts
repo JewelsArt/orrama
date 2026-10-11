@@ -887,7 +887,29 @@ export const graphSummariesResponse = o({
   items: z.array(o({ id: z.string(), type: z.string().optional(), title: z.string(), date: z.string().optional(), status: z.string().optional(), about: noteRef.optional(), summary: z.string() })),
 });
 
+/** GET /api/graph/warnings: every warning, one row per note, with what its fix needs (Orr noticed, R11). */
+export const graphWarningsResponse = o({
+  /** The vault has an ontology note the caller can read. */
+  typed: z.boolean(),
+  ontology: o({ id: z.string(), title: z.string(), path: z.string() }).nullable(),
+  warnings: z.array(
+    o({
+      code: z.string(),
+      message: z.string(),
+      note: o({ ...briefShape, path: z.string() }),
+      relation: z.string().optional(),
+      target: z.string().optional(),
+      object: brief.optional(),
+      found: z.string().optional(),
+      tag: z.string().optional(),
+      field: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+    }),
+  ),
+});
+
 export type GraphSchema = z.infer<typeof graphSchemaResponse>;
+export type GraphWarnings = z.infer<typeof graphWarningsResponse>;
 export type GraphEntities = z.infer<typeof graphEntitiesResponse>;
 export type GraphRelations = z.infer<typeof graphRelationsResponse>;
 export type GraphPath = z.infer<typeof graphPathResponse>;
