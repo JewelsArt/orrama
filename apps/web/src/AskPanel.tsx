@@ -23,8 +23,18 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
       }),
     [],
   );
-  const { messages, sendMessage, status, error } = useChat({ transport });
+  const { messages, sendMessage, status, error, stop } = useChat({ transport });
   const busy = status === "submitted" || status === "streaming";
+  // Closing the panel ends the run (AI-006): the request closes, and the server stops the model
+  // and every tool call after it. A ref, so a new `stop` on a later render never ends it early.
+  const stopRun = useRef(stop);
+  stopRun.current = stop;
+  useEffect(
+    () => () => {
+      void stopRun.current();
+    },
+    [],
+  );
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -99,6 +109,11 @@ export function AskPanel({ onClose }: { onClose: () => void; onOpenNote: (id: st
           disabled={!configured || busy}
           aria-label="Question"
         />
+        {busy && (
+          <button type="button" className="ghost" onClick={() => void stop()}>
+            Stop
+          </button>
+        )}
       </form>
     </aside>
   );
