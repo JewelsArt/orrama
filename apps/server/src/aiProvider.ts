@@ -29,8 +29,23 @@ export function aiConfig(db: Db): AiConfig | null {
     return { provider: "chatgpt", apiKey: "", model: ws.aiModel, baseUrl: null, accessToken: () => chatgptAccessToken(db) };
   }
   if (!ws.aiKeyEncrypted) return null;
-  return { provider: ws.aiProvider, apiKey: decryptSecret(ws.aiKeyEncrypted), model: ws.aiModel, baseUrl: ws.aiBaseUrl ?? null };
+  let apiKey: string;
+  try {
+    apiKey = decryptSecret(ws.aiKeyEncrypted);
+  } catch {
+    // Sealed under another BASALT_SECRET_KEY (changed without the rotation
+    // script) or a damaged row. AI is off, as with no key, rather than every
+    // caller failing: it took Planning and /api/ai/status down with a bare
+    // 500 (audit AI-010). Said once per stored value, not on every page load.
+    if (unreadableKeyWarned !== ws.aiKeyEncrypted) {
+      unreadableKeyWarned = ws.aiKeyEncrypted;
+      console.error("[ai] the stored AI key cannot be decrypted (BASALT_SECRET_KEY changed?) - AI is off until it is entered again in Settings -> Orr & AI, or the old secret is rotated with `pnpm --dir apps/server rotate-secret-key`");
+    }
+    return null;
+  }
+  return { provider: ws.aiProvider, apiKey, model: ws.aiModel, baseUrl: ws.aiBaseUrl ?? null };
 }
+let unreadableKeyWarned: string | null = null;
 
 /**
  * Per-provider request options. The ChatGPT plan requires `store: false`;
