@@ -616,7 +616,8 @@ describe("graph + plan + profile", () => {
       expect(w.json.tasks.some((t: { text: string }) => t.text.includes("book the defence room"))).toBe(true);
       // sections live in the note itself — delete the DB and this rebuilds
       expect(w.json.content).toContain("## Prompt");
-      expect(w.json.content).toContain("[[Pieter Haans]]");
+      // the person is linked by path, so a same-named note elsewhere cannot take the link (COR-017)
+      expect(w.json.content).toContain(`[[${w.json.people.find((p: { title: string }) => p.title === "Pieter Haans").path.replace(/\.md$/, "")}|Pieter Haans]]`);
       // and the same project is listed
       expect((await api("GET", "/api/projects", "jules")).json.some((p: { slug: string }) => p.slug === slug)).toBe(true);
     });

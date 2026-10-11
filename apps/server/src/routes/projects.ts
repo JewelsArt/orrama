@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, isoLocal, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
+import { appendToSection, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
@@ -57,6 +57,21 @@ const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && proje
 
 /** Sections the workspace owns inside the project note. Headings, not database rows. */
 const SEC = { goals: "Goals", prompt: "Prompt", decisions: "Decisions", inbox: "Inbox", people: "People" } as const;
+
+/**
+ * A link that names exactly this note (COR-017): its vault path, which outranks
+ * every title, alias and filename when links resolve, with its title shown. A
+ * bare `[[title]]` resolves to whichever note has that filename first — a
+ * meeting log named after the person — and the person never appears. A path a
+ * wiki link cannot hold (`[`, `]`, `|`, `#`, `^`) is written as a Markdown link.
+ */
+export function linkTo(note: { path: string; title: string }): string {
+  const stem = note.path.replace(/\.md$/i, "");
+  const label = note.title.replace(/[[\]|]/g, " ").replace(/\s+/g, " ").trim() || stem.split("/").pop()!;
+  if (!/[[\]|#^]/.test(stem)) return `[[${stem}|${label}]]`;
+  const href = note.path.split("/").map((p) => encodeURIComponent(p).replace(/[()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)).join("/");
+  return `[${label}](${href})`;
+}
 
 /**
  * A slug is a path segment, so it gets the grammar of one.
@@ -464,7 +479,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const target = store.requireReadable(user, noteId);
     if (!canRead(user, target, grants)) throw new HttpError(404, "note not found");
     if (note.links.some((l) => store.index.resolveLink(l.target)?.id === target.id)) return { ok: true, already: true };
-    store.write(user, note.path, appendToSection(note.content, SEC.people, `- [[${target.title}]]`));
+    store.write(user, note.path, appendToSection(note.content, SEC.people, `- ${linkTo(target)}`));
     return { ok: true };
   });
 
@@ -473,15 +488,15 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const { user, note } = openProject(req.userId, req.params.slug);
     const target = store.requireReadable(user, req.params.noteId);
     const body = readSection(note.content, SEC.people);
+    // Every line with a link — wiki or Markdown, by path, title or alias — that
+    // lands on this note goes; the rest of the section stays as it is.
     const kept = body
       .split("\n")
-      .filter((line) => {
-        const m = /\[\[([^\]|#]+)/.exec(line);
-        return !m || store.index.resolveLink(m[1]!)?.id !== target.id;
-      })
+      .filter((line) => !parseNote(line).links.some((l) => store.index.resolveLink(l.target)?.id === target.id))
       .join("\n")
-      .trim();
-    if (kept === body.trim()) return { ok: true, already: true };
+      .replace(/^(?:[ \t]*\n)+/, "")
+      .replace(/(?:\n[ \t]*)+$/, "");
+    if (kept === body) return { ok: true, already: true };
     store.write(user, note.path, writeSection(note.content, SEC.people, kept));
     return { ok: true };
   });

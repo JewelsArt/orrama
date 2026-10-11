@@ -128,3 +128,30 @@ describe("the workspace reads and writes the `##` slot (COR-008)", () => {
     expect((await api("GET", "/api/projects/closed")).json.decisions).toHaveLength(2);
   });
 });
+
+describe("the people picker links the note it was given (COR-017)", () => {
+  it("a contact whose title is another note's filename is linked, once, and Remove takes the line out", async () => {
+    const jan = await put("Contacts/People/jan.md", "---\ntitle: Jan de Vries\ntags: [contact]\n---\nJan.\n");
+    await put("Notes/Jan de Vries.md", "---\ntitle: Meeting log with Jan\n---\nlog\n");
+    await put("04-Projects/people.md", "---\ntitle: People test\ntags: [project/people]\n---\n# People test\n\n## People\n- [[Some Company]]\n");
+
+    expect((await api("POST", "/api/projects/people/people", { noteId: jan })).json).toEqual({ ok: true });
+    expect((await api("GET", "/api/projects/people")).json.people.map((p: { id: string }) => p.id)).toEqual([jan]);
+    expect((await api("POST", "/api/projects/people/people", { noteId: jan })).json).toEqual({ ok: true, already: true });
+    expect(onDisk("04-Projects/people.md")).toContain("## People\n- [[Some Company]]\n- [[Contacts/People/jan|Jan de Vries]]\n");
+
+    expect((await api("DELETE", `/api/projects/people/people/${jan}`)).json).toEqual({ ok: true });
+    expect(onDisk("04-Projects/people.md")).toContain("## People\n- [[Some Company]]\n");
+    expect(onDisk("04-Projects/people.md")).not.toContain("jan");
+    expect((await api("GET", "/api/projects/people")).json.people).toEqual([]);
+  });
+
+  it("a title or path a wiki link cannot hold still links the right note", async () => {
+    const odd = await put("Contacts/People/A [b] #1.md", "---\ntitle: A | B [c]\ntags: [contact]\n---\nx\n");
+    await put("04-Projects/odd.md", "---\ntitle: Odd\ntags: [project/odd]\n---\n# Odd\n");
+    await api("POST", "/api/projects/odd/people", { noteId: odd });
+    expect((await api("GET", "/api/projects/odd")).json.people.map((p: { id: string }) => p.id)).toEqual([odd]);
+    expect((await api("DELETE", `/api/projects/odd/people/${odd}`)).json).toEqual({ ok: true });
+    expect((await api("GET", "/api/projects/odd")).json.people).toEqual([]);
+  });
+});
