@@ -159,8 +159,9 @@ describe("every GET the web app reads matches its schema", () => {
   it("the web app makes no GET that is neither checked here nor named as skipped", () => {
     const web = path.join(import.meta.dirname, "../../web/src");
     const patterns = new Set<string>();
-    for (const f of fs.readdirSync(web)) {
-      if (!/\.tsx?$/.test(f) || /\.test\.tsx?$/.test(f)) continue;
+    // Every folder: the redesigned screens keep their pieces in folders of their own (mail/, people/…).
+    for (const f of fs.readdirSync(web, { recursive: true, encoding: "utf8" })) {
+      if (!/\.tsx?$/.test(f) || /\.test\.tsx?$/.test(f) || f.split(path.sep).includes("test")) continue;
       const src = fs.readFileSync(path.join(web, f), "utf8");
       for (const m of src.matchAll(/api(?:<[^(]*>)?\(\s*"GET",\s*[`"]([^`"]+)[`"]/g)) {
         patterns.add(m[1]!.replace(/\$\{[^}]*\}/g, ":x").replace(/(:x)+/g, ":x").replace(/\?.*$/, ""));
