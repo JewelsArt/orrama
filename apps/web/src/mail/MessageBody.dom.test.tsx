@@ -4,7 +4,7 @@
  * the app, and remote images load only while allowed. allow-same-origin is there to measure the
  * frame, which is safe only while allow-scripts is absent; these tests hold both.
  */
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { MailMessage } from "@basalt/schema/responses";
 import { frameCsp, frameDoc, MessageBody, SANDBOX } from "./MessageBody.js";
@@ -56,6 +56,19 @@ describe("the message frame", () => {
     expect(style).toContain("img{max-width:100%;height:auto;}");
     expect(style).toContain("table{max-width:100%;}");
     expect(style).not.toMatch(/\*\s*\{|\bdiv\b|\btd\b/);
+  });
+
+  it("fits the frame to the message's body, not to the frame it already has", async () => {
+    render(<MessageBody message={html} images onShowImages={() => {}} />);
+    const el = frame();
+    const doc = el.contentDocument!;
+    // A document is never shorter than its frame: a frame 500 px tall around 333 px of mail.
+    Object.defineProperty(doc.documentElement, "scrollHeight", { configurable: true, get: () => 500 });
+    Object.defineProperty(doc.body, "scrollHeight", { configurable: true, get: () => 333 });
+    await act(async () => {
+      el.dispatchEvent(new Event("load"));
+    });
+    expect(el.style.height).toBe("333px");
   });
 
   it("falls back to the text, and says when there is none", () => {

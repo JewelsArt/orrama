@@ -40,21 +40,33 @@ export function frameDoc(html: string, images: boolean): string {
   return `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${frameCsp(images)}"><base target="_blank"><style>html,body{background:#fff;color:#111;overflow-x:hidden;} body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;margin:0;padding:12px 14px;} img{max-width:100%;height:auto;} a{color:#1967d4;} table{max-width:100%;}</style>${html}`;
 }
 
+const MIN_HEIGHT = 120;
+
 export function MessageBody({ message, images, onShowImages }: { message: MailMessage; images: boolean; onShowImages: () => void }) {
   const frame = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(320);
+  const [height, setHeight] = useState(MIN_HEIGHT);
 
   /** Grow the frame to its content, and again as images arrive. */
   useEffect(() => {
     const el = frame.current;
     if (!el) return;
+    // Start each document short: its scrollHeight is never less than the frame it sits in, so
+    // a frame left tall by the last message (or by images, now blocked) would never shrink.
+    setHeight(MIN_HEIGHT);
     let stop = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
+    /*
+     * The body's own height, margins included. Not the document's: its scrollHeight is never
+     * less than the frame, so measuring it and adding a margin grew the frame by that margin at
+     * every re-measure (40 px of white under every HTML mail).
+     */
     const measure = () => {
       const doc = el.contentDocument;
       if (!doc?.body || stop) return;
-      const next = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
-      if (next > 0) setHeight(next + 8);
+      const cs = doc.defaultView?.getComputedStyle(doc.body);
+      const margins = cs ? (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0) : 0;
+      const next = Math.ceil(Math.max(doc.body.scrollHeight, doc.body.getBoundingClientRect().height) + margins);
+      if (next > 0) setHeight(next);
     };
     const onLoad = () => {
       measure();
