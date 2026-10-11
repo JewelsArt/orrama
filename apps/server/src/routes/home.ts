@@ -113,7 +113,9 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     // Subscribed calendars (Google et al) are expanded per request from the
     // stored ICS, exactly as routes/calendar.ts does for Planning — there is no
     // Google API here, just the secret .ics URL the user pasted into Settings.
-    const icsItems = await icsEventsFor(db, user.id, user.username, todayKey, weekEndKey).catch(() => []);
+    // An occurrence that began before today is kept by the expansion (its time
+    // today is busy for the scheduler); the agenda lists from today on.
+    const icsItems = (await icsEventsFor(db, user.id, user.username, todayKey, weekEndKey).catch(() => [])).filter((e) => e.date >= todayKey);
 
     type AgendaRow = {
       kind: "event" | "task" | "due" | "charge" | "income";

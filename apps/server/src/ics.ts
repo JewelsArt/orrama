@@ -429,7 +429,9 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
     const ts = wallToUtc(startWall);
     if (ts < fromMs - ev.durationMin * 60_000 || ts > toMs) return;
     const slot = toLocalSlot(ts);
-    if (slot.date < from || slot.date > to) return;
+    // One that began before the window and still runs into it is kept, under
+    // its own start date: its time inside the window is busy (audit COR-010).
+    if (slot.date > to) return;
     out.push({ uid: ev.uid, title: ev.title, date: slot.date, startMin: slot.startMin, durationMin: ev.durationMin, allDay: false });
   };
 

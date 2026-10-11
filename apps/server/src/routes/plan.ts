@@ -361,10 +361,19 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const readableIds = new Set(store.readable(user).map((n) => n.id));
     const objById = new Map(db.select().from(tables.taskObjects).all().map((o) => [o.id, o]));
     const busy = new Map<string, Slot[]>();
+    // Busy on every date the span covers, split at midnight. A subscribed
+    // event from Wednesday 08:00 to Thursday 18:00 was busy on Wednesday only,
+    // so Thursday was offered as free (audit COR-010).
     const add = (date: string, start: number, duration: number) => {
-      const list = busy.get(date) ?? [];
-      list.push({ start, end: start + duration });
-      busy.set(date, list);
+      let at = Date.parse(`${date}T12:00:00Z`);
+      for (let s = start, left = duration; left > 0; s = 0, at += 86_400_000) {
+        const piece = Math.min(left, 1440 - s);
+        const key = new Date(at).toISOString().slice(0, 10);
+        const list = busy.get(key) ?? [];
+        list.push({ start: s, end: s + piece });
+        busy.set(key, list);
+        left -= piece;
+      }
     };
     const booked = new Map<string, number>();
     for (const b of db
