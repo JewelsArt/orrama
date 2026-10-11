@@ -342,6 +342,21 @@ export const companiesResponse = z.array(
   }),
 );
 
+/** GET /api/people/context: each person's and company's graph relations and newest mention. */
+const briefSchema = o({ id: z.string(), title: z.string(), type: z.string() });
+export const peopleContextResponse = o({
+  /** The vault has an ontology note; without one every relations list is empty. */
+  typed: z.boolean(),
+  entries: z.array(
+    o({
+      id: z.string(),
+      relations: z.array(o({ relation: z.string(), to: z.array(briefSchema) })),
+      /** The newest ordinary note linking here: its `date:` (YYYY-MM-DD) or when it was saved (ISO). */
+      mention: o({ id: z.string(), title: z.string(), at: z.string() }).nullable(),
+    }),
+  ),
+});
+
 // ---------- projects ----------
 
 export const projectsResponse = z.array(
@@ -903,6 +918,7 @@ export type DayMarker = z.infer<typeof markersResponse>[number];
 export type Feed = z.infer<typeof feedsResponse>[number];
 export type Contact = z.infer<typeof contactsResponse>[number];
 export type Company = z.infer<typeof companiesResponse>[number];
+export type PeopleContext = z.infer<typeof peopleContextResponse>;
 export type ProjectRow = z.infer<typeof projectsResponse>[number];
 export type ProjectPerson = z.infer<typeof projectPersonSchema>;
 export type ProjectNote = z.infer<typeof projectNoteSchema>;

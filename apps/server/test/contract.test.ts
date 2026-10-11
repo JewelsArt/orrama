@@ -119,6 +119,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/graph/summaries", () => "/api/graph/summaries?type=conversation", R.graphSummariesResponse],
   ["/api/contacts", () => "/api/contacts", R.contactsResponse],
   ["/api/companies", () => "/api/companies", R.companiesResponse],
+  ["/api/people/context", () => "/api/people/context", R.peopleContextResponse],
   ["/api/projects", () => "/api/projects", R.projectsResponse],
   ["/api/projects/:x", () => "/api/projects/atlas", R.projectWorkspaceResponse],
   ["/api/projects/:x/board", () => "/api/projects/atlas/board", R.boardResponse],
