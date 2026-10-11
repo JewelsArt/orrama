@@ -1,0 +1,29 @@
+# The desktop shell compiles (audit OPS-004): Cargo.lock, the crate and
+# tauri.conf.json changes were never built by CI. `cargo check`, not
+# `tauri build` — a bundle nobody downloads is minutes for nothing. Runs when
+# the shell changes, and by hand.
+name: Desktop
+
+on:
+  push:
+    branches: [main, sep-2026-redesign]
+    paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cargo-check:
+    name: cargo check (desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # The webview and its friends, as Tauri's Linux prerequisites list them.
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml

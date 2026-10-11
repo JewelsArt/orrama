@@ -53,7 +53,7 @@ TypeScript end to end, except a deliberately thin Rust shell.
 - **Desktop** — Tauri 2: a native window on the local server, with no Tauri
   commands; all product logic is the shared TypeScript
 - **Monorepo** — pnpm workspaces + Turborepo, Node ≥22
-- **Tests** — Vitest across core, sync, server and web; CI runs them on every push
+- **Tests** — Vitest across core, sync, server, web and mcp; CI runs them (see Status)
 
 ## Layout
 
@@ -121,8 +121,11 @@ Honest state of things:
 - **Single user.** Accounts, teams and grants all exist, and a fresh install now
   creates a real account rather than handing out demo logins — but there is still
   no invite flow, so a second person cannot be added from the UI.
-- **CI** (`.github/workflows/ci.yml`) runs typecheck, the tests and the web build
-  on every push, on Ubuntu and macOS.
+- **CI** (`.github/workflows/`) runs typecheck, every package's tests and the web
+  build on Ubuntu for each push to `main` or `sep-2026-redesign` and each pull
+  request, and typecheck and tests on macOS for pushes to those two branches. It
+  builds and boots the Docker image, reports dependency advisories, checks the
+  desktop crate when it changes, and runs on Windows when started by hand.
 - **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
 - The original build spec (`~/basalt-prompt.md`) planned a team product for 5–50
   person startups. What got built and used daily is this: a personal tool. The README
