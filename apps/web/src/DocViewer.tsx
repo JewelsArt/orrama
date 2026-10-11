@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Dialog } from "./dialog.js";
-import { api, apiBlob, isAbort } from "./api.js";
+import { api, apiBlob, ApiError, isAbort } from "./api.js";
 import type { Deck, Sheet } from "@basalt/schema/responses";
-import { Icon } from "./ui/Icon.js";
+import { Button, Tabs } from "./ui/controls.js";
+import { Sheet as SheetLayer } from "./ui/overlays.js";
+import { Notice } from "./ui/states.js";
 
 /**
  * Read a project document without leaving Basalt.
@@ -14,7 +15,22 @@ import { Icon } from "./ui/Icon.js";
  * back as slides of plain strings plus sniffed raster images, and is drawn here
  * with ordinary elements: no markup from the deck is ever injected. Anything
  * else offers a download instead of pretending it can render it.
+ *
+ * It is a Sheet in the overlay stack (structure.md §1.4: "a thing you look at without
+ * leaving"), wide enough for a page: Escape, the scrim and the close button shut it, focus
+ * comes back to whatever opened it. A file that can't be read says why in plain words and
+ * offers the download, never the server's own text.
  */
+
+/** What went wrong, in words a person can act on. */
+export function readerError(err: unknown): string {
+  const status = err instanceof ApiError ? err.status : 0;
+  if (status === 404) return "It isn't in the folder any more.";
+  if (status === 403) return "You can't open this file.";
+  if (status === 413) return "It's too big to show here.";
+  if (status === 415 || status === 422) return "Its contents couldn't be read.";
+  return "The server couldn't read it just now.";
+}
 
 /** One card per slide, in deck order: title, text, tables, pictures, then the speaker notes. */
 function DeckView({ deck }: { deck: Deck }) {
@@ -74,7 +90,7 @@ function SheetTable({ sheet }: { sheet: Sheet }) {
   return (
     <>
       <div className="doc-sheet-meta">
-        {sheet.totalRows.toLocaleString()} rows{sheet.truncated ? " · showing the first 500" : ""}
+        {sheet.totalRows.toLocaleString("en-GB")} rows{sheet.truncated ? " · showing the first 500" : ""}
       </div>
       <div className="doc-sheet-scroll">
         <table className="doc-table">
@@ -132,12 +148,6 @@ export function DocViewer({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  useEffect(() => {
     let objectUrl: string | null = null;
     // Another document chosen before this one arrived: this one must not land.
     const ac = new AbortController();
@@ -179,7 +189,7 @@ export function DocViewer({
         }
       } catch (err) {
         if (isAbort(err)) return;
-        setError(err instanceof Error ? err.message : "could not open this file");
+        setError(readerError(err));
       }
     })();
     return () => {
@@ -207,51 +217,46 @@ export function DocViewer({
     ext.match(/\.(png|jpe?g|gif|webp)$/);
 
   return (
-    <div className="doc-backdrop" onClick={onClose}>
-      <Dialog label={name} className="doc-modal">
-        <header className="doc-head">
-          <span className="doc-ext">{(ext || ".?").slice(1).toUpperCase()}</span>
-          <span className="doc-name" title={name}>
-            {name}
+    <SheetLayer
+      title={name}
+      onClose={onClose}
+      className="doc-reader"
+      head={
+        <>
+          <span className="doc-ext" aria-hidden="true">
+            {(ext || ".?").slice(1).toUpperCase()}
           </span>
-          <button className="ct-btn" onClick={() => void download()}>
+          <Button size="sm" icon="down" onClick={() => void download()}>
             Download
-          </button>
-          <button className="doc-close" onClick={onClose} aria-label="Close document">
-            <Icon name="x" size={14} />
-          </button>
-        </header>
-
+          </Button>
+        </>
+      }
+    >
         <div className="doc-body">
-          {error && <p className="form-error">{error}</p>}
+          {error && <Notice title={`Couldn't open “${name}”.`} text={error} actions={<Button size="sm" onClick={() => void download()}>Download it instead</Button>} />}
           {!error && !readable && (
-            <p className="empty">
-              No reader for {ext} yet — download it to open in its own app.
+            <p className="doc-none">
+              No reader for {ext || "this kind of file"} yet. Download it to open it in its own app.
             </p>
           )}
           {html !== null && <article className="doc-docx" dangerouslySetInnerHTML={{ __html: html }} />}
           {book && book.length > 0 && (
             <div className="doc-sheet">
               {book.length > 1 && (
-                <div className="doc-tabs" role="tablist">
-                  {book.map((s, i) => (
-                    <button key={s.name} role="tab" aria-selected={i === tab} className={i === tab ? "active" : ""} onClick={() => setTab(i)}>
-                      {s.name}
-                    </button>
-                  ))}
+                <div className="doc-tabs">
+                  <Tabs label="Sheets" items={book.map((s, i) => ({ id: String(i), label: s.name }))} value={String(Math.min(tab, book.length - 1))} onChange={(id) => setTab(Number(id))} />
                 </div>
               )}
               <SheetTable sheet={book[Math.min(tab, book.length - 1)]!} />
             </div>
           )}
-          {book && book.length === 0 && <p className="empty">This workbook has no sheets.</p>}
-          {deck && (deck.slides.length > 0 ? <DeckView deck={deck} /> : <p className="empty">This presentation has no slides.</p>)}
+          {book && book.length === 0 && <p className="doc-none">This workbook has no sheets.</p>}
+          {deck && (deck.slides.length > 0 ? <DeckView deck={deck} /> : <p className="doc-none">This presentation has no slides.</p>)}
           {text !== null && <pre className="doc-text">{text}</pre>}
           {url && ext === ".pdf" && <iframe className="doc-frame" src={url} title={name} />}
           {url && ext.match(/\.(png|jpe?g|gif|webp)$/) && <img className="doc-img" src={url} alt={name} />}
-          {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="empty">Opening…</p>}
+          {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="doc-none">Opening…</p>}
         </div>
-      </Dialog>
-    </div>
+    </SheetLayer>
   );
 }
