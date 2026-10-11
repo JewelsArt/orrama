@@ -121,14 +121,13 @@ jobs:
         if: always()
         run: docker compose down
 
-  # Advisories in production dependencies. Report-only until the open ones are
-  # bumped (audit OPS-002): a gate that is red from day one teaches everyone to
-  # ignore it. Make it blocking by deleting continue-on-error.
+  # Advisories in production dependencies (audit OPS-002). Blocking since the
+  # wave D bumps: an advisory judged unreachable goes into
+  # auditConfig.ignoreGhsas in pnpm-workspace.yaml with its reason.
   audit:
-    name: dependency audit (report)
+    name: dependency audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
