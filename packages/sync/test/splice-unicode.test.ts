@@ -28,6 +28,10 @@ const cutsAPair = (oldStr: string, newStr: string): boolean => {
   return inside(oldStr, d.index) || inside(oldStr, d.index + d.deleteCount) || inside(newStr, d.index) || inside(newStr, endNew);
 };
 
+// Exhaustive and seeded property runs: ~0.5 s on a Mac, ~10 s on the CI runner,
+// past vitest's 5 s default.
+const HEAVY = 60_000;
+
 describe("splices never cut a surrogate pair (STO-001)", () => {
   it("swaps a status dot, a priority marker and a face", () => {
     expect(roundTrip("Status: 🔴 blocked\n", "Status: 🟢 blocked\n")).toBe("Status: 🟢 blocked\n");
@@ -56,7 +60,7 @@ describe("splices never cut a surrogate pair (STO-001)", () => {
       }
     }
     expect(bad.slice(0, 5)).toEqual([]);
-  });
+  }, HEAVY);
 
   it("round-trips random edits of text full of pairs, CRLF and a BOM (3,000 seeded rounds)", () => {
     let seed = 0x5eed;
@@ -76,7 +80,7 @@ describe("splices never cut a surrogate pair (STO-001)", () => {
       expect(cutsAPair(from, to), `${JSON.stringify(from)} → ${JSON.stringify(to)}`).toBe(false);
       expect(roundTrip(from, to)).toBe(to);
     }
-  });
+  }, HEAVY);
 
   it("throws instead of leaving a doc that reads other than the requested text", () => {
     // An embed counts as one position but prints as nothing, so a splice
