@@ -365,19 +365,28 @@ export function ProjectBoard({ w, onUpload }: { w: ProjectWorkspace; onUpload: (
   useEffect(() => void load(), [load, w.files.length]);
   useEffect(() => { const id = requestAnimationFrame(() => setTick((n) => n + 1)); return () => cancelAnimationFrame(id); }, [board]);
 
-  // Saves are debounced: a drag is many moves and one write.
+  // Saves are debounced: a drag is many moves and one write. What is waiting
+  // is kept, so leaving the board (another tab, another page) sends it at
+  // once instead of dropping it (WEB-014).
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pending = useRef<Board | null>(null);
+  const flush = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+    api("PUT", `/api/projects/${slug}/board`, { nodes: next.nodes, edges: next.edges }).catch((e) =>
+      setError(e instanceof Error ? `Not saved: ${e.message}` : "Not saved"),
+    );
+  }, [slug]);
   const commit = (next: Board) => {
     setBoard(next);
     if (!next.canEdit) return;
+    pending.current = next;
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      api("PUT", `/api/projects/${slug}/board`, { nodes: next.nodes, edges: next.edges }).catch((e) =>
-        setError(e instanceof Error ? `Not saved: ${e.message}` : "Not saved"),
-      );
-    }, 400);
+    saveTimer.current = setTimeout(flush, 400);
   };
-  useEffect(() => () => clearTimeout(saveTimer.current), []);
+  useEffect(() => flush, [flush]);
 
   if (error && !board) return <p className="form-error">{error}</p>;
   if (!board) return <p className="empty">Opening the board…</p>;
