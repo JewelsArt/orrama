@@ -4,6 +4,7 @@
  * issuer, audience, nonce), refresh with rotating refresh tokens, and the
  * request the plan requires (`store: false`, streamed, bearer = access token).
  */
+import type { webcrypto } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -30,6 +31,8 @@ const GEMINI_KEY = "g-gemini-key-0123456789";
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let built: Built;
 const tokens: Record<string, string> = {};
+// Node 22's types (the runtime this targets) have no global CryptoKey.
+type CryptoKey = webcrypto.CryptoKey;
 let signer: CryptoKey;
 let stranger: CryptoKey;
 

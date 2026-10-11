@@ -40,6 +40,7 @@
     "mailparser": "^3.9.35",
     "mammoth": "^1.12.2",
     "nodemailer": "^10.0.14",
+    "tsx": "^4.19.0",
     "unpdf": "^1.8.1",
     "yjs": "^13.6.20",
     "zod": "^3.24.0"
@@ -47,10 +48,9 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^26.1.0",
+    "@types/node": "^22.0.0",
     "@types/nodemailer": "^8.0.1",
     "@types/ws": "^8.18.1",
-    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.1.0"
   }

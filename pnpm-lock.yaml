@@ -121,6 +121,9 @@ importers:
       nodemailer:
         specifier: ^10.0.14
         version: 10.0.14
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
       unpdf:
         specifier: ^1.8.1
         version: 1.8.1
@@ -138,23 +141,20 @@ importers:
         specifier: ^3.4.6
         version: 3.4.6
       '@types/node':
-        specifier: ^26.1.0
-        version: 26.1.0
+        specifier: ^22.0.0
+        version: 22.20.0
       '@types/nodemailer':
         specifier: ^8.0.1
         version: 8.0.1
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.4
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
       vitest:
         specifier: ^3.1.0
-        version: 3.2.6(@types/node@26.1.0)(happy-dom@20.14.6)(tsx@4.22.4)(yaml@2.9.0)
+        version: 3.2.6(@types/node@22.20.0)(happy-dom@20.14.6)(tsx@4.22.4)(yaml@2.9.0)
 
   apps/web:
     dependencies:
@@ -280,14 +280,14 @@ importers:
         version: 13.6.31
     devDependencies:
       '@types/node':
-        specifier: ^26.1.0
-        version: 26.1.0
+        specifier: ^22.0.0
+        version: 22.20.0
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
       vitest:
         specifier: ^3.1.0
-        version: 3.2.6(@types/node@26.1.0)(happy-dom@20.14.6)(tsx@4.22.4)(yaml@2.9.0)
+        version: 3.2.6(@types/node@22.20.0)(happy-dom@20.14.6)(tsx@4.22.4)(yaml@2.9.0)
 
   packages/ui: {}
 
@@ -4403,7 +4403,7 @@ snapshots:
 
   '@types/better-sqlite3@7.6.13':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
 
   '@types/chai@5.2.3':
     dependencies:
@@ -4418,7 +4418,7 @@ snapshots:
 
   '@types/mailparser@3.4.6':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
       iconv-lite: 0.6.3
 
   '@types/node@14.18.63': {}
@@ -4430,10 +4430,11 @@ snapshots:
   '@types/node@26.1.0':
     dependencies:
       undici-types: 8.3.0
+    optional: true
 
   '@types/nodemailer@8.0.1':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
 
   '@types/react-dom@19.2.3(@types/react@19.2.17)':
     dependencies:
@@ -4447,11 +4448,11 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
 
   '@vercel/oidc@3.2.0': {}
 
@@ -4703,7 +4704,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
 
   buffer-indexof-polyfill@1.0.2: {}
 
@@ -5220,7 +5221,7 @@ snapshots:
 
   happy-dom@20.14.6:
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 22.20.0
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.2
       buffer-image-size: 0.6.4
@@ -6010,7 +6011,8 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@8.3.0: {}
+  undici-types@8.3.0:
+    optional: true
 
   unpdf@1.8.1: {}
 

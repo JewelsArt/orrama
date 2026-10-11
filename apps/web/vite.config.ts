@@ -1,10 +1,11 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { licenseNotices } from "./licenses";
 
 const api = `http://127.0.0.1:${process.env.BASALT_API_PORT ?? 4623}`;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), licenseNotices()],
   server: {
     port: Number(process.env.BASALT_WEB_PORT ?? 4625),
     proxy: {
