@@ -31,6 +31,7 @@ import { homeRoutes } from "./routes/home.js";
 import { icsRoutes } from "./routes/ics.js";
 import { mailRoutes } from "./routes/mail.js";
 import { integrationRoutes, hashToken } from "./routes/integrations.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { initWebhooks } from "./webhooks.js";
 import { sessionUser } from "./sessions.js";
 import { eq } from "drizzle-orm";
@@ -275,6 +276,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   await icsRoutes(app, db, store);
   await mailRoutes(app, db);
   await integrationRoutes(app, db, store);
+  await settingsRoutes(app, store);
   initWebhooks(db, store);
 
   // Serve the built web app when present (self-host: one container serves everything).

@@ -92,6 +92,12 @@ export const passkeysResponse = z.array(o({ id: z.string(), label: z.string(), c
 
 export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nstr });
 
+/** The accounts on this server (Settings → Access, shown only when there is more than one). */
+export const membersResponse = z.array(o({ id: z.string(), username: z.string(), displayName: z.string(), isOwner: z.boolean(), avatar: z.string() }));
+
+/** Settings → Notes: the folder the notes are read from (home as ~), how many, the version. Owners only. */
+export const serverSettingsResponse = o({ notesFolder: z.string(), notes: z.number(), version: z.string() });
+
 export const aiConfigResponse = o({
   provider: nstr,
   model: nstr,
@@ -867,6 +873,8 @@ export type Team = z.infer<typeof teamSchema>;
 export type Me = z.infer<typeof meResponse>;
 export type SessionInfo = z.infer<typeof sessionsResponse>[number];
 export type AiConfig = z.infer<typeof aiConfigResponse>;
+export type Member = z.infer<typeof membersResponse>[number];
+export type ServerSettings = z.infer<typeof serverSettingsResponse>;
 export type DashboardData = z.infer<typeof teamDashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
 export type GraphData = z.infer<typeof graphResponse>;
