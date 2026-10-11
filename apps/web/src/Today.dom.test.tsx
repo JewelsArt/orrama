@@ -107,8 +107,8 @@ describe("Today: the modules", () => {
       url: "/api/tasks/check",
       body: { noteId: "n-thesis", line: expect.any(Number), blockId: "t-refine", text: "Refine research question", checked: true },
     });
-    // Ticking the box does not open the row.
-    expect(screen.queryByRole("dialog", { name: "Task" })).toBeNull();
+    // Ticking the box does not open the row (the task card is named by its task).
+    expect(screen.queryByRole("dialog", { name: "Refine research question" })).toBeNull();
     expect(document.querySelector(".tt-orr")!.getAttribute("data-pose")).toBe("read");
   });
 
@@ -244,7 +244,7 @@ describe("Today: every row has a keyboard path (WEB-018)", () => {
     await user.keyboard("{ArrowDown}");
     expect(document.activeElement!.textContent).toContain("Refine research question");
     await user.keyboard("{Enter}");
-    expect(await screen.findByRole("dialog", { name: "Task" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "Refine research question" })).toBeTruthy();
   });
 
   it("a project row opens the project from the keyboard", async () => {
