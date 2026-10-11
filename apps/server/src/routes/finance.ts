@@ -59,7 +59,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { storeUpload } from "../uploads.js";
+import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
 
 export const FINANCE_TAG = { income: "income", subscriptions: "subscriptions" } as const;
 
@@ -99,7 +99,7 @@ const MAX_SHEET_COLS = 40;
 function safeUploadName(raw: unknown): string {
   const name = String(raw ?? "").trim();
   if (!name || name.length > 120) throw new HttpError(400, "filename required (max 120 chars)");
-  if (name.includes("/") || name.includes("\\") || name.includes("..") || name.startsWith("."))
+  if (name.includes("/") || name.includes("\\") || name.includes("..") || name.startsWith(".") || CONTROL_CHARS.test(name))
     throw new HttpError(400, "invalid filename");
   // Statements come out of Revolut as .xlsx or .csv; payslips as .pdf.
   if (!/\.(pdf|csv|xlsx)$/i.test(name)) throw new HttpError(415, "only .pdf, .csv and .xlsx are accepted");
@@ -1247,7 +1247,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         : "text/csv";
     return reply
       .header("content-type", type)
-      .header("content-disposition", `attachment; filename="${name.replace(/"/g, "")}"`)
+      .header("content-disposition", contentDisposition("attachment", name))
       .send(fs.createReadStream(abs));
   });
 }

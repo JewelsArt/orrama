@@ -50,3 +50,22 @@ export function storeUpload(dir: string, name: string, data: Uint8Array): Stored
   }
   throw new Error(`no free name for ${name}`);
 }
+
+/**
+ * The Content-Disposition for serving a vault file under its own name (audit
+ * INP-001). Node refuses any header byte above U+00FF, and on a streamed reply
+ * that refusal is thrown outside every handler: opening `Jules’s CV.pdf`, a
+ * macOS screenshot (U+202F before "PM") or `Rapport – v2.pdf` killed the
+ * server. RFC 6266: an ASCII fallback for old clients, and the real name in
+ * `filename*` as UTF-8, percent-encoded (RFC 5987).
+ */
+export function contentDisposition(kind: "inline" | "attachment", name: string): string {
+  const fallback = name.replace(/[^\x20-\x7e]|["\\%]/g, "_");
+  const encoded = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `${kind}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
+/** Characters no filename of ours may hold: C0 and C1 controls, DEL, and the
+ *  Unicode line and paragraph separators. */
+// eslint-disable-next-line no-control-regex
+export const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;

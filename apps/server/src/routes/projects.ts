@@ -15,7 +15,7 @@ import { sanitizeDocHtml } from "../docHtml.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
-import { storeUpload } from "../uploads.js";
+import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
 
 export const PROJECTS_DIR = "04-Projects";
 export const DOMAINS = ["personal", "professional", "academic"] as const;
@@ -133,8 +133,7 @@ function safeName(input: unknown): string {
   // caller that is clearly trying to walk out of the directory.
   if (raw === "" || raw.length > 120) throw new HttpError(400, "invalid filename");
   if (raw.startsWith(".") || raw.includes("..")) throw new HttpError(400, "invalid filename");
-  // eslint-disable-next-line no-control-regex
-  if (/[/\\\u0000-\u001f]/.test(raw)) throw new HttpError(400, "invalid filename");
+  if (/[/\\]/.test(raw) || CONTROL_CHARS.test(raw)) throw new HttpError(400, "invalid filename");
   const base = path.basename(raw);
   if (base !== raw) throw new HttpError(400, "invalid filename");
   return base;
@@ -532,7 +531,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return reply
       .header("content-type", MIME[ext] ?? "application/octet-stream")
       .header("x-content-type-options", "nosniff")
-      .header("content-disposition", `${INLINE_OK.has(ext) ? "inline" : "attachment"}; filename="${name.replace(/"/g, "")}"`)
+      .header("content-disposition", contentDisposition(INLINE_OK.has(ext) ? "inline" : "attachment", name))
       .send(fs.createReadStream(abs));
   });
 
