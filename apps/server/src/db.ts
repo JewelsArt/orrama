@@ -122,8 +122,11 @@ CREATE TABLE IF NOT EXISTS webhooks (
  * rollback cannot quietly run over columns it has never heard of.
  *   1  — cal_note_id on task_blocks/events, the meta table (Sep 2026).
  *   2  — sessions (Sep 2026).
+ *   3  — webhook signing secrets encrypted at rest; an older build would
+ *        sign with the ciphertext and every receiver would reject it
+ *        (webhooks.ts, Oct 2026).
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export function createDb(file = dbPath()) {
   fs.mkdirSync(path.dirname(file), { recursive: true });

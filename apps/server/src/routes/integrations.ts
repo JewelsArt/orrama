@@ -12,7 +12,7 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { deliver, WEBHOOK_EVENTS, type WebhookEvent } from "../webhooks.js";
+import { deliver, sealWebhookSecret, WEBHOOK_EVENTS, WEBHOOK_SECRET_PREFIX, type WebhookEvent } from "../webhooks.js";
 import { sessionOnly } from "./auth.js";
 
 export const hashToken = (raw: string) => crypto.createHash("sha256").update(raw).digest("hex");
@@ -87,11 +87,12 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
     if (url.protocol !== "https:" && url.protocol !== "http:") throw new HttpError(400, "URL must be http(s)");
     const events = (body.events ?? []).filter((e): e is WebhookEvent => (WEBHOOK_EVENTS as readonly string[]).includes(e));
     if (events.length === 0) throw new HttpError(400, `events required: ${WEBHOOK_EVENTS.join(", ")}`);
+    const secret = `${WEBHOOK_SECRET_PREFIX}${crypto.randomBytes(24).toString("hex")}`;
     const hook = {
       id: `wh-${crypto.randomUUID().slice(0, 8)}`,
       ownerId: req.userId,
       url: url.href,
-      secret: `whsec_${crypto.randomBytes(24).toString("hex")}`,
+      secret: sealWebhookSecret(secret), // encrypted at rest (webhooks.ts)
       events: JSON.stringify(events),
       active: true,
       createdAt: Date.now(),
@@ -100,7 +101,7 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
     };
     db.insert(tables.webhooks).values(hook).run();
     // Secret shown once — it's what verifies our signature on the receiving end.
-    return { ...hookPublic(hook), secret: hook.secret };
+    return { ...hookPublic(hook), secret };
   });
 
   app.delete<{ Params: { id: string } }>("/api/webhooks/:id", auth, async (req) => {

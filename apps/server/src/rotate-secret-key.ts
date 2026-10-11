@@ -54,6 +54,9 @@ export const COLUMNS: { table: string; id: string; column: string; where?: strin
   { table: "workspace", id: "id", column: "ai_key_encrypted" },
   { table: "ics_feeds", id: "id", column: "url_encrypted" },
   { table: "meta", id: "key", column: "value", where: "key = 'chatgpt_credentials'" },
+  // A row still in the clear (written before SEC-015, server not booted
+  // since) is sealed under whatever key the next boot runs with.
+  { table: "webhooks", id: "id", column: "secret", where: "substr(secret, 1, 6) <> 'whsec_'" },
 ];
 
 export class RotateError extends Error {}

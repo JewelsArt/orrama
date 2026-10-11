@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 import { canRead } from "@basalt/core";
 import { tables, type Db } from "./db.js";
 import { outcomeOf, safeFetch, type Outcome } from "./safeFetch.js";
+import { decryptSecret, encryptSecret } from "./secrets.js";
 import type { NoteChangedEvent, VaultStore } from "./vaultStore.js";
 
 export const WEBHOOK_EVENTS = ["note.changed", "task.completed"] as const;
@@ -27,6 +28,30 @@ type HookRow = typeof tables.webhooks.$inferSelect;
 
 export function signPayload(secret: string, body: string): string {
   return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
+}
+
+/** How a signing secret begins when it is made (integrations.ts) — and so how a row still in the clear looks. */
+export const WEBHOOK_SECRET_PREFIX = "whsec_";
+
+/**
+ * The signing secret is stored like every other credential: encrypted with
+ * BASALT_SECRET_KEY (secrets.ts). It was the one written in the clear, so a
+ * copy of basalt.db — a backup, the `export` snapshot — could forge signed
+ * deliveries to every receiver (audit SEC-015). Decrypted only to sign.
+ */
+export const sealWebhookSecret = (plain: string) => encryptSecret(plain);
+
+/**
+ * Once per boot: encrypt rows an older build wrote in the clear. An
+ * encrypted value is base64 and never starts with the prefix, so a second
+ * run finds nothing. Returns how many it sealed.
+ */
+export function sealPlainWebhookSecrets(db: Db): number {
+  const plain = db.select().from(tables.webhooks).all().filter((h) => h.secret.startsWith(WEBHOOK_SECRET_PREFIX));
+  db.transaction((tx) => {
+    for (const h of plain) tx.update(tables.webhooks).set({ secret: sealWebhookSecret(h.secret) }).where(eq(tables.webhooks.id, h.id)).run();
+  });
+  return plain.length;
 }
 
 /**
@@ -48,7 +73,7 @@ export async function deliver(db: Db, hook: HookRow, payload: Record<string, unk
         "content-type": "application/json",
         "user-agent": "basalt-webhook/1.0",
         "x-basalt-event": String(payload["event"]),
-        "x-basalt-signature": signPayload(hook.secret, body),
+        "x-basalt-signature": signPayload(decryptSecret(hook.secret), body),
       },
       body,
       timeoutMs: DELIVER_TIMEOUT_MS,
@@ -63,6 +88,7 @@ export async function deliver(db: Db, hook: HookRow, payload: Record<string, unk
 }
 
 export function initWebhooks(db: Db, store: VaultStore) {
+  sealPlainWebhookSecrets(db);
   const pending = new Map<string, ReturnType<typeof setTimeout>>();
 
   const hooksFor = (event: WebhookEvent, noteId: string): HookRow[] => {
