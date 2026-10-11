@@ -197,14 +197,21 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
       blocksByObj.set(b.taskObjectId, list);
     }
 
-    // Schedule per assignee: earliest deadline first, then priority.
+    // Schedule per person: earliest deadline first, then priority. Yours
+    // (PlannedTask.forYou: assigned to you, or to nobody in a note you can
+    // edit) are one queue whether or not the line says @you; keyed on the
+    // @name alone, your mentioned and unmentioned tasks were planned as two
+    // people working in parallel, and expectedFinish/atRisk came out too
+    // optimistic (audit COR-011). Anyone else's work keeps its own queue.
     const sorted = [...open].sort(
       (a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || (a.priority ?? 4) - (b.priority ?? 4),
     );
     const cursors = new Map<string, number>();
     const now = Date.now();
+    const isYours = (t: (typeof open)[number]) => (t.assignee ? t.assignee === user.username : editable(t.noteId));
     const planned: PlannedTask[] = sorted.map((t) => {
-      const key = t.assignee ?? "(unassigned)";
+      const forYou = isYours(t);
+      const key = forYou ? "you" : `@${t.assignee ?? ""}`;
       const start = cursors.get(key) ?? now;
       const est = estimates.get(`${t.noteId}:${t.line}`)!;
       const finish = addWorkingHours(start, est);
@@ -225,7 +232,7 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
         text: t.text,
         project: t.project,
         assignee: t.assignee ?? null,
-        forYou: t.assignee ? t.assignee === user.username : editable(t.noteId),
+        forYou,
         due: t.due ?? null,
         priority: t.priority ?? null,
         estimateHours: est,
