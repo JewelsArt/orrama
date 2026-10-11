@@ -2052,14 +2052,16 @@ function SavingsPage({ onBack, onOpenCategory }: { onBack: () => void; onOpenCat
                   <em>if nothing else changes</em>
                 </li>
                 <li>
-                  <span>Committed, typical month</span>
+                  <span>Committed</span>
                   <b>{eur(s.committedMonthly)}</b>
-                  <em>only a cancellation moves this</em>
+                  {/* The typical month's own figures, so the two rows add up
+                      to a month that happened (FIN-016). */}
+                  <em>{s.typicalMonth && `in ${monthName(s.typicalMonth)} · `}only a cancellation moves this</em>
                 </li>
                 <li>
-                  <span>Discretionary, typical month</span>
+                  <span>Discretionary</span>
                   <b>{eur(s.discretionaryMonthly)}</b>
-                  <em>where the headroom lives</em>
+                  <em>{s.typicalMonth && `in ${monthName(s.typicalMonth)} · `}where the headroom lives</em>
                 </li>
               </ul>
             </section>
