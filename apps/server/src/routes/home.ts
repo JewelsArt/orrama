@@ -20,7 +20,7 @@ import {
 } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
-import { buildRules, financeNote, netTotals, planSavings, statementsFor, typicalAround } from "./finance.js";
+import { buildRules, financeNote, ledgerNote, netTotals, planSavings, statementsFor, typicalAround } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 
 /** The wall-calendar date, in the timezone the server is standing in. */
@@ -247,7 +247,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
       spending: await (async () => {
         const { txns, complete, currency } = await statementsFor(store, user);
         if (txns.length === 0) return null;
-        const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
+        const rulesNote = ledgerNote(store, user, "spending-categories");
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
         const catMonths = monthlyByCategory(txns, rules);
         const last = txns[txns.length - 1]!.date;
@@ -259,7 +259,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
         // withheld rather than leading with "below a typical €0".
         if (typicalMonth(finished) === null) return null;
 
-        const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
+        const slipNote = ledgerNote(store, user, "payslips");
         // The Finance tab's own planSavings, so the two screens cannot quote
         // different targets from one set of numbers.
         const savings = planSavings(txns, finished, {

@@ -579,6 +579,8 @@ export const financeResponse = o({
     excluded: z.array(o({ name: z.string(), reason: z.string() })),
   }),
   files: z.array(fileEntry),
+  /** Ledger tags carried by more than one note: the one used and the others. */
+  ledgerConflicts: z.array(o({ tag: z.string(), using: z.string(), others: z.array(z.string()) })),
 });
 
 export const financeCategoryResponse = o({

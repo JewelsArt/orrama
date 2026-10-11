@@ -1048,6 +1048,24 @@ function FinanceOverview({
         </div>
       </header>
 
+      {/* Two notes carrying one ledger tag: one is used, by a fixed rule, and
+          the page says which rather than picking silently (ACL-011). */}
+      {d.ledgerConflicts.map((c) => (
+        <div key={c.tag} className="fin-unreadables">
+          <Notice
+            title={`${c.others.length + 1} notes are tagged #${c.tag}`}
+            text={
+              <>
+                <span className="fin-unreadable">Using {c.using}.</span>
+                <span className="fin-unreadable">
+                  Not used: {c.others.join(", ")}. Remove the tag from the {c.others.length === 1 ? "one" : "ones"} that {c.others.length === 1 ? "is" : "are"} not the ledger.
+                </span>
+              </>
+            }
+          />
+        </div>
+      ))}
+
       {d.spending.excluded.length > 0 && (
         <div className="fin-unreadables">
           <Notice

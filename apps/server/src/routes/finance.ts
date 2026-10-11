@@ -52,7 +52,9 @@ import {
   monthsAround,
   canEdit,
   canRead,
+  personalOwner,
   type AclNote,
+  type IndexedNote,
   markOwnAccounts,
   ownSavedByMonth,
   parseOwnAccounts,
@@ -112,9 +114,66 @@ function safeUploadName(raw: unknown): string {
 }
 export type FinanceKind = keyof typeof FINANCE_TAG;
 
+/** The tags that name a finance ledger: one note each, which a duplicate must not silently replace. */
+export const LEDGER_TAGS = ["subscriptions", "income", "payslips", "spending-categories", "own-accounts"] as const;
+
+/**
+ * Where a ledger is expected to be: the finance area first (the area note
+ * `02-Areas/finance.md` and anything under `02-Areas/finance/`), then the
+ * reader's own places, then anywhere else.
+ */
+function ledgerRank(n: IndexedNote, user: Reader): number {
+  if (n.path === `${FINANCE_DIR}.md` || n.path.startsWith(`${FINANCE_DIR}/`)) return 0;
+  if (n.path.startsWith("01-Me/") || personalOwner(n.folder) === user.username.toLowerCase()) return 1;
+  return 2;
+}
+
+/**
+ * Every note that could be the reader's ledger for `tag`, best first.
+ *
+ * "The first readable note with the tag" was index order — and every save
+ * re-inserts its note at the end of the index, so with two tagged notes the
+ * ledger flipped on each write: rows landed alternately in the two notes and
+ * the Dashboard read whichever was first at the time. And any readable note
+ * qualified, so another account's note in its own folder could feed the
+ * owner's Finance tab and receive the owner's new rows (audit ACL-011; the
+ * same flip projectNoteFor fixed for project notes in 8c6bb8c).
+ *
+ * Now: only notes the reader can EDIT, never one in another user's Personal
+ * folder, ranked by ledgerRank, then the note made first (ids are
+ * time-ordered), then path. A fixed choice, whatever the index order.
+ */
+export function ledgerCandidates(store: VaultStore, user: Reader, tag: string): IndexedNote[] {
+  const grants = store.grants();
+  const me = user.username.toLowerCase();
+  return store
+    .readable(user)
+    .filter((n) => n.tags.some((t) => t.tag === tag))
+    .filter((n) => {
+      const owner = personalOwner(n.folder);
+      return owner === null || owner === me;
+    })
+    .filter((n) => canEdit(user, n, grants))
+    .sort((a, b) => ledgerRank(a, user) - ledgerRank(b, user) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) || (a.path < b.path ? -1 : 1));
+}
+
+/** The reader's one note for a finance tag, or undefined if none qualifies. */
+export const ledgerNote = (store: VaultStore, user: Reader, tag: string): IndexedNote | undefined => ledgerCandidates(store, user, tag)[0];
+
+/**
+ * Ledger tags carried by more than one candidate note: which one is used and
+ * which are not, so the Finance tab can say so instead of picking silently.
+ */
+export function ledgerConflicts(store: VaultStore, user: Reader): { tag: string; using: string; others: string[] }[] {
+  return LEDGER_TAGS.flatMap((tag) => {
+    const [using, ...others] = ledgerCandidates(store, user, tag);
+    return using && others.length ? [{ tag, using: using.path, others: others.map((n) => n.path) }] : [];
+  });
+}
+
 /** The note carrying one side of the ledger, or undefined if none is tagged. */
-export function financeNote(store: VaultStore, user: Parameters<VaultStore["readable"]>[0], kind: FinanceKind) {
-  return store.readable(user).find((n) => n.tags.some((t) => t.tag === FINANCE_TAG[kind]));
+export function financeNote(store: VaultStore, user: Reader, kind: FinanceKind) {
+  return ledgerNote(store, user, FINANCE_TAG[kind]);
 }
 
 /**
@@ -310,7 +369,7 @@ export async function loadStatements(
 
 /** The own-accounts list — a broker, a savings pot — from the note tagged #own-accounts. */
 export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["readable"]>[0]): OwnAccount[] {
-  const note = store.readable(user).find((n) => n.tags.some((t) => t.tag === "own-accounts"));
+  const note = ledgerNote(store, user, "own-accounts");
   return note ? parseOwnAccounts(note.content) : [];
 }
 
@@ -646,8 +705,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
     const subsNote = financeNote(store, user, "subscriptions");
     const incomeNote = financeNote(store, user, "income");
-    const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
-    const areaNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "finance"));
+    const slipNote = ledgerNote(store, user, "payslips");
+    // The area note: `02-Areas/finance.md` first, not whichever note tagged
+    // #finance the index lists first (a resit note, a project…).
+    const areaNote = ledgerNote(store, user, "finance");
 
     // Rows the ledgers could not read are counted nowhere and reported, so
     // the page can name them (FIN-005, FIN-006).
@@ -667,7 +728,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       : { balance: null, balanceDate: null, skipped: 0 };
 
     // Categories are a note, so the grouping is the user's to change.
-    const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
+    const rulesNote = ledgerNote(store, user, "spending-categories");
     const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
     const rules = buildRules(writtenRules, subscriptions, txns);
@@ -926,6 +987,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         excluded: summaries.filter((f) => f.reason !== null).map((f) => ({ name: f.name, reason: f.reason! })),
       },
       files,
+      /** Ledger tags on more than one note, and which one is used (ACL-011). */
+      ledgerConflicts: ledgerConflicts(store, user),
     };
   });
 
@@ -948,7 +1011,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
-      const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
+      const rulesNote = ledgerNote(store, user, "spending-categories");
       const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
       const { txns, complete } = await statementsFor(store, user);
@@ -1055,7 +1118,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
-      const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
+      const rulesNote = ledgerNote(store, user, "spending-categories");
       const { txns, complete: covered } = await statementsFor(store, user);
       const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
 
@@ -1307,7 +1370,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     }
     if (!payslipUsable(parsed)) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "unfamiliar payslip layout" };
 
-    const slipNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "payslips"));
+    const slipNote = ledgerNote(store, user, "payslips");
     if (!slipNote) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "no note tagged #payslips" };
     // Re-filing the same month would double-count it in every average.
     if (parsePayslipTable(slipNote.content).some((r) => r.month === parsed!.month))
