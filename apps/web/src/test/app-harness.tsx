@@ -65,7 +65,8 @@ vi.mock("../Project.js", () => {
     },
   };
 });
-vi.mock("../Contacts.js", () => ({ Contacts: stub("contacts") }));
+// People holds what was typed in it: its own addresses (a person, ?q=) must not remount it.
+vi.mock("../people/People.js", () => ({ People: stub("contacts", () => [], () => <input aria-label="people draft" />) }));
 vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
 vi.mock("../Finance.js", () => ({
   Finance: stub("finance", (p) => [

@@ -30,6 +30,7 @@ describe("addresses", () => {
     ["/projects/graduation-thesis/todo", { kind: "project", slug: "graduation-thesis", tab: "todo" }],
     ["/people", { kind: "people" }],
     ["/people?q=ines", { kind: "people", q: "ines" }],
+    ["/people?q=ines&sector=University", { kind: "people", q: "ines", sector: "University" }],
     ["/people/ines-vermaat", { kind: "person", slug: "ines-vermaat" }],
     ["/companies/kade-social", { kind: "company", slug: "kade-social" }],
     ["/conversations/chat-about-the-board", { kind: "conversation", slug: "chat-about-the-board" }],

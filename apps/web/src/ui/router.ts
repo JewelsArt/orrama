@@ -38,7 +38,8 @@ export type Route =
   /** The board, filtered to one life area (`?area=school`). */
   | { kind: "projects"; area?: string }
   | { kind: "project"; slug: string; tab?: ProjectTab }
-  | { kind: "people"; q?: string }
+  /** The search and the sector filter, so a filtered list is a link too. */
+  | { kind: "people"; q?: string; sector?: string }
   | { kind: "person"; slug: string }
   | { kind: "company"; slug: string }
   | { kind: "conversation"; slug: string }
@@ -97,7 +98,12 @@ export function parseRoute(pathname: string, search = ""): Route | null {
       return rest[1] && PROJECT_TABS.has(rest[1] as ProjectTab) ? { kind: "project", slug: rest[0], tab: rest[1] as ProjectTab } : { kind: "project", slug: rest[0] };
     case "people":
       if (rest[0]) return { kind: "person", slug: rest[0] };
-      return opt("q") ? { kind: "people", q: opt("q") } : { kind: "people" };
+      {
+        const r: Route = { kind: "people" };
+        if (opt("q")) r.q = opt("q");
+        if (opt("sector")) r.sector = opt("sector");
+        return r;
+      }
     case "companies":
       return rest[0] ? { kind: "company", slug: rest[0] } : { kind: "people" };
     case "conversations":
@@ -146,7 +152,7 @@ export function routeHref(r: Route): string {
     case "project":
       return `/projects/${enc(r.slug)}${r.tab ? `/${r.tab}` : ""}`;
     case "people":
-      return `/people${query({ q: r.q })}`;
+      return `/people${query({ q: r.q, sector: r.sector })}`;
     case "person":
       return `/people/${enc(r.slug)}`;
     case "company":

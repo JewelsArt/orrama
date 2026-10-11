@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
 import { AskPanel } from "./AskPanel.js";
-import { Contacts } from "./Contacts.js";
 import { Finance } from "./Finance.js";
+import { People } from "./people/People.js";
 import { Project } from "./Project.js";
 import { Today } from "./Today.js";
 import { useDraftsWaiting } from "./today/mailDot.js";
@@ -476,14 +476,15 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      {/* One page, one key: moving inside the Orrery, Planning, Notes or a project (its tabs)
-          must not remount the page. */}
+      {/* One page, one key: moving inside the Orrery, Planning, Notes, People or a project
+          (its tabs) must not remount the page. */}
       <ErrorBoundary
         key={
           shown.kind === "orrery" ? "/orrery"
           : shown.kind === "planning" ? "/planning"
           : shown.kind === "notes" ? "/notes"
           : shown.kind === "project" ? routeHref({ kind: "project", slug: shown.slug })
+          : placeOf(shown) === "people" ? "/people"
           : routeHref(shown)
         }
         what={route.kind === "settings" ? "Settings" : undefined}
@@ -524,7 +525,7 @@ export function App() {
         ) : view.kind === "project" ? (
           <Project me={me} slug={view.slug} tab={(shown.kind === "project" && shown.tab) || "overview"} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
-          <Contacts me={me} onOpenNote={openNote} />
+          <People me={me} onOpenNote={openNote} onAsk={() => setAskOpen(true)} />
         ) : view.kind === "mail" ? (
           <Mail me={me} />
         ) : (
