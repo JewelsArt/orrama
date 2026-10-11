@@ -1,14 +1,22 @@
 # One `docker compose up` for the whole self-host (spec §4).
 # Your notes live in ./data/vault as plain Markdown — back it up with rsync/git.
+# Export BASALT_JWT_SECRET and BASALT_SECRET_KEY first (INSTALL.md, Docker).
 services:
   basalt:
     build: .
     ports:
-      - "4623:4623"
+      # This machine only. Basalt's sign-in is a password and a 4-digit unlock;
+      # put it on a network through something that adds TLS and its own access
+      # control (Tailscale, a reverse proxy) — INSTALL.md, "Reaching it from
+      # elsewhere" — not by publishing the port to every interface (SEC-012).
+      - "127.0.0.1:4623:4623"
     volumes:
       - ./data:/data
     environment:
       # CHANGE THESE for any real deployment:
       BASALT_JWT_SECRET: ${BASALT_JWT_SECRET:-change-me-please}
       BASALT_SECRET_KEY: ${BASALT_SECRET_KEY:-change-me-32-bytes-of-entropy!!}
+      # Every address the browser uses besides localhost, comma-separated:
+      # https://basalt.example.ts.net,https://notes.example.com
+      BASALT_PUBLIC_ORIGINS: ${BASALT_PUBLIC_ORIGINS:-}
     restart: unless-stopped

@@ -22,12 +22,19 @@ static_dist
 apps/desktop/src-tauri/target
 apps/desktop/src-tauri/gen
 
-# Private: the database, the vault, and anything holding secrets.
-apps/server/data
-*.db
-*.db-*
-.env
-.env.*
+# Private: the database, the vault, exports, and anything holding secrets — at
+# any depth. A pattern without **/ matches only at the context root, so `*.db`
+# never caught data/basalt.db. ./data is where docker-compose keeps the vault
+# and the database; without it here, a rebuild after the first `compose up`
+# copied both into the image (audit REG-010).
+data
+**/data
+**/data-dev
+**/exports
+**/*.db
+**/*.db-*
+**/.env
+**/.env.*
 
 .git
 .gitignore

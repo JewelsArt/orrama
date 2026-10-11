@@ -241,18 +241,42 @@ which is on the refused-placeholder list, and the container exits with
 `Refusing to start:` rather than booting on a forgeable session secret.
 
 Builds and runs on **arm64 and x64**, so a Raspberry Pi works as well as a VPS.
-The image is ~248 MB, builds in about 80 seconds, boots in about 4, and runs as
-the unprivileged `node` user. `/data` is a volume: your notes and database live
-there and survive `docker restart`, `down` and `up`.
+The image holds the server's production dependencies and the built web app,
+nothing else (no build tools, tests or desktop CLI). It starts as root only long
+enough to hand `./data` to the unprivileged `node` user — on a Linux host, dockerd
+creates a missing `./data` owned by root — then runs the server as `node`, which
+cannot write the app's own code. `/data` is a volume: your notes and database
+live in `./data` on the host and survive `docker restart`, `down` and `up`.
+`docker ps` shows the container's health from `/api/health`.
 
-Verified end to end on arm64 (Docker 29, colima): build, placeholder-secret
-refusal, first-run account creation through the API, and data surviving a
-container restart. The image carries no database, no vault and no host-built
-binaries — `.dockerignore` keeps the build context at ~2 MB.
+Verified end to end on arm64 (Docker 29, colima's Linux VM, with `/data` created
+by dockerd as root): build, placeholder-secret refusal, first boot, health
+status, and a clean `docker stop` (exit 0, WAL checkpointed). CI builds and boots
+the image on Linux for every push. `.dockerignore` keeps every `data/`, `*.db`,
+`exports/` and `.env` out of the build, so a rebuild never copies your notes or
+database into the image.
 
-**Port conflict.** Compose publishes `4623:4623`. If you already run Basalt on
-the host (a launchd agent, say), the container cannot take that port. Change the
-host side of the mapping in `docker-compose.yml`, or stop the other one.
+**Only this machine can reach it.** Compose publishes `127.0.0.1:4623`, not every
+interface: the sign-in is a password and a 4-digit unlock, and a VPS's public
+address is the whole internet. See **Reaching it from elsewhere**.
+
+**Port conflict.** If you already run Basalt on the host (a launchd agent, say),
+the container cannot take 4623. Change the host side of the mapping in
+`docker-compose.yml` (`127.0.0.1:4700:4623`), or stop the other one.
+
+### Reaching it from elsewhere
+
+Put something in front that brings TLS and its own access control, and keep
+Basalt itself on loopback:
+
+- **Tailscale** (simplest): `tailscale serve --bg 4623` gives
+  `https://<machine>.<tailnet>.ts.net`, reachable only from your own devices.
+- **A reverse proxy** (Caddy, nginx) on a domain, with TLS and its own
+  authentication or an IP allow-list in front of Basalt.
+
+Then tell Basalt its new name, or it answers 421 to every request that arrives
+under it: `BASALT_PUBLIC_ORIGINS=https://<machine>.<tailnet>.ts.net` (compose
+passes it through; for launchd, the plist). Touch ID trusts only those origins.
 
 ### Desktop app
 
