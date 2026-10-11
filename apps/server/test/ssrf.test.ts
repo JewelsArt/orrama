@@ -45,6 +45,35 @@ describe("isPublicAddress", () => {
   });
 });
 
+describe("isPublicAddress: IPv6 ranges that embed or route to IPv4 (audit INP-005)", () => {
+  // Each of these reaches a private IPv4 address on a host with 6to4, Teredo,
+  // a NAT64 translator or an old stack, and each read as public.
+  it("refuses the transition, translation and deprecated ranges", () => {
+    for (const ip of [
+      "::7f00:1", //                                 IPv4-compatible ::127.0.0.1
+      "::127.0.0.1",
+      "::a00:1", //                                   ::10.0.0.1
+      "2002:7f00:1::", //                             6to4 around 127.0.0.1
+      "2002:a00:1::1", //                             6to4 around 10.0.0.1
+      "2002:808:808::1", //                           6to4 around a public one: still a relay path, refused
+      "2001:0:4136:e378:8000:63bf:80ff:fffe", //      Teredo
+      "64:ff9b:1::a00:1", //                          local-use NAT64 around 10.0.0.1
+      "::ffff:0:7f00:1", //                           IPv4-translated (SIIT) 127.0.0.1
+      "fec0::1", //                                   site-local (deprecated, still configurable)
+      "3fff::1", //                                   documentation (RFC 9637)
+      "2001:2::1", //                                 benchmarking
+    ]) {
+      expect(isPublicAddress(ip), ip).toBe(false);
+    }
+  });
+
+  it("still lets ordinary public IPv6 and IPv4 through", () => {
+    for (const ip of ["2606:4700:4700::1111", "2a00:1450:4001:80b::200e", "2001:4860:4860::8888", "::ffff:8.8.8.8", "8.8.8.8", "203.0.114.1"]) {
+      expect(isPublicAddress(ip), ip).toBe(true);
+    }
+  });
+});
+
 describe("safeFetch", () => {
   it("will not connect to a private address, by IP or by a name that resolves to one", async () => {
     hits.length = 0;

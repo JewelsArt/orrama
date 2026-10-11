@@ -35,8 +35,23 @@ for (const [addr, prefix] of [
   ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
   ["224.0.0.0", 4], ["240.0.0.0", 4],
 ] as const) blocked.addSubnet(addr, prefix, "ipv4");
+/**
+ * IPv6. Besides loopback, private, link-local and multicast, every range that
+ * carries or reaches an IPv4 address is refused whole, whatever IPv4 it holds:
+ * IPv4-compatible (::/96, `::127.0.0.1`), IPv4-translated (::ffff:0:0:0/96),
+ * NAT64 (64:ff9b::/96 and the local-use 64:ff9b:1::/48), 6to4 (2002::/16)
+ * and Teredo (2001::/32). On a host with a 6to4 relay, Teredo or a NAT64
+ * translator each of them reaches the private IPv4 they wrap, and all of them
+ * read as public (audit INP-005). Refusing the whole range rather than judging
+ * the IPv4 inside costs nothing real: no calendar or webhook lives on these
+ * deprecated transition paths. Plus deprecated site-local (fec0::/10) and the
+ * ranges that are never on the internet: documentation (2001:db8::/32,
+ * 3fff::/20), benchmarking (2001:2::/48), discard (100::/64).
+ * IPv4-mapped (::ffff:0:0/96) is matched against the IPv4 list by BlockList.
+ */
 for (const [addr, prefix] of [
-  ["::", 128], ["::1", 128], ["64:ff9b::", 96], ["100::", 64], ["2001:db8::", 32], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8],
+  ["::", 96], ["::ffff:0:0:0", 96], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 32], ["2001:2::", 48],
+  ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8],
 ] as const) blocked.addSubnet(addr, prefix, "ipv6");
 
 /** An allow-list entry: a hostname, or an address/CIDR. */
