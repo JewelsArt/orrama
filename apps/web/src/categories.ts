@@ -8,12 +8,14 @@ import { daysTo as coreDaysTo, isoLocal } from "@basalt/core/dates";
  * the same colour everywhere. The grouping itself is the vault's
  * `#vault-categories` note, applied on the server.
  *
- * The colours are TOKENS, not hex. They used to be five hand-picked hex values
- * that were chosen against a white page and then carried unchanged into the
- * near-black theme, which is precisely what the design rules forbid. Retint in
- * `packages/ui/src/tokens.css`, never here. Every consumer puts them in a DOM
- * or SVG context where `var()` resolves; the graph canvas reads its own colours
- * from CSS and never touches these, which is why it can stay monochrome.
+ * The colours are TOKENS, not hex: Orrama's five category colours (tokens.css
+ * --c1…--c5, structure.md §13: cyan, logo orange, ultramarine, logo coral,
+ * azure, in that fixed order), which the colour-vision profiles override. Work
+ * is --c1, Personal --c2, School --c3, Claude & tools --c4, Knowledge --c5.
+ * Retint in `packages/ui/src/tokens.css`, never here. Every consumer puts them
+ * in a DOM or SVG context where `var()` resolves; the graph canvas reads its own
+ * colours from CSS and never touches these. Category colours belong on white
+ * boxes: on the paper ground they fall below 3:1 (§12).
  */
 export interface Category {
   id: string;
@@ -28,14 +30,14 @@ export interface Category {
  * regexes here naming Jules's university, employer and projects.
  */
 export const CATEGORIES: Category[] = [
-  { id: "school", label: "School", color: "var(--vault-school)" },
-  { id: "work", label: "Work", color: "var(--vault-work)" },
-  { id: "knowledge", label: "Knowledge", color: "var(--vault-knowledge)" },
-  { id: "tools", label: "Claude & tools", color: "var(--vault-tools)" },
-  { id: "personal", label: "Personal", color: "var(--vault-personal)" },
+  { id: "school", label: "School", color: "var(--c3)" },
+  { id: "work", label: "Work", color: "var(--c1)" },
+  { id: "knowledge", label: "Knowledge", color: "var(--c5)" },
+  { id: "tools", label: "Claude & tools", color: "var(--c4)" },
+  { id: "personal", label: "Personal", color: "var(--c2)" },
 ];
 
-const FALLBACK = "var(--vault-other)";
+const FALLBACK = "var(--c-other)";
 
 /**
  * Project lifecycle, spelled the several ways a hand-written `status:` line
@@ -64,9 +66,9 @@ export function isProjectActive(p: { status: string | null; total: number; done:
  *  the project workspace and the Dashboard's Projects card so a project is the
  *  same colour wherever it appears. */
 export const DOMAIN_COLOR: Record<string, string> = {
-  personal: "var(--area-personal)",
-  professional: "var(--area-professional)",
-  academic: "var(--area-academic)",
+  personal: "var(--c2)",
+  professional: "var(--c1)",
+  academic: "var(--c3)",
 };
 
 /** Whole days from today to a YYYY-MM-DD; negative is past. Local midnight on

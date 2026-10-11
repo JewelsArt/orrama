@@ -48,3 +48,29 @@ describe("Dialog", () => {
     expect(document.activeElement).toBe(opener);
   });
 });
+
+describe("Dialog with onEscape", () => {
+  it("joins the overlay stack: Escape closes it only when it is the top layer", async () => {
+    const user = userEvent.setup();
+    const { Sheet } = await import("./ui/overlays.js");
+    const closedBox: string[] = [];
+    function Page() {
+      const [sheet, setSheet] = useState(true);
+      const [box, setBox] = useState(true);
+      return (
+        <>
+          {box && (
+            <Dialog label="Add a subscription" onEscape={() => (closedBox.push("box"), setBox(false))}>
+              <input aria-label="Service" />
+            </Dialog>
+          )}
+          {sheet && <Sheet title="Task" onClose={() => setSheet(false)} />}
+        </>
+      );
+    }
+    render(<Page />);
+    await user.keyboard("{Escape}"); // the box is a dialog: above the sheet
+    expect(closedBox).toEqual(["box"]);
+    expect(screen.getByRole("dialog", { name: "Task" })).toBeTruthy();
+  });
+});
