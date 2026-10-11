@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
@@ -16,7 +16,7 @@ import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
-import { readJson, readKey, writeKey } from "./storage.js";
+import { readJson, readKey, removeKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
 import { isTyping, shellKey } from "./ui/keys.js";
 import { anyLayerOpen, Layer } from "./ui/overlays.js";
@@ -24,6 +24,7 @@ import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, 
 import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
+import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark } from "./ui/theme.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
@@ -212,8 +213,12 @@ export function App() {
     const path = notes.pathOf(route.id);
     if (path) go({ kind: "notes", path }, { replace: true });
   }, [route, notes.pathOf]);
-  // Light is the design target now; "command" is the same language inverted.
-  const [theme, setTheme] = useState(() => readKey("basalt-theme") ?? "light");
+  // The account's theme ("light" or "command"), and whether this device follows its system
+  // instead: Match this device (ui/theme.ts). The page shows what the two resolve to.
+  const [theme, setTheme] = useState(() => readKey(THEME_KEY) ?? "light");
+  const [matchDevice, setMatchDevice] = useState(() => readKey(DEVICE_KEY) === "match");
+  const systemDark = useSystemDark();
+  const themeShown = resolveTheme(theme, matchDevice, systemDark);
   // Colour-vision mode. Orthogonal to the theme: it swaps the palette, not the
   // ground, so every combination of the two is a real, tested surface.
   const [vision, setVision] = useState(() => readKey("basalt-vision") ?? "none");
@@ -227,11 +232,14 @@ export function App() {
   const [updateReady, setUpdateReady] = useState(false);
 
   // localStorage is the first-paint cache for the three appearance values; the
-  // account (see below) is where they actually live.
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    writeKey("basalt-theme", theme);
-  }, [theme]);
+  // account (see below) is where they actually live. public/boot-theme.js reads the theme
+  // keys before the first frame of the next load (WEB-019); a change is on <html> before
+  // the browser paints it.
+  useLayoutEffect(() => {
+    document.documentElement.dataset.theme = themeShown;
+  }, [themeShown]);
+  useEffect(() => writeKey(THEME_KEY, theme), [theme]);
+  useEffect(() => (matchDevice ? writeKey(DEVICE_KEY, "match") : removeKey(DEVICE_KEY)), [matchDevice]);
 
   useEffect(() => {
     writeKey("basalt-vision-profiles", JSON.stringify(profiles));
@@ -255,13 +263,13 @@ export function App() {
     const profile = isCustom(vision) ? profiles.find((p) => p.id === customId(vision)) : undefined;
     if (!profile) return;
     const cs = getComputedStyle(root);
-    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), theme === "command" || theme === "dark" ? "dark" : "light", {
+    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), themeShown, {
       ok: cs.getPropertyValue("--ok").trim(),
       warn: cs.getPropertyValue("--warn").trim(),
       danger: cs.getPropertyValue("--danger").trim(),
     });
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
-  }, [vision, profiles, theme]);
+  }, [vision, profiles, themeShown]);
 
   // Back from "Continue with ChatGPT": show where it landed, at its own address.
   useEffect(() => {
@@ -369,11 +377,24 @@ export function App() {
    * A theme change, with the circular wipe (it left the rail with the Dark button, §8 #4, and
    * stays for Settings → Appearance and ⌘K). It grows out of the control that asked for it:
    * the focused element, which is the button just clicked or pressed.
+   *
+   * `choice` is "light", "dark" ("command" is the account's word for it) or "match": this
+   * device follows its system from now on, and the account keeps its theme for the others.
    */
   const changeTheme = useCallback(
-    (next: string) => {
+    (choice: string) => {
       const root = document.documentElement;
-      if (next === root.dataset.theme) return setTheme(next);
+      const match = choice === "match";
+      const next = match ? (systemIsDark() ? "dark" : "light") : shownOf(choice);
+      // dataset is written directly, not via React state: startViewTransition
+      // captures the new state as soon as this callback returns, and a setState
+      // wouldn't have flushed by then. The state only keeps React in step after.
+      const swap = () => {
+        root.dataset.theme = next;
+        setMatchDevice(match);
+        if (!match) setTheme(accountTheme(next));
+      };
+      if (next === root.dataset.theme) return swap();
 
       // Origin is the CONTROL's centre, not the pointer: a keyboard activation reports
       // clientX/clientY of 0, which bloomed the whole theme out of the top-left corner.
@@ -388,13 +409,6 @@ export function App() {
       root.style.setProperty("--ry", `${y}px`);
       root.style.setProperty("--r-end", `${Math.ceil(rEnd)}px`);
 
-      // dataset is written directly, not via React state: startViewTransition
-      // captures the new state as soon as this callback returns, and a setState
-      // wouldn't have flushed by then. setTheme only keeps React in step after.
-      const swap = () => {
-        root.dataset.theme = next;
-        setTheme(next);
-      };
       const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
       if (!start || matchMedia("(prefers-reduced-motion: reduce)").matches) {
         swap();
@@ -532,7 +546,7 @@ export function App() {
           <Layer kind="sheet" label="Settings" role={null} trap={false} onClose={closeSettings}>
             <Settings
               me={me}
-              theme={theme}
+              theme={accountTheme(themeShown)}
               onTheme={changeTheme}
               vision={vision}
               onVision={setVision}

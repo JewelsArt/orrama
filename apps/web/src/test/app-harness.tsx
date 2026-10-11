@@ -71,7 +71,18 @@ function ProfileEditor() {
   );
 }
 
-vi.mock("../Settings.js", () => ({ Settings: stub("settings", (p) => [["close settings", () => p.onClose()]], () => <ProfileEditor />) }));
+vi.mock("../Settings.js", () => ({
+  Settings: stub(
+    "settings",
+    (p) => [
+      ["close settings", () => p.onClose()],
+      ["theme light", () => p.onTheme("light")],
+      ["theme dark", () => p.onTheme("command")], // the word Settings has always sent
+      ["theme match", () => p.onTheme("match")],
+    ],
+    () => <ProfileEditor />,
+  ),
+}));
 vi.mock("../AskPanel.js", () => ({ AskPanel: stub("ask", (p) => [["close ask", () => p.onClose()]]) }));
 vi.mock("../SearchPalette.js", () => ({ SearchPalette: stub("search", (p) => [["pick n-1", () => p.onPick("n-1")]]) }));
 vi.mock("../QuickCapture.js", () => ({ QuickCapture: stub("capture") }));

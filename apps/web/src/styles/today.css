@@ -975,7 +975,7 @@
 .dh-cat .bar { flex: 1; min-width: 24px; height: 5px; border-radius: 3px; background: var(--d-line); overflow: hidden; }
 .dh-cat .bar i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
 .dh-cat > b { flex: none; width: 74px; text-align: right; font: 700 12px var(--font-mono); }
-[data-theme="command"] .dh-cat .tile { background: var(--c); color: var(--on-vivid); }
+[data-theme="dark"] .dh-cat .tile { background: var(--c); color: var(--on-vivid); }
 
 /* The month still running, reported where it cannot be mistaken for the head. */
 .dh-running {

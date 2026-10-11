@@ -528,7 +528,7 @@
   --fin-band: color-mix(in srgb, var(--d-ink) 4%, transparent);
   --fin-row-hover: color-mix(in srgb, var(--d-ink) 3%, transparent);
 }
-[data-theme="command"] .fin {
+[data-theme="dark"] .fin {
   /* On navy the tiles go solid with a white glyph — Revolut's move. */
   --fin-tile-pct: 100%;
   --fin-tile-ink: var(--on-vivid);

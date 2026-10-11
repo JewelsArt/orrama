@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
-import { at, crash, serve } from "./test/app-harness.js";
+import { at, crash, ME, serve } from "./test/app-harness.js";
 import { topLayer } from "./ui/overlays.js";
 
 const view = async () => (await screen.findByTestId("view")).textContent!;
@@ -359,6 +359,80 @@ describe("overlays (WEB-018)", () => {
     inside.focus();
     fireEvent.keyDown(inside, { key: "Escape" });
     expect(open()).not.toContain("ask");
+  });
+});
+
+describe("the theme (§9)", () => {
+  const html = document.documentElement;
+  afterEach(() => html.removeAttribute("data-theme"));
+
+  /** A system whose dark mode can change while the app is open; returns the switch. */
+  function system(dark: boolean) {
+    const state = { dark };
+    const heard = new Set<() => void>();
+    const query = { get matches() { return state.dark; }, addEventListener: (_: string, f: () => void) => heard.add(f), removeEventListener: (_: string, f: () => void) => heard.delete(f) };
+    vi.stubGlobal("matchMedia", (q: string) => (q === "(prefers-color-scheme: dark)" ? query : { matches: false, addEventListener() {}, removeEventListener() {} }));
+    return (next: boolean) =>
+      act(() => {
+        state.dark = next;
+        for (const f of heard) f();
+      });
+  }
+
+  /** What the app sends to the account. */
+  function patches() {
+    const sent: { appearance?: { theme?: string } }[] = [];
+    const answer = globalThis.fetch;
+    vi.stubGlobal("fetch", (url: string, init: RequestInit = {}) => {
+      if (init.method === "PATCH") sent.push(JSON.parse(String(init.body)));
+      return answer(url, init);
+    });
+    return sent;
+  }
+
+  it("shows the theme this device showed last from the first render, before the account answers", () => {
+    system(false);
+    localStorage.setItem("basalt-theme", "command");
+    at("/today");
+    render(<App />);
+    expect(html.dataset.theme).toBe("dark");
+  });
+
+  it("Match this device follows the system as it changes, and leaves the account's theme alone", async () => {
+    const user = userEvent.setup();
+    const flip = system(true);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", vision: "none", profiles: [] } } });
+    const sent = patches();
+    at("/settings/you");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "theme match" }));
+    expect(html.dataset.theme).toBe("dark");
+    expect(localStorage.getItem("basalt-theme-device")).toBe("match");
+    flip(false);
+    expect(html.dataset.theme).toBe("light");
+    flip(true);
+    expect(html.dataset.theme).toBe("dark");
+    expect(sent.filter((b) => b.appearance)).toEqual([]); // the account still says light
+
+    await user.click(screen.getByRole("button", { name: "theme light" }));
+    expect(html.dataset.theme).toBe("light");
+    expect(localStorage.getItem("basalt-theme-device")).toBeNull();
+    flip(false);
+    flip(true);
+    expect(html.dataset.theme).toBe("light"); // no longer following the system
+  });
+
+  it("Dark is the account's: it goes up as the server's word for it", async () => {
+    const user = userEvent.setup();
+    system(false);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", vision: "none", profiles: [] } } });
+    const sent = patches();
+    at("/settings/you");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "theme dark" }));
+    expect(html.dataset.theme).toBe("dark");
+    await waitFor(() => expect(sent.map((b) => b.appearance?.theme)).toContain("command"));
+    expect(localStorage.getItem("basalt-theme")).toBe("command");
   });
 });
 
