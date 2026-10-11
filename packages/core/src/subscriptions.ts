@@ -187,6 +187,22 @@ function periodsBetween(a: string, b: string, cadence: Cadence): number {
 }
 
 /**
+ * How many charges a line's cadence expects from one date to another, both
+ * ends counted: what "€X more than expected" is measured against. Rounded to
+ * the nearest period, because a bank books a charge a day or two either side
+ * of its date. The ledger card used to expect the MONTHLY equivalent per month
+ * the line was seen in — 2/12 of a year's price for a yearly line seen twice,
+ * so every annual and quarterly commitment showed a phantom overcharge (FIN-004).
+ */
+export function chargesExpected(cadence: Cadence, first: string, last: string): number {
+  if (!(cadence in STEP) || last < first) return 0;
+  const { unit, every } = STEP[cadence];
+  if (unit === "week") return Math.round((Date.parse(`${last}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / (86_400_000 * 7 * every)) + 1;
+  const months = (+last.slice(0, 4) - +first.slice(0, 4)) * 12 + (+last.slice(5, 7) - +first.slice(5, 7));
+  return Math.round(months / every) + 1;
+}
+
+/**
  * Every charge of a line between `from` and `to` (inclusive), each counted
  * from the note's own date — never by chaining one step onto the last.
  *

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advance, advanceBy, appendMoneyRow, chargeDates, monthlyTotals, nextCharge, parseLedger, parseSubscriptions, readCadence } from "../src/subscriptions.js";
+import { advance, advanceBy, appendMoneyRow, chargeDates, chargesExpected, monthlyTotals, nextCharge, parseLedger, parseSubscriptions, readCadence } from "../src/subscriptions.js";
 
 const NOTE = `---
 title: Subscriptions
@@ -279,5 +279,18 @@ describe("cadences beyond the four, and no silent monthly (audit FIN-006)", () =
     expect(advanceBy("2026-08-31", "half-yearly", 2)).toBe("2027-08-31");
     expect(nextCharge("2026-01-02", "biweekly", "2026-10-02")).toBe("2026-10-09");
     expect(chargeDates("2026-10-09", "biweekly", "2026-10-01", "2026-10-31")).toEqual(["2026-10-09", "2026-10-23"]);
+  });
+});
+
+describe("chargesExpected (audit FIN-004)", () => {
+  it("counts the charges a cadence expects between two dates, both ends included", () => {
+    expect(chargesExpected("yearly", "2025-03-15", "2026-03-15")).toBe(2);
+    expect(chargesExpected("quarterly", "2025-12-10", "2026-09-10")).toBe(4);
+    expect(chargesExpected("weekly", "2026-08-04", "2026-09-22")).toBe(8);
+    expect(chargesExpected("monthly", "2026-06-01", "2026-09-01")).toBe(4);
+    expect(chargesExpected("biweekly", "2026-08-04", "2026-09-15")).toBe(4);
+    // A charge booked a couple of days late still counts as one period.
+    expect(chargesExpected("monthly", "2026-06-30", "2026-09-02")).toBe(4);
+    expect(chargesExpected("monthly", "2026-06-01", "2026-06-01")).toBe(1);
   });
 });

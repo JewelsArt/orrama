@@ -1835,7 +1835,7 @@ function LedgerPage({
                       payment is real money and not a raise, so it is named as
                       extra rather than being averaged into the figure above. */}
                   {(() => {
-                    const expected = m.monthly * act.months;
+                    const expected = act.expected;
                     const extra = Math.round((act.total - expected) * 100) / 100;
                     if (Math.abs(extra) < 1) return null;
                     return (

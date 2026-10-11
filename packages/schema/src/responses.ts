@@ -465,6 +465,8 @@ export const activitySchema = o({
   first: nstr,
   last: nstr,
   total: z.number(),
+  /** What the ledger line expects over the same run: amount × the charges its cadence expects. */
+  expected: z.number(),
   seen: z.array(z.string()),
   /** The statement descriptors this line matched, biggest first. */
   merchants: z.array(z.string()),

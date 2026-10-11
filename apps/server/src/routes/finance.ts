@@ -37,6 +37,7 @@ import {
   parseSubscriptions,
   parseLedger,
   CADENCES,
+  chargesExpected,
   payslipUsable,
   savingsPlan,
   inMainPocket,
@@ -758,6 +759,15 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
               last: months[months.length - 1] ?? null,
               /** What it has moved in total, in its own direction. */
               total: Math.round(hits.reduce((a, h) => a + value(h), 0) * 100) / 100,
+              /**
+               * What the ledger says should have moved over the same run: one
+               * `amount` per charge its cadence expects between the first hit
+               * and the last. Not monthly × months seen, which expected 2/12 of
+               * a year's price from a yearly line seen twice (FIN-004).
+               */
+              expected: hits.length
+                ? Math.round(item.amount * chargesExpected(item.cadence, hits[0]!.date, hits.at(-1)!.date) * 100) / 100
+                : 0,
               /** Which months it was seen in, so a card can draw its run. */
               seen: months,
               merchants: [...byMerchant].sort((a, b) => b[1] - a[1]).map(([name]) => name),
