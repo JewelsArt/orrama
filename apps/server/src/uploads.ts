@@ -26,7 +26,7 @@ export interface StoredUpload {
 }
 
 /** `name (n).ext` for n = 2, 3, … */
-function numbered(name: string, n: number): string {
+export function numbered(name: string, n: number): string {
   const ext = path.extname(name);
   return `${name.slice(0, name.length - ext.length)} (${n})${ext}`;
 }

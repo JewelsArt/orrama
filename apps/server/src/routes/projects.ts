@@ -16,7 +16,7 @@ import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { DOCX_CAPS, officeRefusal, readOfficeFile, XLSX_CAPS } from "../zip.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
-import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
+import { CONTROL_CHARS, contentDisposition, numbered, storeUpload } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
@@ -522,6 +522,32 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
 
       const dir = filesDirFor(store.vaultRoot, req.params.slug);
       if (path.dirname(path.join(dir, name)) !== dir) throw new HttpError(400, "invalid filename");
+      if (name.toLowerCase().endsWith(".md")) {
+        // A .md in the vault is a note: the watcher indexes it and Obsidian
+        // opens it. Stored as bytes, it skipped every rule a note is created
+        // under — an editor of a project note kept in Engineering planted
+        // notes in 04-Projects/<slug>/files, where they are a viewer, with any
+        // #only tag or another note's id — so it is created as a note, by the
+        // same write as New note, and named like any upload when taken.
+        let text: string;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(data);
+        } catch {
+          throw new HttpError(415, "a .md file must be UTF-8 text");
+        }
+        const folder = path.relative(store.vaultRoot, dir).split(path.sep).join("/");
+        for (let n = 1; n < 1000; n++) {
+          const want = n === 1 ? name : numbered(name, n);
+          try {
+            const note = store.write(user, `${folder}/${want}`, text, undefined, undefined, { create: true, guard: req.viaToken ? tokenWriter : undefined });
+            return { ok: true, name: path.posix.basename(note.path), unchanged: false, size: data.length };
+          } catch (err) {
+            const taken = store.index.getByPath(`${folder}/${want}`) || fs.existsSync(path.join(dir, want));
+            if (!(err instanceof HttpError && err.statusCode === 409 && taken)) throw err;
+          }
+        }
+        throw new HttpError(409, "no free name for that file");
+      }
       // Never over an existing document: a second report.docx is kept as
       // "report (2).docx", and the answer says so (uploads.ts).
       const stored = storeUpload(dir, name, data);
