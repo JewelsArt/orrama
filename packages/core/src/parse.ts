@@ -51,6 +51,39 @@ const BLOCK_ID_RE = /\s\^([\w-]+)\s*$/;
 /** A fence line: its indent, its run of ` or ~ (three or more), and what follows. */
 const FENCE_RE = /^([ \t]*)(`{3,}|~{3,})(.*)$/;
 
+/**
+ * A note's lines without CRLF's "\r" (`lines`), each line's own "\r" beside
+ * it (`cr`), and the "\r" new lines take — the note's first line break's
+ * (`eol`). Line i is line i of `content.split("\n")`, as every line index in
+ * the index counts. Every line regex here is anchored with `$`, and `.` does
+ * not match "\r": a CRLF note read raw had no tasks and no headings, and its
+ * task edits answered "not a task" (audit COR-012).
+ */
+export function noteLines(content: string): { lines: string[]; cr: string[]; eol: string } {
+  const raw = content.split("\n");
+  const nl = content.indexOf("\n");
+  return {
+    lines: raw.map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l)),
+    cr: raw.map((l) => (l.endsWith("\r") ? "\r" : "")),
+    eol: nl > 0 && content[nl - 1] === "\r" ? "\r" : "",
+  };
+}
+
+/**
+ * `content` with lines [start, end) replaced by `insert` (lines without
+ * terminators). Every other line keeps its own ending, byte for byte; the new
+ * ones take the note's, so a CRLF note stays CRLF and an LF one LF (a section
+ * write used to put LF lines into a CRLF file).
+ */
+export function spliceNoteLines(content: string, start: number, end: number, insert: readonly string[]): string {
+  const { lines, cr, eol } = noteLines(content);
+  // A line that was the last, with no ending, gains one when lines follow it.
+  if (start >= lines.length && insert.length > 0) cr[lines.length - 1] = eol;
+  const outLines = [...lines.slice(0, start), ...insert.map((l) => l.replace(/\r$/, "")), ...lines.slice(end)];
+  const outCr = [...cr.slice(0, start), ...insert.map(() => eol), ...cr.slice(end)];
+  return outLines.map((l, i) => (i === outLines.length - 1 ? l : l + outCr[i])).join("\n");
+}
+
 /** Leading whitespace as columns, a tab counting four. */
 const indentOf = (ws: string) => [...ws].reduce((n, c) => n + (c === "\t" ? 4 : 1), 0);
 
@@ -267,7 +300,7 @@ function onlyTeamsOfRaw(raw: string): string[] {
 /** Title = front-matter `title` if present, else derived by the caller from the filename. */
 export function parseNote(content: string, fallbackTitle = "Untitled"): ParsedNote {
   const { data, bodyStart, raw, malformed } = parseFrontmatter(content);
-  const lines = content.split("\n");
+  const { lines } = noteLines(content);
 
   const links: WikiLink[] = [];
   const tags: NoteTag[] = [];

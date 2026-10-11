@@ -7,6 +7,7 @@
  * table's own header declares. Rearranging columns by hand therefore cannot
  * turn a price into a date, and adding a column of your own is harmless.
  */
+import { noteLines, spliceNoteLines } from "./parse.js";
 
 /** Split a `| a | b |` row into trimmed cells, dropping the outer pipes. */
 export const cells = (row: string): string[] =>
@@ -78,14 +79,14 @@ export function appendRow(
   required: string[],
   values: Record<string, string>,
 ): string | null {
-  const lines = content.split(/\r?\n/);
-  const table = findTable(lines, headers, required);
+  const table = findTable(noteLines(content).lines, headers, required);
   if (!table) return null;
 
   // A literal pipe would split one field into two and a newline would end the
   // row early, so both become spaces before they reach the table.
   const clean = (v: string) => (v ?? "").replace(/[|\r\n]/g, " ").trim();
   const row = `| ${table.cols.map((c) => clean(values[c] ?? "")).join(" | ")} |`;
-  lines.splice(table.lastRowAt + 1, 0, row);
-  return lines.join("\n");
+  // Every other line keeps its bytes: joining on "\n" turned a CRLF ledger
+  // into an LF one on the first append (audit COR-012).
+  return spliceNoteLines(content, table.lastRowAt + 1, table.lastRowAt + 1, [row]);
 }

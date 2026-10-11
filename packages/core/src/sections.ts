@@ -14,7 +14,7 @@
  * not the blank lines around it, not the rest of the note (COR-007, COR-008).
  */
 
-import { codeLines } from "./parse.js";
+import { codeLines, noteLines, spliceNoteLines } from "./parse.js";
 
 const HEADING = /^(#{1,6})\s+(.*?)\s*$/;
 /** A closed ATX heading's trailing `#`s: `## Goals ##` is "Goals". */
@@ -65,7 +65,7 @@ function bodyOf(lines: string[], at: Found): { s: number; e: number } {
 
 /** Body of `## Heading`, without the blank lines around it. "" when absent. */
 export function readSection(content: string, heading: string, level = 2): string {
-  const lines = content.split("\n");
+  const { lines } = noteLines(content);
   const at = find(lines, heading, level);
   if (!at) return "";
   const { s, e } = bodyOf(lines, at);
@@ -87,19 +87,20 @@ export function readSectionItems(content: string, heading: string): string[] {
  * what `readSection` returned is byte-identical.
  */
 export function writeSection(content: string, heading: string, body: string, level = 2): string {
-  const lines = content.split("\n");
+  // Lines are read without CRLF's "\r" and written in the note's own ending (COR-012).
+  const { lines, eol } = noteLines(content);
   const at = find(lines, heading, level);
-  const bodyLines = body === "" ? [] : body.split("\n");
+  const bodyLines = body === "" ? [] : body.split(/\r?\n/);
 
   if (!at) {
     const head = content.replace(/\s+$/, "");
-    return [head, "", `${"#".repeat(level)} ${heading}`, "", ...bodyLines, ""].join("\n");
+    return [head, "", `${"#".repeat(level)} ${heading}`, "", ...bodyLines, ""].join(`${eol}\n`);
   }
   const { s, e } = bodyOf(lines, at);
-  if (s < e && bodyLines.length > 0) return [...lines.slice(0, s), ...bodyLines, ...lines.slice(e)].join("\n");
+  if (s < e && bodyLines.length > 0) return spliceNoteLines(content, s, e, bodyLines);
   // Nothing there before, or nothing after: the heading, a blank line, the body, a blank line.
   const pad = bodyLines.length > 0 ? ["", ...bodyLines, ""] : [""];
-  return [...lines.slice(0, at.start), ...pad, ...lines.slice(at.end)].join("\n");
+  return spliceNoteLines(content, at.start, at.end, pad);
 }
 
 /** Append one line to a section (creating it if needed), newest last. */

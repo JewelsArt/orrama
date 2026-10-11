@@ -3,7 +3,7 @@
  * content — the Markdown file is always the source of truth (spec §7): dashboards
  * call these and write the result back through the normal edit path.
  */
-import { parseNote } from "./parse.js";
+import { noteLines, parseNote, spliceNoteLines } from "./parse.js";
 import type { ParsedTask, TaskState } from "./types.js";
 
 const TASK_LINE_RE = /^(\s*- \[)( |x|X|\/|b)(\] .*)$/;
@@ -75,10 +75,9 @@ export function setTaskChecked(content: string, ref: TaskLineRef, checked: boole
 export function setTaskStatus(content: string, ref: TaskLineRef, status: TaskState): string | null {
   const task = locateTask(content, ref);
   if (!task) return null;
-  const lines = content.split("\n");
-  const idx = task.line;
-  lines[idx] = lines[idx]!.replace(TASK_LINE_RE, (_, pre, cur, post) => `${pre}${status === "done" && cur === "X" ? "X" : MARK[status]}${post}`);
-  return lines.join("\n");
+  const line = noteLines(content).lines[task.line]!;
+  const next = line.replace(TASK_LINE_RE, (_, pre, cur, post) => `${pre}${status === "done" && cur === "X" ? "X" : MARK[status]}${post}`);
+  return spliceNoteLines(content, task.line, task.line + 1, [next]);
 }
 
 export interface TaskDates {
@@ -95,9 +94,7 @@ export interface TaskDates {
 export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates): string | null {
   const task = locateTask(content, ref);
   if (!task) return null;
-  const lines = content.split("\n");
-  const idx = task.line;
-  const m = /^(\s*- \[(?: |x|X|\/|b)\] )(.*)$/.exec(lines[idx]!)!;
+  const m = /^(\s*- \[(?: |x|X|\/|b)\] )(.*)$/.exec(noteLines(content).lines[task.line]!)!;
   let body = m[2]!;
   let blockSuffix = "";
   const bm = /\s\^[\w-]+\s*$/.exec(body);
@@ -112,8 +109,7 @@ export function setTaskDates(content: string, ref: TaskLineRef, dates: TaskDates
     return value === null ? stripped : `${stripped} ${token}:${value}`;
   };
   body = rewrite(rewrite(body, "start", dates.start), "due", dates.due);
-  lines[idx] = `${m[1]}${body.replace(/\s+$/, "")}${blockSuffix}`;
-  return lines.join("\n");
+  return spliceNoteLines(content, task.line, task.line + 1, [`${m[1]}${body.replace(/\s+$/, "")}${blockSuffix}`]);
 }
 
 export function generateBlockId(): string {
@@ -132,16 +128,19 @@ export function promoteTaskLine(
   const task = locateTask(content, ref);
   if (!task) return null;
   if (task.blockId) return { content, blockId: task.blockId };
-  const lines = content.split("\n");
   const taken = new Set(parseNote(content).tasks.flatMap((t) => (t.blockId ? [t.blockId] : [])));
   let blockId = generateBlockId();
   while (taken.has(blockId)) blockId = generateBlockId();
-  lines[task.line] = `${lines[task.line]!.replace(/\s\^[\w-]+\s*$/, "").trimEnd()} ^${blockId}`;
-  return { content: lines.join("\n"), blockId };
+  const line = `${noteLines(content).lines[task.line]!.replace(/\s\^[\w-]+\s*$/, "").trimEnd()} ^${blockId}`;
+  return { content: spliceNoteLines(content, task.line, task.line + 1, [line]), blockId };
 }
 
-/** Quick capture (spec §6.5): append a line to a note body, creating a trailing newline politely. */
+/**
+ * Quick capture (spec §6.5): append a line to a note body, creating a trailing
+ * newline politely — in the note's own line ending (COR-012).
+ */
 export function appendLine(content: string, line: string): string {
   if (content === "") return line + "\n";
-  return content.endsWith("\n") ? `${content}${line}\n` : `${content}\n${line}\n`;
+  const nl = noteLines(content).eol + "\n";
+  return content.endsWith("\n") ? `${content}${line}${nl}` : `${content}${nl}${line}${nl}`;
 }
