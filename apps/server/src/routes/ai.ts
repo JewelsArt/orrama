@@ -3,11 +3,11 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type ModelMessag
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import crypto from "node:crypto";
-import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, promoteTaskLine, setTaskDates, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@basalt/core";
+import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, setTaskDates, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@basalt/core";
 import { graphFor, resolveRef } from "./graph.js";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
 import { applyTaskStatus } from "./tasks.js";
-import { clampSlot } from "./calendar.js";
+import { bookTaskBlock, clampSlot } from "./calendar.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
@@ -372,20 +372,14 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           inputSchema: z.object({ noteId: z.string(), blockId: z.string().optional(), text: z.string().optional(), line: z.number().optional(), date: z.string(), startMin: z.number().optional(), durationMin: z.number().optional() }),
           execute: async ({ noteId, line, blockId, text, date, startMin, durationMin }: { noteId: string; line?: number; blockId?: string; text?: string; date: string; startMin?: number; durationMin?: number }) => {
             if (!DAY_RE.test(date)) return { success: false, error: "date must be YYYY-MM-DD" };
-            // Edit, like the route: a block is a change to the task, not a read of it.
-            const note = store.requireEditable(user, noteId);
-            const res = promoteTaskLine(note.content, { line, blockId, text });
-            if (!res) return { success: false, error: "no such task in the note: say which by its blockId or its text" };
-            if (res.content !== note.content) store.write(user, note.path, res.content);
-            const tbId = res.blockId;
-            const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === tbId);
-            if (!task) return { success: false, error: "task line not found" };
-            store.ensureTaskObject(note.id, tbId);
-            const { start, duration } = clampSlot(startMin ?? 540, durationMin ?? 120);
-            const id = `blk-${crypto.randomUUID().slice(0, 8)}`;
-            calendar.put(user, { id, date, startMin: start, durationMin: duration, title: task.text, task: { notePath: note.path.replace(/\.md$/i, ""), blockId: tbId } });
-            store.events.emit("note-changed", { noteId: note.id, path: note.path, authorId: user.id });
-            return { success: true, block: db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, id)).get() ?? null };
+            if (!blockId && !text) return { success: false, error: "say which task: its blockId or its text" };
+            try {
+              // The route's own booking (calendar.ts), so the agent, Planning and MCP agree.
+              const { block } = bookTaskBlock(db, store, calendar, user, { noteId, line, blockId, text }, { date, startMin: startMin ?? 540, durationMin: durationMin ?? 120 });
+              return { success: true, block };
+            } catch (err) {
+              return refused(err);
+            }
           }
         }),
         create_event: tool({

@@ -185,7 +185,7 @@ export const TOOLS = [
   },
   {
     name: "schedule_block",
-    description: "Put a task on the calendar for a specific date",
+    description: "Book focused time for a task on the user's calendar: a block on that day, shown in Planning, the Dashboard and the Timeline. Defaults: 09:00, 120 minutes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -194,8 +194,10 @@ export const TOOLS = [
         text: { type: "string", description: "The task's text exactly as the note has it, if no blockId" },
         line: { type: "number", description: "Line the task is on (0-indexed): a hint between identical tasks, never enough alone" },
         date: { type: "string", description: "YYYY-MM-DD" },
+        startMin: { type: "number", description: "Start, in minutes from midnight (default 540 = 09:00)" },
+        durationMin: { type: "number", description: "Length in minutes (default 120)" },
       },
-      required: ["noteId"],
+      required: ["noteId", "date"],
     },
   },
   {
@@ -412,12 +414,17 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     }
 
     case "schedule_block": {
-      const saved = await api(`/api/tasks/schedule`, "POST", {
+      // A real block in the calendar note, the way Planning books one. The old
+      // /api/tasks/schedule only set the DB-only planned_date, which no screen
+      // shows (audit AI-005).
+      const saved = await api(`/api/tasks/blocks`, "POST", {
         noteId: args.noteId,
         line: args.line,
         blockId: args.blockId,
         text: args.text,
         date: args.date,
+        startMin: args.startMin ?? 540,
+        durationMin: args.durationMin ?? 120,
       });
       return { content: [{ type: "text", text: JSON.stringify(saved, null, 2) }] };
     }

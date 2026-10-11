@@ -9,8 +9,9 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { chargeDates, isoLocal, parseSubscriptions, projectName } from "@basalt/core";
+import { chargeDates, isoLocal, parseSubscriptions, projectName, type AclUser } from "@basalt/core";
 import { taskPlaceSchema } from "@basalt/schema";
+import type { z } from "zod";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
@@ -20,6 +21,7 @@ import { projectNoteFor } from "./projects.js";
 import { promoteNamedTask } from "./tasks.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+type TaskPlace = z.infer<typeof taskPlaceSchema>;
 const SNAP = 30;
 export const DEFAULT_BLOCK_MIN = 120;
 
@@ -48,6 +50,44 @@ export interface DayMarker {
   priority: number | null;
   /** A `#deadline` task (ParsedTask.key); false for everything else. */
   key: boolean;
+}
+
+/**
+ * Book a block of a task onto the booker's calendar: promote the checkbox,
+ * then write the row into their calendar note (calendarNotes.ts), which is
+ * what puts it in task_blocks. The one way a task is scheduled — Planning's
+ * route, the in-app agent and (through that route) the MCP server — so they
+ * cannot drift apart again: MCP's schedule_block once set only the DB-only
+ * planned_date, and nothing appeared on any calendar (audit AI-005).
+ * `durationMin` defaults to 2h, capped by what of the estimate is unbooked.
+ */
+export function bookTaskBlock(
+  db: Db,
+  store: VaultStore,
+  calendar: CalendarNotes,
+  user: AclUser,
+  ref: TaskPlace,
+  slot: { date: string; startMin: number; durationMin?: number; estimateHours?: number },
+) {
+  const note = store.requireEditable(user, ref.noteId);
+  const taskBlockId = promoteNamedTask(store, user, note, ref);
+  const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === taskBlockId);
+  if (!task) throw new HttpError(409, "task line no longer exists");
+  const taskObject = store.ensureTaskObject(note.id, taskBlockId);
+
+  const existing = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.taskObjectId, taskObject.id)).all();
+  const scheduledMin = existing.reduce((s, b) => s + b.durationMin, 0);
+  const estimateMin = Math.round((typeof slot.estimateHours === "number" && Number.isFinite(slot.estimateHours) ? slot.estimateHours : 2) * 60);
+  const remaining = Math.max(estimateMin - scheduledMin, SNAP);
+  const { start, duration } = clampSlot(slot.startMin, slot.durationMin ?? Math.min(DEFAULT_BLOCK_MIN, remaining));
+
+  const id = `blk-${crypto.randomUUID().slice(0, 8)}`;
+  calendar.put(user, { id, date: slot.date, startMin: start, durationMin: duration, title: task.text, task: { notePath: note.path.replace(/\.md$/i, ""), blockId: taskBlockId } });
+  const block = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, id)).get();
+  if (!block) throw new HttpError(409, "the block could not be put on your calendar");
+  const fresh = store.index.get(note.id);
+  if (fresh) store.events.emit("note-changed", { noteId: note.id, path: fresh.path, authorId: user.id });
+  return { block, taskObject };
 }
 
 export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultStore, calendar: CalendarNotes) {
@@ -87,26 +127,8 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const startMin = mins(body.startMin, "startMin");
     const durationMin = optMins(body.durationMin, "durationMin");
     const user = store.aclUser(req.userId);
-    const note = store.requireEditable(user, ref.noteId);
-
-    const taskBlockId = promoteNamedTask(store, user, note, ref);
-    const task = store.index.get(note.id)?.tasks.find((t) => t.blockId === taskBlockId);
-    if (!task) throw new HttpError(409, "task line no longer exists");
-    const obj = store.ensureTaskObject(note.id, taskBlockId);
-
-    // Default 2h, capped by whatever of the estimate is still unscheduled.
-    const existing = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.taskObjectId, obj.id)).all();
-    const scheduledMin = existing.reduce((s, b) => s + b.durationMin, 0);
-    const estimateMin = Math.round((typeof body.estimateHours === "number" && Number.isFinite(body.estimateHours) ? body.estimateHours : 2) * 60);
-    const remaining = Math.max(estimateMin - scheduledMin, SNAP);
-    const { start, duration } = clampSlot(startMin, durationMin ?? Math.min(DEFAULT_BLOCK_MIN, remaining));
-
-    const id = `blk-${crypto.randomUUID().slice(0, 8)}`;
-    calendar.put(user, { id, date: body.date, startMin: start, durationMin: duration, title: task.text, task: { notePath: taskPath(note.path), blockId: taskBlockId } });
-    const block = db.select().from(tables.taskBlocks).where(eq(tables.taskBlocks.id, id)).get();
-    if (!block) throw new HttpError(409, "the block could not be put on your calendar");
-    touch(note.id, user.id);
-    return { ...block, taskObject: obj };
+    const { block, taskObject } = bookTaskBlock(db, store, calendar, user, ref, { date: body.date, startMin, durationMin, estimateHours: body.estimateHours });
+    return { ...block, taskObject };
   });
 
   app.patch<{ Params: { id: string } }>("/api/blocks/:id", auth, async (req) => {
