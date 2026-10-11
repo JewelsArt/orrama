@@ -95,4 +95,10 @@ describe("a statement upload (FIN-007)", () => {
     expect(res.statement.reason).toBe("it is in USD, and the statements are read in EUR");
     expect((await finance()).spending.excluded.map((f: { name: string }) => f.name)).toEqual(["bank-export.csv", "usd-pocket.csv"]);
   });
+
+  it("a statement kept beside one of the same name reports its own rows (STO-006 with FIN-007)", async () => {
+    const res = await upload("revolut-june.csv", csv(rows("2026-05")));
+    expect(res).toMatchObject({ name: "revolut-june (2).csv", stored: true });
+    expect(res.statement).toMatchObject({ name: "revolut-june (2).csv", rows: 5, first: "2026-05-10", last: "2026-05-18", reason: null });
+  });
 });
