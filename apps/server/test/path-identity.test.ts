@@ -146,9 +146,10 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     const nfd = "Shared/Re\u0301sume\u0301.md";
     fs.writeFileSync(abs(nfd), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
     // Wait for the watcher to index it: a fixed 800 ms was too short when
-    // every package's tests run at once (pnpm ship).
+    // every package's tests run at once (pnpm ship), and so was 5 s on a
+    // loaded Mac (wave D): up to 25 s now.
     const heldNow = () => b.store.index.all().find((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md");
-    for (let t = 0; t < 50 && !heldNow(); t++) await sleep(100);
+    for (let t = 0; t < 250 && !heldNow(); t++) await sleep(100);
     const held = heldNow();
     expect(held).toBeDefined();
     const res = await put("jules", { path: "Shared/R\u00e9sum\u00e9.md", content: "---\ntitle: R\u00e9sum\u00e9\n---\nv2\n" });
@@ -156,7 +157,7 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     expect(res.json.id).toBe(held!.id);
     expect(res.json.path).toBe(held!.path);
     expect(b.store.index.all().filter((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md")).toHaveLength(1);
-  }, 15_000);
+  }, 30_000);
 
   it("a file on disk the watcher has not settled yet is still that note, not a creation", async () => {
     // Obsidian just saved it; the watcher waits 300 ms. A write in between

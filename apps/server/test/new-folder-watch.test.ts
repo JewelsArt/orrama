@@ -33,8 +33,11 @@ const { createDb } = await import("../src/db.js");
 const { VaultStore } = await import("../src/vaultStore.js");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Up to 20 s: FSEvents can take seconds to report a new folder while every
+// package's tests run at once (pnpm ship, a loaded Mac). Without the fix the
+// late note is never indexed, so the wait still ends red, only later.
 const until = async (ok: () => boolean) => {
-  for (let i = 0; i < 100 && !ok(); i++) await sleep(50);
+  for (let i = 0; i < 400 && !ok(); i++) await sleep(50);
 };
 
 const realWatch = fs.watch;
@@ -87,13 +90,13 @@ it("a note written between chokidar's read of a new folder and its watch is inde
   expect(store.index.getByPath("GapA/late.md")).toBeDefined(); // landed in the gap
   // Indexed as a note of its own, id stamped into the file like any other.
   expect(fs.readFileSync(path.join(vault, "GapA", "late.md"), "utf8")).toMatch(/^---\nid: n-/);
-});
+}, 30_000);
 
 it("a nested new folder too", async () => {
   fs.mkdirSync(path.join(vault, "Outer", "GapB"), { recursive: true });
   await until(() => !!store.index.getByPath("Outer/GapB/late.md"));
   expect(store.index.getByPath("Outer/GapB/late.md")).toBeDefined();
-});
+}, 30_000);
 
 it("a subfolder made in the gap is watched and its notes indexed", async () => {
   fs.mkdirSync(path.join(vault, "GapD"));
@@ -104,7 +107,7 @@ it("a subfolder made in the gap is watched and its notes indexed", async () => {
   fs.writeFileSync(path.join(vault, "GapD", "inner", "after.md"), "---\nid: n-gapdafter\n---\n# After\n");
   await until(() => !!store.index.getByPath("GapD/inner/after.md"));
   expect(store.index.getByPath("GapD/inner/after.md")).toBeDefined();
-});
+}, 30_000);
 
 it("hidden files in a new folder stay out, as everywhere else", async () => {
   fs.mkdirSync(path.join(vault, "GapC"));
@@ -112,4 +115,4 @@ it("hidden files in a new folder stay out, as everywhere else", async () => {
   await until(() => !!store.index.getByPath("GapC/late.md"));
   expect(store.index.getByPath("GapC/late.md")).toBeDefined();
   expect(store.index.getByPath("GapC/.hidden.md")).toBeUndefined();
-});
+}, 30_000);
