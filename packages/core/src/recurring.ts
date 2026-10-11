@@ -23,6 +23,7 @@
  */
 import { matchesTerms } from "./spending.js";
 import type { StatementRow } from "./statement.js";
+import type { Cadence } from "./subscriptions.js";
 
 export interface RecurringCharge {
   /** The merchant as the statement writes it. */
@@ -31,11 +32,19 @@ export interface RecurringCharge {
   amount: number;
   /** Distinct months it landed in, oldest first. */
   months: string[];
-  /** Months between charges, when the spacing is regular. */
+  /**
+   * The rhythm, in the ledger's own words when it has one — weekly, biweekly,
+   * monthly, quarterly… — or null for a month spacing the ledger has no word
+   * for (`everyMonths` then says it).
+   */
+  cadence: Cadence | null;
+  /** Months between charges for a monthly-or-longer rhythm; 0 for weekly ones. */
   everyMonths: number;
+  /** How many times it was charged. */
+  charges: number;
   first: string;
   last: string;
-  /** What the run has cost so far. */
+  /** What the run has cost so far: amount × charges. */
   total: number;
   /**
    * Still running as of the last data. A run that stopped is worth MORE
@@ -52,13 +61,37 @@ const monthsBetween = (a: string, b: string) => {
   const [y2, m2] = b.split("-").map(Number) as [number, number];
   return (y2 - y1) * 12 + (m2 - m1);
 };
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+const MONTH_CADENCE: Record<number, Cadence> = { 1: "monthly", 2: "2-monthly", 3: "quarterly", 6: "half-yearly", 12: "yearly" };
+
+/**
+ * A rhythm measured in days: every gap a whole number of `period` days (a
+ * day either way — banks book late), most of them exactly one period. A
+ * skipped week (a holiday) is still weekly; a gap of ten days is not.
+ */
+function everyDays(dates: string[], period: number): boolean {
+  const gaps = dates.slice(1).map((d, i) => daysBetween(dates[i]!, d));
+  if (gaps.length === 0) return false;
+  const whole = gaps.every((g) => g > 0 && Math.abs(g - period * Math.max(1, Math.round(g / period))) <= 1);
+  const single = gaps.filter((g) => Math.abs(g - period) <= 1).length;
+  return whole && single * 2 > gaps.length;
+}
 
 /**
  * Find the repeating charges on a statement.
  *
  * `minMonths` is 3 by default, and that floor is doing real work: two charges
  * of the same size is a coincidence a €1.47 sandwich will produce every month
- * of the year. Three in a regular rhythm is a standing order.
+ * of the year. Three in a regular rhythm is a standing order. A weekly,
+ * biweekly or 4-weekly rhythm is read from the days between charges (four of
+ * them for the first two); anything monthly or longer is read from the
+ * months, one charge each.
+ *
+ * Two things the month-only version got wrong (audit FIN-012): a weekly class
+ * collapsed to "monthly" at a quarter of what it cost, because the total was
+ * amount × months; and a standing deposit into an own account — a broker, a
+ * savings pot — was offered as a subscription the note had not caught up with,
+ * when ownAccounts.ts defines it as money moved and never spending.
  */
 export function findRecurring(
   rows: StatementRow[],
@@ -66,7 +99,7 @@ export function findRecurring(
 ): RecurringCharge[] {
   const runs = new Map<string, { merchant: string; amount: number; dates: string[] }>();
   for (const r of rows) {
-    if (r.amount >= 0) continue;
+    if (r.amount >= 0 || r.own) continue;
     const merchant = norm(r.description);
     const amount = Math.round(-r.amount * 100) / 100;
     if (amount <= 0) continue;
@@ -76,32 +109,56 @@ export function findRecurring(
     runs.set(key, run);
   }
 
-  const end = dataThrough ? monthOf(dataThrough) : "";
   const out: RecurringCharge[] = [];
   for (const run of runs.values()) {
-    const months = [...new Set(run.dates.map(monthOf))].sort();
-    if (months.length < minMonths) continue;
-    // Regular spacing only. An irregular run of identical amounts is a habit
-    // (the same coffee, the same tram fare), not a standing order.
-    const gaps = months.slice(1).map((m, i) => monthsBetween(months[i]!, m));
-    if (gaps.some((g) => g !== gaps[0])) continue;
-    const every = gaps[0]!;
-    if (every < 1 || every > 12) continue;
-    const last = months[months.length - 1]!;
+    const dates = [...run.dates].sort();
+    const months = [...new Set(dates.map(monthOf))].sort();
+    let cadence: Cadence | null;
+    let every = 0;
+    let periodDays: number;
+    if (dates.length >= Math.max(4, minMonths) && everyDays(dates, 7)) {
+      cadence = "weekly";
+      periodDays = 7;
+    } else if (dates.length >= Math.max(4, minMonths) && everyDays(dates, 14)) {
+      cadence = "biweekly";
+      periodDays = 14;
+    } else if (dates.length >= minMonths && everyDays(dates, 28)) {
+      // A Dutch 4-weekly payment lands twice in one month a year, so it can
+      // never pass the one-charge-a-month rule below.
+      cadence = "4-weekly";
+      periodDays = 28;
+    } else {
+      // Monthly or longer: one charge a month, at a regular spacing. An
+      // irregular run of identical amounts is a habit (the same coffee, the
+      // same tram fare), not a standing order — and so is one that lands
+      // several times in some month without a weekly rhythm.
+      if (months.length < minMonths || dates.length !== months.length) continue;
+      const gaps = months.slice(1).map((m, i) => monthsBetween(months[i]!, m));
+      if (gaps.some((g) => g !== gaps[0])) continue;
+      every = gaps[0]!;
+      if (every < 1 || every > 12) continue;
+      cadence = MONTH_CADENCE[every] ?? null;
+      periodDays = every * 31;
+    }
+    const lastDate = dates[dates.length - 1]!;
     out.push({
       merchant: run.merchant,
       amount: run.amount,
       months,
+      cadence,
       everyMonths: every,
+      charges: dates.length,
       first: months[0]!,
-      last,
-      total: Math.round(run.amount * months.length * 100) / 100,
-      // One period of grace: a monthly charge is not "stopped" the moment the
-      // export ends a few days before the next one is due.
-      active: end === "" || monthsBetween(last, end) <= every,
+      last: months[months.length - 1]!,
+      total: Math.round(run.amount * dates.length * 100) / 100,
+      // One period of grace: a charge is not "stopped" the moment the export
+      // ends a few days before the next one is due.
+      active:
+        dataThrough === "" ||
+        (every > 0 ? monthsBetween(monthOf(lastDate), monthOf(dataThrough)) <= every : daysBetween(lastDate, dataThrough) <= periodDays + 3),
     });
   }
-  return out.sort((a, b) => b.amount * b.months.length - a.amount * a.months.length);
+  return out.sort((a, b) => b.total - a.total);
 }
 
 /**

@@ -1781,7 +1781,7 @@ function LedgerPage({
                 <button className="fin-found-row" onClick={() => onOpenMerchant(r.merchant)}>
                   <span className="nm">{r.merchant}</span>
                   <span className="cad">
-                    {r.everyMonths === 1 ? "monthly" : r.everyMonths === 3 ? "quarterly" : `every ${r.everyMonths} months`}
+                    {r.cadence ?? `every ${r.everyMonths} months`}
                     {" · "}
                     {monthName(r.first)} → {monthName(r.last)}
                   </span>

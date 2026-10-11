@@ -518,7 +518,10 @@ export const recurringSchema = o({
   merchant: z.string(),
   amount: z.number(),
   months: z.array(z.string()),
+  /** weekly, biweekly, monthly…; null for a month spacing with no name (everyMonths says it). */
+  cadence: nstr,
   everyMonths: z.number(),
+  charges: z.number(),
   first: z.string(),
   last: z.string(),
   total: z.number(),

@@ -139,3 +139,17 @@ describe("what a ledger card expects to have seen (FIN-004)", () => {
     expect(income["Salary"]).toMatchObject({ charges: 5, total: 7500, expected: 7200 });
   });
 });
+
+describe('"Looks recurring" (FIN-012)', () => {
+  type Found = { merchant: string; cadence: string | null; charges: number; total: number };
+  it("reports a weekly charge as weekly, with its true total", async () => {
+    const d = await get("/api/finance");
+    const hall = (d.recurring as Found[]).find((r) => r.merchant === "BOULDER HALL");
+    expect(hall).toMatchObject({ cadence: "weekly", charges: 13, total: 117 });
+  });
+
+  it("never lists a deposit into an own account as a forgotten subscription", async () => {
+    const d = await get("/api/finance");
+    expect((d.recurring as Found[]).map((r) => r.merchant)).not.toContain("CAPITAL.COM");
+  });
+});
