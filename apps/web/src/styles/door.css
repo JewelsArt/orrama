@@ -1,11 +1,11 @@
-/* The door: boot splash, sign-in, setup, lock (Login.tsx, Setup.tsx, Lock.tsx).
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
-/* Basalt web. Flat surfaces, 1px borders, mono details. The only decoration
-   allowed is information: team color, progress, the graph. */
+/* The door (R3, take B, structure.md §2.14): boot, sign-in, lock and first run — App.tsx's boot,
+   Login.tsx, Lock.tsx, Setup.tsx and door/Door.tsx. Ported from the prototype
+   (~/orrama-redesign/signin/door.css) onto the system's own pieces: fields are .field/.inp,
+   buttons .btn, so only what is the door's own lives here. Classes start with dr-.
+   ui.css loads after this file, so the door's adjustments to system pieces are scoped
+   (.door .inp), which outranks them. */
 
-/* The first thing drawn, before /api/me answers. It is the wordmark too, so it
-   wears the wordmark's face — but held back in --text-faint, because a splash
-   should not shout at someone who is already inside the app. */
+/* The first thing drawn, before /api/me answers (App.tsx); the sunrise replaces it. */
 .boot {
   display: grid;
   place-items: center;
@@ -18,153 +18,103 @@
   text-transform: uppercase;
 }
 
-/* ---- login ---- */
-.login-page {
-  height: 100%;
-  display: grid;
-  place-items: center;
-}
-.login-card {
-  width: 340px;
-  padding: 28px;
-  background: var(--glass);
-  border: 1px solid var(--glass-brd);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow), inset 0 1px 0 var(--glass-hi);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.wordmark {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-.login-wordmark {
-  font-family: var(--font-brand);
-  font-weight: 800;
-  font-size: 20px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.login-wordmark svg {
-  color: var(--logo);
-}
-.login-tagline {
-  margin: 0 0 6px;
-  color: var(--text-dim);
-  font-size: 13px;
-}
-.login-card label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  font-size: 12.5px;
-  color: var(--text-dim);
-}
-.login-card input {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 9px 10px;
-  color: var(--text);
-}
-.login-hint {
-  color: var(--text-faint);
-  font-size: 11.5px;
-  margin: 4px 0 0;
-}
-.form-error {
-  color: var(--danger);
-  font-size: 12.5px;
-}
+/* ---- the frame: dots behind, head and content in the middle ---- */
+.door { position: relative; width: 100%; height: 100%; min-height: max(100vh, 560px); overflow: hidden; background: var(--ground); color: var(--ink); font-size: 15px; line-height: 22px; }
+.dr-dots { position: absolute; inset: 0; display: block; }
+.dr-mid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(400px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.dr-head .hd { width: 104px; height: 104px; transition: transform .9s cubic-bezier(.3, 1.4, .5, 1); }
+.door.in .dr-head .hd { transform: scale(.8); }
+.dr-word { margin: 0; font-size: 34px; line-height: 38px; font-weight: 800; letter-spacing: -0.03em; }
+.dr-tag { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+.dr-foot { margin: 6px 0 0; max-width: 360px; color: var(--ink-3); font-size: 13px; line-height: 19px; }
+/* Text that sits on the dots gets a soft edge of ground, so a dot never cuts a letter. */
+.dr-word, .dr-tag, .dr-foot, .dr-locked, .dr-clock { text-shadow: 0 0 3px var(--ground), 0 0 6px var(--ground), 0 0 10px var(--ground); }
 
-/* ── Lock screen ────────────────────────────────────────────────────────────
-   Quick unlock for a device that has signed in before. Sized for a thumb on a
-   touch screen and a keypad on a laptop; the keyboard handler in Lock.tsx means
-   the pad is never the only way to enter a code. */
-.lock-card {
-  align-items: center;
-  text-align: center;
+.dr-card { width: 100%; padding: 22px; border-radius: var(--r-3); background: color-mix(in srgb, var(--surface) 93%, transparent); border: 1px solid var(--card-line); box-shadow: var(--shadow-card); text-align: left; }
+.door.in .dr-card, .door.in .dr-tag, .door.in .dr-foot, .door.in .dr-word, .door.in .dr-locked, .door.in .dr-clock { display: none; }
+.dr-form { display: flex; flex-direction: column; gap: 14px; }
+.door .inp { height: 44px; padding: 0 13px; font-size: 15px; font-weight: 450; }
+.door .inp::placeholder { color: var(--ink-3); }
+.dr-pw { position: relative; display: flex; }
+.door .dr-pw .inp { padding-right: 70px; }
+.door .dr-pw .inp[type="password"] { font-family: -apple-system, system-ui, sans-serif; letter-spacing: 2px; }
+.dr-eye { position: absolute; right: 6px; top: 0; bottom: 0; margin: auto 0; height: 32px; display: inline-flex; align-items: center; padding: 0 10px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--ink-2); font-size: 13px; font-weight: 650; cursor: pointer; }
+.dr-eye:hover { background: var(--hover); color: var(--ink); }
+.dr-err { margin: 0; padding: 10px 12px; border-radius: var(--r-2); border: 1px solid color-mix(in srgb, var(--late) 40%, var(--line-2)); background: var(--surface); color: var(--ink); font-size: 14px; line-height: 20px; text-align: left; }
+.dr-err::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--late); margin-right: 8px; transform: translateY(-1px); }
+.door .dr-go { height: 46px; font-size: 15.5px; margin-top: 4px; width: 100%; }
+.door .dr-go:disabled, .door .dr-touch:disabled { opacity: .8; cursor: default; }
+.door button:focus-visible, .door a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.door.shake .dr-card { animation: dr-shake .36s; }
+@keyframes dr-shake { 20% { transform: translateX(-7px); } 45% { transform: translateX(6px); } 70% { transform: translateX(-3px); } 100% { transform: none; } }
+
+/* ---- in: the vault gathers, then the app opens ---- */
+.dr-after { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 22px 14px; border-radius: var(--r-3); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.dr-hi { font-size: 30px; line-height: 36px; font-weight: 800; letter-spacing: -0.02em; }
+.dr-sub, .dr-count, .dr-p { margin: 0; color: var(--ink-2); }
+.dr-bar { display: block; width: 180px; height: 4px; margin: 10px 0 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.dr-bar i { display: block; height: 100%; width: 0; background: var(--prog, var(--ink)); border-radius: 2px; animation: dr-fill 2s linear forwards; }
+@keyframes dr-fill { to { width: 100%; } }
+
+/* ---- lock ---- */
+.dr-locked { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.dr-clock { margin: -6px 0 4px; font-size: 56px; line-height: 60px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.dr-lockcard { display: flex; flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
+.door .dr-touch { height: 46px; font-size: 15.5px; gap: 9px; }
+.dr-fp { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.dr-touch.wait .dr-fp { animation: dr-pulse .7s ease-in-out infinite; }
+@keyframes dr-pulse { 50% { opacity: .35; } }
+.dr-link { align-self: center; border: 0; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; padding: 6px; border-radius: var(--r-1); }
+.dr-link:hover { background: var(--hover); }
+.dr-pins { display: flex; justify-content: center; gap: 14px; margin: 2px 0 2px; }
+.door.has-pad .dr-pins { margin-bottom: 14px; }
+.dr-pins i { width: 13px; height: 13px; border-radius: 50%; border: 1.6px solid var(--ink-2); }
+.dr-pins i.on { background: var(--ink); border-color: var(--ink); }
+.dr-keys { display: grid; grid-template-columns: repeat(3, 72px); justify-content: center; gap: 12px 22px; }
+.dr-key { width: 72px; height: 72px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.dr-key:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 4%, var(--surface)); }
+.dr-key:active:not(:disabled) { background: var(--panel); }
+.dr-key:disabled { cursor: default; }
+.dr-del { border: 0; background: transparent; display: grid; place-items: center; }
+.dr-del:disabled { opacity: .45; }
+.dr-del svg { width: 26px; height: 26px; fill: none; stroke: var(--ink-2); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+/* With the keypad, Touch ID is the second way in: a link, not a button. */
+.door.has-pad .dr-touch { background: transparent; color: var(--accent); border: 0; height: 36px; box-shadow: none; }
+.door.has-pad .dr-touch:hover { background: var(--hover); }
+.door-lock.has-pad .dr-card { background: transparent; border: 0; box-shadow: none; padding: 4px 0 0; }
+
+/* ---- first run ---- */
+.dr-h { margin: 0 0 4px; font-size: 26px; line-height: 32px; font-weight: 800; letter-spacing: -0.02em; }
+.dr-first1 .dr-p { margin-bottom: 16px; }
+.dr-first3 { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 16px 22px; border-radius: var(--r-3); background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.dr-count { font-variant-numeric: tabular-nums; }
+.dr-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
+
+/* ---- the phone: the halo above, the form below, a keypad on the lock ---- */
+@media (max-width: 559px) {
+  .dr-mid { top: auto; bottom: 24px; transform: translateX(-50%); gap: 10px; }
+  .door-lock .dr-mid { bottom: 18px; }
+  .dr-head .hd { width: 76px; height: 76px; }
+  .dr-word { font-size: 28px; line-height: 32px; }
+  .dr-card { padding: 18px; }
+  .dr-clock { font-size: 44px; line-height: 48px; }
+  .door.in .dr-mid { bottom: auto; top: 30%; transform: translate(-50%, -50%); }
 }
-
-.lock-dots {
-  display: flex;
-  gap: 14px;
-  justify-content: center;
-  margin: 18px 0 22px;
-}
-
-.lock-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border);
-  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
-}
-
-.lock-dot.is-filled {
-  background: var(--accent, #5b5bd6);
-  border-color: var(--accent, #5b5bd6);
-  transform: scale(1.1);
-}
-
-.lock-pad {
-  display: grid;
-  grid-template-columns: repeat(3, 72px);
-  gap: 12px;
-  justify-content: center;
-}
-
-.lock-key {
-  height: 62px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--surface, transparent);
-  color: var(--text);
-  font-size: 22px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-  transition: background-color 90ms ease, transform 90ms ease;
-}
-
-.lock-key:hover:not(:disabled) { background: var(--surface-hover, rgba(0, 0, 0, 0.04)); }
-.lock-key:active:not(:disabled) { transform: scale(0.94); }
-.lock-key:disabled { opacity: 0.45; cursor: default; }
-
-.lock-key-soft {
-  border-color: transparent;
-  font-size: 18px;
-  color: var(--text-muted);
-}
-
-.lock-touchid {
-  margin-top: 20px;
-  padding: 10px 18px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.lock-touchid:hover:not(:disabled) { background: var(--surface-hover, rgba(0, 0, 0, 0.04)); }
-
-.lock-password-link {
-  margin-top: 14px;
-  border: 0;
-  background: none;
-  color: var(--text-muted);
-  font-size: 13px;
-  text-decoration: underline;
-  cursor: pointer;
+/* A short window (a phone on its side): the column scrolls with the page rather than off it. */
+@media (max-height: 700px) and (max-width: 559px) {
+  .door-lock.has-pad .dr-key { width: 60px; height: 60px; font-size: 24px; }
+  .door-lock.has-pad .dr-keys { grid-template-columns: repeat(3, 60px); gap: 8px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lock-dot, .lock-key { transition: none; }
-  .lock-key:active:not(:disabled) { transform: none; }
+  .dr-bar i, .door.shake .dr-card, .dr-touch.wait .dr-fp { animation: none; }
+  .dr-head .hd { transition: none; }
+}
+
+/* Not the door's: other screens' forms still say their errors with this (Dashboard, Contacts,
+   Companies, Project, ProjectViews, DocViewer). It lived here before the split; it stays until
+   those screens move to the system's Notice in their waves. */
+.form-error {
+  color: var(--danger);
+  font-size: 12.5px;
 }
