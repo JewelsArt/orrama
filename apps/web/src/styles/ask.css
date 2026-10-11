@@ -1,113 +1,122 @@
-/* Ask (AskPanel.tsx).
-   Moved out of app.css as it was (R0); the rules are unchanged and in their old order. */
+/* Ask Orr (AskPanel.tsx), from the Ask board (mockups/screens/ask.html, §6 #20 Panel).
+   A panel beside the page, 420 px, that pushes the page over (§1.4); on the phone, the screen
+   above the tabs. */
 
-/* ---- ask input, invite teams ---- */
-.ask-input input {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  color: var(--text);
-  min-width: 0;
-}
-.invite-team {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 13px;
-}
-/* ---- ask panel ---- */
-.ask-panel {
+.askp {
   position: fixed;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  width: 360px;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  width: 420px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-pop);
-  z-index: 40;
+  border-left: 1px solid var(--line-2);
 }
-.ask-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 650;
+/* The page stays in use beside it, not under it. */
+body:has(.askp) .frame { margin-right: 420px; }
+
+.ask-h { display: flex; align-items: center; gap: 9px; flex: none; height: 58px; padding: 0 10px 0 18px; border-bottom: 1px solid var(--line); }
+.ask-h .hd { width: 20px; height: 20px; flex: none; }
+.ask-h h2 { margin: 0; font-size: 16px; line-height: 22px; font-weight: 750; }
+.ask-h .sp { flex: 1; }
+
+.ask-b { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Before the first question: what he does, and the note he reads along. */
+.ask-hello p { margin: 0 0 8px; font-size: 14px; line-height: 21px; color: var(--ink-2); }
+.ask-hello p.q3 { color: var(--ink-3); }
+.ask-hello b { color: var(--ink); font-weight: 650; }
+
+/* Your question. */
+.askp .you { align-self: flex-end; max-width: 86%; padding: 9px 13px; border-radius: 14px 14px 4px 14px; background: var(--panel); font-size: 14.5px; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* His answer. */
+.askp .ans-turn { display: flex; flex-direction: column; gap: 10px; }
+.askp .ans { font-size: 14.5px; line-height: 22px; overflow-wrap: anywhere; }
+.askp .ans p { margin: 0 0 8px; }
+.askp .ans > :last-child { margin-bottom: 0; }
+.askp .ans ol, .askp .ans ul { margin: 0 0 10px; padding-left: 20px; }
+.askp .ans li { margin-bottom: 6px; }
+.askp .ans li::marker { color: var(--ink-3); font-weight: 650; }
+.askp .ans h3, .askp .ans h4 { margin: 12px 0 4px; font-size: 15px; line-height: 21px; font-weight: 750; }
+.askp .ans h3:first-child, .askp .ans h4:first-child { margin-top: 0; }
+.askp .ans blockquote { margin: 0 0 8px; padding-left: 12px; border-left: 2px solid var(--line-2); color: var(--ink-2); }
+.askp .ans code { font-family: var(--mono); font-size: 0.88em; padding: 1px 4px; border-radius: 4px; background: var(--panel); }
+.askp .ans pre { margin: 0 0 10px; padding: 10px 12px; border-radius: var(--r-2); background: var(--panel); overflow-x: auto; }
+.askp .ans pre code { padding: 0; background: none; }
+.askp .ans hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+.askp .ans a { color: var(--accent); }
+.askp .ans a.cite { color: var(--ink); font-weight: 650; text-decoration: none; border-bottom: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.askp .ans a.cite:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.askp .ans a:focus-visible { outline: none; border-radius: 3px; box-shadow: var(--focus-ring); }
+/* A citation of nothing Orr or the vault knows: his words, not a link. */
+.askp .ans .cite-none { font-weight: 650; }
+
+/* How I found this: his steps, folded under the answer. */
+.askp .how { border: 1px solid var(--line); border-radius: var(--r-2); padding: 6px 12px 6px; }
+.askp .how-h { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 28px; padding: 0; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2); text-align: left; cursor: pointer; }
+.askp .how-h svg.i { transition: transform 120ms ease; }
+.askp .how-h[aria-expanded="true"] svg.i { transform: rotate(90deg); }
+.askp .how-h:hover { color: var(--ink); }
+.askp .how-h:focus-visible { outline: none; border-radius: var(--r-1); box-shadow: var(--focus-ring); }
+
+.askp .steps { list-style: none; margin: 0; padding: 0; }
+.askp .step { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; padding: 5px 0; font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.askp .step + .step { border-top: 1px solid var(--line); }
+.askp .step > svg.i { margin-top: 2px; color: var(--ok); }
+.askp .step.failed > svg.i { color: var(--late); }
+.askp .step .pending { width: 8px; height: 8px; margin: 5px 0 0 3px; border-radius: 50%; background: var(--orr-ink, var(--ink-3)); animation: ask-pulse 1.1s ease-in-out infinite; }
+@keyframes ask-pulse { 50% { opacity: 0.3; } }
+.askp .step .found { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.askp .step .found a { font-size: 12px; line-height: 18px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: var(--panel); color: var(--ink-2); text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.askp .step .found a:hover { background: var(--accent-wash); color: var(--accent); }
+.askp .step .found a:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.askp .step .found .more { font-size: 12px; line-height: 20px; color: var(--ink-3); }
+
+/* While he works: Orr thinking or reading, and the steps as they come. */
+.askp .ask-work { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: start; }
+.askp .ask-work > div > b { display: block; margin: 4px 0 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+
+/* The field you ask in. */
+.ask-f { flex: none; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+.ask-in { display: flex; align-items: flex-end; gap: 8px; min-height: 46px; padding: 7px 7px 7px 14px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--ground); }
+.ask-in:focus-within { border-color: var(--accent); box-shadow: var(--focus-ring); }
+.ask-in textarea { flex: 1; min-width: 0; max-height: 160px; padding: 5px 0 4px; border: 0; background: none; resize: none; font: inherit; font-size: 14.5px; line-height: 21px; color: var(--ink); outline: none; }
+.ask-in textarea::placeholder { color: var(--ink-3); }
+.ask-in textarea:disabled { cursor: not-allowed; }
+.ask-in .btn { height: 30px; flex: none; }
+.ask-hint { margin: 7px 2px 0; font-size: 12px; line-height: 16px; color: var(--ink-3); }
+
+/* Earlier questions, on this device. */
+.ask-hist { width: 320px; max-height: min(440px, calc(100vh - 90px)); overflow-y: auto; padding: 6px; }
+.ask-hist ul { list-style: none; margin: 4px 0 0; padding: 4px 0 0; border-top: 1px solid var(--line); }
+.ask-hist button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 36px; padding: 6px 10px; border: 0; border-radius: var(--r-1); background: none; font: inherit; font-size: 14px; line-height: 19px; color: var(--ink); text-align: left; cursor: pointer; }
+.ask-hist button:hover, .ask-hist button:focus-visible { background: var(--hover); outline: none; }
+.ask-hist button[aria-current] { font-weight: 650; }
+.ask-hist .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ask-hist .d { flex: none; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ask-hist .ask-hist-new { font-weight: 650; }
+.ask-hist p { margin: 8px 10px 6px; font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .askp .step .pending { animation: none; }
+  .askp .how-h svg.i { transition: none; }
 }
-.ask-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+
+/* Phone: the centre tab, the screen above the tabs. */
+@media (max-width: 760px) {
+  .askp { left: 0; width: auto; bottom: calc(84px + env(safe-area-inset-bottom)); padding-top: env(safe-area-inset-top); border-left: 0; }
+  body:has(.askp) .frame { margin-right: 0; }
+  .ask-h { height: 60px; padding-left: 16px; }
+  .ask-b { padding: 16px; }
+  .ask-f { padding: 10px 12px 12px; }
+  .ask-hint { display: none; }
+  .ask-in textarea { font-size: 16px; } /* no zoom on focus in iOS */
 }
-.ask-off,
-.ask-hint {
-  color: var(--text-faint);
-  font-size: 12.5px;
-  padding: 12px 16px;
-  margin: 0;
-}
-.ask-scroll {
-  flex: 1;
-  overflow: auto;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ask-turn {
-  max-width: 92%;
-  border-radius: var(--radius);
-  padding: 8px 12px;
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.ask-turn p {
-  margin: 0;
-  white-space: pre-wrap;
-}
-.ask-turn.user {
-  align-self: flex-end;
-  background: var(--accent-dim);
-}
-.ask-turn.assistant {
-  align-self: flex-start;
-  background: var(--panel-strong);
-}
-.ask-thinking {
-  color: var(--text-faint);
-  font-style: italic;
-}
-.ask-error {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 8px 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--text);
-  font-size: 12.5px;
-}
-.ask-error strong {
-  color: var(--danger);
-}
-.ask-error span {
-  word-break: break-word;
-}
-.ask-error-hint {
-  color: var(--text-dim);
-  font-size: 11.5px;
-}
-.ask-input {
-  border-top: 1px solid var(--border);
-  padding: 10px;
-}
-.ask-input input {
-  width: 100%;
-}
+
+/* The rail's Ask Orr while the panel is open: pressed, ringed, and the place you are on stays
+   the current one (the Ask board). */
+.rail .ri[aria-pressed="true"] { color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line-2); }

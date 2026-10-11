@@ -73,3 +73,9 @@ export function answer(call: AskCall, text: string) {
   call.send({ type: "finish-step" });
   call.end();
 }
+
+/** A tool call: its input now, and its output when one is given (else it is still running). */
+export function toolCall(call: AskCall, id: string, toolName: string, input: unknown, output?: unknown) {
+  call.send({ type: "tool-input-available", toolCallId: id, toolName, input });
+  if (output !== undefined) call.send({ type: "tool-output-available", toolCallId: id, output });
+}

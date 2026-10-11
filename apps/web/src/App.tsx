@@ -241,6 +241,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  const closeAsk = useCallback(() => setAskOpen(false), []);
   const [updateReady, setUpdateReady] = useState(false);
 
   // localStorage is the first-paint cache for the three appearance values; the
@@ -554,7 +555,7 @@ export function App() {
       {askOpen && (
         <ErrorBoundary what="Ask Orr" onLeave={{ label: "Close", run: () => setAskOpen(false) }}>
           <Layer kind="panel" label="Ask Orr" role={null} modal={false} trap={false} focus={false} onClose={() => setAskOpen(false)}>
-            <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />
+            <AskPanel onClose={closeAsk} />
           </Layer>
         </ErrorBoundary>
       )}

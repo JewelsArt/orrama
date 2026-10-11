@@ -96,7 +96,7 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
           <Icon name="search" />
           Find
         </button>
-        <button type="button" className={askOpen ? "ri on" : "ri"} aria-pressed={askOpen} data-tip="Ask Orr  ⌘J" onClick={onAsk}>
+        <button type="button" className="ri" aria-pressed={askOpen} data-tip="Ask Orr  ⌘J" onClick={onAsk}>
           <HeadMark size={22} />
           Ask Orr
         </button>
