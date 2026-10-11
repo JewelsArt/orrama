@@ -301,7 +301,9 @@ function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => P
           <button
             className="proj-mini"
             onClick={() => {
-              setDraft(w.goals.map((g) => `- ${g}`).join("\n"));
+              // The section as the note has it: checkboxes, nesting and prose
+              // round-trip untouched (COR-005). The list below is display only.
+              setDraft(w.goalsSource);
               setEditing((e) => !e);
             }}
           >

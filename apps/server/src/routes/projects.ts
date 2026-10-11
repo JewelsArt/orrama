@@ -332,6 +332,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       deadline: str(fm["deadline"]),
       prompt: readSection(note.content, SEC.prompt),
       goals: readSectionItems(note.content, SEC.goals),
+      goalsSource: readSection(note.content, SEC.goals),
       decisions: readSectionItems(note.content, SEC.decisions),
       inbox: readSectionItems(note.content, SEC.inbox),
       people: [...linked.values()],
@@ -413,10 +414,13 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const { user, note } = openProject(req.userId, req.params.slug);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+    // A section is written as sent, less the blank lines around it: indentation
+    // and a line's trailing spaces are the user's (COR-005).
+    const section = (v: unknown) => (typeof v === "string" ? v.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+/, "").replace(/(?:\n[ \t]*)+$/, "") : "");
 
     let next = note.content;
-    if (body["prompt"] !== undefined) next = writeSection(next, SEC.prompt, str(body["prompt"]));
-    if (body["goals"] !== undefined) next = writeSection(next, SEC.goals, str(body["goals"]));
+    if (body["prompt"] !== undefined) next = writeSection(next, SEC.prompt, section(body["prompt"]));
+    if (body["goals"] !== undefined) next = writeSection(next, SEC.goals, section(body["goals"]));
     const fmFields = ["status", "start", "deadline", "domain"] as const;
     if (fmFields.some((k) => body[k] !== undefined)) {
       next = updateFrontmatter(next, (d) => {

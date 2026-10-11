@@ -375,7 +375,10 @@ export const projectWorkspaceResponse = o({
   start: z.string(),
   deadline: z.string(),
   prompt: z.string(),
+  /** Display items: markers and checkboxes stripped. Never written back. */
   goals: z.array(z.string()),
+  /** The `## Goals` section as the note has it — what "Edit goals" opens on and saves (COR-005). */
+  goalsSource: z.string(),
   decisions: z.array(z.string()),
   inbox: z.array(z.string()),
   people: z.array(projectPersonSchema),

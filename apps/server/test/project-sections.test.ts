@@ -1,0 +1,130 @@
+/**
+ * The project workspace writes into the project note, and only into the slot it
+ * means (audit COR-005, COR-007, COR-008, COR-017). Goals are edited as the
+ * section's own text, not rebuilt from display items; a decision appended
+ * leaves the rest of the note byte for byte.
+ */
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-project-sections-"));
+process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
+process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+
+await import("../src/seed.js");
+const { buildServer } = await import("../src/main.js");
+
+type Built = Awaited<ReturnType<typeof buildServer>>;
+let built: Built;
+let token = "";
+const VAULT = process.env.BASALT_VAULT_DIR;
+
+const api = async (method: string, url: string, body?: unknown) => {
+  const res = await built.app.inject({
+    method: method as "GET",
+    url,
+    headers: { authorization: `Bearer ${token}` },
+    ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
+  });
+  return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
+};
+const put = async (rel: string, content: string) => {
+  const r = await api("PUT", "/api/vault/note", { path: rel, content });
+  expect(r.status).toBe(200);
+  return r.json.id as string;
+};
+const onDisk = (rel: string) => fs.readFileSync(path.join(VAULT, rel), "utf8");
+
+beforeAll(async () => {
+  built = await buildServer();
+  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+});
+afterAll(async () => {
+  await built.app.close();
+});
+
+const THESIS = [
+  "---",
+  "title: Thesis",
+  "tags: [project/thesis]",
+  "---",
+  "# Thesis",
+  "",
+  "## Goals",
+  "- [x] Pick a supervisor",
+  "- [ ] Defend in January",
+  "  - book the room",
+  "",
+  "Done means: signed off.",
+  "",
+  "## Notes",
+  "```",
+  "a",
+  "",
+  "",
+  "",
+  "b",
+  "```",
+  "",
+].join("\n");
+
+describe("Edit goals (COR-005)", () => {
+  it("serves the section as its own text, and saving it unchanged leaves the note byte-identical", async () => {
+    await put("04-Projects/thesis.md", THESIS);
+    const before = onDisk("04-Projects/thesis.md");
+    const w = (await api("GET", "/api/projects/thesis")).json;
+    expect(w.goalsSource).toBe("- [x] Pick a supervisor\n- [ ] Defend in January\n  - book the room\n\nDone means: signed off.");
+    expect([w.total, w.done]).toEqual([2, 1]);
+
+    // What the editor does: open on the source, save it as it is.
+    expect((await api("PATCH", "/api/projects/thesis", { goals: w.goalsSource })).status).toBe(200);
+    expect(onDisk("04-Projects/thesis.md")).toBe(before);
+  });
+
+  it("an edit to one goal keeps the others' checkboxes, nesting and prose — and the progress", async () => {
+    const w = (await api("GET", "/api/projects/thesis")).json;
+    const edited = w.goalsSource.replace("Defend in January", "Defend in February");
+    expect((await api("PATCH", "/api/projects/thesis", { goals: edited })).status).toBe(200);
+    expect(onDisk("04-Projects/thesis.md")).toBe(onDiskExpected());
+    const after = (await api("GET", "/api/projects/thesis")).json;
+    expect([after.total, after.done]).toEqual([2, 1]);
+  });
+});
+
+function onDiskExpected() {
+  const id = built.store.index.getByPath("04-Projects/thesis.md")!.id;
+  return THESIS.replace("---\ntitle", `---\nid: ${id}\ntitle`).replace("Defend in January", "Defend in February");
+}
+
+describe("a decision appended touches only its section (COR-007)", () => {
+  it("the code block's blank lines and every task line stay where they were", async () => {
+    const before = onDisk("04-Projects/thesis.md");
+    const lines = built.store.index.getByPath("04-Projects/thesis.md")!.tasks.map((t) => t.line);
+    expect((await api("POST", "/api/projects/thesis/decisions", { text: "keep the scope" })).status).toBe(200);
+    const after = onDisk("04-Projects/thesis.md");
+    expect(after.startsWith(before.replace(/\n$/, ""))).toBe(true);
+    expect(after.slice(before.length - 1)).toMatch(/^\n\n## Decisions\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* — keep the scope\n$/);
+    expect(built.store.index.getByPath("04-Projects/thesis.md")!.tasks.map((t) => t.line)).toEqual(lines);
+  });
+});
+
+describe("the workspace reads and writes the `##` slot (COR-008)", () => {
+  it("a `### Goals` inside another section is neither read nor overwritten", async () => {
+    await put("04-Projects/plan.md", "---\ntitle: Plan\ntags: [project/plan]\n---\n# Plan\n\n## Research plan\n\n### Goals\n- chapter-level goal\n\n## Goals\n- Ship the plan\n");
+    const w = (await api("GET", "/api/projects/plan")).json;
+    expect(w.goals).toEqual(["Ship the plan"]);
+    await api("PATCH", "/api/projects/plan", { goals: "- Ship it" });
+    expect(onDisk("04-Projects/plan.md")).toContain("### Goals\n- chapter-level goal\n\n## Goals\n- Ship it\n");
+  });
+
+  it("a closed `## Decisions ##` is the slot: no second heading is made", async () => {
+    await put("04-Projects/closed.md", "---\ntitle: Closed\ntags: [project/closed]\n---\n## Decisions ##\n- old\n");
+    await api("POST", "/api/projects/closed/decisions", { text: "new" });
+    const text = onDisk("04-Projects/closed.md");
+    expect(text.match(/Decisions/g)).toHaveLength(1);
+    expect((await api("GET", "/api/projects/closed")).json.decisions).toHaveLength(2);
+  });
+});
