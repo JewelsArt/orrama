@@ -501,3 +501,5 @@ select.inp { appearance: none; padding-right: 32px; background-image: linear-gra
 .keys-list > div:first-child { border-top: 0; }
 .keys-list dt { display: flex; gap: 6px; flex-wrap: wrap; }
 .keys-list dd { margin: 0; color: var(--ink-2); }
+/* When a page or an overlay fails (ErrorBoundary): a notice where it was. */
+.error-page { padding: 32px 40px; max-width: 620px; background: transparent; }

@@ -7,8 +7,13 @@ import { vi } from "vitest";
 
 type P = Record<string, unknown> & { [k: string]: any };
 
+/** Screens that throw when they render, for the error boundary's tests. */
+export const crash = new Set<string>();
+
 const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => []) =>
   function Stub(p: P) {
+    // A test can make a screen throw while rendering: crash.add("planning").
+    if (crash.has(name)) throw new Error(`${name} fell over`);
     const shown = Object.entries(p)
       .filter(([, v]) => v !== undefined && typeof v !== "function" && typeof v !== "object")
       .map(([k, v]) => `${k}=${v}`)

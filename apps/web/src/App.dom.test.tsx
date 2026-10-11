@@ -7,7 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
-import { at, serve } from "./test/app-harness.js";
+import { at, crash, serve } from "./test/app-harness.js";
 
 const view = async () => (await screen.findByTestId("view")).textContent!;
 const path = () => location.pathname + location.search;
@@ -277,5 +277,47 @@ describe("keys", () => {
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("capture");
     fireEvent.keyDown(document.body, { key: ",", metaKey: true });
     expect(path()).toBe("/settings");
+  });
+});
+
+describe("when a page breaks (WEB-011)", () => {
+  afterEach(() => crash.clear());
+
+  it("the page says so, the rail still works, and the next place renders", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    crash.add("planning");
+    at("/planning/week");
+    render(<App />);
+    expect(await screen.findByText("This page hit an error.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reload" })).toBeTruthy();
+    const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
+    await user.click([...rail.querySelectorAll<HTMLElement>(".ri")].find((a) => a.textContent === "Projects")!);
+    expect(await view()).toMatch(/^overview/);
+    crash.clear();
+    await user.click([...rail.querySelectorAll<HTMLElement>(".ri")].find((a) => a.textContent === "Planning")!);
+    expect(await view()).toMatch(/^planning/); // a fresh boundary: the page renders again
+    vi.restoreAllMocks();
+  });
+
+  it("an overlay that breaks leaves the page it was over", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    crash.add("settings");
+    at("/settings/ai");
+    render(<App />);
+    expect(await screen.findByText("Settings hit an error.")).toBeTruthy();
+    expect(screen.getByTestId("view").dataset.view).toBe("dashboard");
+    vi.restoreAllMocks();
+  });
+
+  it("⌘R reloads from outside React", async () => {
+    const { installReloadKey } = await import("./ui/reloadKey.js");
+    const reload = vi.fn();
+    const off = installReloadKey(window, reload);
+    fireEvent.keyDown(document.body, { key: "r", metaKey: true });
+    fireEvent.keyDown(document.body, { key: "R", ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: "r" });
+    expect(reload).toHaveBeenCalledTimes(2);
+    off();
   });
 });

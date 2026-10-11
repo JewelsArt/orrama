@@ -20,8 +20,9 @@ import { readJson, readKey, writeKey } from "./storage.js";
 import { OrramaMark } from "./ui/orr/logo.js";
 import { isTyping, shellKey } from "./ui/keys.js";
 import { anyLayerOpen } from "./ui/overlays.js";
-import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, useRoute, type MoneyPage, type Route } from "./ui/router.js";
+import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, routeHref, useRoute, type MoneyPage, type Route } from "./ui/router.js";
 import { KeysSheet } from "./ui/shell/KeysSheet.js";
+import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 
@@ -449,6 +450,9 @@ export function App() {
       onFind={() => setPaletteOpen(true)}
       onAsk={() => setAskOpen((v) => !v)}
     >
+      {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
+          going to another address (a new key) starts the page afresh. */}
+      <ErrorBoundary key={routeHref(shown)} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
         {view.kind === "dashboard" ? (
           <Dashboard
             me={me}
@@ -486,37 +490,50 @@ export function App() {
             onBack={goBack}
           />
         )}
+      </ErrorBoundary>
 
-      {askOpen && <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />}
-      {paletteOpen && (
-        <SearchPalette
-          onClose={() => setPaletteOpen(false)}
-          onPick={(id) => {
-            setPaletteOpen(false);
-            openNote(id);
-          }}
-        />
+      {askOpen && (
+        <ErrorBoundary what="Ask Orr" onLeave={{ label: "Close", run: () => setAskOpen(false) }}>
+          <AskPanel onClose={() => setAskOpen(false)} onOpenNote={openNote} />
+        </ErrorBoundary>
       )}
-      {captureOpen && <QuickCapture onClose={() => setCaptureOpen(false)} />}
+      {paletteOpen && (
+        <ErrorBoundary what="Find" onLeave={{ label: "Close", run: () => setPaletteOpen(false) }}>
+          <SearchPalette
+            onClose={() => setPaletteOpen(false)}
+            onPick={(id) => {
+              setPaletteOpen(false);
+              openNote(id);
+            }}
+          />
+        </ErrorBoundary>
+      )}
+      {captureOpen && (
+        <ErrorBoundary what="Capture" onLeave={{ label: "Close", run: () => setCaptureOpen(false) }}>
+          <QuickCapture onClose={() => setCaptureOpen(false)} />
+        </ErrorBoundary>
+      )}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
       {settingsOpen && (
-        <Settings
-          me={me}
-          theme={theme}
-          onTheme={changeTheme}
-          vision={vision}
-          onVision={setVision}
-          profiles={profiles}
-          onProfiles={setProfiles}
-          onUpdate={setMe}
-          onClose={closeSettings}
-          onSignOut={() => {
-            disconnectWs();
-            void signOut();
-            setMe(null);
-            go({ kind: "today" }, { replace: true });
-          }}
-        />
+        <ErrorBoundary what="Settings" onLeave={{ label: "Close", run: closeSettings }}>
+          <Settings
+            me={me}
+            theme={theme}
+            onTheme={changeTheme}
+            vision={vision}
+            onVision={setVision}
+            profiles={profiles}
+            onProfiles={setProfiles}
+            onUpdate={setMe}
+            onClose={closeSettings}
+            onSignOut={() => {
+              disconnectWs();
+              void signOut();
+              setMe(null);
+              go({ kind: "today" }, { replace: true });
+            }}
+          />
+        </ErrorBoundary>
       )}
     </Shell>
   );

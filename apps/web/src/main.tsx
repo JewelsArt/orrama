@@ -31,20 +31,15 @@ import "./styles/shell.css";
 import "./ui/ui.css";
 import { App } from "./App.js";
 import { guardStorage } from "./storage.js";
+import { ErrorBoundary } from "./ui/ErrorBoundary.js";
+import { installReloadKey } from "./ui/reloadKey.js";
 
 // Before anything renders: a browser that refuses storage gets an in-memory one, so screens
 // that still call localStorage directly keep working (WEB-025).
 guardStorage();
 
-// ⌘R, outside React: the Tauri window has no menu, so nothing else binds it there, and a
-// listener here still works when a view (or the whole app) has crashed (WEB-011). In a real
-// browser the browser's own binding fires first and this is never reached.
-window.addEventListener("keydown", (e) => {
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "r") {
-    e.preventDefault();
-    location.reload();
-  }
-});
+// ⌘R, outside React, so it still reloads when a view, or the app, has crashed (WEB-011).
+installReloadKey();
 
 const root = createRoot(document.getElementById("root")!);
 if (import.meta.env.DEV && location.pathname === "/dev/ui") {
@@ -54,7 +49,10 @@ if (import.meta.env.DEV && location.pathname === "/dev/ui") {
 } else {
   root.render(
     <React.StrictMode>
-      <App />
+      {/* The last line: if even the shell fails, a notice and Reload instead of a blank window. */}
+      <ErrorBoundary what="Orrama">
+        <App />
+      </ErrorBoundary>
     </React.StrictMode>,
   );
 }
