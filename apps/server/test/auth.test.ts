@@ -158,8 +158,12 @@ describe("quick unlock", () => {
 });
 
 describe("webauthn", () => {
-  it("refuses to start a login for an account with no device enrolled", async () => {
-    expect((await api("POST", "/api/auth/webauthn/login/options", { email: CREDS.email })).status).toBe(404);
+  it("answers an account with no device like any other address, and that challenge opens nothing", async () => {
+    // A 404 here used to tell a stranger which addresses had a passkey (SEC-008).
+    const r = await api("POST", "/api/auth/webauthn/login/options", { email: CREDS.email });
+    expect(r.status).toBe(200);
+    const verify = await api("POST", "/api/auth/webauthn/login/verify", { challengeId: r.json.challengeId, response: { id: "cred-made-up" } });
+    expect(verify.status).toBe(401);
   });
 
   it("requires a session to enrol one", async () => {

@@ -23,6 +23,18 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  */
 export const sessionOnly = (reason: string) => ({ sessionOnly: reason });
 
+/** Unspent Touch ID challenges kept at once (see putChallenge). */
+export const MAX_LIVE_CHALLENGES = 200;
+
+/**
+ * A hash to check a password against when the address has no account, made
+ * once, on first need. Without it an unknown address answered in under a
+ * millisecond and a real one only after Argon2 — a timing oracle for which
+ * accounts exist (audit SEC-008).
+ */
+let dummyHash: Promise<string> | null = null;
+const noAccountHash = () => (dummyHash ??= argonHash(crypto.randomBytes(16).toString("hex")));
+
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   /** Passcode, Touch ID and sessions are credentials: changed from a session only. */
   const credentials = { preHandler: [app.authenticate], config: sessionOnly("sign-in methods and sessions are managed from a signed-in session, not with an API token") };
@@ -115,9 +127,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     if (wait > 0) return tooMany(reply, wait, "failed sign-ins");
     const body = loginSchema.parse(req.body);
     const user = db.select().from(tables.users).where(eq(tables.users.email, body.email.toLowerCase())).get();
-    if (!user || !(await argonVerify(user.passwordHash, body.password))) {
-      throw new HttpError(401, "invalid email or password");
-    }
+    const ok = await argonVerify(user?.passwordHash ?? (await noAccountHash()), body.password);
+    if (!user || !ok) throw new HttpError(401, "invalid email or password");
     logins.succeed(req.ip);
     db.update(tables.users)
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
@@ -265,10 +276,20 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   // one will not verify on another, which is the spec working correctly.
   const rp = (req: { headers: Record<string, unknown> }) => webauthnOrigin(req.headers, env.publicOrigins);
 
+  /**
+   * Challenges are spent by a verify; one that is never spent used to stay
+   * forever, and login/options takes no sign-in, so every call to it was a
+   * permanent row (audit SEC-009). Expired ones go now, and the live ones are
+   * capped: a flood evicts the oldest instead of growing the table. (Touch ID
+   * waits out a flood; the password still works.)
+   */
   const putChallenge = (userId: string | null, challenge: string) => {
+    const now = Date.now();
+    db.delete(tables.webauthnChallenges).where(lt(tables.webauthnChallenges.expiresAt, now)).run();
+    db.run(sql`delete from webauthn_challenges where id in (select id from webauthn_challenges order by expires_at desc limit -1 offset ${MAX_LIVE_CHALLENGES - 1})`);
     const id = `wc-${crypto.randomUUID()}`;
     db.insert(tables.webauthnChallenges)
-      .values({ id, userId, challenge, expiresAt: Date.now() + 120_000 })
+      .values({ id, userId, challenge, expiresAt: now + 120_000 })
       .run();
     return id;
   };
@@ -333,23 +354,22 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return { ok: true };
   });
 
+  /**
+   * The same answer for every address: a challenge, and no list of devices.
+   * It used to 404 an address with no passkey and hand out the stored
+   * credential ids of one with a passkey — an account oracle for anyone who
+   * can reach the port (audit SEC-008). With no `allowCredentials` the device
+   * offers its own passkey for this site (Touch ID enrols a discoverable one,
+   * `residentKey: "preferred"` above), and verify still requires the device
+   * to belong to the account the challenge was issued for — for an unknown
+   * address, none.
+   */
   app.post("/api/auth/webauthn/login/options", async (req) => {
     const { email } = z.object({ email: z.string().email() }).parse(req.body);
     const user = db.select().from(tables.users).where(eq(tables.users.email, email.toLowerCase())).get();
-    const creds = user
-      ? db.select().from(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.userId, user.id)).all()
-      : [];
-    if (creds.length === 0) throw new HttpError(404, "no device enrolled for this account");
     const { rpID } = rp(req as never);
-    const options = await generateAuthenticationOptions({
-      rpID,
-      userVerification: "required",
-      allowCredentials: creds.map((c) => ({
-        id: c.credentialId,
-        transports: JSON.parse(c.transports ?? "[]"),
-      })),
-    });
-    return { challengeId: putChallenge(user!.id, options.challenge), options };
+    const options = await generateAuthenticationOptions({ rpID, userVerification: "required" });
+    return { challengeId: putChallenge(user?.id ?? null, options.challenge), options };
   });
 
   app.post("/api/auth/webauthn/login/verify", async (req, reply) => {
