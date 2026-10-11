@@ -184,30 +184,6 @@ export function relationLine(r: GraphRelations | null | undefined): { relation: 
   return pick ? { relation: pick.relation, to: { id: pick.to.id, title: pick.to.title, type: pick.to.type } } : null;
 }
 
-const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
-
-/** A graph warning, said as a sentence about how many (structure.md §2.15). */
-export function warningSentence(code: string, n: number): string {
-  switch (code) {
-    case "person-without-company":
-      return `${n} ${plural(n, "person has", "people have")} no company`;
-    case "conversation-without-about":
-      return `${n} ${plural(n, "conversation isn't", "conversations aren't")} about anything yet`;
-    case "project-without-status":
-      return `${n} ${plural(n, "project has", "projects have")} no status`;
-    case "project-status-conflict":
-      return `${n} ${plural(n, "project says", "projects say")} two different statuses`;
-    case "document-orphan":
-      return `${n} ${plural(n, "document names a project", "documents name a project")} with no note`;
-    case "unresolved-object":
-      return `${n} ${plural(n, "relation points", "relations point")} at a note that doesn't exist`;
-    case "range-mismatch":
-      return `${n} ${plural(n, "relation points", "relations point")} at the wrong kind of note`;
-    default:
-      return `${n} ${plural(n, "thing needs", "things need")} a look`;
-  }
-}
-
 /* ---- Money ---------------------------------------------------------------------------------- */
 
 export interface MoneyPace {

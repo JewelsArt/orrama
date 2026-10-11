@@ -4,7 +4,7 @@
  * The people and projects are the mockups' fictional ones. No real vault, ever.
  */
 import { vi } from "vitest";
-import type { CalEvent, Company, Contact, DashboardTask, GraphRelations, GraphSchema, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import type { CalEvent, Company, Contact, DashboardTask, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
 
 export const NOW = new Date(2026, 9, 8, 10, 40);
 export const TODAY = "2026-10-08";
@@ -93,6 +93,17 @@ export const SCHEMA_TYPED: GraphSchema = {
     { code: "project-without-status", count: 1 },
   ],
 };
+/** Orr noticed's list (R11): a company with no note (said once), and a project with no status. */
+export const WARNINGS_TYPED: GraphWarnings = {
+  typed: true,
+  ontology: { id: "n-ont", title: "Vault ontology", path: "00-Meta/Vault ontology.md" },
+  warnings: [
+    { code: "unresolved-object", message: "m", note: { id: "n-pieter", title: "Pieter Bakker", type: "person", path: "Contacts/Pieter Bakker.md" }, relation: "works_at", target: "Bakker & Zn" },
+    { code: "person-without-company", message: "m", note: { id: "n-pieter", title: "Pieter Bakker", type: "person", path: "Contacts/Pieter Bakker.md" } },
+    { code: "project-without-status", message: "m", note: { id: "n-lisbon", title: "Lisbon trip", type: "project", path: "04-Projects/lisbon-trip.md" } },
+  ],
+};
+export const WARNINGS_EMPTY: GraphWarnings = { typed: false, ontology: null, warnings: [] };
 export const SCHEMA_EMPTY: GraphSchema = { notes: 312, types: [], relations: [], derived: [], statuses: [], mostConnected: [], warnings: [] };
 
 export const RELATIONS: Record<string, GraphRelations> = {
@@ -130,6 +141,7 @@ export function stubToday(over: Record<string, unknown> = {}) {
     "GET /api/contacts": CONTACTS,
     "GET /api/companies": COMPANIES,
     "GET /api/graph/schema": SCHEMA_EMPTY,
+    "GET /api/graph/warnings": WARNINGS_EMPTY,
     "GET /api/calendar/feeds": [],
     "GET /api/mail/account": account,
     "GET /api/mail/drafts": [],

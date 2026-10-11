@@ -7,7 +7,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIDDEN_KEY, Today } from "./Today.js";
-import { DRAFTS, INBOX, NOW, SCHEMA_TYPED, stubToday } from "./test/today-fixture.js";
+import { DRAFTS, INBOX, NOW, SCHEMA_TYPED, stubToday, WARNINGS_TYPED } from "./test/today-fixture.js";
 
 // Live sync, without a socket: a test says a note changed.
 const ws = vi.hoisted(() => ({ listeners: new Set<(m: unknown) => void>() }));
@@ -169,12 +169,13 @@ describe("Today: the modules", () => {
     expect(p.querySelector(".row")!.getAttribute("href")).toBe("/people/emma-jansen");
   });
 
-  it("Orr noticed: how many need a look, the first said in words", async () => {
-    stubToday({ "GET /api/graph/schema": SCHEMA_TYPED });
+  it("Orr noticed: how many need a look, the first said in words as Orr noticed says it", async () => {
+    stubToday({ "GET /api/graph/schema": SCHEMA_TYPED, "GET /api/graph/warnings": WARNINGS_TYPED });
     await shown();
     const n = mod("Orr noticed");
-    await waitFor(() => expect(within(n).getByText("4 in the graph")).toBeTruthy());
-    expect(n.querySelector(".noticed p")!.textContent).toBe("3 people have no company, and 1 more.");
+    await waitFor(() => expect(within(n).getByText("2 in the graph")).toBeTruthy());
+    expect(n.querySelector(".noticed p")!.textContent).toBe("Pieter Bakker works at Bakker & Zn, which has no note, and 1 more.");
+    expect(within(n).getByRole("link", { name: "1 more" }).getAttribute("href")).toBe("/notes/health");
     expect(within(n).getByRole("link", { name: "Review" }).getAttribute("href")).toBe("/notes/health");
   });
 

@@ -17,6 +17,9 @@ import { Notice, Skeleton } from "../ui/states.js";
 import { entitySlug, matchSender } from "../mail/people.js";
 import { boxState, daysLate, type ComingRow, type DueGroups, type DueTask, type MoneyPace, type PersonToday } from "./model.js";
 import type { Link } from "./Timetable.js";
+import { routeOf, type Known } from "../entity/links.js";
+import type { Part } from "../noticed/model.js";
+import { navigate, routeHref } from "../ui/router.js";
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 const follow = (l: Link) => (e: MouseEvent) => {
@@ -585,14 +588,17 @@ export function paceSentence(p: MoneyPace): string {
 export interface NoticedData {
   /** The vault has an ontology note: its types are known. */
   typed: boolean;
+  /** How many problems Orr noticed lists. */
   total: number;
-  /** The most common warning, said as a sentence, and how many it covers. */
-  first: { text: string; count: number } | null;
+  /** The first, said as Orr noticed says it ("Pieter Bakker works at Bakker & Zn, which has no note."). */
+  first: Part[] | null;
   notes: number;
 }
 
-export function NoticedModule({ loaded, health }: { loaded: Loaded<NoticedData>; health: Link }) {
+export function NoticedModule({ loaded, health, known }: { loaded: Loaded<NoticedData>; health: Link; known: Known }) {
   const n = loaded.state === "ok" ? loaded.data : null;
+  const parts = n?.first ?? [];
+  const last = parts.length - 1;
   return (
     <Module title="Orr noticed" count={n && n.total > 0 ? `${n.total} in the graph` : undefined} onCount={health.onOpen} className="td-noticed">
       <Pending what="The graph" loaded={loaded} rows={2} />
@@ -603,16 +609,29 @@ export function NoticedModule({ loaded, health }: { loaded: Loaded<NoticedData>;
           </div>
           <div>
             <p>
-              {n.first ? n.first.text : `${n.total} things need a look`}
-              {n.first && n.total > n.first.count && (
+              {parts.map((p, i) => {
+                // The sentence's full stop moves after "and N more".
+                const text = typeof p === "string" ? (i === last && n.total > 1 ? p.replace(/\.$/, "") : p) : null;
+                if (text !== null) return <span key={i}>{text}</span>;
+                const part = p as Exclude<Part, string>;
+                const to = part.note.path ? routeOf({ id: part.note.id, path: part.note.path, type: part.note.type }, known) : null;
+                return to ? (
+                  <a key={i} className="ui-nm" href={routeHref(to)} onClick={follow({ href: routeHref(to), onOpen: () => navigate(to) })}>
+                    {part.name}
+                  </a>
+                ) : (
+                  <b key={i}>{part.name}</b>
+                );
+              })}
+              {n.total > 1 && (
                 <>
                   , and{" "}
                   <a className="ui-nm" href={health.href} onClick={follow(health)}>
-                    {n.total - n.first.count} more
+                    {n.total - 1} more
                   </a>
+                  .
                 </>
               )}
-              .
             </p>
             <LinkButton size="sm" href={health.href} onClick={follow(health)}>
               Review

@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, isoLocal } from "@basalt/core/dates";
-import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
 import { api } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
 import { addressOf } from "./mail/people.js";
@@ -29,7 +29,8 @@ import { navigate, routeHref, type Route } from "./ui/router.js";
 import { Skeleton } from "./ui/states.js";
 import { AddMoneyRow } from "./today/AddMoneyRow.js";
 import { minuteOf, poseAt, type DayItem } from "./today/day.js";
-import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, warningSentence, type ComingRow } from "./today/model.js";
+import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, type ComingRow } from "./today/model.js";
+import { itemsOf } from "./noticed/model.js";
 import { ComingUpModule, DueModule, MailModule, MoneyModule, NoticedModule, PeopleModule, ProjectsModule, entitySlug, type Loaded, type MailData, type NoticedData } from "./today/modules.js";
 import { Timetable, type Link } from "./today/Timetable.js";
 import { isoWeek, todayTitle } from "./today/title.js";
@@ -126,6 +127,8 @@ export function Today({ onCapture }: { onCapture: () => void }) {
   const contacts = useAsk(() => api<Contact[]>("GET", "/api/contacts"), [tick]);
   const companies = useAsk(() => api<Company[]>("GET", "/api/companies"), [tick]);
   const schema = useAsk(() => api<GraphSchema>("GET", "/api/graph/schema"), [tick]);
+  // Orr noticed's own list (R11): the module names the first problem as the page says it.
+  const warnings = useAsk(() => api<GraphWarnings>("GET", "/api/graph/warnings"), [tick]);
   const feeds = useAsk(() => api<Feed[]>("GET", "/api/calendar/feeds"), []);
   const account = useAsk(() => api<MailAccount>("GET", "/api/mail/account"), []);
   const connected = ok(account)?.connected === true;
@@ -293,15 +296,20 @@ export function Today({ onCapture }: { onCapture: () => void }) {
   }, [askKey]);
   const relation = useCallback((id: string) => relations.get(id) ?? null, [relations]);
 
-  const noticed = map(all(schema, home), ([s, h]): NoticedData => {
-    const top = s.warnings[0];
-    return {
-      typed: s.types.length > 0,
-      total: s.warnings.reduce((n, w) => n + w.count, 0),
-      first: top ? { text: warningSentence(top.code, top.count), count: top.count } : null,
-      notes: h.stats.notes,
-    };
+  const noticed = map(all(warnings, home), ([w, h]): NoticedData => {
+    const items = itemsOf(w.warnings);
+    return { typed: w.typed, total: items.length, first: items[0]?.parts ?? null, notes: h.stats.notes };
   });
+  /** Where a name in Orr's sentence opens: People's, the board's and the saved chats' own pages. */
+  const knownNow = useMemo(
+    () => ({
+      people: new Set((ok(contacts) ?? []).map((c) => c.id)),
+      companies: new Set((ok(companies) ?? []).map((c) => c.id)),
+      projects: new Map((ok(projects) ?? []).filter((p) => p.noteId).map((p) => [p.noteId!, p.slug])),
+      conversations: new Set<string>(),
+    }),
+    [contacts, companies, projects],
+  );
 
   /* ---- Customise: which modules show, on this device ---- */
   const [hidden, setHidden] = useState<Set<ModuleId>>(() => {
@@ -395,7 +403,7 @@ export function Today({ onCapture }: { onCapture: () => void }) {
           />
         );
       case "noticed":
-        return <NoticedModule key={id} loaded={noticed} health={L({ kind: "notes-health" })} />;
+        return <NoticedModule key={id} loaded={noticed} health={L({ kind: "notes-health" })} known={knownNow} />;
     }
   };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CalEvent, Contact, DashboardTask, GraphRelations, ProjectRow } from "@basalt/schema/responses";
-import { boxState, comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, warningSentence, weekEnd } from "./model.js";
+import { boxState, comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, weekEnd } from "./model.js";
 
 const TODAY = "2026-10-08"; // a Thursday
 
@@ -151,11 +151,6 @@ describe("the graph, in words", () => {
   it("says nothing when the graph knows nothing", () => {
     expect(relationLine(rel([]))).toBeNull();
     expect(relationLine(null)).toBeNull();
-  });
-  it("says a warning as a sentence with its count", () => {
-    expect(warningSentence("person-without-company", 1)).toBe("1 person has no company");
-    expect(warningSentence("person-without-company", 3)).toBe("3 people have no company");
-    expect(warningSentence("project-without-status", 2)).toBe("2 projects have no status");
   });
 });
 
