@@ -156,7 +156,7 @@ describe("Today: the modules", () => {
     const m = mod("Money");
     expect(within(m).getByText("October")).toBeTruthy();
     expect(m.querySelector(".big")!.textContent).toBe("€958 spent by day 8");
-    expect(m.querySelector(".big")!.getAttribute("href")).toBe("/money?month=2026-10");
+    expect(m.querySelector(".big")!.getAttribute("href")).toBe("/money/spending?month=2026-10");
     expect(m.querySelector("p")!.textContent).toBe("A typical month comes to €1,600; 60% of that is spent so far. Adobe Creative Cloud charges €19.66 today.");
   });
 

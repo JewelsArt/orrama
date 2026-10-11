@@ -391,7 +391,7 @@ export function Today({ onCapture }: { onCapture: () => void }) {
             loaded={pace}
             today={today}
             charges={charges.filter((c) => c.date <= addDays(today, 7))}
-            go={{ money: L({ kind: "money" }), month: (m) => L({ kind: "money", month: m }), subscriptions: L({ kind: "money", page: "subscriptions" }), upload: L({ kind: "money", page: "documents" }) }}
+            go={{ money: L({ kind: "money" }), month: (m) => L({ kind: "money", page: "spending", month: m }), subscriptions: L({ kind: "money", page: "subscriptions" }), upload: L({ kind: "money", page: "documents" }) }}
           />
         );
       case "noticed":
