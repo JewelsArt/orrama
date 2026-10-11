@@ -79,6 +79,8 @@ describe("addresses", () => {
   it("knows a page deeper than its place's front page", () => {
     expect(isDeep({ kind: "today" })).toBe(false);
     expect(isDeep({ kind: "planning", scale: "week" })).toBe(false);
+    expect(isDeep({ kind: "planning", scale: "month", at: "2026-11" })).toBe(false); // a scale and a date: the same place
+    expect(isDeep({ kind: "planning", scale: "day", at: "2026-10-08" })).toBe(false);
     expect(isDeep({ kind: "orrery", area: "work" })).toBe(false); // a filter, not a level
     expect(isDeep({ kind: "project", slug: "x" })).toBe(true);
     expect(isDeep({ kind: "money", page: "spending", category: "Groceries" })).toBe(true);

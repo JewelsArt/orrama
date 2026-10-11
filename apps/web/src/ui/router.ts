@@ -222,6 +222,8 @@ export function placeRoute(p: Place): Route {
 export function isDeep(r: Route): boolean {
   const p = placeOf(r);
   if (!p) return true;
+  // Planning's scales and dates are views of one place, side by side (its tabs and arrows), not levels.
+  if (r.kind === "planning") return false;
   return routeHref(r).split("?")[0] !== routeHref(placeRoute(p)).split("?")[0];
 }
 

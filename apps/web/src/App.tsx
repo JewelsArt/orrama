@@ -14,6 +14,7 @@ import { Mail } from "./Mail.js";
 import { Overview } from "./Overview.js";
 import { PROFILE_VAR_NAMES, customId, isCustom, profileVars, type VisionProfile } from "./palette.js";
 import { Planning } from "./Planning.js";
+import { planningTitle } from "./planning/title.js";
 import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
@@ -154,6 +155,8 @@ export function titleOf(r: Route): string {
       return r.merchant ?? r.category ?? (r.page ? MONEY_TITLES[r.page] : "Money");
     case "settings":
       return (r.section && SETTINGS_SECTIONS.find((s) => s.id === r.section)?.label) || "Settings";
+    case "planning":
+      return planningTitle(r);
     default:
       return PLACES.find((p) => p.place === placeOf(r))?.label ?? "Orrama";
   }
@@ -472,7 +475,7 @@ export function App() {
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}
-      <ErrorBoundary key={shown.kind === "orrery" ? "/orrery" : routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
+      <ErrorBoundary key={shown.kind === "orrery" ? "/orrery" : shown.kind === "planning" ? "/planning" : routeHref(shown)} what={route.kind === "settings" ? "Settings" : undefined} onLeave={{ label: "Go to Today", run: () => go({ kind: "today" }) }}>
         {route.kind === "settings" ? (
           <Settings
             me={me}
@@ -501,7 +504,7 @@ export function App() {
         ) : view.kind === "architecture" ? (
           <Architecture me={me} noteId={view.noteId} category={view.category} />
         ) : view.kind === "planning" ? (
-          <Planning me={me} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
+          <Planning me={me} route={route.kind === "planning" ? route : undefined} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "overview" ? (
           <Overview me={me} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "project" ? (
