@@ -5,7 +5,7 @@
 process.env.TZ = "Europe/Amsterdam";
 
 import { describe, expect, it } from "vitest";
-import { buildIcs, expandIcs, parseIcs } from "../src/ics.js";
+import { buildIcs, expandIcs, expandIcsReport, MAX_EXPAND_STEPS, parseIcs } from "../src/ics.js";
 
 const wrap = (body: string) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${body}\r\nEND:VCALENDAR\r\n`;
 
@@ -302,6 +302,113 @@ describe("expandIcs: the RRULE forms that were wrong", () => {
     );
     // Five occurrences exist: Jan 5-9. The window starts on the 7th, so three.
     expect(occ.map((o) => o.date)).toEqual(["2026-01-07", "2026-01-08", "2026-01-09"]);
+  });
+});
+
+/**
+ * A feed is untrusted input, expanded on the event loop for every calendar
+ * page (audit INP-002). Every rule used to be walked from DTSTART to the
+ * window, up to 40,000 steps per event with a timezone conversion each: ten
+ * daily events begun in 1900 took 5 s to show one week, 500 took 5 minutes,
+ * and nothing else was served meanwhile.
+ */
+describe("expandIcs on a long-lived or hostile feed", () => {
+  const masters = (n: number, rule: string, dtstart = "19000101T090000Z") =>
+    wrap(Array.from({ length: n }, (_, i) => `BEGIN:VEVENT\r\nUID:e${i}\r\nDTSTART:${dtstart}\r\nRRULE:${rule}\r\nSUMMARY:x${i}\r\nEND:VEVENT`).join("\r\n"));
+
+  it("500 daily events begun in 1900 expand one week in a few steps each, all of them shown", { timeout: 30_000 }, () => {
+    const events = parseIcs(masters(500, "FREQ=DAILY"));
+    const t = performance.now();
+    const r = expandIcsReport(events, "2026-10-05", "2026-10-11");
+    const ms = performance.now() - t;
+    expect(r.truncated).toBe(false);
+    expect(r.occurrences).toHaveLength(500 * 7);
+    // The window is 7 days plus a little slack either side: a handful of steps
+    // per event, not the 46,000 days since 1900.
+    expect(r.steps).toBeLessThan(500 * 20);
+    expect(ms).toBeLessThan(3000); // ~20 ms here; minutes before (the step count above is the real pin)
+  });
+
+  it("weekly and monthly rules begun in 1900 jump to the window too", { timeout: 30_000 }, () => {
+    const weekly = expandIcsReport(parseIcs(masters(200, "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU")), "2026-10-05", "2026-10-11");
+    expect(weekly.occurrences).toHaveLength(200 * 7);
+    expect(weekly.steps).toBeLessThan(200 * 10);
+    const monthly = expandIcsReport(parseIcs(masters(200, "FREQ=MONTHLY;BYMONTHDAY=7")), "2026-10-05", "2026-10-11");
+    expect(monthly.occurrences).toHaveLength(200);
+    expect(monthly.steps).toBeLessThan(200 * 10);
+    const yearly = expandIcsReport(parseIcs(masters(200, "FREQ=YEARLY", "19001007T090000Z")), "2026-10-05", "2026-10-11");
+    expect(yearly.occurrences).toHaveLength(200);
+    expect(yearly.steps).toBeLessThan(200 * 10);
+  });
+
+  it("COUNT is still counted from DTSTART when the weeks before the window are skipped", () => {
+    // Mondays and Thursdays from Thu 1 Jan 2026: the first week holds only the
+    // Thursday, then two a week, so the 60th is the Monday of week 30, 27 Jul.
+    const occ = expandIcs(parseIcs(masters(1, "FREQ=WEEKLY;BYDAY=MO,TH;COUNT=60", "20260101T090000Z")), "2026-07-13", "2026-08-09");
+    expect(occ.map((o) => o.date)).toEqual(["2026-07-13", "2026-07-16", "2026-07-20", "2026-07-23", "2026-07-27"]);
+    // Monthly on the 1st and 15th from Jan 2025: COUNT=40 ends on 15 Aug 2026.
+    const semi = expandIcs(parseIcs(masters(1, "FREQ=MONTHLY;BYMONTHDAY=1,15;COUNT=40", "20250101T090000Z")), "2026-07-01", "2026-09-30");
+    expect(semi.map((o) => o.date)).toEqual(["2026-07-01", "2026-07-15", "2026-08-01", "2026-08-15"]);
+  });
+
+  it("a rule whose INTERVAL or COUNT is not a number is the master's own occurrence, and the feed survives", () => {
+    for (const rule of ["FREQ=DAILY;INTERVAL=X", "FREQ=WEEKLY;INTERVAL=two", "FREQ=DAILY;INTERVAL=1e400", "FREQ=YEARLY;INTERVAL=-1", "FREQ=DAILY;COUNT=many"]) {
+      const feed = wrap(
+        [
+          `BEGIN:VEVENT\r\nUID:odd\r\nDTSTART:20261006T090000Z\r\nDTEND:20261006T100000Z\r\nRRULE:${rule}\r\nSUMMARY:odd\r\nEND:VEVENT`,
+          "BEGIN:VEVENT\r\nUID:ok\r\nDTSTART:20261007T090000Z\r\nDTEND:20261007T100000Z\r\nSUMMARY:normal\r\nEND:VEVENT",
+        ].join("\r\n"),
+      );
+      const occ = expandIcs(parseIcs(feed), "2026-10-05", "2026-10-11");
+      expect(occ.map((o) => `${o.uid} ${o.date}`), rule).toEqual(["odd 2026-10-06", "ok 2026-10-07"]);
+    }
+  });
+
+  it("a huge INTERVAL past what a Date can hold ends the rule instead of throwing", () => {
+    const occ = expandIcs(parseIcs(masters(1, "FREQ=YEARLY;INTERVAL=999999999", "20261006T090000Z")), "2026-10-05", "2026-10-11");
+    expect(occ.map((o) => o.date)).toEqual(["2026-10-06"]);
+  });
+
+  it("a pathological feed stops at the budget and says it was cut short", { timeout: 30_000 }, () => {
+    // COUNT forces the months before the window to be counted, and a DTSTART
+    // in the year 100 makes that 23,000 months per event.
+    const events = parseIcs(masters(400, "FREQ=MONTHLY;BYDAY=MO;COUNT=999999999", "01000101T090000Z"));
+    const t = performance.now();
+    const r = expandIcsReport(events, "2026-10-05", "2026-10-11");
+    const ms = performance.now() - t;
+    expect(r.truncated).toBe(true);
+    expect(r.steps).toBe(MAX_EXPAND_STEPS);
+    expect(ms).toBeLessThan(15_000); // ~0.3 s here; unbounded before (the step count is the real pin)
+    // A smaller budget stops sooner, and the events it reached are still shown.
+    const small = expandIcsReport(events, "2026-10-05", "2026-10-11", 100_000);
+    expect(small.truncated).toBe(true);
+    expect(small.occurrences.length).toBeGreaterThan(0);
+  });
+
+  it("the timezone offsets it remembers per day are exact on the day the clocks change", () => {
+    // Amsterdam goes from +1 to +2 at 01:00Z on 29 Mar 2026 and back at 01:00Z on 25 Oct.
+    const at = (dt: string) =>
+      expandIcs(parseIcs(wrap(`BEGIN:VEVENT\r\nUID:d\r\nDTSTART;TZID=Europe/Amsterdam:${dt}\r\nDTEND;TZID=Europe/Amsterdam:${dt}\r\nSUMMARY:x\r\nEND:VEVENT`)), "2026-01-01", "2026-12-31").map((o) => [o.date, o.startMin]);
+    expect(at("20260329T000000")).toEqual([["2026-03-29", 0]]);
+    expect(at("20260329T090000")).toEqual([["2026-03-29", 540]]);
+    expect(at("20261025T090000")).toEqual([["2026-10-25", 540]]);
+    expect(at("20261025T230000")).toEqual([["2026-10-25", 1380]]);
+  });
+
+  it("an event the expander chokes on loses its own occurrences, never the feed's", () => {
+    const [good] = parseIcs(wrap("BEGIN:VEVENT\r\nUID:ok\r\nDTSTART:20261007T090000Z\r\nSUMMARY:ok\r\nEND:VEVENT"));
+    const broken = { ...good!, uid: "bad", rrule: { FREQ: "DAILY" }, exdates: null as unknown as number[] };
+    expect(expandIcs([broken, good!], "2026-10-05", "2026-10-11").map((o) => o.uid)).toEqual(["ok"]);
+  });
+
+  it("thousands of EXDATEs are a lookup per occurrence, not a scan", { timeout: 30_000 }, () => {
+    const exdates = Array.from({ length: 50_000 }, (_, i) => new Date(Date.UTC(2020, 0, 1 + i, 9)).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")).join(",");
+    const feed = wrap(`BEGIN:VEVENT\r\nUID:x\r\nDTSTART:20000101T090000Z\r\nRRULE:FREQ=DAILY\r\nEXDATE:${exdates}\r\nSUMMARY:x\r\nEND:VEVENT`);
+    const occ = expandIcs(parseIcs(feed), "2026-10-05", "2026-10-11");
+    // Every day from 2020 for 50,000 days is excluded: nothing left this week.
+    expect(occ).toEqual([]);
+    const kept = expandIcs(parseIcs(feed), "2019-12-25", "2019-12-31");
+    expect(kept).toHaveLength(7);
   });
 });
 

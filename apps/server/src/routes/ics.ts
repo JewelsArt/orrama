@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { canRead } from "@basalt/core";
 import { tables, type Db } from "../db.js";
-import { buildIcs, expandIcs, parseIcs, type IcsExportItem, type VEvent } from "../ics.js";
+import { buildIcs, expandIcsReport, parseIcs, type IcsExportItem, type VEvent } from "../ics.js";
 import { decryptSecret, encryptSecret } from "../secrets.js";
 import { BlockedTargetError, safeFetch } from "../safeFetch.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -24,6 +24,9 @@ import { sessionOnly } from "./auth.js";
 const FEED_TTL_MS = 10 * 60_000;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_FEED_BYTES = 5 * 1024 * 1024;
+
+/** The feed's `lastError` when its repeating events were too many to expand in full. */
+export const TRUNCATED = "too many repeating events, some are not shown";
 
 const cache = new Map<string, { at: number; events: VEvent[] }>();
 
@@ -92,7 +95,10 @@ export async function icsEventsFor(db: Db, userId: string, username: string, fro
   const out: IcsCalItem[] = [];
   await Promise.all(
     feeds.map(async (feed) => {
-      const occurrences = expandIcs(await feedEvents(db, feed), from, to);
+      const { occurrences, truncated } = expandIcsReport(await feedEvents(db, feed), from, to);
+      // A feed whose rules need more work than one expansion may spend shows
+      // what fitted, and says so where a feed's trouble is shown (audit INP-002).
+      if (truncated) db.update(tables.icsFeeds).set({ lastError: TRUNCATED }).where(eq(tables.icsFeeds.id, feed.id)).run();
       for (let i = 0; i < occurrences.length; i++) {
         const o = occurrences[i]!;
         out.push({

@@ -28,6 +28,7 @@ process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "40";
 process.env.TZ = "Europe/Amsterdam";
 
 const { buildServer } = await import("../src/main.js");
+const { TRUNCATED } = await import("../src/routes/ics.js");
 
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 const tokens: Record<string, string> = {};
@@ -166,6 +167,25 @@ describe("inbound ICS feeds", () => {
     // Erin queries the same range: jules's subscribed calendar is not hers to see.
     const erin = await api("GET", "/api/events?from=2026-07-06&to=2026-07-12", tokens["erin"]);
     expect(erin.json().filter((e: { source?: string }) => e.source === "ics")).toEqual([]);
+  });
+  it("a feed too heavy to expand in full shows what fits and says so on the feed (audit INP-002)", { timeout: 30_000 }, async () => {
+    // Each rule's COUNT makes the 23,000 months since the year 100 count: more
+    // work than one expansion may spend, which used to hold the server for as
+    // long as it took.
+    icsBody = [
+      "BEGIN:VCALENDAR",
+      ...Array.from({ length: 400 }, (_, i) =>
+        [`BEGIN:VEVENT`, `UID:heavy-${i}`, "DTSTART:01000101T090000Z", "RRULE:FREQ=MONTHLY;BYDAY=MO;COUNT=999999999", "SUMMARY:x", "END:VEVENT"].join("\r\n"),
+      ),
+      "END:VCALENDAR",
+    ].join("\r\n");
+    const add = await api("POST", "/api/calendar/feeds", tokens["jules"], { label: "Heavy", url: `http://127.0.0.1:${helperPort}/heavy.ics` });
+    expect(add.status).toBe(200);
+    const events = await api("GET", "/api/events?from=2026-10-05&to=2026-10-11", tokens["jules"]);
+    expect(events.status).toBe(200);
+    const feeds = (await api("GET", "/api/calendar/feeds", tokens["jules"])).json() as { label: string; lastError: string | null }[];
+    expect(feeds.find((f) => f.label === "Heavy")?.lastError).toBe(TRUNCATED);
+    expect(feeds.find((f) => f.label === "Uni")?.lastError).toBeNull();
   });
 });
 

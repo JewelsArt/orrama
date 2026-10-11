@@ -10,14 +10,17 @@
  */
 
 const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const DAY_MS = 86_400_000;
 const MAX_OCCURRENCES = 3000;
 /**
- * How many steps the generator may take before giving up. Separate from
- * MAX_OCCURRENCES, which caps what is KEPT: a daily event that started in 2012
- * has to be walked past before the current week is reached, and capping the
- * walk at the same 3,000 made every such event invisible (audit).
+ * How much one expansion may do for a whole feed: every generator step and
+ * every occurrence kept, across all its events. A feed is untrusted input and
+ * expansion runs on the event loop. The rules no longer walk from DTSTART to
+ * the window (see generateStarts), so an ordinary feed spends a few steps per
+ * rule; this bounds a hostile one. Past it the expansion stops and says so
+ * (`truncated`), rather than freezing the server for minutes (audit INP-002).
  */
-const MAX_STEPS = 40_000;
+export const MAX_EXPAND_STEPS = 200_000;
 
 /** Wall-clock time in a named timezone (how ICS thinks about recurring times). */
 interface Wall {
@@ -67,12 +70,33 @@ const dtf = (tz: string) => {
   return f;
 };
 
-/** How far `tz` is ahead of UTC at instant `ts`, in ms. */
-function tzOffsetMs(ts: number, tz: string): number {
+function intlOffsetMs(ts: number, tz: string): number {
   const parts: Record<string, string> = {};
   for (const p of dtf(tz).formatToParts(new Date(ts))) parts[p.type] = p.value;
   const asUtc = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour! % 24, +parts.minute!, +parts.second!);
   return asUtc - ts;
+}
+
+/**
+ * `${tz}|${UTC day}` → the zone's offset that whole day, or null for a day it
+ * changes (asked exactly then). `formatToParts` costs microseconds and a 5 MB
+ * feed asks hundreds of thousands of times, almost always about the same few
+ * hundred days: parsing one took 1.4 s on the event loop (audit INP-002).
+ */
+const offsetDays = new Map<string, number | null>();
+
+/** How far `tz` is ahead of UTC at instant `ts`, in ms. */
+function tzOffsetMs(ts: number, tz: string): number {
+  const day = Math.floor(ts / DAY_MS);
+  const key = `${tz}|${day}`;
+  let off = offsetDays.get(key);
+  if (off === undefined) {
+    const a = intlOffsetMs(day * DAY_MS, tz);
+    off = a === intlOffsetMs((day + 1) * DAY_MS, tz) ? a : null;
+    if (offsetDays.size >= 100_000) offsetDays.clear();
+    offsetDays.set(key, off);
+  }
+  return off ?? intlOffsetMs(ts, tz);
 }
 
 function resolveTz(tz: string): string {
@@ -254,21 +278,43 @@ function nthWeekday(y: number, mo: number, dow: number, nth: number): number | n
   return day >= 1 ? day : null;
 }
 
+/** A whole number ≥ 1 as RRULE writes it, or null. `+"X"` is NaN and `+"1e400"` Infinity, and either reached Date.UTC. */
+function positiveInt(v: string): number | null {
+  return /^\d{1,9}$/.test(v) && +v > 0 ? +v : null;
+}
+
+/** What one expansion has left to spend (MAX_EXPAND_STEPS), shared by every event in the feed. */
+interface Budget {
+  left: number;
+  truncated: boolean;
+}
+
 /**
  * Generate occurrence start Walls for one master event, honoring COUNT/UNTIL.
- * Generation always starts at DTSTART (COUNT semantics), the window only filters.
+ * Occurrences are counted from DTSTART (COUNT semantics) and kept from the
+ * window — but the periods before the window are COUNTED, not walked: each
+ * frequency jumps straight to the first period that can reach the window.
+ * Walking them is what let a daily event begun in 1900 cost 46,000 steps,
+ * each with a timezone conversion, for one week of calendar: ten of them in
+ * a feed blocked the server for 5 s, 500 for 5 minutes (audit INP-002).
  */
-function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number): Wall[] {
+function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number, budget: Budget): Wall[] {
   const rule = ev.rrule;
   if (!rule) return [ev.start];
   const freq = rule["FREQ"];
-  const interval = Math.max(1, +(rule["INTERVAL"] ?? 1));
-  const count = rule["COUNT"] ? +rule["COUNT"] : Infinity;
+  const interval = positiveInt(rule["INTERVAL"] ?? "1");
+  const count = rule["COUNT"] === undefined ? Infinity : positiveInt(rule["COUNT"]);
+  // A rule that cannot be read is the master's own occurrence, like an
+  // unsupported FREQ — not a RangeError that dropped every event in the feed.
+  if (interval === null || count === null) return [ev.start];
   let untilMs = Infinity;
   if (rule["UNTIL"]) {
     const w = parseDt(rule["UNTIL"], /Z$/.test(rule["UNTIL"]) ? {} : { TZID: ev.start.tz });
     if (w) untilMs = w.allDay ? wallToUtc({ ...w, h: 23, mi: 59 }) : wallToUtc(w);
   }
+  // A wall date is within a day of its UTC date, so only a day next to
+  // UNTIL's needs the exact (Intl) instant.
+  const untilDay = Math.floor(untilMs / DAY_MS);
   const startDay = wallDayNumber(ev.start);
   // Occurrences are COUNTED from DTSTART and KEPT from the window. Keeping
   // them all is what made a long-running daily event vanish: the cap filled up
@@ -276,38 +322,52 @@ function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number
   // slack is for an all-day event that began before the window and still
   // covers part of it.
   const keepFrom = windowStartDay - 2 - Math.ceil(ev.durationMin / 1440);
+  const keepDate = new Date(keepFrom * DAY_MS);
   const out: Wall[] = [];
   let emitted = 0;
+  const step = (): boolean => {
+    if (--budget.left >= 0) return true;
+    budget.truncated = true;
+    return false;
+  };
   const push = (w: Wall): boolean => {
-    if (wallDayNumber(w) < startDay) return true; // before DTSTART: not an occurrence
-    if (wallToUtc(w) > untilMs) return false;
+    const day = wallDayNumber(w);
+    if (day < startDay) return true; // before DTSTART: not an occurrence
+    if (day > untilDay + 1 || (day >= untilDay - 1 && wallToUtc(w) > untilMs)) return false;
     emitted++;
     if (emitted > count) return false;
-    if (wallDayNumber(w) >= keepFrom) out.push(w);
+    if (day >= keepFrom) out.push(w);
     return out.length < MAX_OCCURRENCES;
   };
+  // Every loop below stops on `!(day <= end)`, which a NaN day (a date past
+  // what Date can hold, from a huge INTERVAL) also satisfies.
 
   if (freq === "DAILY") {
-    for (let i = 0; ; i++) {
+    // One occurrence per period, so the days before the window are a count.
+    const first = Math.max(0, Math.ceil((keepFrom - startDay) / interval));
+    emitted = first;
+    for (let i = first; step(); i++) {
       const w = addDays(ev.start, i * interval);
-      if (wallDayNumber(w) > windowEndDay) break;
+      if (!(wallDayNumber(w) <= windowEndDay)) break;
       if (!push(w)) break;
-      if (i > MAX_STEPS) break;
     }
   } else if (freq === "WEEKLY") {
     const bydays = (rule["BYDAY"]?.split(",") ?? [DOW[weekdayOf(ev.start)]!]).map((s) => DOW.indexOf(s.trim())).filter((n) => n >= 0);
     // Weeks start Monday (WKST default); walk week by week emitting each BYDAY.
     const dowStart = weekdayOf(ev.start);
     const weekMonday = addDays(ev.start, -((dowStart + 6) % 7));
-    outer: for (let week = 0; ; week++) {
+    const mondayDay = wallDayNumber(weekMonday);
+    const weekDows = [1, 2, 3, 4, 5, 6, 0].filter((dow) => bydays.includes(dow));
+    // Every week emits all its days, except the first, which skips those before DTSTART.
+    const first = Math.max(0, Math.ceil((keepFrom - 6 - mondayDay) / (interval * 7)));
+    if (first > 0) emitted = weekDows.filter((dow) => mondayDay + ((dow + 6) % 7) >= startDay).length + (first - 1) * weekDows.length;
+    outer: for (let week = first; step(); week++) {
       const base = addDays(weekMonday, week * interval * 7);
-      if (wallDayNumber(base) > windowEndDay + 7) break;
-      for (const dow of [1, 2, 3, 4, 5, 6, 0]) {
-        if (!bydays.includes(dow)) continue;
+      if (!(wallDayNumber(base) <= windowEndDay + 7)) break;
+      for (const dow of weekDows) {
         const w = addDays(base, (dow + 6) % 7);
         if (!push(w)) break outer;
       }
-      if (week > MAX_STEPS) break;
     }
   } else if (freq === "MONTHLY") {
     /**
@@ -330,11 +390,8 @@ function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number
       .map((s) => /^([+-]?\d+)?([A-Z]{2})$/.exec(s.trim().toUpperCase()))
       .filter((m): m is RegExpExecArray => m !== null && DOW.includes(m[2]!));
 
-    outer: for (let i = 0; ; i++) {
-      const t = new Date(Date.UTC(ev.start.y, ev.start.mo - 1 + i * interval, 1));
-      const y = t.getUTCFullYear();
-      const mo = t.getUTCMonth() + 1;
-      if (wallDayNumber({ ...ev.start, y, mo, d: 1 }) > windowEndDay) break;
+    /** The days of month `mo` of year `y` the rule names, ascending. */
+    const daysOf = (y: number, mo: number): number[] => {
       const dim = daysInMonth(y, mo);
 
       // A negative day counts back from the end: -1 is the last day.
@@ -368,18 +425,44 @@ function generateStarts(ev: VEvent, windowStartDay: number, windowEndDay: number
         // rather than rolling over into the next one.
         days = ev.start.d <= dim ? [ev.start.d] : [];
       }
+      return [...new Set(days)].sort((a, b) => a - b);
+    };
+    const monthAt = (i: number) => {
+      const t = new Date(Date.UTC(ev.start.y, ev.start.mo - 1 + i * interval, 1));
+      return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1 };
+    };
 
-      for (const d of [...new Set(days)].sort((a, b) => a - b)) {
+    // Months before the window hold no kept occurrence: skip them, and
+    // count what they emit only when a COUNT needs it.
+    const months = keepDate.getUTCFullYear() * 12 + keepDate.getUTCMonth() - (ev.start.y * 12 + ev.start.mo - 1);
+    const first = Math.max(0, Math.floor(months / interval));
+    if (count !== Infinity) {
+      for (let i = 0; i < first && emitted <= count; i++) {
+        if (!step()) return out;
+        const { y, mo } = monthAt(i);
+        emitted += daysOf(y, mo).filter((d) => i > 0 || d >= ev.start.d).length;
+      }
+    }
+    outer: for (let i = first; step(); i++) {
+      const { y, mo } = monthAt(i);
+      if (!(wallDayNumber({ ...ev.start, y, mo, d: 1 }) <= windowEndDay)) break;
+      for (const d of daysOf(y, mo)) {
         if (!push({ ...ev.start, y, mo, d })) break outer;
       }
-      if (i > MAX_STEPS) break;
     }
   } else if (freq === "YEARLY") {
-    for (let i = 0; ; i++) {
+    const fits = (y: number) => ev.start.d <= daysInMonth(y, ev.start.mo);
+    const first = Math.max(0, Math.floor((keepDate.getUTCFullYear() - ev.start.y) / interval));
+    if (count !== Infinity) {
+      for (let i = 0; i < first && emitted <= count; i++) {
+        if (!step()) return out;
+        if (fits(ev.start.y + i * interval)) emitted++;
+      }
+    }
+    for (let i = first; step(); i++) {
       const y = ev.start.y + i * interval;
-      if (wallDayNumber({ ...ev.start, y }) > windowEndDay) break;
-      if (ev.start.d <= daysInMonth(y, ev.start.mo) && !push({ ...ev.start, y })) break;
-      if (i > MAX_STEPS) break;
+      if (!(wallDayNumber({ ...ev.start, y }) <= windowEndDay)) break;
+      if (fits(y) && !push({ ...ev.start, y })) break;
     }
   } else {
     return [ev.start]; // unsupported FREQ: at least show the first instance
@@ -399,12 +482,26 @@ function toLocalSlot(ts: number): { date: string; startMin: number } {
 
 const wallDateStr = (w: Wall) => `${w.y}-${String(w.mo).padStart(2, "0")}-${String(w.d).padStart(2, "0")}`;
 
+export interface IcsExpansion {
+  occurrences: IcsOccurrence[];
+  /** The feed asked for more work than MAX_EXPAND_STEPS: some recurring events are missing. */
+  truncated: boolean;
+  /** Generator steps spent (what the budget counts). */
+  steps: number;
+}
+
 /** Expand a parsed feed into occurrences within [from, to] (YYYY-MM-DD, inclusive). */
 export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurrence[] {
+  return expandIcsReport(events, from, to).occurrences;
+}
+
+/** expandIcs, and whether the feed's budget ran out (`maxSteps`, for tests). */
+export function expandIcsReport(events: VEvent[], from: string, to: string, maxSteps = MAX_EXPAND_STEPS): IcsExpansion {
   const fromMs = new Date(`${from}T00:00:00`).getTime();
   const toMs = new Date(`${to}T23:59:59`).getTime();
-  const windowEndDay = Math.floor(Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10)) / 86_400_000) + 2;
-  const windowStartDay = Math.floor(Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10)) / 86_400_000);
+  const windowEndDay = Math.floor(Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10)) / DAY_MS) + 2;
+  const windowStartDay = Math.floor(Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10)) / DAY_MS);
+  const budget: Budget = { left: maxSteps, truncated: false };
 
   const overrides = new Map<string, VEvent[]>();
   for (const ev of events) {
@@ -415,8 +512,14 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
     }
   }
 
+  /** Whether a start on wall date `w` can reach the window — by day number, before any timezone math. */
+  const near = (ev: VEvent, w: Wall) => {
+    const day = wallDayNumber(w);
+    return day <= windowEndDay && day >= windowStartDay - 2 - Math.ceil(ev.durationMin / 1440);
+  };
+
   const out: IcsOccurrence[] = [];
-  const emit = (ev: VEvent, startWall: Wall) => {
+  const emit = (ev: VEvent, startWall: Wall, ts: number) => {
     if (ev.start.allDay) {
       // All-day: pure calendar dates, one chip per covered day.
       const days = Math.max(1, Math.round(ev.durationMin / 1440));
@@ -426,7 +529,6 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
       }
       return;
     }
-    const ts = wallToUtc(startWall);
     if (ts < fromMs - ev.durationMin * 60_000 || ts > toMs) return;
     const slot = toLocalSlot(ts);
     // One that began before the window and still runs into it is kept, under
@@ -436,19 +538,28 @@ export function expandIcs(events: VEvent[], from: string, to: string): IcsOccurr
   };
 
   for (const ev of events) {
-    if (ev.recurrenceId !== null) {
-      if (!ev.cancelled) emit(ev, ev.start);
-      continue;
-    }
-    if (ev.cancelled) continue;
-    const skipped = new Set((overrides.get(ev.uid) ?? []).map((o) => o.recurrenceId));
-    for (const w of generateStarts(ev, windowStartDay, windowEndDay)) {
-      const ts = wallToUtc(w);
-      if (ev.exdates.some((x) => Math.abs(x - ts) < 60_000) || skipped.has(ts)) continue;
-      emit(ev, w);
+    try {
+      if (ev.recurrenceId !== null) {
+        if (!ev.cancelled && near(ev, ev.start)) emit(ev, ev.start, wallToUtc(ev.start));
+        continue;
+      }
+      if (ev.cancelled) continue;
+      const skipped = new Set((overrides.get(ev.uid) ?? []).map((o) => o.recurrenceId));
+      // By minute: a Set, not a scan of every EXDATE for every occurrence.
+      const excluded = new Set(ev.exdates.map((x) => Math.round(x / 60_000)));
+      for (const w of generateStarts(ev, windowStartDay, windowEndDay, budget)) {
+        if (!near(ev, w)) continue;
+        const ts = wallToUtc(w);
+        if (excluded.has(Math.round(ts / 60_000)) || skipped.has(ts)) continue;
+        emit(ev, w, ts);
+      }
+    } catch {
+      // One event that cannot be expanded loses its own occurrences, never
+      // the rest of the feed's (a RangeError here used to empty the layer).
     }
   }
-  return out.sort((a, b) => (a.date + String(a.startMin).padStart(4, "0")).localeCompare(b.date + String(b.startMin).padStart(4, "0")));
+  const occurrences = out.sort((a, b) => (a.date + String(a.startMin).padStart(4, "0")).localeCompare(b.date + String(b.startMin).padStart(4, "0")));
+  return { occurrences, truncated: budget.truncated, steps: maxSteps - Math.max(budget.left, 0) };
 }
 
 /* ---------- outbound feed ---------- */
