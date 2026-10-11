@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
@@ -19,10 +19,11 @@ import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, writeKey } from "./storage.js";
+import { canGoBack, canonical, goBack as historyBack, navigate as go, placeOf, useRoute, type MoneyPage, type Route } from "./ui/router.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
-export type FinancePage = "spending" | "documents" | "subscriptions" | "income" | "savings";
+export type FinancePage = MoneyPage;
 
 export type View =
   | { kind: "dashboard" }
@@ -44,22 +45,107 @@ const NAV: { kind: View["kind"]; label: string; icon: () => React.ReactNode; own
   { kind: "finance", label: "Finance", icon: IconFinance },
 ];
 
-/** What to call a view on the back button. A project shows its slug rather than
- *  "Overview", because "back" should name the page you left, not its section. */
-const labelOf = (v: View): string =>
-  v.kind === "project" ? v.slug : (NAV.find((n) => n.kind === v.kind)?.label ?? "Back");
+/** Finance's own name for its "all spending" page, when it is opened as a category. */
+const SPENDING_PAGE = "__spending";
 
-/** Same destination? Used to keep re-clicking a tab from stacking history. */
-const sameView = (a: View, b: View): boolean =>
-  a.kind === b.kind &&
-  (a.kind !== "project" || b.kind !== "project" || a.slug === b.slug) &&
-  (a.kind !== "architecture" || b.kind !== "architecture" || (a.noteId === b.noteId && a.category === b.category)) &&
-  (a.kind !== "finance" ||
-    b.kind !== "finance" ||
-    (a.category === b.category && a.merchant === b.merchant && a.page === b.page && a.month === b.month));
+/**
+ * The old View objects, kept so the screens keep their callbacks until each moves to the
+ * addresses itself: a View becomes a route (and its URL) on the way out, and the route a View
+ * on the way in. `noteFor` turns a note's id into its vault path when the tree knows it.
+ */
+export function routeOfView(v: View, pathOf: (id: string) => string | undefined = () => undefined): Route {
+  switch (v.kind) {
+    case "dashboard":
+      return { kind: "today" };
+    case "architecture": {
+      if (v.noteId) {
+        const path = pathOf(v.noteId);
+        return path ? { kind: "notes", path } : { kind: "notes", id: v.noteId };
+      }
+      return v.category ? { kind: "orrery", area: v.category } : { kind: "notes" };
+    }
+    case "planning":
+      return { kind: "planning", scale: "week" };
+    case "overview":
+      return { kind: "projects" };
+    case "project":
+      return { kind: "project", slug: v.slug };
+    case "contacts":
+      return { kind: "people" };
+    case "mail":
+      return { kind: "mail" };
+    case "finance": {
+      if (v.month) return v.category && v.category !== SPENDING_PAGE ? { kind: "money", page: "spending", category: v.category, month: v.month } : { kind: "money", month: v.month };
+      if (v.merchant) return { kind: "money", merchant: v.merchant };
+      if (v.page) return { kind: "money", page: v.page };
+      if (v.category === SPENDING_PAGE) return { kind: "money", page: "spending" };
+      if (v.category) return { kind: "money", page: "spending", category: v.category };
+      return { kind: "money" };
+    }
+  }
+}
 
-/** How many steps back the rail remembers. */
-const HISTORY_DEPTH = 3;
+/** What the screens are shown for a route, until each reads the address itself. */
+export function viewOfRoute(r: Route, idOf: (path: string) => string | undefined = () => undefined): View {
+  switch (r.kind) {
+    case "today":
+    case "settings":
+      return { kind: "dashboard" };
+    case "planning":
+      return { kind: "planning" };
+    case "notes":
+      return { kind: "architecture", noteId: r.id ?? (r.path ? idOf(r.path) : undefined) };
+    case "notes-health":
+    case "conversation":
+    case "document":
+      return { kind: "architecture" };
+    case "orrery":
+      return r.area ? { kind: "architecture", category: r.area } : { kind: "architecture" };
+    case "projects":
+      return { kind: "overview" };
+    case "project":
+      return { kind: "project", slug: r.slug };
+    case "people":
+    case "person":
+    case "company":
+      return { kind: "contacts" };
+    case "mail":
+      return { kind: "mail" };
+    case "money": {
+      if (r.month) return { kind: "finance", month: r.month, category: r.category };
+      if (r.merchant) return { kind: "finance", merchant: r.merchant };
+      if (r.category) return { kind: "finance", category: r.category };
+      return r.page ? { kind: "finance", page: r.page } : { kind: "finance" };
+    }
+  }
+}
+
+/** A note's address is its vault path without ".md". */
+const notePath = (path: string) => path.replace(/\.md$/i, "");
+
+/**
+ * Note ids and paths, both ways, from the vault tree: `/notes/<path>` needs the id the editor
+ * opens, and a note opened by id gets its readable address once the path is known.
+ */
+function useNotePaths(signedIn: boolean) {
+  const [tree, setTree] = useState<Map<string, string> | null>(null);
+  useEffect(() => {
+    if (!signedIn) return;
+    let live = true;
+    api<{ id: string; path: string }[]>("GET", "/api/vault/tree")
+      .then((notes) => live && setTree(new Map(notes.map((n) => [n.id, notePath(n.path)]))))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [signedIn]);
+  const byPath = useMemo(() => new Map([...(tree ?? [])].map(([id, path]) => [path, id])), [tree]);
+  return {
+    loaded: tree !== null,
+    pathOf: useCallback((id: string) => tree?.get(id), [tree]),
+    idOf: useCallback((path: string) => byPath.get(path), [byPath]),
+  };
+}
 
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
@@ -67,20 +153,35 @@ export function App() {
   const [needsSetup, setNeedsSetup] = useState<boolean | undefined>(undefined);
   /** Set when the user chooses "use password instead", to skip the lock screen. */
   const [forcePassword, setForcePassword] = useState(false);
-  /**
-   * View and its back-stack live in ONE state object so `navigate` stays a pure
-   * updater. Pushing onto a separate history state from inside the view updater
-   * would double-push under StrictMode, which replays updaters — the stack would
-   * fill with duplicates of wherever you just were.
+  /*
+   * Where you are is the address (structure.md §1.2): reload keeps your place, and the
+   * browser's Back and Forward, Android's back gesture and links all work. The page under
+   * Settings is the last place you were, since Settings still opens over a page.
    */
-  const [nav, setNav] = useState<{ view: View; back: View[] }>({ view: { kind: "dashboard" }, back: [] });
-  const view = nav.view;
-  const navigate = useCallback((next: View) => {
-    setNav((n) => (sameView(n.view, next) ? n : { view: next, back: [n.view, ...n.back].slice(0, HISTORY_DEPTH) }));
-  }, []);
+  useState(() => canonical()); // once: `/` → `/today`, old forms written in full
+  const parsed = useRoute();
+  const route = useMemo<Route>(() => parsed ?? { kind: "today" }, [parsed]);
+  const notes = useNotePaths(!!me);
+  const [under, setUnder] = useState<Route>(route.kind === "settings" ? { kind: "today" } : route);
+  useEffect(() => {
+    if (route.kind !== "settings") setUnder(route);
+  }, [route]);
+  const shown = route.kind === "settings" ? under : route;
+  const view = viewOfRoute(shown, notes.idOf);
+  const settingsOpen = route.kind === "settings";
+  const navigate = useCallback((next: View) => go(routeOfView(next, notes.pathOf)), [notes.pathOf]);
   const goBack = useCallback(() => {
-    setNav((n) => (n.back.length === 0 ? n : { view: n.back[0]!, back: n.back.slice(1) }));
-  }, []);
+    const p = placeOf(shown);
+    historyBack(p === "money" ? { kind: "money" } : p === "projects" ? { kind: "projects" } : { kind: "today" });
+  }, [shown]);
+  const openSettings = useCallback(() => go({ kind: "settings" }), []);
+  const closeSettings = useCallback(() => historyBack(under), [under]);
+  // A note opened by its id gets its readable address as soon as the tree knows its path.
+  useEffect(() => {
+    if (route.kind !== "notes" || !route.id) return;
+    const path = notes.pathOf(route.id);
+    if (path) go({ kind: "notes", path }, { replace: true });
+  }, [route, notes.pathOf]);
   // Light is the design target now; "command" is the same language inverted.
   const [theme, setTheme] = useState(() => readKey("basalt-theme") ?? "light");
   // Colour-vision mode. Orthogonal to the theme: it swaps the palette, not the
@@ -95,7 +196,6 @@ export function App() {
   const activeKind: View["kind"] = view.kind === "project" ? "overview" : view.kind;
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
 
   // localStorage is the first-paint cache for the three appearance values; the
@@ -135,11 +235,10 @@ export function App() {
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
   }, [vision, profiles, theme]);
 
-  // Back from "Continue with ChatGPT": show where it landed, then tidy the URL.
+  // Back from "Continue with ChatGPT": show where it landed, at its own address.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("ai") !== "chatgpt-connected") return;
-    setSettingsOpen(true);
-    window.history.replaceState(null, "", window.location.pathname);
+    go({ kind: "settings", section: "ai" }, { replace: true });
   }, []);
 
   // The server ended this session (signed out elsewhere, or revoked in
@@ -149,7 +248,7 @@ export function App() {
       clearToken();
       disconnectWs();
       setMe(null);
-      setSettingsOpen(false);
+      if (location.pathname.startsWith("/settings")) go({ kind: "today" }, { replace: true });
     };
     window.addEventListener(SESSION_ENDED, ended);
     return () => window.removeEventListener(SESSION_ENDED, ended);
@@ -339,12 +438,12 @@ export function App() {
         <button
           className="rail-item rail-back"
           onClick={goBack}
-          disabled={nav.back.length === 0}
-          title={nav.back.length ? `Back to ${labelOf(nav.back[0]!)}` : "Nothing to go back to"}
-          aria-label={nav.back.length ? `Back to ${labelOf(nav.back[0]!)}` : "Back (nothing to go back to)"}
+          disabled={!canGoBack()}
+          title={canGoBack() ? "Back" : "Nothing to go back to"}
+          aria-label={canGoBack() ? "Back" : "Back (nothing to go back to)"}
         >
           <IconBack />
-          <span>{nav.back.length ? labelOf(nav.back[0]!) : "Back"}</span>
+          <span>Back</span>
           <kbd className="rail-kbd">⌘[</kbd>
         </button>
 
@@ -396,7 +495,7 @@ export function App() {
 
         <button
           className="account"
-          onClick={() => setSettingsOpen(true)}
+          onClick={openSettings}
           aria-haspopup="dialog"
           aria-label={`Account: ${me.displayName}. Open settings`}
         >
@@ -418,7 +517,7 @@ export function App() {
             onOpenPlanning={() => navigate({ kind: "planning" })}
             onOpenCategory={(category) => navigate({ kind: "architecture", category })}
             onOpenFinance={(to) => navigate({ kind: "finance", ...to })}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={openSettings}
           />
         ) : view.kind === "architecture" ? (
           <Architecture me={me} noteId={view.noteId} category={view.category} />
@@ -469,12 +568,12 @@ export function App() {
           profiles={profiles}
           onProfiles={setProfiles}
           onUpdate={setMe}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
           onSignOut={() => {
             disconnectWs();
             void signOut();
             setMe(null);
-            setSettingsOpen(false);
+            go({ kind: "today" }, { replace: true });
           }}
         />
       )}
