@@ -17,17 +17,26 @@ export type {
   TreeNote,
 } from "@basalt/schema/responses";
 import type { Me } from "@basalt/schema/responses";
+import { readKey, removeKey, writeKey } from "./storage.js";
 
-let token = localStorage.getItem("basalt-token") ?? "";
+const TOKEN_KEY = "basalt-token";
+
+/**
+ * The session token, read on first use rather than when this module loads: a module-level read
+ * ran before anything could catch it, so a browser that refuses storage (iOS Safari with "Block
+ * All Cookies") failed the import and left a blank page instead of the sign-in screen (WEB-025).
+ */
+let token: string | undefined;
+export const getToken = (): string => (token ??= readKey(TOKEN_KEY) ?? "");
 
 export function setToken(t: string) {
   token = t;
-  localStorage.setItem("basalt-token", t);
+  writeKey(TOKEN_KEY, t);
 }
 
 export function clearToken() {
   token = "";
-  localStorage.removeItem("basalt-token");
+  removeKey(TOKEN_KEY);
 }
 
 /**
@@ -36,8 +45,8 @@ export function clearToken() {
  * pre-fills the field. Never a credential.
  */
 const LAST_EMAIL_KEY = "basalt-last-email";
-export const lastEmail = () => localStorage.getItem(LAST_EMAIL_KEY) ?? "";
-export const rememberEmail = (email: string) => localStorage.setItem(LAST_EMAIL_KEY, email);
+export const lastEmail = () => readKey(LAST_EMAIL_KEY) ?? "";
+export const rememberEmail = (email: string) => writeKey(LAST_EMAIL_KEY, email);
 
 /** Does this device have a biometric/platform authenticator at all? */
 export async function touchIdAvailable(): Promise<boolean> {
@@ -142,6 +151,7 @@ interface PublicKeyCredentialRequestOptionsJSON {
  */
 export async function api<T>(method: string, url: string, body?: unknown, opts: { signal?: AbortSignal } = {}): Promise<T> {
   const { signal } = opts;
+  const token = getToken();
   const res = await fetch(url, {
     method,
     signal,
@@ -204,6 +214,7 @@ export async function signOut(): Promise<void> {
 /** Same auth as api(), but for bytes: project documents are behind the bearer
  *  token, so a plain <a href> would 401. */
 export async function apiBlob(url: string, opts: { signal?: AbortSignal } = {}): Promise<Blob> {
+  const token = getToken();
   const res = await fetch(url, { signal: opts.signal, headers: token ? { authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   const blob = await res.blob();

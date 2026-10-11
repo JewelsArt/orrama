@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, clearToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
+import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
 import { CharacterAvatar } from "./avatars.js";
@@ -18,6 +18,7 @@ import { QuickCapture } from "./QuickCapture.js";
 import { SearchPalette } from "./SearchPalette.js";
 import { Settings } from "./Settings.js";
 import { Setup } from "./Setup.js";
+import { readJson, readKey, writeKey } from "./storage.js";
 import { connectWs, disconnectWs } from "./ws.js";
 
 /** The pages inside the Finance area that are not a category or a merchant. */
@@ -81,17 +82,13 @@ export function App() {
     setNav((n) => (n.back.length === 0 ? n : { view: n.back[0]!, back: n.back.slice(1) }));
   }, []);
   // Light is the design target now; "command" is the same language inverted.
-  const [theme, setTheme] = useState(localStorage.getItem("basalt-theme") ?? "light");
+  const [theme, setTheme] = useState(() => readKey("basalt-theme") ?? "light");
   // Colour-vision mode. Orthogonal to the theme: it swaps the palette, not the
   // ground, so every combination of the two is a real, tested surface.
-  const [vision, setVision] = useState(localStorage.getItem("basalt-vision") ?? "none");
+  const [vision, setVision] = useState(() => readKey("basalt-vision") ?? "none");
   const [profiles, setProfiles] = useState<VisionProfile[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem("basalt-vision-profiles") ?? "[]");
-      return Array.isArray(saved) ? saved : [];
-    } catch {
-      return [];
-    }
+    const saved = readJson<unknown>("basalt-vision-profiles", []);
+    return Array.isArray(saved) ? (saved as VisionProfile[]) : [];
   });
   const [paletteOpen, setPaletteOpen] = useState(false);
   // A project workspace is opened from the board, so the rail keeps Overview lit.
@@ -105,11 +102,11 @@ export function App() {
   // account (see below) is where they actually live.
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("basalt-theme", theme);
+    writeKey("basalt-theme", theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem("basalt-vision-profiles", JSON.stringify(profiles));
+    writeKey("basalt-vision-profiles", JSON.stringify(profiles));
   }, [profiles]);
 
   /* Built-in modes are a CSS attribute; a hand-built one cannot be, because its
@@ -124,7 +121,7 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.vision = vision;
-    localStorage.setItem("basalt-vision", vision);
+    writeKey("basalt-vision", vision);
     for (const name of PROFILE_VAR_NAMES) root.style.removeProperty(name);
 
     const profile = isCustom(vision) ? profiles.find((p) => p.id === customId(vision)) : undefined;
@@ -211,7 +208,7 @@ export function App() {
   }, [me, serverSnapshot, theme, vision, profiles]);
 
   useEffect(() => {
-    if (me) connectWs(localStorage.getItem("basalt-token") ?? "");
+    if (me) connectWs(getToken());
     return () => disconnectWs();
   }, [me]);
 

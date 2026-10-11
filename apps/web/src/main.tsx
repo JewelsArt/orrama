@@ -27,6 +27,11 @@ import "./styles/money.css";
 import "./styles/projects.css";
 import "./styles/shell.css";
 import { App } from "./App.js";
+import { guardStorage } from "./storage.js";
+
+// Before anything renders: a browser that refuses storage gets an in-memory one, so screens
+// that still call localStorage directly keep working (WEB-025).
+guardStorage();
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
