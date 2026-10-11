@@ -57,6 +57,9 @@ declare module "fastify" {
   }
 }
 
+/** The largest frame a live-sync client may send (see the websocket registration). */
+export const WS_MAX_FRAME = 16 * 1024;
+
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
@@ -195,7 +198,13 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   });
   await app.register(cors, { origin: env.corsOrigin });
   await app.register(jwt, { secret: env.jwtSecret });
-  await app.register(websocket);
+  // A client only ever sends its auth frame (a JWT, well under 1 KiB) and
+  // presence pings. ws's default limit is 100 MiB, and the first frame is read
+  // and JSON.parsed BEFORE it is known to be a valid auth — so anyone could
+  // make the server buffer and parse a few hundred MiB per connection (audit
+  // SEC-010). Over the limit, ws closes with 1009 on the frame header, before
+  // the body is read.
+  await app.register(websocket, { options: { maxPayload: WS_MAX_FRAME } });
 
   app.decorate("authenticate", async (req: FastifyRequest, reply: FastifyReply) => {
     // Personal API tokens (`bslt_…`) ride the same gate as JWTs: scripts and
