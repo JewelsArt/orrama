@@ -24,7 +24,40 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  */
 const AI_TIMEOUT_MS = Number(process.env.BASALT_PLAN_AI_TIMEOUT_MS ?? 8000);
 const AI_CACHE_MS = 6 * 60 * 60 * 1000;
-const aiCache = new Map<string, { at: number; hours: number[] }>();
+
+/**
+ * Estimates per listing, bounded in time AND size. Keyed on the whole task
+ * listing, so every tick or rename is a new key; expired entries were skipped
+ * but never deleted, and the map grew for the agent's whole uptime (audit
+ * AI-014). An entry found expired is removed, and past `max` the oldest goes.
+ */
+export class EstimateCache {
+  private entries = new Map<string, { at: number; hours: number[] }>();
+  constructor(
+    private readonly ttlMs: number,
+    private readonly max: number,
+  ) {}
+  get size(): number {
+    return this.entries.size;
+  }
+  get(key: string, now = Date.now()): number[] | undefined {
+    const hit = this.entries.get(key);
+    if (!hit) return undefined;
+    if (now - hit.at < this.ttlMs) return hit.hours;
+    this.entries.delete(key);
+    return undefined;
+  }
+  set(key: string, hours: number[], now = Date.now()): void {
+    // Map order is insertion order: re-inserting keeps the oldest first.
+    this.entries.delete(key);
+    this.entries.set(key, { at: now, hours });
+    for (const oldest of this.entries.keys()) {
+      if (this.entries.size <= this.max) break;
+      this.entries.delete(oldest);
+    }
+  }
+}
+const aiCache = new EstimateCache(AI_CACHE_MS, 200);
 
 /**
  * Focused-hour estimates for a numbered task listing: cached, bounded in time,
@@ -33,7 +66,7 @@ const aiCache = new Map<string, { at: number; hours: number[] }>();
 async function estimatesFor(c: AiConfig, listing: string): Promise<number[]> {
   const key = crypto.createHash("sha256").update(`${c.provider}\n${c.baseUrl ?? ""}\n${c.model}\n${listing}`).digest("hex");
   const hit = aiCache.get(key);
-  if (hit && Date.now() - hit.at < AI_CACHE_MS) return hit.hours;
+  if (hit) return hit;
   const text = await completeText(c, {
     system:
       "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
@@ -46,7 +79,7 @@ async function estimatesFor(c: AiConfig, listing: string): Promise<number[]> {
   });
   const hours = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as number[];
   if (!Array.isArray(hours)) throw new Error("estimates: not an array");
-  aiCache.set(key, { at: Date.now(), hours });
+  aiCache.set(key, hours);
   return hours;
 }
 
