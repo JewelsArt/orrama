@@ -903,7 +903,9 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     async (req) => {
       const user = store.aclUser(req.userId);
       const today = isoLocal();
-      const wanted = decodeURIComponent(req.params.name);
+      // Fastify has already decoded the parameter. Decoding it again threw on
+      // a literal "%" ("50% Off" answered 500) and turned "%41" into "A" (FIN-013).
+      const wanted = req.params.name;
 
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
@@ -1138,7 +1140,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     auth,
     async (req) => {
       const user = store.aclUser(req.userId);
-      const wanted = decodeURIComponent(req.params.name).trim().toUpperCase();
+      const wanted = req.params.name.trim().toUpperCase(); // already decoded (FIN-013)
 
       const txns = await txnsFor(store, user);
 

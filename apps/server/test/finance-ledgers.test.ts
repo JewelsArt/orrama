@@ -153,3 +153,22 @@ describe('"Looks recurring" (FIN-012)', () => {
     expect((d.recurring as Found[]).map((r) => r.merchant)).not.toContain("CAPITAL.COM");
   });
 });
+
+describe('names with "%" in them (FIN-013)', () => {
+  it("a merchant opens, as the client encodes it", async () => {
+    const d = await get(`/api/finance/merchant/${encodeURIComponent("SHOP 100% LOCAL")}`);
+    expect(d.merchant).toBe("SHOP 100% LOCAL");
+    expect(d.stats.allTime).toBe(78);
+  });
+
+  it("a category opens, as the client encodes it", async () => {
+    const d = await get(`/api/finance/category/${encodeURIComponent("50% Off")}`);
+    expect(d.category).toBe("50% Off");
+    expect(d.stats.count).toBe(4);
+  });
+
+  it("a name that looks like an escape is not decoded twice", async () => {
+    const d = await get(`/api/finance/merchant/${encodeURIComponent("SHOP %41")}`);
+    expect(d.merchant).toBe("SHOP %41");
+  });
+});
