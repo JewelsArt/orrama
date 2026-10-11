@@ -23,8 +23,11 @@ vi.mock("./Editor.js", () => ({ Editor: () => null }));
 vi.mock("./GraphCanvas.js", () => ({ GraphCanvas: () => null }));
 vi.mock("./FileTree.js", () => ({ FileTree: () => null }));
 vi.mock("./noteSync.js", () => ({
-  openNoteSync: () => ({ refresh: async () => {}, edit: () => {}, flush: async () => {}, close: () => {} }),
+  openNoteSync: () => ({ refresh: async () => {}, edit: () => {}, flush: async () => {}, close: () => {}, dirty: false, error: null }),
   retire: () => {},
+  readDraft: () => null,
+  dropDraft: () => {},
+  restoredText: () => null,
 }));
 vi.mock("./api.js", async (orig) => {
   const real = await orig<typeof import("./api.js")>();

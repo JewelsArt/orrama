@@ -6,12 +6,13 @@ import { Editor } from "./Editor.js";
 import { FileTree } from "./FileTree.js";
 import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
-import { openNoteSync, retire } from "./noteSync.js";
+import { dropDraft, openNoteSync, readDraft, restoredText, retire } from "./noteSync.js";
 import { onWs, sendEditing } from "./ws.js";
 import { Icon } from "./ui/Icon.js";
 import { NameDialog } from "./ui/NameDialog.js";
-import { LinkButton } from "./ui/controls.js";
-import { EmptyState } from "./ui/states.js";
+import { Button, LinkButton } from "./ui/controls.js";
+import { EmptyState, Notice } from "./ui/states.js";
+import { dateTimeLabel } from "./ui/dates.js";
 import { navigate } from "./ui/router.js";
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
@@ -24,6 +25,14 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   const [open, setOpen] = useState<NoteDetail | null>(null);
   const [related, setRelated] = useState<{ id: string; title: string; score: number }[]>([]);
   const [status, setStatus] = useState<"saved" | "saving" | "error">("saved");
+  /** Why the open note's last save failed, in the server's words (WEB-002). */
+  const [why, setWhy] = useState<string | undefined>();
+  /** The note left the vault while open: saving has stopped, the typing is still here. */
+  const [gone, setGone] = useState(false);
+  /** Typing an earlier page never saved, offered back merged onto the note as it is now. */
+  const [draft, setDraft] = useState<{ text: string; at: number } | null>(null);
+  /** Bumped to give the editor a restored text (its content prop is read once per note). */
+  const [restored, setRestored] = useState(0);
   const [editingBy, setEditingBy] = useState<{ username: string; at: number } | null>(null);
   const openRef = useRef<NoteDetail | null>(null);
   openRef.current = open;
@@ -84,11 +93,30 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
         return;
       }
       retire(syncRef.current?.sync ?? null);
-      const next = note.canEdit ? openNoteSync(note, { status: setStatus, saved: () => void loadTree() }) : null;
+      // Hooks of this note's own: a note closed while its save fails can't report on this one.
+      const next = note.canEdit
+        ? openNoteSync(note, {
+            status: (s, reason) => {
+              setStatus(s);
+              setWhy(reason);
+            },
+            saved: () => void loadTree(),
+            // Renamed elsewhere: the header shows where it is now (WEB-005).
+            moved: (path) => setOpen((o) => (o && o.id === id ? { ...o, path } : o)),
+            gone: () => setGone(true),
+          })
+        : null;
       syncRef.current = { id, sync: next };
       setSync(next);
       setOpen(note);
-      setStatus("saved");
+      setGone(false);
+      // A sync picked up with its unsaved typing reports its own state; a fresh one is saved.
+      setStatus(next?.dirty ? (next.error ? "error" : "saving") : "saved");
+      setWhy(next?.error ?? undefined);
+      const d = next && !next.dirty ? readDraft(id) : null;
+      const text = d && restoredText(d, note.content);
+      if (d && !text) dropDraft(id);
+      setDraft(text ? { text, at: d!.at } : null);
       api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`, undefined, { signal }).then(setRelated, unlessAborted);
     },
     [loadTree, nextOpen],
@@ -277,12 +305,50 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
                 )}
                 {isProject && <span className="is-project-badge" title="This note is a project">● project</span>}
                 {editingBy && <span className="presence-badge">{editingBy.username} is editing</span>}
-                <span className={`save-state ${status}`}>
-                  {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "save failed") : "read-only"}
+                <span className={`save-state ${status}`} title={status === "error" ? why : undefined}>
+                  {open.canEdit ? (status === "saved" ? "saved" : status === "saving" ? "saving…" : "not saved") : "read-only"}
                 </span>
               </span>
             </header>
+            {status === "error" && (
+              <Notice
+                title={gone ? "This note is no longer in your notes." : "Not saved yet."}
+                text={gone ? "It was deleted or moved out of reach. Your typing is still here: copy it before you leave." : `${why ? `The server said: ${why}. ` : ""}Your typing is kept here and tried again.`}
+              />
+            )}
+            {draft && (
+              <Notice
+                ok
+                title={`Typing from ${dateTimeLabel(draft.at)} wasn't saved.`}
+                text="It was kept on this device. Restore it into the note, or let it go."
+                actions={
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        sync?.edit(draft.text);
+                        setDraft(null);
+                        setRestored((n) => n + 1);
+                      }}
+                    >
+                      Restore
+                    </Button>
+                    <Button
+                      size="sm"
+                      kind="quiet"
+                      onClick={() => {
+                        dropDraft(open.id);
+                        setDraft(null);
+                      }}
+                    >
+                      Discard
+                    </Button>
+                  </>
+                }
+              />
+            )}
             <Editor
+              key={restored}
               noteId={open.id}
               content={sync?.content ?? open.content}
               readOnly={!open.canEdit}

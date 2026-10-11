@@ -30,6 +30,7 @@ import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark } from "./ui/theme.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
+import { flushAll } from "./noteSync.js";
 
 /** The Orrery and its canvas engine load when you first go there, not with the app. */
 const Orrery = lazy(() => import("./orrery/Orrery.js").then((m) => ({ default: m.Orrery })));
@@ -490,7 +491,8 @@ export function App() {
             onUpdate={setMe}
             onSignOut={() => {
               disconnectWs();
-              void signOut();
+              // Typing still on its way is saved while the session is good (WEB-002).
+              void flushAll().finally(() => signOut());
               setMe(null);
               go({ kind: "today" }, { replace: true });
             }}

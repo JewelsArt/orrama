@@ -33,6 +33,7 @@ import { App } from "./App.js";
 import { guardStorage } from "./storage.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { installReloadKey } from "./ui/reloadKey.js";
+import { installLeaveGuard } from "./noteSync.js";
 
 // Before anything renders: a browser that refuses storage gets an in-memory one, so screens
 // that still call localStorage directly keep working (WEB-025).
@@ -40,6 +41,8 @@ guardStorage();
 
 // ⌘R, outside React, so it still reloads when a view, or the app, has crashed (WEB-011).
 installReloadKey();
+// Reload, ⌘R, Update ready and closing the window send a note's pending typing on the way out (WEB-002).
+installLeaveGuard();
 
 const root = createRoot(document.getElementById("root")!);
 if (import.meta.env.DEV && location.pathname === "/dev/ui") {
