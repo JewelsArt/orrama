@@ -304,7 +304,7 @@
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @basalt/core/dates, @basalt/schema/responses, ./api.js, ./categories.js, ./mail/people.js, ./newNote.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
+- **Imports**: react, @basalt/core/dates, @basalt/schema/responses, ./api.js, ./categories.js, ./mail/people.js, ./newNote.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -313,6 +313,21 @@
 ### `apps/web/src/api.ts`
 - **Exports**: default, getToken, setToken, clearToken, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isAbort, unlessAborted, latestOnly, SESSION_ENDED, signOut, apiBlob, ApiError
 - **Imports**: @basalt/schema/responses, ./storage.js
+
+### `apps/web/src/ask/history.ts`
+- **Exports**: HISTORY_KEY, HISTORY_MAX, SavedMessage, Conversation, slim, readHistory, saveConversation
+- **Imports**: ../storage.js
+
+### `apps/web/src/ask/markdown.ts`
+- **Exports**: Inline, Block, parseBlocks, parseInline
+
+### `apps/web/src/ask/targets.ts`
+- **Exports**: VaultNote, Vault, EMPTY_VAULT, noteRoute, targetRoute, titleOf, contextNoteOf, citedNote
+- **Imports**: ../mail/people.js, ../notes/links.js, ../ui/router.js, ./working.js
+
+### `apps/web/src/ask/working.ts`
+- **Exports**: Target, Found, StepState, Step, FOUND_MAX, stepOf
+- **Imports**: ../ui/dates.js
 
 ### `apps/web/src/avatars.tsx`
 - **Exports**: Character, CHARACTERS, CharacterAvatar
@@ -719,12 +734,12 @@
 - **Imports**: react, ../api.js
 
 ### `apps/web/src/today/model.ts`
-- **Exports**: DueTask, DueGroups, weekEnd, taskKey, dueGroups, boxState, daysLate, ComingRow, comingUp, projectsInMotion, PersonToday, peopleToday, relationLine, warningSentence, MoneyPace, moneyPace
+- **Exports**: DueTask, DueGroups, weekEnd, taskKey, dueGroups, boxState, daysLate, ComingRow, comingUp, projectsInMotion, PersonToday, peopleToday, relationLine, MoneyPace, moneyPace
 - **Imports**: @basalt/core/dates, @basalt/schema/responses, ../categories.js
 
 ### `apps/web/src/today/modules.tsx`
 - **Exports**: Loaded, DueModule, MailData, MailModule, PeopleModule, ComingUpModule, ProjectsModule, monthWord, MoneyModule, paceSentence, NoticedData, NoticedModule
-- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js
+- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js, ../entity/links.js, ../noticed/model.js, ../ui/router.js
 
 ### `apps/web/src/today/title.ts`
 - **Exports**: todayTitle, isoWeek
