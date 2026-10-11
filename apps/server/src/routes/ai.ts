@@ -15,6 +15,7 @@ import { aiConfig, callOptions, completeText, resolveModel } from "../aiProvider
 import { credsFor, getMessage, listInbox } from "../mail.js";
 import { stageDraft } from "./mail.js";
 import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
+import { agentWriter, both } from "../agentWrites.js";
 
 /**
  * AI layer (spec §9): BYO key, requests go direct from THIS server to the provider.
@@ -267,7 +268,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
                   throw new HttpError(409, `this would cut ${w.path} from ${w.before.content.length} to ${w.content.length} characters; resend the whole note, or pass shrink: true if removing that text is what the user asked for`);
                 }
               };
-              const note = store.write(user, path, content, hash, undefined, { guard });
+              const note = store.write(user, path, content, hash, undefined, { guard: both(agentWriter, guard) });
               return { success: true, id: note.id, path: note.path };
             } catch (err) {
               return refused(err);
@@ -281,7 +282,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
             try {
               const n = findNote(ref);
               const next = section ? appendToSection(n.content, section, text) : appendLine(n.content, text);
-              const saved = store.write(user, n.path, next, store.noteHash(n));
+              const saved = store.write(user, n.path, next, store.noteHash(n), undefined, { guard: agentWriter });
               return { success: true, id: saved.id, path: saved.path };
             } catch (err) {
               return refused(err);
@@ -294,7 +295,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           execute: async ({ note: ref, section, body: text }: { note: string; section: string; body: string }) => {
             try {
               const n = findNote(ref);
-              const saved = store.write(user, n.path, writeSection(n.content, section, text.replace(/\s+$/, "")), store.noteHash(n));
+              const saved = store.write(user, n.path, writeSection(n.content, section, text.replace(/\s+$/, "")), store.noteHash(n), undefined, { guard: agentWriter });
               return { success: true, id: saved.id, path: saved.path };
             } catch (err) {
               return refused(err);
@@ -309,7 +310,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
             const relPath = `${PROJECTS_DIR}/${slug}.md`;
             let note;
             try {
-              note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)), undefined, undefined, { create: true });
+              note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)), undefined, undefined, { create: true, guard: agentWriter });
             } catch (err) {
               if (err instanceof HttpError && err.statusCode === 409) return { success: false, error: "a project with that name already exists", path: relPath };
               throw err;
@@ -318,9 +319,9 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           }
         }),
         create_task: tool({
-          description: "Add a task (a `- [ ]` checkbox) to a note. Optionally assign (@username), set priority 1-3, and due/start dates (YYYY-MM-DD).",
-          inputSchema: z.object({ noteId: z.string(), text: z.string(), assignee: z.string().optional(), priority: z.number().min(1).max(3).optional(), due: z.string().optional(), start: z.string().optional() }),
-          execute: async ({ noteId, text, assignee, priority, due, start }: { noteId: string; text: string; assignee?: string; priority?: number; due?: string; start?: string }) => {
+          description: "Add a task (a `- [ ]` checkbox) to a note: at the end, or at the end of one of its ## sections (section = the heading's text). Optionally assign (@username), set priority 1-3, and due/start dates (YYYY-MM-DD).",
+          inputSchema: z.object({ noteId: z.string(), text: z.string(), section: z.string().optional(), assignee: z.string().optional(), priority: z.number().min(1).max(3).optional(), due: z.string().optional(), start: z.string().optional() }),
+          execute: async ({ noteId, text, section, assignee, priority, due, start }: { noteId: string; text: string; section?: string; assignee?: string; priority?: number; due?: string; start?: string }) => {
             if ((due && !DAY_RE.test(due)) || (start && !DAY_RE.test(start))) return { success: false, error: "dates must be YYYY-MM-DD" };
             const note = store.requireReadable(user, noteId);
             let line = `- [ ] ${text}`;
@@ -328,7 +329,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
             if (priority) line += ` !p${priority}`;
             if (start) line += ` start:${start}`;
             if (due) line += ` due:${due}`;
-            store.write(user, note.path, appendLine(note.content, line));
+            store.write(user, note.path, section ? appendToSection(note.content, section, line) : appendLine(note.content, line), undefined, undefined, { guard: agentWriter });
             return { success: true, noteId: note.id, line };
           }
         }),

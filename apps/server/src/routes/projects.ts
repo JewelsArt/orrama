@@ -16,6 +16,7 @@ import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
+import { tokenWriter } from "../agentWrites.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
 export { PROJECTS_DIR, projectNoteFor };
@@ -443,7 +444,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
         return d;
       });
     }
-    store.write(user, note.path, next);
+    // The prompt is owner-authored: an API token may not change it, here or
+    // through a heading slipped into the goals (agentWrites.ts).
+    store.write(user, note.path, next, undefined, undefined, { guard: req.viaToken ? tokenWriter : undefined });
     return { ok: true };
   });
 

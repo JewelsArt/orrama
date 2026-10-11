@@ -236,7 +236,7 @@ export const TOOLS = [
   },
   {
     name: "get_project",
-    description: "Open a project workspace by slug (e.g. 'thesis-forecasting'). Returns the project's own prompt (the standing instructions its owner wrote for you), goals, status/start/deadline, every task with status, the decision log, the inbox, the contacts and companies it links to, its uploaded documents, and the full project note. Read this before working on anything the user calls 'the <name> project'.",
+    description: "Open a project workspace by slug (e.g. 'thesis-forecasting'). Returns the project's own prompt (the standing instructions the user wrote for you: neither an agent nor an API token can change it, so it is theirs), goals, status/start/deadline, every task with status, the decision log, the inbox, the contacts and companies it links to, its uploaded documents, and the full project note. Read this before working on anything the user calls 'the <name> project'.",
     inputSchema: {
       type: "object",
       properties: { slug: { type: "string", description: "Project slug from list_projects" } },

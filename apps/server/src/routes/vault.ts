@@ -7,6 +7,7 @@ import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";
 import { hash, HttpError, type VaultStore } from "../vaultStore.js";
 import { graphFor } from "./graph.js";
+import { isInstructionFile, tokenWriter } from "../agentWrites.js";
 
 export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
@@ -62,13 +63,17 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.put("/api/vault/note", auth, async (req) => {
     const body = noteWriteSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = store.write(user, body.path, body.content, body.baseHash, body.baseContent, { create: body.create });
+    // An API token (the MCP server) may not write an agent's standing instructions (agentWrites.ts).
+    const note = store.write(user, body.path, body.content, body.baseHash, body.baseContent, { create: body.create, guard: req.viaToken ? tokenWriter : undefined });
     return { id: note.id, path: note.path, hash: hash(note.content), content: note.content };
   });
 
   app.post("/api/vault/move", auth, async (req) => {
     const body = noteMoveSchema.parse(req.body);
     const user = store.aclUser(req.userId);
+    if (req.viaToken && (isInstructionFile(body.fromPath) || isInstructionFile(body.toPath))) {
+      throw new HttpError(403, "an API token may not move a note into or out of an agent's instructions (CLAUDE.md, AGENTS.md, .claude/)");
+    }
     const note = store.move(user, body.fromPath, body.toPath);
     return { id: note.id, path: note.path };
   });
