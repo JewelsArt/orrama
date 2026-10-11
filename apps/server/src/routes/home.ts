@@ -18,6 +18,7 @@ import {
   isoLocal,
   parsePayslipTable,
 } from "@basalt/core";
+import { ownerOf } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
 import { buildRules, financeNote, ledgerNote, netTotals, planSavings, statementsFor, typicalAround } from "./finance.js";
@@ -61,20 +62,31 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
+    // My task blocks between two dates: the rows of MY calendar notes, on
+    // tasks I can still read. A block is a row of its booker's calendar note
+    // (calendarNotes.ts) — that is the only place one comes from, so whose it
+    // is is the note's `calendar:`, not the task's @assignee. Selecting by
+    // `assigneeId = me` dropped every block on a task without an @mention (the
+    // Dashboard said 0 h booked for a full week) and counted someone else's
+    // block on a task that mentions me (audit COR-003).
+    const readableIds = new Set(notes.map((n) => n.id));
+    const myCalNotes = store.index.all().filter((n) => ownerOf(n) === user.username).map((n) => n.id);
+    const myBlocks = (from: string, to: string) => {
+      if (myCalNotes.length === 0) return [];
+      const rows = db
+        .select({ block: tables.taskBlocks, obj: tables.taskObjects })
+        .from(tables.taskBlocks)
+        .innerJoin(tables.taskObjects, eq(tables.taskBlocks.taskObjectId, tables.taskObjects.id))
+        .where(and(inArray(tables.taskBlocks.calNoteId, myCalNotes), gte(tables.taskBlocks.date, from), lte(tables.taskBlocks.date, to)))
+        .all();
+      return rows.filter((r) => readableIds.has(r.obj.noteId));
+    };
+
     // This week's booked hours (my task blocks Mon–Sun).
     const monday = new Date(today);
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
     const sunday = new Date(monday.getTime() + 6 * 86_400_000);
-    const myObjects = db.select().from(tables.taskObjects).where(eq(tables.taskObjects.assigneeId, user.id)).all();
-    const myObjIds = myObjects.map((o) => o.id);
-    const weekBlocks =
-      myObjIds.length > 0
-        ? db
-            .select()
-            .from(tables.taskBlocks)
-            .where(and(inArray(tables.taskBlocks.taskObjectId, myObjIds), gte(tables.taskBlocks.date, iso(monday)), lte(tables.taskBlocks.date, iso(sunday))))
-            .all()
-        : [];
+    const weekBlocks = myBlocks(iso(monday), iso(sunday)).map((r) => r.block);
     const weekHours = Math.round((weekBlocks.reduce((s, b) => s + b.durationMin, 0) / 60) * 10) / 10;
 
     // The Finance area: two ledgers, each a note carrying a Markdown table, found
@@ -92,14 +104,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     // to subscribed calendars, to the tasks Jules actually dates, and to money.
     const todayKey = iso(today);
     const weekEndKey = iso(new Date(today.getTime() + 6 * 86_400_000));
-    const objById = new Map(myObjects.map((o) => [o.id, o]));
-    const rangeBlocks = myObjIds.length
-      ? db
-          .select()
-          .from(tables.taskBlocks)
-          .where(and(inArray(tables.taskBlocks.taskObjectId, myObjIds), gte(tables.taskBlocks.date, todayKey), lte(tables.taskBlocks.date, weekEndKey)))
-          .all()
-      : [];
+    const rangeBlocks = myBlocks(todayKey, weekEndKey);
     const rangeEvents = db
       .select()
       .from(tables.events)
@@ -132,10 +137,9 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const agenda: AgendaRow[] = [
       ...rangeEvents.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.startMin, durationMin: e.durationMin })),
       ...icsItems.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.allDay ? null : e.startMin, durationMin: e.durationMin, source: e.feedLabel ?? "calendar" })),
-      ...rangeBlocks.map((b) => {
-        const obj = objById.get(b.taskObjectId);
-        const note = obj ? store.index.get(obj.noteId) : undefined;
-        const line = note?.tasks.find((t) => t.blockId === obj?.blockId);
+      ...rangeBlocks.map(({ block: b, obj }) => {
+        const note = store.index.get(obj.noteId);
+        const line = note?.tasks.find((t) => t.blockId === obj.blockId);
         return row({ kind: "task", date: b.date, title: line?.text ?? note?.title ?? "Task", startMin: b.startMin, durationMin: b.durationMin, noteId: note?.id ?? null, line: line?.line ?? null });
       }),
       // Tasks due inside the window. The Deadlines card is sorted oldest-first

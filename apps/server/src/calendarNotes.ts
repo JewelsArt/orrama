@@ -197,7 +197,7 @@ export function dropRow(owner: string, content: string, id: string): string | nu
 }
 
 /** The calendar owner a note names, if it names one. */
-const ownerOf = (note: IndexedNote): string | null => {
+export const ownerOf = (note: IndexedNote): string | null => {
   const v = (note.frontmatter as Record<string, unknown>)["calendar"];
   return typeof v === "string" && v.trim() ? v.trim() : null;
 };
