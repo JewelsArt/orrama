@@ -389,7 +389,7 @@ export function PeopleModule({
             const l = go.person(p.contact);
             const company = p.contact.company.replace(/\[\[|\]\]/g, "").trim();
             // Their role or their company, then how you know them; a relation that only repeats
-            // the company ("works at AMSIB") is not said twice.
+            // the company ("works at Northwind") is not said twice.
             const role = p.contact.role || company;
             const how = relation(p.contact.id);
             const saysCompany = !!how && !!company && how.endsWith(` ${company}`) && how.startsWith("works at");

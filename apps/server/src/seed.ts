@@ -92,22 +92,22 @@ The teaser nobody outside marketing may see — not even in search counts.
 title: Pieter Haans
 tags: [contact]
 sector: Finance
-role: Head of Finance (company coach)
-company: Scooperz
+role: Finance lead (internship coach)
+company: Northwind
 email: p.haans@example.com
 phone: "+44 7700 900022"
 linkedin: ""
 ---
 # Pieter Haans
 
-Company coach during the Scooperz internship.
+Internship coach at Northwind.
 `,
   "Contacts/Marijke Elzinga.md": `---
 title: Marijke Elzinga
 tags: [contact]
 sector: Leadership
-role: CEO
-company: Scooperz
+role: Founder
+company: Northwind
 email: ""
 phone: ""
 linkedin: ""
@@ -118,11 +118,11 @@ linkedin: ""
 title: Wilma Doorn
 tags: [contact]
 sector: Operations
-role: COO
-company: Scooperz
+role: Operations lead
+company: Northwind
 email: ""
 phone: "+44 7700 900021"
-linkedin: linkedin.com/in/wilmadoorn
+linkedin: ""
 ---
 # Wilma Doorn
 `,
@@ -130,39 +130,39 @@ linkedin: linkedin.com/in/wilmadoorn
 title: Claire Bertrand
 tags: [contact]
 sector: University
-role: AMSIB Internship Supervisor
-company: AMSIB (HvA)
+role: Internship supervisor
+company: Example University
 email: ""
 phone: ""
 linkedin: ""
 ---
 # Claire Bertrand
 `,
-  "Contacts/Companies/Scooperz.md": `---
-title: Scooperz
+  "Contacts/Companies/Northwind.md": `---
+title: Northwind
 tags: [company]
 sector: Marketing
-description: "Amsterdam social-media agency — the internship host; forecasting work for NL and FR markets."
-linkedin: "linkedin.com/company/scooperz"
-website: "scooperz.com"
+description: "Design studio — the internship host."
+linkedin: "linkedin.com/company/northwind-example"
+website: "northwind.example"
 location: "Amsterdam"
 positions: ["Data Analyst intern", "Growth Marketeer"]
 ---
-# Scooperz
+# Northwind
 
 People here: [[Marijke Elzinga]] · [[Pieter Haans]] · [[Wilma Doorn]]
 `,
-  "Contacts/Companies/AMSIB.md": `---
-title: AMSIB
+  "Contacts/Companies/Example University.md": `---
+title: Example University
 tags: [company]
 sector: University
-description: "Amsterdam School of International Business (HvA) — the school side of the internship and thesis."
-linkedin: "linkedin.com/school/amsib"
-website: "amsib.nl"
+description: "The school side of the internship and thesis."
+linkedin: "linkedin.com/school/example-university"
+website: "university.example"
 location: "Amsterdam"
 positions: ["Thesis supervision"]
 ---
-# AMSIB
+# Example University
 
 Contact: [[Claire Bertrand]]
 `,

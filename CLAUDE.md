@@ -31,8 +31,8 @@ decisions, do not re-litigate): `~/basalt-prompt.md`.
   stored credential (mail password, AI key, ChatGPT sign-in, webhook secrets,
   calendar feed URLs) — run `pnpm --dir apps/server rotate-secret-key` with the
   server stopped.
-- **Log in as** `you@example.com` (single user; the team model underneath
-  still exists but has no UI). The seeded `jules@basalt.dev` / `basalt-demo`
+- **Log in as** the owner's own account (single user; the team model underneath
+  still exists but has no UI — ask Jules if you need it). The seeded `jules@basalt.dev` / `basalt-demo`
   account is what `pnpm --dir apps/server seed` creates and what the tests use —
   it is NOT the account on the running database, and trying it there is a
   rejected login, not a broken server.
@@ -328,9 +328,8 @@ record — a number he has already lived through, not an aspiration. Two traps i
 is built around. **Money in comes from the BANK**, not from payslips: where the
 statement carries balances, whatever came in is whatever went out plus the
 change in balance, and payslips see only one employer (on the real file the
-payslip median said €500/month while the balance was climbing €300 on top of
-€1,000 of spending — the payslip version reported a deficit for an account that
-was visibly growing). And **committed categories are never "trimmable"** —
+payslip median was about half of what the account took in each month — the
+payslip version reported a deficit for an account that was visibly growing). And **committed categories are never "trimmable"** —
 telling someone to spend less on a subscription this month is noise; only a
 cancellation moves it.
 

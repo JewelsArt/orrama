@@ -84,7 +84,7 @@ describe("mail account", () => {
       .values({
         id: `mail-${crypto.randomUUID().slice(0, 8)}`,
         userId: ids["jules"]!,
-        email: "you@gmail.com",
+        email: "jules.personal@example.com",
         imapHost: "imap.gmail.com",
         imapPort: 993,
         smtpHost: "smtp.gmail.com",
@@ -98,7 +98,7 @@ describe("mail account", () => {
 
     const jules = await api("GET", "/api/mail/account", tokens["jules"]);
     expect(jules.json().connected).toBe(true);
-    expect(jules.json().email).toBe("you@gmail.com");
+    expect(jules.json().email).toBe("jules.personal@example.com");
     // The stored credential must never travel to the client.
     expect(jules.body).not.toContain("app-password-secret");
     expect(jules.body).not.toContain("passwordEncrypted");
@@ -136,7 +136,7 @@ describe("mail send gate", () => {
       .values({
         id: `mail-${crypto.randomUUID().slice(0, 8)}`,
         userId: ids["jules"]!,
-        email: "you@gmail.com",
+        email: "jules.personal@example.com",
         imapHost: "imap.gmail.com", imapPort: 993,
         smtpHost: "smtp.gmail.com", smtpPort: 465,
         passwordEncrypted: encryptSecret("app-password-secret"),

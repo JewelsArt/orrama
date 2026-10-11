@@ -9,13 +9,13 @@
  *
  * Two consequences worth knowing.
  *
- * A price change starts a new run. When Jules's rent went from €589.79 to
- * €608.99 the old run ended and a new one began, which is correct — a changed
+ * A price change starts a new run. When a rent goes up by €19 the old run
+ * ends and a new one begins, which is correct — a changed
  * price IS a different standing amount, and reporting one blended figure would
  * describe a month that never happened.
  *
- * So does switching supplier. Bouldermuur at €57.00 and Buckaroo Stichting
- * Derdengelden at €56.70 are the same membership at two gyms, and nothing in
+ * So does switching supplier. One gym at €57.00 and another at €56.70 (under
+ * its payment provider's name) are the same membership, and nothing in
  * the bank data connects them. The detector reports both runs and the vault
  * says they are one thing; guessing that two merchants are "really" the same
  * because their prices are close is the kind of inference that quietly files a

@@ -516,7 +516,7 @@ export function buildRules(
 ) {
   // One pinned rule per category the ledger declares. A row that names no
   // category falls into Subscriptions; a row that names one (Rent -> Home,
-  // tuition -> Tuition) gets its own band, because burying €609 of housing in a
+  // tuition -> Tuition) gets its own band, because burying the rent in a
   // bucket named after Adobe hides the biggest number in the month.
   const descriptions = txns.map((t) => t.description);
   const grouped = new Map<string, string[]>();
@@ -792,8 +792,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      * counts badly: Adobe, the Metal plan and the university are charged to the
      * very card whose spending is being added, so they are subtracted once as
      * recurring outgoings and added straight back as card transactions. On the
-     * real file that produced a burn of €26.69/month and a runway of 131 months,
-     * which is not a number anyone should act on.
+     * real file that produced a burn of a few euros a month and a runway of
+     * over ten years, which is not a number anyone should act on.
      *
      * The balances the bank printed on the first and last settled rows cannot
      * disagree with each other. The slope between them is what the account is
@@ -820,13 +820,13 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
      * you can make.
      *
      * DIRECTION is not decoration. A subscription is money leaving and income
-     * is money arriving, and the same counterparty can be both: a parent
-     * sends €<amount> a month and he occasionally sends her something back, so the
-     * statement holds "PAYMENT FROM <NAME>" and "TRANSFER TO <NAME>
-     * JANE ASH" under one ledger row. Summing without regard to direction gave
-     * every income line a total of €0.00 (income is positive, and the old sum
-     * only counted negatives), and picking the biggest descriptor sent her card
-     * to the money he had sent HER. So each side counts only its own direction.
+     * is money arriving, and the same counterparty can be both: a relative who
+     * sends money every month and is occasionally paid back puts
+     * "PAYMENT FROM <NAME>" and "TRANSFER TO <NAME>" under one ledger row.
+     * Summing without regard to direction gave every income line a total of
+     * €0.00 (income is positive, and the old sum only counted negatives), and
+     * picking the biggest descriptor sent the income card to the money going
+     * the other way. So each side counts only its own direction.
      */
     const activityFor = (items: typeof subscriptions, direction: "in" | "out") =>
       Object.fromEntries(
@@ -1141,9 +1141,9 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
        * ATM withdrawal, plus any fee. NOT transfers.
        *
        * Counting every negative amount is what made this page disagree with the
-       * chart that opened it — May read €1,975 here against €1,000 on the
-       * Spending page, because €590 of rent left as a transfer to a housing
-       * association and landed in "Other". Transfers are still reported, under
+       * chart that opened it — a month read nearly twice the Spending page's
+       * figure here, because the rent left as a transfer to the landlord and
+       * landed in "Other". Transfers are still reported, under
        * their own heading, because they are money leaving; they are simply not
        * the same question as "what did I spend".
        */
@@ -1213,7 +1213,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
          * A typical complete month, for the header comparison — like for like:
          * filtered to a category, "a typical month" means a typical month OF
          * THAT CATEGORY. Comparing one category's month against the whole
-         * month's median is how €250 of shopping reads as €740 under a typical
+         * month's median is how €250 of shopping reads as €750 under a typical
          * €1,000.
          */
         typical: typicalOther(wanted),
@@ -1264,7 +1264,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       /**
        * A merchant is not always somewhere you spend.
        *
-       * "PAYMENT FROM <NAME>" is €300 arriving nine times; scoring it
+       * "PAYMENT FROM <NAME>" is one amount arriving every month; scoring it
        * with the outgoing rule (negatives only) gave a page of €0.00 rows under
        * a €0.00 total, which is the same direction bug the ledger cards had.
        * So the page works out which way the money mostly goes and reports THAT
@@ -1287,9 +1287,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const total = amounts.reduce((a, b) => a + b, 0);
       /**
        * For money ARRIVING the typical payment is the median, not the mean.
-       * DUO pays €324.52 most months and occasionally settles a backlog; the
-       * mean of that is €588, a figure that has never once landed and never
-       * will. The median is what you can count on. Spending keeps the mean,
+       * A payment of €300 most months that occasionally settles a backlog has a
+       * mean of €550, a figure that has never once landed and never will. The median is what you can count on. Spending keeps the mean,
        * where a total spread over a count is the useful reading.
        */
       const median = (xs: number[]) => {

@@ -163,10 +163,10 @@ describe("front-matter tags that read as path escapes", () => {
 
 describe("task titles are plain text", () => {
   it("drops inline Markdown from the title and keeps the source line in raw", () => {
-    const raw = "- [ ] **Does the Paris office sell?** Ask ==Ruben== about `pipeline` in [[thesis|the thesis]] @jules !p1 due:2026-10-02";
+    const raw = "- [ ] **Does the Paris office sell?** Ask ==Sam== about `pipeline` in [[thesis|the thesis]] @jules !p1 due:2026-10-02";
     const [t] = parseNote(raw).tasks;
     expect(t).toMatchObject({
-      text: "Does the Paris office sell? Ask Ruben about pipeline in the thesis",
+      text: "Does the Paris office sell? Ask Sam about pipeline in the thesis",
       assignee: "jules",
       priority: 1,
       due: "2026-10-02",

@@ -6,7 +6,7 @@
  * so deleting the database and re-indexing brings the whole graph back, and
  * Obsidian keeps working on the same files. Every fact carries its provenance
  * (the note it was read from, and the field, section, tag or line), so a model
- * that is told "Ruben works at Scooperz" can be shown where.
+ * that is told "Sam works at Northwind" can be shown where.
  *
  * Where relations are read from:
  *  - front matter — `company: "[[Scooperz]]"`; a plain string is resolved by

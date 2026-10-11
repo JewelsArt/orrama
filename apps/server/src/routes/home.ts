@@ -237,7 +237,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        *
        * The card used to show income minus commitments and call it "left per
        * month", which is a number about intentions: it knows nothing about the
-       * €1,000 of groceries, transport and everything else that leaves by card.
+       * groceries, transport and everything else that leaves by card.
        * This is the same pipeline the Finance tab runs, compacted to the four
        * figures a dashboard has room for.
        */
@@ -246,7 +246,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        *
        * Anchored on the LAST COMPLETE month, not the one in progress. On the
        * 3rd of September the current month is three days of data, and a
-       * dashboard leading with €187 against a typical €1,809 is a fact about
+       * dashboard leading with €200 against a typical €1,800 is a fact about
        * the calendar rather than about spending. The month in progress is still
        * reported, underneath, where it cannot be mistaken for the headline.
        */

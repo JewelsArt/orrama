@@ -2,8 +2,7 @@
  * Accounts that are Jules's own money somewhere else — a broker, a savings pot.
  *
  * A statement cannot tell a deposit into Capital.com from a purchase: the bank
- * files it as a Card Payment, so it counted as spending (€1,640 of CFD deposits
- * in 2020–21). The list lives in a note tagged `#own-accounts`, the same way the
+ * files it as a Card Payment, so every broker deposit counted as spending. The list lives in a note tagged `#own-accounts`, the same way the
  * other ledgers do:
  *
  *   | Account     | Matches     |
@@ -72,7 +71,7 @@ const cents = (n: number) => Math.round(n * 100) / 100;
  *
  * Runs over the WHOLE history, oldest first, because what counts as a gain
  * depends on everything deposited before it: a €300 withdrawal is principal if
- * €1,640 went in, and €160 of it is gain if only €140 did. A withdrawal the
+ * €1,000 went in, and €160 of it is gain if only €140 did. A withdrawal the
  * bank files as a Card Refund becomes a move too, so run this before
  * settleRefunds and the refund never gets matched to the deposit at all.
  */

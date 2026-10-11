@@ -542,7 +542,7 @@ describe("graph + plan + profile", () => {
     const list = await api("GET", "/api/contacts", "erin");
     expect(list.status).toBe(200);
     const pieter = list.json.find((c: { name: string }) => c.name === "Pieter Haans");
-    expect(pieter).toMatchObject({ sector: "Finance", company: "Scooperz", email: "p.haans@example.com" });
+    expect(pieter).toMatchObject({ sector: "Finance", company: "Northwind", email: "p.haans@example.com" });
     // mara files a private contact in her personal vault; erin never sees it
     await api("PUT", "/api/vault/note", "mara", {
       path: "Personal/mara/Contacts/Secret Source.md",
@@ -559,20 +559,20 @@ describe("graph + plan + profile", () => {
     expect(list.status).toBe(200);
     const names = list.json.map((c: { name: string }) => c.name);
     expect([...names].sort((a: string, b: string) => a.localeCompare(b))).toEqual(names);
-    const scooperz = list.json.find((c: { name: string }) => c.name === "Scooperz");
-    expect(scooperz).toMatchObject({ sector: "Marketing", linkedin: "linkedin.com/company/scooperz" });
-    expect(scooperz.positions).toContain("Data Analyst intern");
+    const northwind = list.json.find((c: { name: string }) => c.name === "Northwind");
+    expect(northwind).toMatchObject({ sector: "Marketing", linkedin: "linkedin.com/company/northwind-example" });
+    expect(northwind.positions).toContain("Data Analyst intern");
 
     // front-matter patch: card fields change, the note body survives untouched
-    const patch = await api("PATCH", `/api/companies/${scooperz.id}`, "erin", {
-      description: "Social-media agency in Amsterdam.",
+    const patch = await api("PATCH", `/api/companies/${northwind.id}`, "erin", {
+      description: "Design studio in Amsterdam.",
       positions: ["Data Analyst intern", "BI Intern"],
     });
     expect(patch.status).toBe(200);
-    const note = await api("GET", `/api/vault/note/${scooperz.id}`, "erin");
-    expect(note.json.content).toContain("Social-media agency in Amsterdam.");
+    const note = await api("GET", `/api/vault/note/${northwind.id}`, "erin");
+    expect(note.json.content).toContain("Design studio in Amsterdam.");
     expect(note.json.content).toContain("People here: [[Marijke Elzinga]]");
-    const after = (await api("GET", "/api/companies", "erin")).json.find((c: { name: string }) => c.name === "Scooperz");
+    const after = (await api("GET", "/api/companies", "erin")).json.find((c: { name: string }) => c.name === "Northwind");
     expect(after.positions).toEqual(["Data Analyst intern", "BI Intern"]);
 
     // a contact note is not a company note
@@ -598,7 +598,7 @@ describe("graph + plan + profile", () => {
       expect(created.status).toBe(200);
       slug = created.json.slug;
 
-      await api("PATCH", `/api/projects/${slug}`, "jules", { prompt: "Help with the AMSIB thesis.", status: "on-track", deadline: "2027-01-18" });
+      await api("PATCH", `/api/projects/${slug}`, "jules", { prompt: "Help with the thesis.", status: "on-track", deadline: "2027-01-18" });
       await api("POST", `/api/projects/${slug}/decisions`, "jules", { text: "scope to NL vs FR" });
       await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "ask Pieter for the Q3 export" });
       await api("POST", `/api/projects/${slug}/capture`, "jules", { text: "book the defence room", task: true });
@@ -608,7 +608,7 @@ describe("graph + plan + profile", () => {
       const w = await api("GET", `/api/projects/${slug}`, "jules");
       expect(w.status).toBe(200);
       expect(w.json).toMatchObject({ name: "Thesis Forecasting", status: "on-track", deadline: "2027-01-18", domain: "academic" });
-      expect(w.json.prompt).toBe("Help with the AMSIB thesis.");
+      expect(w.json.prompt).toBe("Help with the thesis.");
       expect(w.json.decisions[0]).toContain("scope to NL vs FR");
       expect(w.json.inbox).toContain("ask Pieter for the Q3 export");
       expect(w.json.people.map((p: { title: string }) => p.title)).toContain("Pieter Haans");
@@ -737,7 +737,7 @@ describe("graph + plan + profile", () => {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Deals");
       ws.addRow(["Company", "Stage", "Value"]);
-      ws.addRow(["Scooperz", "Won", 12500]);
+      ws.addRow(["Northwind", "Won", 12500]);
       ws.addRow(["Adyen", "Proposal", 4000]);
       // a gap: exceljs rows are sparse, and a hole must reach the client as ""
       const gap = ws.addRow([]);
@@ -751,7 +751,7 @@ describe("graph + plan + profile", () => {
       expect(sheet.json.sheets).toHaveLength(1);
       expect(sheet.json.sheets[0].name).toBe("Deals");
       expect(sheet.json.sheets[0].rows[0]).toEqual(["Company", "Stage", "Value"]);
-      expect(sheet.json.sheets[0].rows[1]).toEqual(["Scooperz", "Won", "12500"]);
+      expect(sheet.json.sheets[0].rows[1]).toEqual(["Northwind", "Won", "12500"]);
       // every cell is a string — no holes, no nulls
       expect(sheet.json.sheets[0].rows[3]).toEqual(["Mollie", "", "900"]);
       for (const row of sheet.json.sheets[0].rows) {
