@@ -16,6 +16,7 @@ import "./styles/find.css";
 import "./styles/settings.css";
 import "./styles/planning.css";
 import "./styles/ask.css";
+import "./styles/new.css";
 import "./styles/orrery.css";
 import "./styles/reader.css";
 import "./styles/people.css";

@@ -71,9 +71,17 @@ describe("the phone's top bar on Today", () => {
     vi.useRealTimers();
   });
 
-  it("has no New on the other places", async () => {
+  it("on the other places, New beside Find offers a task, a note, an event or a project (R12); none in Settings", async () => {
     serve({ "GET /api/mail/drafts": [] });
     at("/projects");
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByTestId("view");
+    await user.click(within(document.querySelector<HTMLElement>(".ptop")!).getByRole("button", { name: "New" }));
+    const menu = await screen.findByRole("menu", { name: "New" });
+    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project"]);
+    cleanup();
+    at("/settings");
     render(<App />);
     await screen.findByTestId("view");
     expect(within(document.querySelector<HTMLElement>(".ptop")!).queryByRole("button", { name: "New" })).toBeNull();

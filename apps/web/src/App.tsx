@@ -5,6 +5,7 @@ import { Noticed } from "./noticed/Noticed.js";
 import { EntityPage } from "./entity/EntityPage.js";
 import { usePageTitleFor } from "./entity/title.js";
 import { AskPanel } from "./AskPanel.js";
+import { New } from "./create/New.js";
 import { Money } from "./Finance.js";
 import { People } from "./people/People.js";
 import { Project } from "./Project.js";
@@ -242,6 +243,9 @@ export function App() {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const closeAsk = useCallback(() => setAskOpen(false), []);
+  const [newAt, setNewAt] = useState<HTMLElement | null>(null);
+  const newAnchor = useMemo(() => ({ current: newAt }), [newAt]);
+  const closeNew = useCallback(() => setNewAt(null), []);
   const [updateReady, setUpdateReady] = useState(false);
 
   // localStorage is the first-paint cache for the three appearance values; the
@@ -482,7 +486,8 @@ export function App() {
       askOpen={askOpen}
       onFind={() => setPaletteOpen(true)}
       onAsk={() => setAskOpen((v) => !v)}
-      onNew={route.kind === "today" ? () => setCaptureOpen(true) : undefined}
+      // On the phone: Today's + is Capture (§1.3), every other page's is New, prefilled for it.
+      onNew={route.kind === "today" ? () => setCaptureOpen(true) : route.kind === "settings" ? undefined : (button) => setNewAt(button)}
       mailDot={draftsWaiting}
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
@@ -532,7 +537,7 @@ export function App() {
         ) : shown.kind === "money" ? (
           <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (
-          <Today onCapture={() => setCaptureOpen(true)} />
+          <Today />
         ) : view.kind === "architecture" ? (
           <Notes me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} />
         ) : view.kind === "planning" ? (
@@ -582,6 +587,7 @@ export function App() {
           <QuickCapture onClose={() => setCaptureOpen(false)} />
         </ErrorBoundary>
       )}
+      {newAt && <New anchor={newAnchor} route={route} onDone={closeNew} />}
       {keysOpen && <KeysSheet onClose={() => setKeysOpen(false)} />}
       <Toaster />
     </Shell>

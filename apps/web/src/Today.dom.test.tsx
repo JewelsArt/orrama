@@ -32,8 +32,8 @@ afterEach(() => {
 const mod = (name: string) => screen.getByRole("region", { name });
 const path = () => location.pathname + location.search;
 /** Today, loaded: the timetable and the last module in. */
-async function shown(onCapture = () => {}) {
-  render(<Today onCapture={onCapture} />);
+async function shown() {
+  render(<Today />);
   await screen.findByRole("region", { name: "Today, hour by hour" });
   await waitFor(() => expect(within(mod("Due")).queryByRole("status")).toBeNull());
 }
@@ -225,7 +225,7 @@ describe("Today: the modules", () => {
 
   it("a module that fails says so and offers Retry; the others still render", async () => {
     stubToday({ "GET /api/tasks": 500 });
-    render(<Today onCapture={() => {}} />);
+    render(<Today />);
     await waitFor(() => expect(within(mod("Due")).getByText("Your tasks didn't load.")).toBeTruthy());
     expect(within(mod("Due")).getByRole("button", { name: "Retry" })).toBeTruthy();
     await waitFor(() => expect(mod("Money").querySelector(".big")).toBeTruthy());
@@ -292,26 +292,20 @@ describe("Today: Customise, the header, New", () => {
     expect(names).toEqual(["Due", "Mail", "Coming up", "Projects", "Money"]);
   });
 
-  it("says the date and week, plans tomorrow, and New offers note, task, event, project and the ledgers", async () => {
+  it("says the date and week, plans tomorrow, and New offers task, note, event, project and the ledgers", async () => {
     stubToday();
-    const capture = vi.fn();
     const user = userEvent.setup();
-    await shown(capture);
+    await shown();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Thursday 8 October");
     expect(screen.getByText("Week 41")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Plan tomorrow" }).getAttribute("href")).toBe("/planning/day/2026-10-09");
     await user.click(screen.getByRole("button", { name: "New" }));
     const menu = await screen.findByRole("menu", { name: "New" });
-    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual([
-      "Task, to your inbox",
-      "Note",
-      "Event, in Planning",
-      "Project, on the board",
-      "Subscription",
-      "Income",
-    ]);
-    await user.click(within(menu).getByRole("menuitem", { name: "Task, to your inbox" }));
-    expect(capture).toHaveBeenCalledOnce();
+    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project", "Subscription", "Income"]);
+    // The task goes to your inbox, in New's own dialog (create/New.tsx), as Capture's did.
+    await user.click(within(menu).getByRole("menuitem", { name: "Task" }));
+    expect(await screen.findByRole("dialog", { name: "New task" })).toBeTruthy();
+    expect(screen.getByText("It goes to your inbox.")).toBeTruthy();
   });
 
   it("New → Subscription adds a row to the ledger note, and says where", async () => {

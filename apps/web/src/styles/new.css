@@ -1,0 +1,9 @@
+/* New (create/New.tsx): the dialogs that make a task, a note, an event or a project. The
+   Dialog, Form and Field are the system's (ui.css); these place what is particular to them. */
+.new-dlg .new-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.new-dlg .new-where { margin: 2px 0 0; font-size: 13px; }
+.new-dlg .new-err { margin: 6px 0 0; color: var(--late); font-size: 13.5px; line-height: 19px; }
+@media (max-width: 760px) {
+  .new-dlg .new-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .new-dlg .new-row > :first-child { grid-column: 1 / -1; }
+}

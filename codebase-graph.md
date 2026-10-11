@@ -216,11 +216,11 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
-- **Imports**: react, @ai-sdk/react, ai, ./api.js, ./icons.js, ./ask/Answer.js, ./ask/targets.js, ./notes/links.js, ./ui/router.js
+- **Imports**: react, @ai-sdk/react, ai, ./api.js, ./ask/Answer.js, ./ask/history.js, ./ask/targets.js, ./ask/working.js, ./notes/links.js, ./storage.js, ./ui/controls.js, ./ui/dates.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js
 
 ### `apps/web/src/Confirm.tsx`
 - **Exports**: ConfirmRequest, Confirm
@@ -288,7 +288,7 @@
 
 ### `apps/web/src/QuickCapture.tsx`
 - **Exports**: QuickCapture
-- **Imports**: react, ./api.js, ./ui/Icon.js
+- **Imports**: react, ./api.js, ./ui/controls.js, ./ui/fields.js, ./ui/overlays.js, ./ui/router.js
 
 ### `apps/web/src/Settings.tsx`
 - **Exports**: default, SettingsProps, Settings
@@ -304,7 +304,7 @@
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @basalt/core/dates, @basalt/schema/responses, ./api.js, ./categories.js, ./mail/people.js, ./newNote.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
+- **Imports**: react, @basalt/core/dates, @basalt/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -347,6 +347,14 @@
 ### `apps/web/src/categories.ts`
 - **Exports**: Category, CATEGORIES, SLEEP_STATES, CANCEL_STATES, DONE_STATES, isProjectActive, DOMAIN_COLOR, daysTo, relDay, isSessionLog, categoryOf, categoryColor, colorOf
 - **Imports**: ./api.js, @basalt/core/dates
+
+### `apps/web/src/create/New.tsx`
+- **Exports**: New
+- **Imports**: react, ../api.js, ../calendarMath.js, ../entity/dateInput.js, ../newNote.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
+
+### `apps/web/src/create/context.ts`
+- **Exports**: NewContext, newContext
+- **Imports**: ../calendarMath.js, ../ui/router.js
 
 ### `apps/web/src/dialog.tsx`
 - **Exports**: Dialog
@@ -498,7 +506,7 @@
 - **Imports**: ../ui/dates.js
 
 ### `apps/web/src/main.tsx`
-- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/capture.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js
+- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js
 
 ### `apps/web/src/money/Category.tsx`
 - **Exports**: pickMonth, CategoryPage

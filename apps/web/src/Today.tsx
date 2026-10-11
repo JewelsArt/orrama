@@ -14,8 +14,8 @@ import { addDays, isoLocal } from "@basalt/core/dates";
 import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
 import { api } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
+import { New } from "./create/New.js";
 import { addressOf } from "./mail/people.js";
-import { blankNote, createNote } from "./newNote.js";
 import { readJson, writeKey } from "./storage.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import { Button, LinkButton } from "./ui/controls.js";
@@ -23,8 +23,7 @@ import { timeLabel, toDate } from "./ui/dates.js";
 import { Switch } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { PageHeader } from "./ui/layout.js";
-import { NameDialog } from "./ui/NameDialog.js";
-import { Menu, Popover, toast } from "./ui/overlays.js";
+import { Popover, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type Route } from "./ui/router.js";
 import { Skeleton } from "./ui/states.js";
 import { AddMoneyRow } from "./today/AddMoneyRow.js";
@@ -93,7 +92,7 @@ function all<T extends unknown[]>(...ls: { [K in keyof T]: Loaded<T[K]> }): Load
 }
 const map = <T, U>(l: Loaded<T>, f: (t: T) => U): Loaded<U> => (l.state === "ok" ? { state: "ok", data: f(l.data) } : l);
 
-export function Today({ onCapture }: { onCapture: () => void }) {
+export function Today() {
   /* ---- the clock: the now line moves, and a new day reloads ---- */
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => {
@@ -330,15 +329,8 @@ export function Today({ onCapture }: { onCapture: () => void }) {
   /* ---- New ---- */
   const newRef = useRef<HTMLButtonElement>(null);
   const [newOpen, setNewOpen] = useState(false);
-  const [naming, setNaming] = useState(false);
+  const closeNew = useCallback(() => setNewOpen(false), []);
   const [adding, setAdding] = useState<"income" | "subscriptions" | null>(null);
-  const makeNote = async (name: string) => {
-    if (name.endsWith("/")) throw new Error("Add the note's name after the folder.");
-    const path = name.endsWith(".md") ? name : `${name}.md`;
-    // Create-only: a note already at this path is a 409, said under the field, never replaced.
-    const res = await createNote(path, blankNote(path.split("/").pop()!.replace(/\.md$/, "")));
-    navigate({ kind: "notes", id: res.id });
-  };
 
   /* ---- links ---- */
   const openItem = (it: DayItem): Link => {
@@ -479,23 +471,16 @@ export function Today({ onCapture }: { onCapture: () => void }) {
         </Popover>
       )}
       {newOpen && (
-        <Menu
+        <New
           anchor={newRef}
-          label="New"
-          align="end"
-          onClose={() => setNewOpen(false)}
-          items={[
-            { label: "Task, to your inbox", icon: <Icon name="check" size={16} />, onSelect: onCapture },
-            { label: "Note", icon: <Icon name="notes" size={16} />, onSelect: () => setNaming(true) },
-            { label: "Event, in Planning", icon: <Icon name="calendar" size={16} />, onSelect: () => navigate({ kind: "planning", scale: "day", at: today }) },
-            { label: "Project, on the board", icon: <Icon name="projects" size={16} />, onSelect: () => navigate({ kind: "projects" }) },
-            "-",
+          route={{ kind: "today" }}
+          extra={[
             { label: "Subscription", icon: <Icon name="repeat" size={16} />, onSelect: () => setAdding("subscriptions") },
             { label: "Income", icon: <Icon name="money" size={16} />, onSelect: () => setAdding("income") },
           ]}
+          onDone={closeNew}
         />
       )}
-      {naming && <NameDialog title="New note" label="Path" help="A folder and a name, like Ideas/Reading list" onSubmit={makeNote} onClose={() => setNaming(false)} />}
       {adding && (
         <AddMoneyRow
           kind={adding}

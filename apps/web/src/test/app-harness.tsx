@@ -40,7 +40,6 @@ vi.mock("../Today.js", async () => {
     Today: stub("today", (p) => [
       ["open project", () => navigate({ kind: "project", slug: "thesis" })],
       ["open note", () => navigate({ kind: "notes", id: "n-1" })],
-      ["new task", () => p.onCapture()],
     ]),
   };
 });

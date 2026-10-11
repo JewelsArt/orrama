@@ -46,8 +46,8 @@ export interface ShellProps {
   askOpen: boolean;
   onFind: () => void;
   onAsk: () => void;
-  /** The page's New, beside Find on the phone's top bar (Today's board). */
-  onNew?: () => void;
+  /** The page's New, beside Find on the phone's top bar; given the button, to hang a menu on. */
+  onNew?: (button: HTMLElement) => void;
   /** How many of Orr's drafts wait for you: the rail's Mail dot (Jules, 11 Oct), never unread mail. */
   mailDot?: number;
   children: ReactNode;
@@ -120,7 +120,7 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
           )}
           <h1>{title}</h1>
           {onNew && (
-            <button type="button" className="ib" onClick={onNew} aria-label="New">
+            <button type="button" className="ib" onClick={(e) => onNew(e.currentTarget)} aria-label="New">
               <Icon name="plus" />
             </button>
           )}
