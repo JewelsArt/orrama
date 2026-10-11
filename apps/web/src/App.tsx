@@ -18,7 +18,7 @@ import { Settings } from "./Settings.js";
 import { SECTIONS as SETTINGS_SECTIONS } from "./settings/parts.js";
 import { Setup } from "./Setup.js";
 import { readJson, readKey, removeKey, writeKey } from "./storage.js";
-import { OrramaMark } from "./ui/orr/logo.js";
+import { Boot } from "./door/Boot.js";
 import { isTyping, shellKey } from "./ui/keys.js";
 import { anyLayerOpen, Layer, Toaster } from "./ui/overlays.js";
 import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, PLACES, routeHref, useRoute, type MoneyPage, type Route } from "./ui/router.js";
@@ -435,12 +435,7 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [goBack]);
 
-  if (me === undefined || needsSetup === undefined)
-    return (
-      <div className="boot">
-        <OrramaMark height={44} title="Orrama" />
-      </div>
-    );
+  if (me === undefined || needsSetup === undefined) return <Boot />;
   if (me === null && needsSetup) return <Setup onDone={setMe} />;
   // A device that has signed in before gets the quick-unlock screen; it offers
   // "use password instead", which is also the only way out of a passcode lockout.
