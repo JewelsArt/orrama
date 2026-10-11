@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { DashboardTask } from "./api.js";
+import { Icon } from "./ui/Icon.js";
 
 /**
  * Per-project Gantt view (Overview board's alternate steps panel). Bars are
@@ -192,9 +193,10 @@ export function Gantt({ tasks, color, onSetDates, onOpen }: GanttProps) {
                     className="gantt-unset ghost"
                     style={{ left: (e + 1) * DAY_PX - min * DAY_PX + 4 }}
                     title="Remove dates (back to unscheduled)"
+                    aria-label="Remove dates"
                     onClick={() => onSetDates(t, { start: null, due: null })}
                   >
-                    ×
+                    <Icon name="x" size={12} />
                   </button>
                 </div>
               );

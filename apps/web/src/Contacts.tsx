@@ -5,6 +5,7 @@ import { Companies } from "./Companies.js";
 import { IconPlus, IconSearch } from "./icons.js";
 import { onWs } from "./ws.js";
 import type { Contact } from "@basalt/schema/responses";
+import { Icon } from "./ui/Icon.js";
 
 const SECTOR_SUGGESTIONS = ["Finance", "Marketing", "Leadership", "Operations", "University", "Engineering", "Design", "Other"];
 /**
@@ -236,7 +237,9 @@ export function Contacts({ me, onOpenNote }: { me: Me; onOpenNote: (id: string) 
                 <div className="ct-m-name">{selectedContact.name}</div>
                 <div className="ct-m-role">{selectedContact.role} {selectedContact.role && selectedContact.company ? "·" : ""} {selectedContact.company}</div>
               </span>
-              <button className="ct-m-close" onClick={() => setSelectedContact(null)}>✕</button>
+              <button className="ct-m-close" onClick={() => setSelectedContact(null)} aria-label="Close">
+                <Icon name="x" size={16} />
+              </button>
             </div>
             
             <div className="ct-m-tags">

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { TreeNote } from "./api.js";
 import { IconChevron, IconSearch } from "./icons.js";
+import { Icon } from "./ui/Icon.js";
 
 interface FolderNode {
   name: string;
@@ -201,7 +202,7 @@ export function FileTree({
         />
         {filter && (
           <button className="ghost" onClick={() => setFilter("")} aria-label="Clear filter">
-            ×
+            <Icon name="x" size={14} />
           </button>
         )}
       </label>

@@ -179,3 +179,7 @@ kbd {
 /* A dialog box that takes focus itself (it has no controls yet) shows no ring. */
 [role="dialog"][tabindex="-1"]:focus,
 [role="alertdialog"][tabindex="-1"]:focus { outline: none; }
+
+/* A line icon alone in one of the older screens' buttons (it held a glyph, §8 #12): centred,
+   off the text baseline. */
+button:not(.btn) > svg.i:only-child { display: block; margin: auto; }

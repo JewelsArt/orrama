@@ -7,6 +7,7 @@ import { Gantt } from "./Gantt.js";
 import { OverviewHead } from "./OverviewHead.js";
 import { onWs } from "./ws.js";
 import { dateLabel } from "./ui/dates.js";
+import { Icon } from "./ui/Icon.js";
 
 type Domain = "personal" | "professional" | "academic";
 const DOMAINS: { id: Domain; label: string; color: string }[] = [
@@ -218,7 +219,8 @@ export function Overview({
             {/* Every shelf is reachable from every shelf — no going home first. */}
             {shelf !== "active" && (
               <button className="ov-completed-tab on" onClick={() => setShelf("active")}>
-                ‹ Active projects
+                <Icon name="chev-l" size={12} />
+                Active projects
               </button>
             )}
             {shelf !== "sleeping" && sleeping.length > 0 && (

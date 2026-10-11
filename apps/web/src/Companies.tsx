@@ -5,6 +5,7 @@ import { ContactSheet, initials as sheetInitials, useColleagues, type ContactRec
 import { IconPlus } from "./icons.js";
 import { onWs } from "./ws.js";
 import type { Company } from "@basalt/schema/responses";
+import { Icon } from "./ui/Icon.js";
 export type { Company };
 
 const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", "#"];
@@ -408,7 +409,7 @@ function CompanyModal({
             </div>
           </span>
           <button className="ct-m-close" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="x" size={16} />
           </button>
         </div>
 

@@ -3,6 +3,7 @@ import { Dialog } from "./dialog.js";
 import { api, unlessAborted } from "./api.js";
 import { initials } from "./cards.js";
 import type { ProjectWorkspace } from "./Project.js";
+import { Icon } from "./ui/Icon.js";
 
 /** The planning view's own task shape (a subset of PlanTask). */
 export interface PlannableTask {
@@ -102,7 +103,7 @@ export function TaskCard({
         <header className="task-head">
           <span className="task-kicker">Step</span>
           <button className="doc-close" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="x" size={14} />
           </button>
         </header>
 

@@ -6,6 +6,7 @@ import { TaskCard } from "./TaskCard.js";
 import { onWs } from "./ws.js";
 import type { CalEvent, DayMarker, PlanData, PlanTask, TimeBlock } from "@basalt/schema/responses";
 import { dateLabel, dayMonthLabel, monthLabel, weekdayLabel } from "./ui/dates.js";
+import { Icon } from "./ui/Icon.js";
 
 /* ---------- data shapes ---------- */
 
@@ -247,7 +248,7 @@ export function Planning({
               onClick={() => setWeekStart(mode === "week" ? new Date(weekStart.getTime() - 7 * DAY_MS) : shiftMonth(weekStart, -1))}
               aria-label={mode === "week" ? "Previous week" : "Previous month"}
             >
-              ‹
+              <Icon name="chev-l" size={16} />
             </button>
             <button className="ghost week-today" onClick={() => setWeekStart(mondayOf(new Date()))}>
               {mode === "week"
@@ -259,7 +260,7 @@ export function Planning({
               onClick={() => setWeekStart(mode === "week" ? new Date(weekStart.getTime() + 7 * DAY_MS) : shiftMonth(weekStart, +1))}
               aria-label={mode === "week" ? "Next week" : "Next month"}
             >
-              ›
+              <Icon name="chev-r" size={16} />
             </button>
           </div>
           <div className="scope-tabs">

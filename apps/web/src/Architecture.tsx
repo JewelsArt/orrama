@@ -8,6 +8,8 @@ import { CATEGORIES, categoryColor, categoryOf } from "./categories.js";
 import { IconLock, IconPlus, IconPromote } from "./icons.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { onWs, sendEditing } from "./ws.js";
+import { Icon } from "./ui/Icon.js";
+import { NameDialog } from "./ui/NameDialog.js";
 
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
@@ -139,20 +141,17 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
     syncRef.current?.sync?.edit(content);
   }, []);
 
-  const createNote = async () => {
-    const name = prompt("Note path:", "");
-    if (!name || name.endsWith("/")) return;
+  // New note: a name in the Dialog (§8 #12). What the server refuses is said under the field.
+  const [naming, setNaming] = useState(false);
+  const createNote = async (name: string) => {
+    if (name.endsWith("/")) throw new Error("Add the note's name after the folder.");
     const path = name.endsWith(".md") ? name : `${name}.md`;
-    try {
-      const res = await api<{ id: string }>("PUT", "/api/vault/note", {
-        path,
-        content: `---\ntitle: ${path.split("/").pop()!.replace(/\.md$/, "")}\n---\n\n`,
-      });
-      await loadTree();
-      await openNote(res.id);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "failed");
-    }
+    const res = await api<{ id: string }>("PUT", "/api/vault/note", {
+      path,
+      content: `---\ntitle: ${path.split("/").pop()!.replace(/\.md$/, "")}\n---\n\n`,
+    });
+    await loadTree();
+    await openNote(res.id);
   };
 
   const checkTask = async (line: number, checked: boolean) => {
@@ -226,9 +225,18 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               ))}
             </select>
           </label>
-          <button className="ghost scope-new" onClick={createNote} title="New note" aria-label="New note">
+          <button className="ghost scope-new" onClick={() => setNaming(true)} title="New note" aria-label="New note">
             <IconPlus />
           </button>
+          {naming && (
+            <NameDialog
+              title="New note"
+              label="Path"
+              help="A folder and a name, like Ideas/Reading list"
+              onSubmit={createNote}
+              onClose={() => setNaming(false)}
+            />
+          )}
         </div>
         <div className="cat-legend" role="group" aria-label="Categories">
           {CATEGORIES.filter((c) => (catCounts.get(c.id) ?? 0) > 0).map((c) => (
@@ -262,7 +270,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               </div>
               <span className="editor-presence">
                 <button className="editor-close" onClick={closeNote} title="Close note (Esc)" aria-label="Close note">
-                  ✕
+                  <Icon name="x" size={14} />
                 </button>
                 {open.canEdit && !isProject && (
                   <button className="make-project" onClick={makeProject} title="Add project tags so this note shows on the board">

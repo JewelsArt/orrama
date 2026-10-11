@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api.js";
+import { Icon } from "./ui/Icon.js";
 
 /** One-keystroke capture (`c`): appends to the user's inbox note (spec §6.5). */
 export function QuickCapture({ onClose }: { onClose: () => void }) {
@@ -20,7 +21,9 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
   return (
     <div className="overlay" onClick={onClose} onKeyDown={(e) => e.key === "Escape" && onClose()}>
       <form className="capture-box" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <span className="capture-icon">{saved ? "✓" : "+"}</span>
+        <span className="capture-icon">
+          <Icon name={saved ? "check" : "plus"} size={16} />
+        </span>
         <input
           ref={ref}
           placeholder="Capture a task to your inbox…"
@@ -28,7 +31,6 @@ export function QuickCapture({ onClose }: { onClose: () => void }) {
           onChange={(e) => setText(e.target.value)}
           aria-label="Quick capture"
         />
-        <kbd>↵</kbd>
       </form>
     </div>
   );

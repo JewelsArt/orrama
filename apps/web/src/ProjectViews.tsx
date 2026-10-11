@@ -5,6 +5,7 @@ import { DocViewer } from "./DocViewer.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
 import type { Board, BoardEdge, BoardNode, FileNode, GroupNode, ProjectTask } from "@basalt/schema/responses";
+import { Icon } from "./ui/Icon.js";
 
 /**
  * The project page's three working views, from the approved Sep 2026 mock:
@@ -540,8 +541,8 @@ export function ProjectBoard({ w, onUpload }: { w: ProjectWorkspace; onUpload: (
                 )}
                 {editable && renaming !== g.id && (
                   <>
-                    <button className="pbd-box-btn" aria-label={`Rename ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => setRenaming(g.id)}>✎</button>
-                    <button className="pbd-box-btn" aria-label={`Delete box ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => commit({ ...board, nodes: board.nodes.filter((n) => n.id !== g.id) })}>✕</button>
+                    <button className="pbd-box-btn" aria-label={`Rename ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => setRenaming(g.id)}><Icon name="pen" size={12} /></button>
+                    <button className="pbd-box-btn" aria-label={`Delete box ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => commit({ ...board, nodes: board.nodes.filter((n) => n.id !== g.id) })}><Icon name="x" size={12} /></button>
                   </>
                 )}
               </div>

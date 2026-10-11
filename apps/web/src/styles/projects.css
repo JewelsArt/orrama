@@ -405,6 +405,7 @@ button.ov-pname {
   cursor: pointer;
   white-space: nowrap;
 }
+.ov-completed-tab svg.i { vertical-align: -2px; margin: 0 2px 0 -3px; }
 .ov-completed-tab:hover {
   color: var(--text);
   border-color: var(--glass-brd);

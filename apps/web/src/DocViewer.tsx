@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dialog } from "./dialog.js";
 import { api, apiBlob, isAbort } from "./api.js";
 import type { Deck, Sheet } from "@basalt/schema/responses";
+import { Icon } from "./ui/Icon.js";
 
 /**
  * Read a project document without leaving Basalt.
@@ -217,7 +218,7 @@ export function DocViewer({
             Download
           </button>
           <button className="doc-close" onClick={onClose} aria-label="Close document">
-            ✕
+            <Icon name="x" size={14} />
           </button>
         </header>
 
