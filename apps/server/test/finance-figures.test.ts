@@ -218,22 +218,22 @@ describe("one pocket's balance (FIN-002)", () => {
       row("2026-04-30", "Card Payment", "ALBERT HEIJN", -1);
       if (withSavings) row("2026-04-30", "Transfer", "Savings interest", 9, "Savings");
     }).csv;
-  const plan = (csv: string) => {
-    const { txns, complete } = loadStatements(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
+  const plan = async (csv: string) => {
+    const { txns, complete } = await loadStatements(rootWith(csv), [{ account: "Broker", matches: ["capital.com"] }]);
     const finished = completeMonths(monthlyByCategory(txns, []), complete);
     return { txns, finished, savings: planSavings(txns, finished, { payslipNet: [], ledger: [], currency: "EUR" }) };
   };
 
-  it("reads the trend off the main pocket, not whichever pocket moved last", () => {
-    const { txns, finished } = plan(build(true));
+  it("reads the trend off the main pocket, not whichever pocket moved last", async () => {
+    const { txns, finished } = await plan(build(true));
     expect(finished.map((m) => m.month)).toEqual(months);
     // 4 × 300, plus the 150 withdrawn from savings, minus the €1 on the 30th.
     expect(balanceTrend(txns, months).drift).toBe((4 * 300 + 150 - 1) / 4);
   });
 
-  it("leaves the savings plan unchanged by the Savings pocket's own rows", () => {
-    const one = plan(build(false)).savings;
-    const two = plan(build(true)).savings;
+  it("leaves the savings plan unchanged by the Savings pocket's own rows", async () => {
+    const one = (await plan(build(false))).savings;
+    const two = (await plan(build(true))).savings;
     expect(two).toEqual(one);
     expect(two.incomeSource).toBe("balance");
     expect(two.observed).toBe((4 * 300 + 150 - 1) / 4);
@@ -459,7 +459,7 @@ describe("ledger totals stay in their own currency (FIN-017)", () => {
     expect(d.summary).not.toHaveProperty("outPerMonth");
   });
 
-  it("gives the savings plan only the statement's currency from the income note", () => {
+  it("gives the savings plan only the statement's currency from the income note", async () => {
     // No balance column, no payslips: the plan falls back to the income note.
     const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "ledger-"));
     fs.mkdirSync(path.join(root, "02-Areas/finance/files"), { recursive: true });
@@ -469,7 +469,7 @@ describe("ledger totals stay in their own currency (FIN-017)", () => {
       rows.push(`Card Payment,${m}-${m === "2026-02" ? "28" : "31"} 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED`);
     }
     fs.writeFileSync(path.join(root, "02-Areas/finance/files/s.csv"), rows.join("\n"));
-    const { txns, complete, currency } = loadStatements(root);
+    const { txns, complete, currency } = await loadStatements(root);
     const finished = completeMonths(monthlyByCategory(txns, []), complete);
     const plan = planSavings(txns, finished, {
       payslipNet: [],

@@ -570,6 +570,8 @@ export const financeResponse = o({
     }),
     txnCount: z.number(),
     skipped: z.number(),
+    /** Statement files left out of every total, and why. */
+    excluded: z.array(o({ name: z.string(), reason: z.string() })),
   }),
   files: z.array(fileEntry),
 });

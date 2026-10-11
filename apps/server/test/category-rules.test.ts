@@ -80,24 +80,24 @@ afterAll(async () => {
   fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
 });
 
-const rules = () => buildRules(parseCategoryRules(RULES_MD), parseSubscriptions(LEDGER_MD, "2026-04-30"), loadTxns(VAULT));
+const rules = async () => buildRules(parseCategoryRules(RULES_MD), parseSubscriptions(LEDGER_MD, "2026-04-30"), await loadTxns(VAULT));
 
 describe("buildRules", () => {
-  it("keeps the written rule for a category the ledger also names", () => {
-    expect(categoryOf("BOULDERMUUR", rules())).toBe("Bouldering");
+  it("keeps the written rule for a category the ledger also names", async () => {
+    expect(categoryOf("BOULDERMUUR", (await rules()))).toBe("Bouldering");
   });
 
-  it("still lets the ledger's own term win its transaction, as a pinned rule", () => {
-    const won = ruleFor("BUCKAROO STICHTING", rules());
+  it("still lets the ledger's own term win its transaction, as a pinned rule", async () => {
+    const won = ruleFor("BUCKAROO STICHTING", (await rules()));
     expect(won?.category).toBe("Bouldering");
     expect(won?.pinned).toBe(true);
-    expect(ruleFor("BOULDERMUUR", rules())?.pinned).toBeFalsy();
+    expect(ruleFor("BOULDERMUUR", (await rules()))?.pinned).toBeFalsy();
   });
 });
 
 describe("savingsCategories", () => {
-  it("splits a category into its committed and discretionary parts", () => {
-    const months = monthlyByCategory(loadTxns(VAULT), rules());
+  it("splits a category into its committed and discretionary parts", async () => {
+    const months = monthlyByCategory(await loadTxns(VAULT), (await rules()));
     expect(months.map((m) => m.committed?.["Bouldering"] ?? 0)).toEqual([40, 40, 40, 40]);
     const cats = savingsCategories(["Bouldering", "Groceries"], months);
     expect(cats).toEqual([

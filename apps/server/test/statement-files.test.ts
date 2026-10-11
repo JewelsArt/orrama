@@ -21,10 +21,10 @@ fs.writeFileSync(path.join(dir, "a-eur.csv"), [H, row("2026-08-01 10:00:00", "Ca
 fs.writeFileSync(path.join(dir, "b-usd.csv"), [H, row("2026-09-10 10:00:00", "NYC hotel", "-400.00", "USD", "600.00")].join("\n"));
 
 describe("statement files", () => {
-  it("leave out a file in another currency, and order rows by time", () => {
-    const txns = loadTxns(root);
+  it("leave out a file in another currency, and order rows by time", async () => {
+    const txns = await loadTxns(root);
     expect(txns.map((t) => t.description)).toEqual(["Cafe", "Bus", "Books"]);
-    const span = balanceSpan(root);
+    const span = await balanceSpan(root);
     expect(span.balance).toBe(80); // not the USD file's later 600
     expect(span.balanceDate).toBe("2026-08-02");
   });

@@ -973,17 +973,19 @@ function FinanceOverview({
         let bin = "";
         const bytes = new Uint8Array(buf);
         for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        const res = await api<{ name: string; stored: boolean; filed: boolean; reason?: string; parsed: { month: string | null } | null }>(
+        const res = await api<{ name: string; stored: boolean; filed: boolean; reason?: string; parsed: { month: string | null } | null; statement?: StatementRead | null }>(
           "POST",
           "/api/finance/payslip",
           { name: file.name, dataBase64: btoa(bin) },
         );
         setFlash(
-          res.filed
-            ? `Filed ${res.parsed?.month ?? file.name}.`
-            : res.stored
-              ? `Stored ${res.name}, but the figures were not filed — ${res.reason ?? "unknown reason"}.`
-              : `Not stored — ${res.reason ?? "unknown reason"}.`,
+          res.statement !== undefined
+            ? statementFlash(res.name, res.statement)
+            : res.filed
+              ? `Filed ${res.parsed?.month ?? file.name}.`
+              : res.stored
+                ? `Stored ${res.name}, but the figures were not filed — ${res.reason ?? "unknown reason"}.`
+                : `Not stored — ${res.reason ?? "unknown reason"}.`,
         );
       } catch (e) {
         setFlash(e instanceof Error ? e.message : `Could not upload ${file.name}`);
@@ -1045,6 +1047,19 @@ function FinanceOverview({
           </button>
         </div>
       </header>
+
+      {d.spending.excluded.length > 0 && (
+        <div className="fin-unreadables">
+          <Notice
+            title={`${d.spending.excluded.length} statement ${d.spending.excluded.length === 1 ? "file is" : "files are"} left out of the figures`}
+            text={d.spending.excluded.map((f) => (
+              <span key={f.name} className="fin-unreadable">
+                {f.name}: {f.reason}.
+              </span>
+            ))}
+          />
+        </div>
+      )}
 
       {flash && (
         <div className="fin-flash" role="status">
@@ -1544,6 +1559,24 @@ function ChargeCalendar({
       </div>
     </div>
   );
+}
+
+/** What the server says one uploaded statement added (FIN-007). */
+interface StatementRead {
+  rows: number;
+  skipped: number;
+  first: string | null;
+  last: string | null;
+  reason: string | null;
+}
+
+/** The upload's answer for a statement: what it added, or why it adds nothing. */
+function statementFlash(name: string, st: StatementRead | null): string {
+  if (!st) return `Stored ${name}.`;
+  if (st.reason) return `Stored ${name}, but it is left out of the figures: ${st.reason}.`;
+  const span = st.first && st.last ? `, ${fullDate(st.first)} to ${fullDate(st.last)}` : "";
+  const skipped = st.skipped ? ` (${st.skipped} ${st.skipped === 1 ? "row" : "rows"} skipped: not settled, unreadable or in another currency)` : "";
+  return `Read ${st.rows} ${st.rows === 1 ? "transaction" : "transactions"} from ${name}${span}${skipped}.`;
 }
 
 /** " · 2 rows not counted", or nothing: the overview's half of FIN-006. */

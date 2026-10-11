@@ -97,6 +97,13 @@ export interface Statement {
   skipped: number;
   /** Of `skipped`, the rows in a currency other than `currency`. */
   otherCurrency: number;
+  /**
+   * Why NOTHING could be read, when nothing could: no Amount column, no rows,
+   * or none of them settled and readable. Null for a statement that gave
+   * rows. A file the parser cannot read used to be stored and ignored by
+   * every total with no word said (audit FIN-007).
+   */
+  problem: string | null;
 }
 
 /**
@@ -109,11 +116,30 @@ export interface Statement {
 export const byTime = (a: StatementRow, b: StatementRow) => (a.at ?? a.date).localeCompare(b.at ?? b.date);
 
 /**
+ * The delimiter a CSV's header line uses: comma, semicolon or tab, whichever
+ * occurs most outside quotes. Excel saves CSV with `;` under a Dutch or French
+ * locale (where the comma is the decimal point), and a statement opened and
+ * saved there used to parse as one column with no Amount — stored, listed, and
+ * ignored by every total (audit FIN-007).
+ */
+export function csvDelimiter(text: string): "," | ";" | "\t" {
+  const counts = { ",": 0, ";": 0, "\t": 0 };
+  let quoted = false;
+  for (const c of text) {
+    if (c === '"') quoted = !quoted;
+    else if (!quoted && (c === "\n" || c === "\r")) break;
+    else if (!quoted && c in counts) counts[c as keyof typeof counts]++;
+  }
+  return counts[";"] > counts[","] && counts[";"] >= counts["\t"] ? ";" : counts["\t"] > counts[","] ? "\t" : ",";
+}
+
+/**
  * RFC 4180 CSV. Written out rather than pulled in, because a merchant called
  * `BAR, RESTAURANT` splits into two fields under a naive `split(",")` and every
  * column after it shifts — silently turning a description into an amount.
+ * The delimiter is read off the header line unless the caller names it.
  */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string, delimiter?: "," | ";" | "\t"): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -121,6 +147,7 @@ export function parseCsv(text: string): string[][] {
 
   // Strip a UTF-8 BOM; Excel adds one and it would poison the first header.
   const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const sep = delimiter ?? csvDelimiter(src);
 
   for (let i = 0; i < src.length; i++) {
     const c = src[i]!;
@@ -134,7 +161,7 @@ export function parseCsv(text: string): string[][] {
       continue;
     }
     if (c === '"') quoted = true;
-    else if (c === ",") {
+    else if (c === sep) {
       row.push(field);
       field = "";
     } else if (c === "\n" || c === "\r") {
@@ -174,18 +201,55 @@ function flowOf(type: string): Flow {
   return "other";
 }
 
-export function parseStatement(csv: string): Statement {
-  const table = parseCsv(csv);
-  const empty: Statement = { rows: [], months: [], openingBalance: null, openingDate: null, balance: null, balanceDate: null, currency: "EUR", skipped: 0, otherCurrency: 0 };
-  if (table.length < 2) return empty;
+/**
+ * A timestamp as the export wrote it, as `YYYY-MM-DD[ rest]`. Excel under a
+ * Dutch locale rewrites `2026-06-10 10:00:00` as `10-6-2026 10:00` when the
+ * file is saved again; day-month-year with dashes or dots is unambiguous and
+ * read as such. Slashed dates (`6/10/2026`) are not — US and European order
+ * disagree — so they are left for the row to be skipped and counted.
+ */
+function isoStamp(raw: string): string {
+  const dmy = /^(\d{1,2})[-.](\d{1,2})[-.](\d{4})(.*)$/.exec(raw);
+  if (!dmy) return raw;
+  const time = dmy[4]!.trim();
+  // A minutes-only time gets its seconds back, so it sorts with the rest.
+  const hms = /^\d{1,2}:\d{2}$/.test(time) ? `${time.padStart(5, "0")}:00` : time;
+  return `${dmy[3]}-${dmy[2]!.padStart(2, "0")}-${dmy[1]!.padStart(2, "0")}${hms ? ` ${hms}` : ""}`;
+}
 
-  const cols = table[0]!.map((h) => HEADERS[h.trim().toLowerCase()] ?? "");
+export function parseStatement(csv: string): Statement {
+  return parseStatementTable(parseCsv(csv));
+}
+
+/**
+ * A statement from rows already split into cells — a CSV, or a workbook's
+ * first sheet. A number in a cell is taken as it is (a spreadsheet's numbers
+ * carry no separators to read); text goes through parseMoney.
+ */
+export function parseStatementTable(table: (string | number)[][]): Statement {
+  const empty = (problem: string): Statement => ({
+    rows: [],
+    months: [],
+    openingBalance: null,
+    openingDate: null,
+    balance: null,
+    balanceDate: null,
+    currency: "EUR",
+    skipped: Math.max(0, table.length - 1),
+    otherCurrency: 0,
+    problem,
+  });
+  if (table.length < 2) return empty("it has no rows");
+
+  const cols = table[0]!.map((h) => HEADERS[String(h).trim().toLowerCase()] ?? "");
   const at = (name: string) => cols.indexOf(name);
-  const get = (r: string[], name: string) => {
+  const cell = (r: (string | number)[], name: string) => {
     const i = at(name);
-    return i === -1 ? "" : (r[i] ?? "").trim();
+    return i === -1 ? "" : (r[i] ?? "");
   };
-  if (at("amount") === -1) return empty;
+  const get = (r: (string | number)[], name: string) => String(cell(r, name)).trim();
+  const money = (v: string | number) => (typeof v === "number" ? (Number.isFinite(v) ? v : null) : parseMoney(v));
+  if (at("amount") === -1) return empty("its header has no Amount column");
 
   const rows: StatementRow[] = [];
   let skipped = 0;
@@ -199,7 +263,7 @@ export function parseStatement(csv: string): Statement {
       skipped++;
       continue;
     }
-    const completed = get(raw, "completed") || get(raw, "started");
+    const completed = isoStamp(get(raw, "completed") || get(raw, "started"));
     const date = completed.slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       skipped++;
@@ -208,20 +272,20 @@ export function parseStatement(csv: string): Statement {
     // An amount we cannot read is not a free transaction. Skipping it counts
     // it where a wrong figure would hide it: the old parser returned 0 here,
     // so a garbled cell looked exactly like a €0.00 row (audit B4).
-    const amount = parseMoney(get(raw, "amount"));
+    const amount = money(cell(raw, "amount"));
     if (amount === null) {
       skipped++;
       continue;
     }
-    const feeRaw = get(raw, "fee");
-    const fee = feeRaw ? parseMoney(feeRaw) : 0;
+    const feeRaw = cell(raw, "fee");
+    const fee = String(feeRaw).trim() ? money(feeRaw) : 0;
     if (fee === null) {
       skipped++;
       continue;
     }
     const type = get(raw, "type");
-    const balanceRaw = get(raw, "balance");
-    const balance = balanceRaw ? parseMoney(balanceRaw) : null;
+    const balanceRaw = cell(raw, "balance");
+    const balance = String(balanceRaw).trim() ? money(balanceRaw) : null;
     const description = get(raw, "description");
     const currency = get(raw, "currency") || "EUR";
     rows.push({
@@ -237,7 +301,7 @@ export function parseStatement(csv: string): Statement {
       flow: flowOf(type),
       // Parsed numbers, not the cells as written, so one transaction matches
       // itself across exports that format money differently.
-      key: [get(raw, "started"), completed, type, get(raw, "product"), description, amount, fee, currency, balance ?? ""].join("\u0001"),
+      key: [isoStamp(get(raw, "started")), completed, type, get(raw, "product"), description, amount, fee, currency, balance ?? ""].join("\u0001"),
     });
   }
 
@@ -301,6 +365,7 @@ export function parseStatement(csv: string): Statement {
     currency,
     skipped: skipped + foreign,
     otherCurrency: foreign,
+    problem: rows.length === 0 ? `none of its ${table.length - 1} rows could be read (settled, with a date and an amount)` : null,
   };
 }
 

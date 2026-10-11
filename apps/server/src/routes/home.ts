@@ -244,8 +244,8 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
        * the calendar rather than about spending. The month in progress is still
        * reported, underneath, where it cannot be mistaken for the headline.
        */
-      spending: (() => {
-        const { txns, complete, currency } = statementsFor(store, user);
+      spending: await (async () => {
+        const { txns, complete, currency } = await statementsFor(store, user);
         if (txns.length === 0) return null;
         const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
         const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);

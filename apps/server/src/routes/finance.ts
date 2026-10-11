@@ -31,6 +31,8 @@ import {
   outflowByMonth,
   parseCategoryRules,
   parseStatement,
+  parseStatementTable,
+  type Statement,
   byTime,
   parseSubscriptions,
   parseLedger,
@@ -141,22 +143,92 @@ export function financeNote(store: VaultStore, user: Parameters<VaultStore["read
  * currency (parseStatement); this stops a USD-only export beside the euro ones
  * from adding its dollars to euro months or supplying the "latest" balance.
  */
-function statements(root: string): { currency: string; files: ReturnType<typeof parseStatement>[] } {
-  const dirPath = filesDir(root);
-  if (!fs.existsSync(dirPath)) return { currency: "EUR", files: [] };
-  const files = fs
-    .readdirSync(dirPath)
-    .filter((n) => n.toLowerCase().endsWith(".csv"))
-    .sort()
-    .map((csv) => parseStatement(fs.readFileSync(path.join(dirPath, csv), "utf8")));
-  const weight = new Map<string, number>();
-  for (const f of files) weight.set(f.currency, (weight.get(f.currency) ?? 0) + f.rows.length);
-  const currency = [...weight.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "EUR";
-  return { currency, files: files.filter((f) => f.currency === currency || f.rows.length === 0) };
+/** What one statement file contributed, or why it contributed nothing (FIN-007). */
+export interface StatementFileSummary {
+  name: string;
+  rows: number;
+  skipped: number;
+  currency: string;
+  first: string | null;
+  last: string | null;
+  /** Why the file is left out of every total; null when its rows count. */
+  reason: string | null;
 }
 
-export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeof parseStatement>["rows"] {
-  return loadStatements(root, own).txns;
+/** A statement file is a CSV or a workbook; the PDFs beside them are payslips. */
+const isStatementFile = (name: string) => !name.startsWith(".") && /\.(csv|xlsx)$/i.test(name);
+
+/**
+ * One statement file, read. A CSV goes through parseStatement (which reads the
+ * `;` Excel writes under a Dutch locale); a workbook's first sheet with an
+ * Amount header goes through the same row path, its numbers and dates taken
+ * as the spreadsheet holds them. Asynchronous: an export of a few years is
+ * megabytes, and reading it blocked the one event loop live sync runs on.
+ */
+export async function readStatementFile(abs: string): Promise<Statement> {
+  if (/\.csv$/i.test(abs)) return parseStatement(await fs.promises.readFile(abs, "utf8"));
+  const { default: ExcelJS } = await import("exceljs");
+  const wb = new ExcelJS.Workbook();
+  try {
+    await wb.xlsx.readFile(abs);
+  } catch {
+    return parseStatementTable([]);
+  }
+  const table: (string | number)[][] = [];
+  const ws = wb.worksheets[0];
+  ws?.eachRow({ includeEmpty: false }, (row) => {
+    const values = Array.isArray(row.values) ? row.values : [];
+    // `row.values` is 1-based and sparse: build it dense, as /sheet does.
+    table.push(Array.from({ length: Math.max(values.length - 1, 0) }, (_, i) => statementCell(values[i + 1])));
+  });
+  // A title or a blank line above the header is skipped, not read as one.
+  const header = table.findIndex((r, i) => i < 20 && r.some((c) => String(c).trim().toLowerCase() === "amount"));
+  return parseStatementTable(header > 0 ? table.slice(header) : table);
+}
+
+/** A workbook cell as the statement parser wants it: numbers stay numbers, dates become `YYYY-MM-DD HH:MM:SS`. */
+function statementCell(v: unknown): string | number {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") return v;
+  // exceljs reads a date cell as that wall-clock time in UTC.
+  if (v instanceof Date) return v.toISOString().slice(0, 19).replace("T", " ");
+  if (typeof v === "object") {
+    const o = v as { result?: unknown; text?: unknown; richText?: { text: string }[] };
+    if (o.richText) return o.richText.map((r) => r.text).join("");
+    if (o.result !== undefined) return statementCell(o.result);
+    if (o.text !== undefined) return String(o.text);
+    return "";
+  }
+  return String(v);
+}
+
+async function statements(
+  root: string,
+): Promise<{ currency: string; files: Statement[]; summaries: StatementFileSummary[] }> {
+  const dirPath = filesDir(root);
+  if (!fs.existsSync(dirPath)) return { currency: "EUR", files: [], summaries: [] };
+  const names = (await fs.promises.readdir(dirPath)).filter(isStatementFile).sort();
+  const read: { name: string; st: Statement }[] = [];
+  for (const name of names) read.push({ name, st: await readStatementFile(path.join(dirPath, name)) });
+  const weight = new Map<string, number>();
+  for (const { st } of read) weight.set(st.currency, (weight.get(st.currency) ?? 0) + st.rows.length);
+  const currency = [...weight.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? "EUR";
+  const summaries = read.map(({ name, st }) => ({
+    name,
+    rows: st.rows.length,
+    skipped: st.skipped,
+    currency: st.currency,
+    first: st.rows[0]?.date ?? null,
+    last: st.rows.at(-1)?.date ?? null,
+    reason:
+      st.problem ??
+      (st.currency !== currency ? `it is in ${st.currency}, and the statements are read in ${currency}` : null),
+  }));
+  return { currency, files: read.filter(({ st }) => st.currency === currency || st.rows.length === 0).map(({ st }) => st), summaries };
+}
+
+export async function loadTxns(root: string, own: OwnAccount[] = []): Promise<Statement["rows"]> {
+  return (await loadStatements(root, own)).txns;
 }
 
 /**
@@ -164,11 +236,11 @@ export function loadTxns(root: string, own: OwnAccount[] = []): ReturnType<typeo
  * off the coverage (fullMonths), never inferred from which months had
  * spending in them (FIN-008).
  */
-export function loadStatements(
+export async function loadStatements(
   root: string,
   own: OwnAccount[] = [],
-): { txns: ReturnType<typeof parseStatement>["rows"]; complete: string[]; currency: string } {
-  const { files, currency } = statements(root);
+): Promise<{ txns: Statement["rows"]; complete: string[]; currency: string; summaries: StatementFileSummary[] }> {
+  const { files, currency, summaries } = await statements(root);
   const rows: ReturnType<typeof parseStatement>["rows"] = [];
   const merged = new Map<string, typeof rows>(); // key → the most copies any one export holds
   for (const file of files) {
@@ -192,6 +264,7 @@ export function loadStatements(
     txns: settleRefunds(markOwnAccounts(rows, own)),
     complete: fullMonths(coverageOf(files.map((f) => f.rows))),
     currency,
+    summaries,
   };
 }
 
@@ -202,13 +275,13 @@ export function ownAccountsFor(store: VaultStore, user: Parameters<VaultStore["r
 }
 
 /** loadStatements with the reader's own-accounts list applied — what every endpoint wants. */
-export const statementsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
+export const statementsFor = async (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) =>
   canReadFinanceFiles(store, user)
     ? loadStatements(store.vaultRoot, ownAccountsFor(store, user))
-    : { txns: [], complete: [], currency: "EUR" };
+    : { txns: [], complete: [], currency: "EUR", summaries: [] };
 
 /** Just the transactions, for a page that never asks which months are complete. */
-export const txnsFor = (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) => statementsFor(store, user).txns;
+export const txnsFor = async (store: VaultStore, user: Parameters<VaultStore["readable"]>[0]) => (await statementsFor(store, user)).txns;
 
 /**
  * The drift the savings plan reads: the balance's slope PLUS what went into own
@@ -246,7 +319,7 @@ export function savingsDrift(txns: ReturnType<typeof parseStatement>["rows"], mo
  * the Finance tab and the Dashboard must read it from the same place or they
  * will quote different savings targets on the same data.
  */
-export function balanceSpan(root: string): {
+export async function balanceSpan(root: string): Promise<{
   balance: number | null;
   balanceDate: string | null;
   opening: number | null;
@@ -254,14 +327,14 @@ export function balanceSpan(root: string): {
   spanMonths: number;
   drift: number | null;
   skipped: number;
-} {
+}> {
   let balance: number | null = null;
   let balanceDate: string | null = null;
   let opening: number | null = null;
   let openingDate: string | null = null;
   let skipped = 0;
   {
-    for (const st of statements(root).files) {
+    for (const st of (await statements(root)).files) {
       skipped += st.skipped;
       if (st.balance !== null && (balanceDate === null || (st.balanceDate ?? "") > balanceDate)) {
         balance = st.balance;
@@ -547,10 +620,10 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
 
     // Statements, merged and de-duplicated by loadTxns. Balances are still read
     // per file: a balance is a property of the export, not of a row.
-    const { txns, complete, currency } = statementsFor(store, user);
+    const { txns, complete, currency, summaries } = await statementsFor(store, user);
     const filesReadable = canReadFinanceFiles(store, user);
     const { balance, balanceDate, skipped } = filesReadable
-      ? balanceSpan(store.vaultRoot)
+      ? await balanceSpan(store.vaultRoot)
       : { balance: null, balanceDate: null, skipped: 0 };
 
     // Categories are a note, so the grouping is the user's to change.
@@ -800,6 +873,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
         },
         txnCount: txns.length,
         skipped,
+        /** Statement files left out of every total, and why (FIN-007). */
+        excluded: summaries.filter((f) => f.reason !== null).map((f) => ({ name: f.name, reason: f.reason! })),
       },
       files,
     };
@@ -825,7 +900,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
       const writtenRules = rulesNote ? parseCategoryRules(rulesNote.content) : [];
 
-      const { txns, complete } = statementsFor(store, user);
+      const { txns, complete } = await statementsFor(store, user);
       const covered = new Set(complete);
 
       const rules = buildRules(writtenRules, subscriptions, txns);
@@ -930,7 +1005,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const subsNote = financeNote(store, user, "subscriptions");
       const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
       const rulesNote = store.readable(user).find((n) => n.tags.some((t) => t.tag === "spending-categories"));
-      const { txns, complete: covered } = statementsFor(store, user);
+      const { txns, complete: covered } = await statementsFor(store, user);
       const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
 
       const catMonths = monthlyByCategory(txns, rules);
@@ -1055,7 +1130,7 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const user = store.aclUser(req.userId);
       const wanted = decodeURIComponent(req.params.name).trim().toUpperCase();
 
-      const txns = txnsFor(store, user);
+      const txns = await txnsFor(store, user);
 
       // Matched on the same normalisation the merchant lists are built with, so
       // what you clicked is exactly what comes back.
@@ -1160,6 +1235,15 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     // the payslips row then points at (uploads.ts).
     const keep = () => storeUpload(dir, name, data).name;
 
+    // A statement: say what it added, or why it adds nothing. "Stored, but not
+    // filed — unknown reason" was the answer for every statement, read or not,
+    // and an .xlsx or an Excel-saved CSV was quietly ignored (FIN-007).
+    if (isStatementFile(name)) {
+      const stored = keep();
+      const { summaries } = await statements(store.vaultRoot);
+      const mine = summaries.find((f) => f.name === stored);
+      return { ok: true, name: stored, stored: true, parsed: null, filed: false, statement: mine ?? null };
+    }
     if (!name.toLowerCase().endsWith(".pdf")) return { ok: true, name: keep(), stored: true, parsed: null, filed: false };
 
     let parsed = null;

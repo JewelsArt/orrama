@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv, parseStatement, subscriptionTerms, usefulTerms } from "../src/statement.js";
+import { csvDelimiter, parseCsv, parseStatement, parseStatementTable, subscriptionTerms, usefulTerms } from "../src/statement.js";
 
 /** Revolut's export shape, with the four traps the real file contains. */
 const CSV = `Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
@@ -108,5 +108,64 @@ describe("usefulTerms", () => {
     const terms = subscriptionTerms("Amsterdam University of Applied Sciences");
     expect(terms).toContain("amsterdam");
     expect(usefulTerms(terms, merchants)).toEqual([]);
+  });
+});
+
+describe("statements the parser used to store and ignore (audit FIN-007)", () => {
+  const plain = [
+    "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance",
+    "Card Payment,Current,2026-06-10 10:00:00,2026-06-10 10:00:00,ALBERT HEIJN,-300.00,0.00,EUR,COMPLETED,700.00",
+    'Card Payment,Current,2026-07-10 10:00:00,2026-07-10 10:00:00,"BAR, RESTAURANT",-12.50,0.00,EUR,COMPLETED,687.50',
+  ];
+
+  it("reads a CSV Excel saved with semicolons and decimal commas", () => {
+    const excel = [
+      "Type;Product;Started Date;Completed Date;Description;Amount;Fee;Currency;State;Balance",
+      "Card Payment;Current;2026-06-10 10:00:00;2026-06-10 10:00:00;ALBERT HEIJN;-300,00;0,00;EUR;COMPLETED;700,00",
+      'Card Payment;Current;2026-07-10 10:00:00;2026-07-10 10:00:00;"BAR; RESTAURANT";-12,50;0,00;EUR;COMPLETED;687,50',
+    ].join("\n");
+    expect(csvDelimiter(excel)).toBe(";");
+    const s = parseStatement(excel);
+    expect(s.rows.map((r) => [r.description, r.amount])).toEqual([
+      ["ALBERT HEIJN", -300],
+      ["BAR; RESTAURANT", -12.5],
+    ]);
+    expect(s.balance).toBe(687.5);
+    expect(s.problem).toBeNull();
+  });
+
+  it("still reads a comma CSV whose descriptions hold semicolons", () => {
+    const s = parseStatement([...plain, "Card Payment,Current,2026-07-11 10:00:00,2026-07-11 10:00:00,A;B;C;D,-1.00,0.00,EUR,COMPLETED,686.50"].join("\n"));
+    expect(s.rows).toHaveLength(3);
+  });
+
+  it("reads the day-month-year dates Excel writes back under a Dutch locale", () => {
+    const s = parseStatement(
+      [
+        "Type;Completed Date;Description;Amount;Currency;State;Balance",
+        "Card Payment;10-6-2026 10:00;ALBERT HEIJN;-300,00;EUR;COMPLETED;700,00",
+        "Card Payment;1-7-2026 09:05;JUMBO;-20,00;EUR;COMPLETED;680,00",
+      ].join("\n"),
+    );
+    expect(s.rows.map((r) => [r.date, r.at])).toEqual([
+      ["2026-06-10", "2026-06-10 10:00:00"],
+      ["2026-07-01", "2026-07-01 09:05:00"],
+    ]);
+  });
+
+  it("takes a workbook's numbers as numbers", () => {
+    const s = parseStatementTable([
+      ["Type", "Completed Date", "Description", "Amount", "Fee", "Currency", "State", "Balance"],
+      ["Card Payment", "2026-06-10 10:00:00", "ALBERT HEIJN", -1.234, 0, "EUR", "COMPLETED", 1000],
+    ]);
+    expect(s.rows[0]!.amount).toBe(-1.234);
+    expect(s.balance).toBe(1000);
+  });
+
+  it("says why nothing could be read", () => {
+    expect(parseStatement("Date;Omschrijving;Bedrag\n2026-06-10;AH;-3,00").problem).toBe("its header has no Amount column");
+    expect(parseStatement("").problem).toBe("it has no rows");
+    expect(parseStatement("Completed Date,Description,Amount,State\n6/10/2026,AH,-3.00,COMPLETED").problem).toMatch(/none of its 1 rows/);
+    expect(parseStatement(plain.join("\n")).problem).toBeNull();
   });
 });
