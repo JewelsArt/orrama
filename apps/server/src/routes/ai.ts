@@ -484,7 +484,26 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
         transform: (chunk, out) => out.enqueue(chunk.type === "abort" && timedOut ? { type: "error", errorText: late } : chunk),
       }),
     );
-    pipeUIMessageStreamToResponse({ response: reply.raw, stream: shown });
+    // A run stopped mid-answer (Stop, the panel closing, a reload) errors the stream with the
+    // abort's reason, and pipeUIMessageStreamToResponse rethrows that from a promise nobody
+    // awaits: an unhandled rejection, which ends the process. So the stream ends here instead:
+    // quietly for a client that has gone, with the deadline's words for one still reading.
+    const reader = shown.getReader();
+    const ends = new ReadableStream<UIMessageChunk>({
+      async pull(out) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) out.close();
+          else out.enqueue(value);
+        } catch (err) {
+          if (timedOut) out.enqueue({ type: "error", errorText: late });
+          else if (!run.signal.aborted) out.enqueue({ type: "error", errorText: (err instanceof Error ? err.message : String(err)).slice(0, 500) });
+          out.close();
+        }
+      },
+      cancel: (reason) => reader.cancel(reason).catch(() => {}),
+    });
+    pipeUIMessageStreamToResponse({ response: reply.raw, stream: ends });
     reply.hijack();
     return;
   });

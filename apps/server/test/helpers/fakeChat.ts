@@ -14,7 +14,11 @@ export type Turn = (
   | { tool: string; args: object }
   | { hang: true }
   | { status: number; message?: string }
-) & { delay?: number };
+) & {
+  delay?: number;
+  /** Stream the turn's first chunk, then hold: the answer has started and never ends. */
+  hold?: boolean;
+};
 
 export interface FakeRequest {
   path: string;
@@ -78,6 +82,7 @@ export async function fakeChat(script: (n: number, body: any) => Turn) {
       res.write(`data: ${JSON.stringify({ id: `chat_${n}`, object: "chat.completion.chunk", created: 0, model: "fake", choices: [{ index: 0, delta, finish_reason }], ...extra })}\n\n`);
     if (toolCall) chunk({ role: "assistant", tool_calls: [toolCall] });
     else chunk({ role: "assistant", content: (turn as { text: string }).text });
+    if (turn.hold) return; // mid-answer, never finished
     chunk({}, finish, { usage });
     res.end("data: [DONE]\n\n");
   };
