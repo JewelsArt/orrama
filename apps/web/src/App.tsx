@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
 import { Architecture } from "./Architecture.js";
 import { AskPanel } from "./AskPanel.js";
@@ -9,7 +9,6 @@ import { Dashboard } from "./Dashboard.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
 import { Mail } from "./Mail.js";
-import { Orrery } from "./orrery/Orrery.js";
 import { Overview } from "./Overview.js";
 import { PROFILE_VAR_NAMES, customId, isCustom, profileVars, type VisionProfile } from "./palette.js";
 import { Planning } from "./Planning.js";
@@ -28,6 +27,9 @@ import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark } from "./ui/theme.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
+
+/** The Orrery and its canvas engine load when you first go there, not with the app. */
+const Orrery = lazy(() => import("./orrery/Orrery.js").then((m) => ({ default: m.Orrery })));
 
 /** The pages inside the Finance area that are not a category or a merchant. */
 export type FinancePage = MoneyPage;
@@ -483,7 +485,9 @@ export function App() {
             }}
           />
         ) : shown.kind === "orrery" ? (
-          <Orrery route={shown} onAsk={() => setAskOpen(true)} />
+          <Suspense fallback={null}>
+            <Orrery route={shown} onAsk={() => setAskOpen(true)} />
+          </Suspense>
         ) : view.kind === "dashboard" ? (
           <Dashboard
             me={me}
