@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { convertToModelMessages, stepCountIs, streamText, tool, type ModelMessage, type UIMessage, type UserModelMessage } from "ai";
+import { convertToModelMessages, pipeUIMessageStreamToResponse, stepCountIs, streamText, tool, type ModelMessage, type UIMessage, type UIMessageChunk, type UserModelMessage } from "ai";
 import { z } from "zod";
 import { askVaultSchema } from "@basalt/schema";
 import crypto from "node:crypto";
@@ -28,6 +28,10 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** search_vault sends this much of each note; read_note this much per part. */
 const EXCERPT_CHARS = 2000;
 const READ_CHARS = 60_000;
+/** read_email sends at most this much of a message: one newsletter filled every later step's context. */
+const EMAIL_CHARS = 20_000;
+/** The longest an Ask run, or a digest, may take (BASALT_AI_TIMEOUT_MS, checked in env.ts). */
+const AI_TIMEOUT_MS = Number(process.env.BASALT_AI_TIMEOUT_MS ?? 120_000);
 
 /** Replacing a note with text over a fifth (and 200 characters) shorter: the "rest unchanged…" rewrite. */
 const isShrink = (before: string, after: string) => after.length < before.length * 0.8 && before.length - after.length > 200;
@@ -148,7 +152,9 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
   };
 
   const callProvider = async (c: NonNullable<ReturnType<typeof config>>, system: string, prompt: string): Promise<string> => {
-    return completeText(c, { system, prompt });
+    // One attempt, bounded: two retries against a failing provider tripled the
+    // wait, and nothing stopped one that accepted and stalled (audit AI-006).
+    return completeText(c, { system, prompt, abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS), maxRetries: 0 });
   };
 
   /** Ask your vault (§9.1): answers cite [[notes]]. */
@@ -167,8 +173,26 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
       return store.requireReadable(user, n.id);
     };
 
+    // A run stops when the panel does. The client closing the request (useChat's
+    // stop(), closing the panel, leaving the page) aborts the model call in
+    // flight and every step after it, so no further tool runs; so does the
+    // deadline. Without a signal the SDK ran all six steps for nobody (AI-006).
+    const run = new AbortController();
+    const late = `The agent did not finish within ${Math.round(AI_TIMEOUT_MS / 1000)} s, so it was stopped.`;
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      run.abort(new Error(late));
+    }, AI_TIMEOUT_MS);
+    deadline.unref();
+    reply.raw.on("close", () => {
+      clearTimeout(deadline);
+      if (!reply.raw.writableFinished) run.abort(new Error("the client closed the request"));
+    });
+
     const result = streamText({
       model,
+      abortSignal: run.signal,
       system: buildSystemPrompt(ws?.aiInstructions ?? null),
       messages: withVaultGuide(await convertToModelMessages(body.messages as unknown as UIMessage[]), store.vaultGuide(user)),
       stopWhen: stepCountIs(6), // allow: call tool → observe result → answer
@@ -417,7 +441,8 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
               const m = await getMessage(credsFor(acct), uid);
               if (!m) return { success: false, error: "message not found" };
               // messageId/references let a follow-up send_email thread the reply correctly.
-              return { success: true, from: m.from, fromName: m.fromName, subject: m.subject, date: m.date, body: m.text || "(no plain-text body)", messageId: m.messageId, references: m.references };
+              const text = m.text || "(no plain-text body)";
+              return { success: true, from: m.from, fromName: m.fromName, subject: m.subject, date: m.date, body: text.slice(0, EMAIL_CHARS), ...(text.length > EMAIL_CHARS ? { truncated: true, length: text.length } : {}), messageId: m.messageId, references: m.references };
             } catch (err) {
               return { success: false, error: err instanceof Error ? err.message : String(err) };
             }
@@ -439,13 +464,21 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
     reply.raw.setHeader('Content-Type', 'text/plain; charset=utf-8');
     // Surface the real error to the client (the SDK masks it by default) so a bad
     // model / expired key / quota shows in the panel instead of silent nothing.
-    result.pipeUIMessageStreamToResponse(reply.raw, {
+    const stream = result.toUIMessageStream({
       onError: (error) => {
         const msg = error instanceof Error ? error.message : String(error);
         req.log.error({ err: msg }, "ai/ask stream error");
         return msg.length > 500 ? `${msg.slice(0, 500)}…` : msg;
       },
     });
+    // A run the deadline stopped is an error the panel shows; one the client
+    // stopped stays an abort (nobody is reading it).
+    const shown = stream.pipeThrough(
+      new TransformStream<UIMessageChunk, UIMessageChunk>({
+        transform: (chunk, out) => out.enqueue(chunk.type === "abort" && timedOut ? { type: "error", errorText: late } : chunk),
+      }),
+    );
+    pipeUIMessageStreamToResponse({ response: reply.raw, stream: shown });
     reply.hijack();
     return;
   });

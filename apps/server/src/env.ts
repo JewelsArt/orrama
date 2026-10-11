@@ -155,6 +155,7 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
   }
   int("BASALT_DOC_CACHE", 1);
   int("BASALT_PLAN_AI_TIMEOUT_MS", 1);
+  int("BASALT_AI_TIMEOUT_MS", 1);
   int("BASALT_WEBHOOK_DEBOUNCE_MS", 0);
   const allow = e["BASALT_ALLOW_DEV_SECRETS"];
   if (allow !== undefined && allow !== "" && allow !== "1" && allow !== "0") {
