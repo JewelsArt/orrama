@@ -16,6 +16,9 @@ import { EmptyState, Notice } from "./ui/states.js";
 import { dateTimeLabel } from "./ui/dates.js";
 import { navigate } from "./ui/router.js";
 
+/** Tree reloads asked for within this long of each other are one reload (WEB-009). */
+export const TREE_RELOAD_MS = 500;
+
 /** Architecture: the vault's shape. Files grouped by folder, scoped All / team /
  *  personal, with the link graph glowing faintly behind — structure you can feel. */
 export function Architecture({ me, noteId, category: initialCategory }: { me: Me; noteId?: string; category?: string }) {
@@ -47,9 +50,24 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   /** The note last asked for, which may still be on its way. */
   const wantRef = useRef<string | null>(null);
 
+  // The tree is the whole vault. One load at a time, the latest wins (an older reply landing
+  // last used to put old titles and counts back), and the reloads that every save and every
+  // live-sync event ask for come together into one, half a second after the last (WEB-009).
+  const [nextTree] = useState(latestOnly);
   const loadTree = useCallback(async () => {
-    setTree(await api<TreeNote[]>("GET", "/api/vault/tree"));
-  }, []);
+    clearTimeout(treeTimer.current);
+    try {
+      setTree(await api<TreeNote[]>("GET", "/api/vault/tree", undefined, { signal: nextTree() }));
+    } catch (e) {
+      unlessAborted(e);
+    }
+  }, [nextTree]);
+  const treeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const reloadTree = useCallback(() => {
+    clearTimeout(treeTimer.current);
+    treeTimer.current = setTimeout(() => void loadTree(), TREE_RELOAD_MS);
+  }, [loadTree]);
+  useEffect(() => () => clearTimeout(treeTimer.current), []);
 
   /** Close the open note, saving anything still pending first. */
   const closeNote = useCallback(() => {
@@ -101,7 +119,6 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
               setStatus(s);
               setWhy(reason);
             },
-            saved: () => void loadTree(),
             // Renamed elsewhere: the header shows where it is now (WEB-005).
             moved: (path) => setOpen((o) => (o && o.id === id ? { ...o, path } : o)),
             gone: () => setGone(true),
@@ -120,7 +137,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       setDraft(text ? { text, at: d!.at } : null);
       api<{ id: string; title: string; score: number }[]>("GET", `/api/vault/note/${id}/related`, undefined, { signal }).then(setRelated, unlessAborted);
     },
-    [loadTree, nextOpen],
+    [nextOpen],
   );
 
   useEffect(() => {
@@ -134,7 +151,8 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
   useEffect(() => {
     const off = onWs((msg) => {
       if (msg.type === "note-changed") {
-        void loadTree();
+        // Your own save comes back this way too: the one tree reload a save causes.
+        reloadTree();
         const current = openRef.current;
         // Not while another note is on its way: refreshing this one would
         // cancel the note just clicked.
@@ -155,7 +173,7 @@ export function Architecture({ me, noteId, category: initialCategory }: { me: Me
       off();
       clearInterval(expire);
     };
-  }, [loadTree, openNote]);
+  }, [reloadTree, openNote]);
 
   const onEdit = useCallback((content: string) => {
     const note = openRef.current;
