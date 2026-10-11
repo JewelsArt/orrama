@@ -1,117 +1,213 @@
-/* Basalt design tokens. Token-first: components only ever use vars, so a theme
-   is a token set and nothing else.
+/* Orrama design tokens. Evolved from packages/ui/src/tokens.css (Basalt), 8 October 2026.
 
-   Flat light-first language (replaces the old frosted-glass one): solid
-   surfaces, 1px hairline borders, generous whitespace, one violet accent used
-   sparingly, near-black primary buttons. No blur, no gradients, no glow.
+   Token-first, as before: components only ever use vars, so a theme is a token set and nothing
+   else. The recipe stays too: every colour is taken from a real reference, then checked (WCAG
+   contrast on every ground it sits on, and the dataviz validator for the categories) rather
+   than eyeballed.
 
-     :root / [data-theme="light"]   — paper white (the design target)
-     [data-theme="command"]         — the same design inverted onto near-black
+   What changed, and why:
+     - The ground is warm paper by day and night blue after dark: the same horizon under two
+       lights. Basalt's violet-tinted white and blue slate go with the violet accent.
+     - One accent, Morpho ultramarine (#1967D4, from a photo of a Morpho menelaus wing, James
+       St. John, CC BY 2.0), for links, focus and selection only.
+     - 9 October, Jules: "Orr's orange it is". The main button wears Orr's gradient with dark text,
+       his proposals and drafts sit in warm boxes, the timetable is topped with his gradient, and
+       progress, the pace bar, the current rail item and the current tab are in his orange.
+     - "Now" has its own colour, the logo's orange taken one solid step (--sun). Orr himself
+       (the logo) is the only gradient anywhere; it lives in his SVG, not here.
+     - Five categories in a fixed order instead of four families (--v, --ink, --cat, --t):
+       cyan, logo orange, ultramarine, logo coral, azure. Status green and red stay outside
+       them, and red FILL is the key deadline's alone.
+     - --text-faint (2.8-3.0:1, it failed AA) is gone; --ink-3 is 5.6:1 on paper, 6.4:1 at night.
+     - One family, Figtree, with tabular figures for times and money. No UI mono.
+     - Three radii instead of eighteen.
+     - 9 October, Jules: "boxes a bit more separated" made things easier to find in Basalt. Content
+       now sits in white boxes (--surface, --card-line, --shadow-card) on a deeper paper ground.
+       Category colours go only on boxes: on the ground they would measure 2.8-2.9:1.
 
-   The glass-era names (--glass*, --blur, --blob-*) are kept and redefined as
-   flat values so every component keeps working; new work should reach for
-   --surface / --panel / --border instead. */
+     :root / [data-theme="light"] / [data-theme="paper"]   warm paper (the design target)
+     [data-theme="dark"] / [data-theme="command"]           night blue ("command" is the stored
+                                                            value today; it stays an alias)
+
+   Legacy names at the end alias to the new ones, so pages can move over one at a time.
+   Delete each alias when nothing reads it any more; plan.md lists the order. */
 
 :root,
 [data-theme="light"],
 [data-theme="paper"] {
-  /* ---- ground + surfaces ---------------------------------------------- */
-  /* The ground is Finance's violet-tinted white, not a neutral one — the same
-     move dark mode made (see --bg there). Light ran two grounds too: #f7f7f8
-     everywhere and #f6f4fb inside `.fin`, and the violet one is the half worth
-     keeping. It is a whisper of a tint — C 0.0095, seven times the old chroma
-     but still under a hundredth — which is exactly the point: enough to stop
-     the page reading as plain paper, not enough to read as a colour.
-     One ramp, one hue (oklch h≈299, and the violet accent sits at 280). */
-  --bg: #f6f4fb;
-  --bg-0: #f6f4fb;
-  --bg-1: #f6f4fb;
-  --bg-2: #f6f4fb;
-  --blob-a: transparent;
-  --blob-b: transparent;
-  --blob-c: transparent;
-
-  --surface: #ffffff;
-  --glass: #ffffff;
-  --glass-2: #ffffff;
-  --glass-strong: #ffffff;
-  --glass-brd: rgba(17, 18, 22, 0.09);
-  /* Inset "top highlight" of the glass era — invisible in a flat language. */
-  --glass-hi: transparent;
-  --blur: none;
-  --dot: rgba(17, 18, 22, 0.08);
-
-  --bg-raised: #f1eff8;
-  /* Floating panels are solid surfaces; the dimmer behind them is --scrim. */
-  --bg-overlay: #ffffff;
-  --scrim: rgba(17, 18, 22, 0.28);
-  --panel: #f4f2fa;
-  --panel-strong: #eae7f2;
-  --border: rgba(17, 18, 22, 0.09);
-  --border-strong: rgba(17, 18, 22, 0.16);
-
-  /* Shadows are for things that genuinely float; cards use borders instead. */
-  --card-shadow: none;
-  --shadow: 0 1px 2px rgba(17, 18, 22, 0.05);
-  --shadow-pop: 0 10px 32px -12px rgba(17, 18, 22, 0.18), 0 2px 6px -2px rgba(17, 18, 22, 0.08);
+  /* ---- ground + surfaces ----------------------------------------------- */
+  --ground: #F3EFE8;   /* deeper paper, so the white boxes stand apart (1.15:1 against them) */
+  --surface: #FFFFFF;
+  --panel: #F4EFE7;    /* fills inside a box: events, pills, the bar's track */
+  /* Today's column, inside the white week: a breath of the sun. Every category mark still clears
+     3:1 on it (3.05-5.14:1); a deeper tint would drop them below (2.8-2.9 on #F6F0E6). */
+  --today: #FFFAF3;
+  --line: #ECE6DC;
+  --line-2: #DCD4C6;
+  --card-line: #E5DED2; /* a box's edge on the ground */
+  --shadow-card: 0 1px 2px rgba(27, 24, 19, 0.05);
+  --scrim: rgba(27, 24, 19, 0.32);
+  /* Shadows are for things that genuinely float: menus, the palette, sheets, a dragged block. */
+  --shadow-pop: 0 18px 40px -16px rgba(27, 24, 19, 0.28), 0 2px 6px rgba(27, 24, 19, 0.08);
 
   /* ---- text ------------------------------------------------------------ */
-  --text: #101114;
-  --text-dim: #5f636c;
-  --text-faint: #90959f;
+  --ink: #1B1813;     /* 16.8:1 on paper */
+  --ink-2: #4E473D;   /*  8.7:1 */
+  --ink-3: #6B6357;   /*  5.9:1 in a box, 5.2:1 on the ground and on --panel */
 
-  /* ---- accent: one violet, used sparingly ------------------------------ */
-  --accent: #5b51dd;
-  --accent-deep: #4a41c4;
-  --accent-soft: rgba(91, 81, 221, 0.1);
-  --accent-dim: rgba(91, 81, 221, 0.14);
-  --logo: #5b51dd;
-  --focus: #5b51dd;
-  /* Primary buttons are near-black, not accent-coloured. */
-  --solid: #16171b;
-  --solid-text: #ffffff;
-  /* Ink for a label sitting ON a chromatic fill — an avatar, a category tile, a
-     status chip. Same values as --solid-text today, deliberately its own name:
-     that one follows the near-black button, this one follows the ink family. In
-     light mode every ink hue is dark (L 0.50-0.61), so the label is white; in
-     dark mode every one is bright (L 0.65-0.81), so the label is near-black.
-     White-on-bright was the old default and it measured 1.3-2.6:1. */
+  /* ---- one accent ------------------------------------------------------ */
+  --accent: #1967D4;                       /* Morpho ultramarine, verbatim: 5.1:1 on paper */
+  --accent-wash: rgba(25, 103, 212, 0.09);
+  --focus-ring: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-wash);
+  --hover: rgba(27, 24, 19, 0.045);        /* the tint every clickable row and item takes */
+  --solid: #FEA267;                        /* the main button: Orr's gradient, dark text */
+  --solid-fill: var(--orr-grad);
+  --on-solid: #1B1813;                     /* ink on his gradient: 6.8-11.7:1 (white: 2.0-3.1:1) */
+
+  /* ---- Orr's orange: the default since 9 October ------------------------ */
+  --orr-grad: linear-gradient(90deg, #FEC97B 0%, #FEA267 45%, #FE7867 100%);
+  --orr-deep: #D9731F;   /* thin orange marks (a progress ring, an underline): 3.3:1 on white */
+  --orr-ink: #A8540F;    /* orange text on his washes: 4.8:1 */
+  --orr-wash: #FFF1E3;
+  --orr-wash-2: #FFF8F1;
+  --orr-edge: #F6C59B;
+  --prog: var(--orr-deep);
+  --bar: var(--orr-deep);
+
+  /* ---- now --------------------------------------------------------------
+     The logo's orange (#FEA267) one solid step down, so the current block and the now line
+     read as the same warm thing as Orr without borrowing his gradient. */
+  --sun: #F39A4E;
+  --sun-ink: #A8540F;   /* the word "Now": 5.1:1 */
+  --sun-wash: #FFF8F1;  /* the current block; every category edge still clears 3:1 on it */
+  --past: 0.5;          /* the opacity of what is already behind you */
+
+  /* ---- status: never a category, always with a word -------------------- */
+  --ok: #1E7B43;        /* 5.0:1 */
+  --warn: #7F6000;      /* at risk. Yellower than --sun-ink (hue 45 vs 27), so it never reads as now: 5.6:1 */
+  --late: #C0392B;      /* 5.2:1 */
+  --deadline: #C0392B;  /* the one red FILL */
+  --on-deadline: #FFFFFF; /* 5.4:1 */
+
+  /* ---- categories: Morpho + the logo, in this order, never cycled -------
+     dataviz validator, neighbours: colour-blind ΔE 15.0, normal 23.5; first three, every pair:
+     15.0 / 17.3. Each clears 3:1 on --ground, --surface, --today and --sun-wash.
+     Colour-vision profiles (vision.css) override these five and the status trio. */
+  --c1: #119BAB;        /* cyan        work */
+  --c2: #CF773B;        /* orange      personal */
+  --c3: #1967D4;        /* ultramarine school */
+  --c4: #FD496B;        /* coral       tools */
+  --c5: #2396EA;        /* azure       knowledge */
+  --c-other: #A39B8E;
+
+  /* ---- type + geometry ------------------------------------------------- */
+  --font: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;   /* code in notes only */
+  --r-1: 6px;   /* chips, keys */
+  --r-2: 8px;   /* rows, buttons, items, fields */
+  --r-3: 12px;  /* panels, sheets, the timetable */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px; --s-7: 48px;
+  --editor-line-height: 1.7;
+  color-scheme: light;
+}
+
+[data-theme="dark"],
+[data-theme="command"] {
+  --ground: #090E1A;
+  --surface: #131A2B;
+  --panel: #1A2236;
+  --today: #161E31;    /* ultramarine still 3.11:1 on it */
+  --line: #222B40;
+  --line-2: #2F3A53;
+  --card-line: #252F46;
+  --shadow-card: 0 0 0 transparent;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-pop: 0 18px 48px -14px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.5);
+
+  --ink: #EEF1F7;     /* 16.5:1 on night */
+  --ink-2: #B6BDCB;   /*  9.9:1 */
+  --ink-3: #8E97A9;   /*  6.4:1 */
+
+  --accent: #7DAEF5;
+  --accent-wash: rgba(125, 174, 245, 0.13);
+  --hover: rgba(238, 241, 247, 0.05);
+  --solid: #F5A25C;
+  --solid-fill: var(--orr-grad);
+  --on-solid: #1B1813;
+  --orr-deep: #F5A25C;
+  --orr-ink: #F5A25C;
+  --orr-wash: #2A1F18;
+  --orr-wash-2: #241F1C;
+  --orr-edge: #5A3A22;
+  --prog: #F5A25C;
+  --bar: #F5A25C;
+
+  --sun: #F5A25C;
+  --sun-ink: #F5A25C;
+  --sun-wash: #241F1C;  /* ultramarine edge still 3.05:1 on it */
+  --past: 0.45;
+
+  --ok: #40D08A;
+  --warn: #E3B341;
+  --late: #FF6B6B;
+  --deadline: #D63A3A;  /* white on it 4.6:1 */
+  --on-deadline: #FFFFFF;
+
+  /* neighbours: colour-blind ΔE 16.4, normal 24.0; first three, every pair: 16.4 / 19.2 */
+  --c1: #0BA6B8;
+  --c2: #D37B3F;
+  --c3: #1967D4;
+  --c4: #FC486A;
+  --c5: #2396EA;
+  --c-other: #6E7891;
+
+  color-scheme: dark;
+}
+
+/* ---- legacy names ---------------------------------------------------------------------------
+   Screens not redesigned yet still read the old names, so each keeps working on the new ground,
+   ink, accent and type. Two kinds:
+
+   - Aliases onto the new tokens (the block below). Old surfaces, text, borders, radii and the
+     life areas now follow the new system.
+   - The old palette families, kept at their old values (the two blocks after it): --v-* fills,
+     --ink-* text hues, --cat-* spending ramp, --t-* sectors, the Finance hero, --on-vivid. They
+     colour things the new system has no slot for yet; each wave deletes the ones its screens
+     stop reading, and vision.css still solves them for colour vision.
+
+   Delete each name when nothing reads it any more (changes/R0.md says who reads what). */
+:root,
+[data-theme] {
+  --bg: var(--ground); --bg-0: var(--ground); --bg-1: var(--ground); --bg-2: var(--ground);
+  --bg-raised: var(--panel); --bg-overlay: var(--surface);
+  --glass: var(--surface); --glass-2: var(--surface); --glass-strong: var(--surface);
+  --glass-brd: var(--line); --glass-hi: transparent; --blur: none;
+  --blob-a: transparent; --blob-b: transparent; --blob-c: transparent;
+  --panel-strong: var(--line); --border: var(--line); --border-strong: var(--line-2);
+  --card-shadow: none; --shadow: none; --dot: var(--line);
+  --text: var(--ink); --text-dim: var(--ink-2); --text-faint: var(--ink-3);
+  /* read by the lock screen since it was built, never defined until now: muted was meant */
+  --text-muted: var(--ink-3);
+  --accent-deep: var(--accent); --accent-soft: var(--accent-wash); --accent-dim: var(--accent-wash);
+  --logo: var(--accent); --focus: var(--accent); --solid-text: var(--on-solid);
+  --danger: var(--late);
+  --vault-work: var(--c1); --vault-personal: var(--c2); --vault-school: var(--c3);
+  --vault-tools: var(--c4); --vault-knowledge: var(--c5); --vault-other: var(--c-other);
+  --area-professional: var(--c1); --area-personal: var(--c2); --area-academic: var(--c3);
+  --fin-ground: var(--ground); --fin-surface: var(--surface); --fin-pos: var(--ok); --fin-neg: var(--late);
+  --cat-a: var(--accent);
+  /* JetBrains Mono and Plus Jakarta Sans are gone (structure.md §8 #14): old mono labels take
+     the system mono, everything else Figtree. */
+  --font-ui: var(--font); --font-mono: var(--mono); --font-brand: var(--font);
+  --radius-sm: var(--r-2); --radius: var(--r-3); --radius-lg: var(--r-3);
+}
+
+:root,
+[data-theme="light"],
+[data-theme="paper"] {
+  /* ink on a chromatic fill (an initials disc, a category tile): white on these dark hues */
   --on-vivid: #ffffff;
-
-  /* ---- ink: the hues that get worn as TEXT -----------------------------
-     Two colour families, split by JOB, not by area.
-
-       --v-*    fills — donut wedges, map nodes, bars. Free to be as vivid as
-                the gamut allows, because nothing has to be read off them.
-       --ink-*  text and dots — sector pills, chips, badges, deltas. The colour
-                IS the letterform, so it also has to clear contrast.
-
-     Same seven hue anchors in both, so a hue is recognisably itself whichever
-     job it is doing; only lightness and chroma differ. Before this split there
-     was no family at all here, just a dozen hand-picked hexes sitting at
-     54-83% of the chroma their lightness could carry — which is exactly what
-     "muddy next to Finance" was. Finance looked better because it was already
-     spending its whole gamut.
-
-     The recipe, per hue: take the most chromatic colour on that hue whose
-     contrast clears 4.5:1 on this theme's card surface, inside a lightness band
-     narrow enough that the seven read as one set. Then separate the one pair
-     that collapses under colour blindness by pushing it apart in LIGHTNESS —
-     hue is the thing a colour-blind reader loses, lightness is not.
-
-     Light mode cannot reach dark mode's vividness and should not be pushed to:
-     on white, contrast is bought with darkness, and darkness costs chroma.
-     84-99% of gamut is the ceiling here, and it is already spent.
-
-     Retune by re-running the check (scripted in oklab: chroma-of-gamut,
-     WCAG contrast, and worst-pair ΔE under normal/deutan/protan/tritan vision).
-     Sector set, all seven, worst-pair ΔE:
-       light  before  normal 5.9  deutan 1.5  protan 4.8  tritan 5.5
-       light  after   normal 12.4 deutan 2.4  protan 6.4  tritan 10.2
-     Amber and red are the pair that stays tight under deuteranopia (2.4). They
-     are --warn and --danger — status, never peers in a legend, and never the
-     only signal: both arrive with an icon and a word. The category hues, which
-     DO have to stand alone, were the ones given the room. */
+  --cat-b: #9aa0ab;
   --ink-green: #08893f;
   --ink-amber: #aa6706;
   --ink-pink: #e10b75;
@@ -120,33 +216,11 @@
   --ink-lilac: #6e30da;
   --ink-magenta: #a70791;
   --ink-red: #e80e29;
-
-  /* ---- data hues: the ink family, by the names the app already uses ----- */
   --blue: var(--ink-azure);
   --green: var(--ink-green);
   --orange: var(--ink-amber);
   --purple: var(--ink-lilac);
   --pink: var(--ink-pink);
-  --cat-a: #5b51dd;
-  --cat-b: #9aa0ab;
-
-  /* ---- app-wide categorical palette ------------------------------------
-     The same family as the Finance area (Coolors' "Bold Hues", curated), widened
-     by two hues Finance deliberately lacks: green and amber. In `.fin` green is
-     STATUS — money in, under budget — so it cannot also be a category there.
-     Everywhere else it carries no such meaning and is free to be one.
-
-     Five of the seven do the work: pink, amber, green, cyan, lilac. That
-     particular set was chosen by enumerating every five-of-seven subset and
-     keeping the one with the best worst-case separation on BOTH surfaces, under
-     all-pairs (not just adjacent) — a donut and a legend put every colour beside
-     every other, so the softer adjacent rule does not apply. It clears CVD ΔE
-     8.5 light / 11.0 dark and normal-vision 19.4 / 20.6.
-
-     Amber sits darker than it looks like it should. That lightness gap is what
-     separates it from green under deuteranopia: lifting it to a friendlier gold
-     drops that pair to ΔE 2.5 and the two become one colour for a colour-blind
-     reader. Do not brighten it without re-running the check. */
   --v-pink: #d52273;
   --v-amber: #a65f00;
   --v-green: #00ac2c;
@@ -154,43 +228,6 @@
   --v-azure: #0084fc;
   --v-lilac: #824af6;
   --v-magenta: #c739af;
-
-  /* The vault's categories, by name. Each is the nearest member of the new
-     family to the colour it replaces, so the map and the donut read as
-     retinted rather than rearranged. */
-  --vault-school: var(--v-cyan);
-  --vault-work: var(--v-pink);
-  --vault-knowledge: var(--v-green);
-  --vault-tools: var(--v-lilac);
-  --vault-personal: var(--v-amber);
-  --vault-other: #7c8296;
-
-  /* Project life-areas (Overview board, project header, dashboard rows). */
-  --area-personal: var(--v-green);
-  --area-professional: var(--v-cyan);
-  --area-academic: var(--v-lilac);
-
-  /* ---- spending categories ---------------------------------------------
-     Coolors' "Bold Hues" ramp (F72585 B5179E 7209B7 560BAD 480CA8 3A0CA3
-     3F37C9 4361EE 4895EF 4CC9F0), curated into a categorical set.
-
-     That ramp is SEQUENTIAL, not categorical: six of its ten steps sit inside
-     30 degrees of hue and 0.2 of lightness, and its four deepest are under
-     2:1 on a dark ground. Copied wholesale it would be a mush. So five hue
-     anchors are taken off it — pink 0.7, magenta 336, purple 304, azure 254,
-     cyan 222 — plus a lifted lilac at 292 for the sixth. The ORDER walks that
-     arc from both ends inward (pink, cyan, magenta, azure), so bands that
-     touch in the chart are always far apart.
-
-     Each theme keeps the half of the ramp its surface can carry, verbatim:
-     light keeps the deep end (F72585, B5179E, 7209B7, 4361EE) and darkens
-     only cyan, which is 1.9:1 on white; dark keeps the light end (F72585,
-     4CC9F0, 4895EF) and lifts only the purples, which are 1.3-1.8:1 on navy.
-
-     There is no green here, and that is the point. Green is STATUS in this
-     app (money in, under budget), so keeping it out of the categories lets it
-     be vivid instead of muddy — it no longer has to stay clear of a green
-     category under deuteranopia. See --fin-pos below. */
   --cat-pink: #F72585;
   --cat-cyan: #0098cb;
   --cat-magenta: #B5179E;
@@ -199,27 +236,8 @@
   --cat-lilac: #9c83f2;
   --cat-slate: #7c8296;
   --cat-tail: #ced0de;
-  /* The balance card IS the ramp — a gradient is the one place a sequential
-     palette belongs. The ground and surface are the app's now, in both themes,
-     so they alias instead of drifting. */
-  --fin-ground: var(--bg);
-  --fin-surface: var(--surface);
-  /* Money up and down are STATUS, deliberately outside the category ramp so a
-     green delta can never be mistaken for a green category. They live here
-     rather than in app.css so a palette swap reaches them. */
-  --fin-pos: #009e40;
-  --fin-neg: #db2b33;
-  /* The balance card is ONE hue now, two steps apart.
-     The three-stop ramp (indigo → purple → magenta) travelled far enough across
-     the wheel that the card read as two colours meeting in the middle — visibly
-     purple down one edge and pink down the other. A single purple lightened by
-     ~0.12 in oklch keeps the depth and drops the seam. */
   --fin-hero-a: #6f49ca;
   --fin-hero-b: #8d71e6;
-
-  /* Sectors (Contacts pills, Companies). Seven roles, seven ink hues, each the
-     nearest member to the colour it replaces — a retint, not a rearrangement:
-     every one moved less than 16 degrees of hue. */
   --t-finance: var(--ink-green);
   --t-marketing: var(--ink-pink);
   --t-leadership: var(--ink-amber);
@@ -227,103 +245,12 @@
   --t-engineering: var(--ink-lilac);
   --t-university: var(--ink-cyan);
   --t-design: var(--ink-magenta);
-
-  --danger: var(--ink-red);
-  --warn: var(--ink-amber);
-  --ok: var(--ink-green);
-
-  /* ---- type + geometry -------------------------------------------------- */
-  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  /* The wordmark, and only the wordmark — do not reach for it in a component.
-     It points at the UI face today: the brand and the interface share a voice
-     here, which is a choice rather than an accident, and this token is the one
-     place to break that later. (A serif lived here briefly; the letterforms
-     were handsome and the lockup was not.) */
-  --font-brand: var(--font-ui);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-  --editor-line-height: 1.7;
-  color-scheme: light;
 }
 
+[data-theme="dark"],
 [data-theme="command"] {
-  /* The same flat language inverted — but onto the Finance area's ground, not a
-     neutral near-black.
-
-     Dark mode used to run two grounds: #0e0f11 everywhere and a lifted blue
-     slate (--fin-ground/--fin-surface) inside `.fin`. Side by side the neutral
-     one read as the flat, murky half of the app, so the Finance ground won and
-     is now the app's ground. Nothing about Finance's ELEVATION travelled with
-     it — the shadows, gradients and larger radii stay scoped to `.fin` (see the
-     exception note in app.css). This is tone only.
-
-     One ramp, one hue (oklch h≈256), six rungs. Every layer keeps the job it
-     had; they all just sit ~0.05 L higher and carry ~4x the chroma, which is
-     what makes the ground read as lifted rather than black. Retint by moving
-     the whole ramp — a single rung nudged on its own is what re-opens the seam
-     this closes. */
-  --bg: #131a24;
-  --bg-0: #131a24;
-  --bg-1: #131a24;
-  --bg-2: #131a24;
-  --blob-a: transparent;
-  --blob-b: transparent;
-  --blob-c: transparent;
-
-  --surface: #1e2631;
-  --glass: #1e2631;
-  --glass-2: #1e2631;
-  --glass-strong: #232b36;
-  --glass-brd: rgba(255, 255, 255, 0.08);
-  --glass-hi: transparent;
-  --blur: none;
-  --dot: rgba(255, 255, 255, 0.07);
-
-  --bg-raised: #272f39;
-  --bg-overlay: #222934;
-  --scrim: rgba(0, 0, 0, 0.55);
-  --panel: #232b36;
-  --panel-strong: #2d353f;
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.18);
-
-  --card-shadow: none;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 14px 40px -14px rgba(0, 0, 0, 0.7), 0 2px 8px -2px rgba(0, 0, 0, 0.5);
-
-  --text: #ecedf0;
-  --text-dim: #a1a5ad;
-  --text-faint: #73777f;
-
-  --accent: #8f86f2;
-  --accent-deep: #a79ff5;
-  --accent-soft: rgba(143, 134, 242, 0.14);
-  --accent-dim: rgba(143, 134, 242, 0.18);
-  --logo: #8f86f2;
-  --focus: #8f86f2;
-  --solid: #ffffff;
-  --solid-text: #101114;
   --on-vivid: #101114;
-
-  /* ---- ink: text and dots (see the light block for the recipe) ----------
-     Dark is where the old hand-picked hues were worst — 54-83% of gamut, i.e.
-     visibly washed out against a Finance tile spending 94-100%. Five of these
-     eight are lifted verbatim from families this file already validated:
-     green and red ARE --fin-pos/--fin-neg, and amber, pink and cyan ARE
-     --v-amber/--v-pink/--v-cyan. Only three needed solving.
-
-     Lilac is the interesting one. Snapped straight onto --v-lilac it sat within
-     0.01 lightness of azure, and blue and violet are the pair deuteranopia
-     collapses hardest: worst-pair ΔE fell to 0.9, worse than the muddy set it
-     replaced. Dropping lilac to L 0.658 while azure holds at 0.713 restores the
-     separation as a lightness difference, which colour blindness cannot take
-     away. Do not re-lighten lilac toward --v-lilac without re-running the check.
-
-     Sector set, all seven, worst-pair ΔE:
-       dark   before  normal 5.3  deutan 2.5  protan 5.9  tritan 4.8
-       dark   after   normal 9.6  deutan 6.0  protan 6.0  tritan 10.0 */
+  --cat-b: #7c8089;
   --ink-green: #1cda73;
   --ink-amber: #e09100;
   --ink-pink: #ff589d;
@@ -332,16 +259,10 @@
   --ink-lilac: #9973fd;
   --ink-magenta: #fe80d8;
   --ink-red: #ff645f;
-
   --blue: var(--ink-azure);
   --green: var(--ink-green);
   --orange: var(--ink-amber);
   --purple: var(--ink-lilac);
-
-  /* The same seven, stepped for a near-black ground. Same hue anchors, so a
-     category is recognisably itself when the theme flips — and validated as its
-     own set, because a light-mode choice carried into dark is exactly what this
-     replaces. Clears all-pairs CVD ΔE 11.0 on the five that matter. */
   --v-pink: #ff589d;
   --v-amber: #e09100;
   --v-green: #08ea7a;
@@ -349,22 +270,6 @@
   --v-azure: #31b0ff;
   --v-lilac: #a88dff;
   --v-magenta: #f289db;
-
-  --vault-school: var(--v-cyan);
-  --vault-work: var(--v-pink);
-  --vault-knowledge: var(--v-green);
-  --vault-tools: var(--v-lilac);
-  --vault-personal: var(--v-amber);
-  --vault-other: #8f97ab;
-
-  --area-personal: var(--v-green);
-  --area-professional: var(--v-cyan);
-  --area-academic: var(--v-lilac);
-
-  /* The ramp's LIGHT end verbatim on navy (pink, cyan, azure); only the
-     purples are lifted, because at their source lightness they are under
-     2:1 against this ground. Same hue anchors, so a category is itself in
-     either theme. */
   --cat-pink: #F72585;
   --cat-cyan: #4CC9F0;
   --cat-magenta: #ce4eb7;
@@ -373,25 +278,9 @@
   --cat-lilac: #b7a1ff;
   --cat-slate: #8f97ab;
   --cat-tail: #3b3c48;
-  /* Finance's ground IS the app's ground now (see --bg above), so these alias
-     rather than repeat it — retinting dark mode is one edit, not two that drift
-     apart. In light mode they still differ, so the light block keeps its own
-     values. */
-  --fin-ground: var(--bg);
-  --fin-surface: var(--surface);
-  --fin-pos: #1cda73;
-  --fin-neg: #ff645f;
-  /* The balance card is ONE hue now, two steps apart.
-     The three-stop ramp (indigo → purple → magenta) travelled far enough across
-     the wheel that the card read as two colours meeting in the middle — visibly
-     purple down one edge and pink down the other. A single purple lightened by
-     ~0.12 in oklch keeps the depth and drops the seam. */
   --fin-hero-a: #6f49ca;
   --fin-hero-b: #8d71e6;
   --pink: var(--ink-pink);
-  --cat-a: #8f86f2;
-  --cat-b: #7c8089;
-
   --t-finance: var(--ink-green);
   --t-marketing: var(--ink-pink);
   --t-leadership: var(--ink-amber);
@@ -399,17 +288,4 @@
   --t-engineering: var(--ink-lilac);
   --t-university: var(--ink-cyan);
   --t-design: var(--ink-magenta);
-
-  --danger: var(--ink-red);
-  --warn: var(--ink-amber);
-  --ok: var(--ink-green);
-
-  --font-ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --font-brand: var(--font-ui);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-  --editor-line-height: 1.7;
-  color-scheme: dark;
 }

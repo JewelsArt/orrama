@@ -11,8 +11,8 @@
          get a bookmark with browser chrome; over Tailscale (real cert) you get
          the standalone app, and WebAuthn/Face ID starts working too. -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#f4f4f8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F3EFE8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#090E1A" media="(prefers-color-scheme: dark)" />
 
     <!-- iOS ignores most of the manifest and reads these instead. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -20,13 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="Basalt" />
     <link rel="apple-touch-icon" href="/icons/icon-180.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-    <!-- Type: Plus Jakarta Sans (UI, and the wordmark) + JetBrains Mono (numbers/paths). -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Type: Figtree, served from this app (packages/ui/src/fonts.css), not Google Fonts. -->
   </head>
   <body>
     <div id="root"></div>

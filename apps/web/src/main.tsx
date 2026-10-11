@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import "@basalt/ui/fonts.css";
 import "@basalt/ui/tokens.css";
 // After tokens.css: a vision mode overrides the palette it just defined.
 import "@basalt/ui/vision.css";

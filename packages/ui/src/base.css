@@ -11,13 +11,12 @@ body {
 }
 
 body {
-  color: var(--text);
-  font-family: var(--font-ui);
+  color: var(--ink);
+  font-family: var(--font);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  /* Flat ground. The old radial-blob glow is gone: surfaces separate by border
-     and one step of lightness, not by glow. */
-  background: var(--bg);
+  /* The paper ground; content sits in white boxes on it (structure.md §12). */
+  background: var(--ground);
 }
 
 #root {
@@ -45,7 +44,7 @@ a {
 }
 
 ::selection {
-  background: var(--accent-dim);
+  background: var(--accent-wash);
 }
 
 ::-webkit-scrollbar {
@@ -53,7 +52,7 @@ a {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: var(--line-2);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;

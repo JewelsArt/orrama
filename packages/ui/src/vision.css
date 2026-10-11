@@ -31,8 +31,8 @@
 
 /* light + deuteranopia — worst pair under this vision: fills ΔE 15.9, ink ΔE 10.9,
    status trio ΔE 19.2. Ink contrast on the card surface 4.51:1 and up. */
-:root:not([data-theme="command"])[data-vision="deuteranopia"],
-:root:not([data-theme="command"]) [data-vision="deuteranopia"] {
+:root:not([data-theme="command"]):not([data-theme="dark"])[data-vision="deuteranopia"],
+:root:not([data-theme="command"]):not([data-theme="dark"]) [data-vision="deuteranopia"] {
   --v-pink: #d30a12;
   --v-amber: #fe7614;
   --v-green: #046245;
@@ -57,6 +57,16 @@
   --fin-pos: var(--ink-azure);
   --fin-neg: var(--ink-pink);
 
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
+
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
   --cat-pink: var(--v-pink);
@@ -69,8 +79,8 @@
 
 /* light + protanopia — worst pair under this vision: fills ΔE 17.8, ink ΔE 12.4,
    status trio ΔE 23.3. Ink contrast on the card surface 4.50:1 and up. */
-:root:not([data-theme="command"])[data-vision="protanopia"],
-:root:not([data-theme="command"]) [data-vision="protanopia"] {
+:root:not([data-theme="command"]):not([data-theme="dark"])[data-vision="protanopia"],
+:root:not([data-theme="command"]):not([data-theme="dark"]) [data-vision="protanopia"] {
   --v-pink: #97044f;
   --v-amber: #5e6b04;
   --v-green: #1db80b;
@@ -95,6 +105,16 @@
   --fin-pos: var(--ink-azure);
   --fin-neg: var(--ink-red);
 
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
+
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
   --cat-pink: var(--v-pink);
@@ -107,8 +127,8 @@
 
 /* light + tritanopia — worst pair under this vision: fills ΔE 21.8, ink ΔE 14.5,
    status trio ΔE 25.2. Ink contrast on the card surface 4.50:1 and up. */
-:root:not([data-theme="command"])[data-vision="tritanopia"],
-:root:not([data-theme="command"]) [data-vision="tritanopia"] {
+:root:not([data-theme="command"]):not([data-theme="dark"])[data-vision="tritanopia"],
+:root:not([data-theme="command"]):not([data-theme="dark"]) [data-vision="tritanopia"] {
   --v-pink: #ec860c;
   --v-amber: #756705;
   --v-green: #1db80b;
@@ -133,6 +153,16 @@
   --fin-pos: var(--ink-green);
   --fin-neg: var(--ink-pink);
 
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
+
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
   --cat-pink: var(--v-pink);
@@ -146,7 +176,9 @@
 /* dark + deuteranopia — worst pair under this vision: fills ΔE 14.5, ink ΔE 11.6,
    status trio ΔE 23.2. Ink contrast on the card surface 4.51:1 and up. */
 [data-theme="command"][data-vision="deuteranopia"],
-[data-theme="command"] [data-vision="deuteranopia"] {
+[data-theme="command"] [data-vision="deuteranopia"],
+[data-theme="dark"][data-vision="deuteranopia"],
+[data-theme="dark"] [data-vision="deuteranopia"] {
   --v-pink: #fe9296;
   --v-amber: #fed014;
   --v-green: #918a08;
@@ -171,6 +203,16 @@
   --fin-pos: var(--ink-azure);
   --fin-neg: var(--ink-amber);
 
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
+
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
   --cat-pink: var(--v-pink);
@@ -184,7 +226,9 @@
 /* dark + protanopia — worst pair under this vision: fills ΔE 18.3, ink ΔE 14.2,
    status trio ΔE 27.4. Ink contrast on the card surface 4.51:1 and up. */
 [data-theme="command"][data-vision="protanopia"],
-[data-theme="command"] [data-vision="protanopia"] {
+[data-theme="command"] [data-vision="protanopia"],
+[data-theme="dark"][data-vision="protanopia"],
+[data-theme="dark"] [data-vision="protanopia"] {
   --v-pink: #fe4210;
   --v-amber: #fea053;
   --v-green: #a1f115;
@@ -209,6 +253,16 @@
   --fin-pos: var(--ink-cyan);
   --fin-neg: var(--ink-red);
 
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
+
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */
   --cat-pink: var(--v-pink);
@@ -222,7 +276,9 @@
 /* dark + tritanopia — worst pair under this vision: fills ΔE 22.9, ink ΔE 18.9,
    status trio ΔE 29.1. Ink contrast on the card surface 4.56:1 and up. */
 [data-theme="command"][data-vision="tritanopia"],
-[data-theme="command"] [data-vision="tritanopia"] {
+[data-theme="command"] [data-vision="tritanopia"],
+[data-theme="dark"][data-vision="tritanopia"],
+[data-theme="dark"] [data-vision="tritanopia"] {
   --v-pink: #fe330b;
   --v-amber: #c5e714;
   --v-green: #1aab0a;
@@ -246,6 +302,16 @@
   --danger: var(--ink-magenta);
   --fin-pos: var(--ink-green);
   --fin-neg: var(--ink-magenta);
+
+  /* Orrama's five life areas (tokens.css --c1…--c5) take the solved fills the vault's areas
+     already used here, so each area keeps its colour-vision-safe colour; --late follows the
+     mode's negative. */
+  --c1: var(--v-pink);
+  --c2: var(--v-amber);
+  --c3: var(--v-cyan);
+  --c4: var(--v-lilac);
+  --c5: var(--v-green);
+  --late: var(--danger);
 
   /* Finance's own ramp yields to the accessible set; its donut is the one
      place in the app where colour alone carries the meaning. */

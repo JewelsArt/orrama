@@ -127,7 +127,7 @@ export function App() {
     const profile = isCustom(vision) ? profiles.find((p) => p.id === customId(vision)) : undefined;
     if (!profile) return;
     const cs = getComputedStyle(root);
-    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), theme === "command" ? "dark" : "light", {
+    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), theme === "command" || theme === "dark" ? "dark" : "light", {
       ok: cs.getPropertyValue("--ok").trim(),
       warn: cs.getPropertyValue("--warn").trim(),
       danger: cs.getPropertyValue("--danger").trim(),
@@ -238,7 +238,7 @@ export function App() {
 
   const openNote = useCallback((noteId: string) => navigate({ kind: "architecture", noteId }), [navigate]);
 
-  const isLight = theme === "light" || theme === "paper";
+  const isLight = theme !== "command" && theme !== "dark";
   const toggleTheme = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       const next = isLight ? "command" : "light";

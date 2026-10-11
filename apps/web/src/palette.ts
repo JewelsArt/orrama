@@ -202,6 +202,7 @@ function brandVars(brand: string, surface: string, mode: "light" | "dark"): Reco
     "--cat-a": accent,
     "--accent-deep": lchToHex(aL + DEEP_STEP[mode], aC, h),
     "--accent-soft": `color-mix(in srgb, ${accent} ${alpha.soft}%, transparent)`,
+    "--accent-wash": `color-mix(in srgb, ${accent} ${alpha.soft}%, transparent)`,
     "--accent-dim": `color-mix(in srgb, ${accent} ${alpha.dim}%, transparent)`,
   };
 }
@@ -236,9 +237,17 @@ export function profileVars(
   vars["--cat-magenta"] = vars["--v-magenta"]!;
   vars["--cat-lilac"] = vars["--v-lilac"]!;
   vars["--cat-purple"] = vars["--v-lilac"]!;
+  // Orrama's five life areas (tokens.css --c1…--c5) follow the profile's area fills, in the
+  // same order the vault's categories used them.
+  vars["--c1"] = vars["--v-pink"]!; // Work
+  vars["--c2"] = vars["--v-amber"]!; // Personal
+  vars["--c3"] = vars["--v-cyan"]!; // School
+  vars["--c4"] = vars["--v-lilac"]!; // Claude & tools
+  vars["--c5"] = vars["--v-green"]!; // Knowledge
   vars["--ok"] = pinned.ok;
   vars["--warn"] = pinned.warn;
   vars["--danger"] = pinned.danger;
+  vars["--late"] = pinned.danger;
   if (profile.brand) Object.assign(vars, brandVars(profile.brand, surface, mode));
   return vars;
 }
@@ -247,9 +256,10 @@ export function profileVars(
 export const PROFILE_VAR_NAMES = [
   ...PALETTE_SLOTS.flatMap(({ token }) => [`--v-${token}`, `--ink-${token}`]),
   "--cat-cyan", "--cat-pink", "--cat-azure", "--cat-magenta", "--cat-lilac", "--cat-purple",
-  "--ok", "--warn", "--danger",
+  "--c1", "--c2", "--c3", "--c4", "--c5",
+  "--ok", "--warn", "--danger", "--late",
   "--fin-hero-a", "--fin-hero-b", "--accent", "--logo", "--focus", "--cat-a",
-  "--accent-deep", "--accent-soft", "--accent-dim",
+  "--accent-deep", "--accent-soft", "--accent-dim", "--accent-wash",
 ];
 
 export const CUSTOM_PREFIX = "custom:";
