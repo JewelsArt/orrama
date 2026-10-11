@@ -166,6 +166,16 @@ export const treeResponse = z.array(
   }),
 );
 
+/** GET /api/notes/overview: Notes home's pins and counts (routes/notesHome.ts, R7). */
+export const notesOverviewResponse = o({
+  /** Ids of the readable notes whose front matter says `pinned: true`, by title. */
+  pinned: z.array(z.string()),
+  notes: z.number(),
+  conversations: z.number(),
+  openTasks: z.number(),
+  doneTasks: z.number(),
+});
+
 export const graphResponse = o({
   nodes: z.array(
     o({
@@ -880,6 +890,7 @@ export type Member = z.infer<typeof membersResponse>[number];
 export type ServerSettings = z.infer<typeof serverSettingsResponse>;
 export type DashboardData = z.infer<typeof teamDashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
+export type NotesOverview = z.infer<typeof notesOverviewResponse>;
 export type GraphData = z.infer<typeof graphResponse>;
 export type NoteDetail = z.infer<typeof noteResponse>;
 export type NoteLink = NoteDetail["links"][number];
