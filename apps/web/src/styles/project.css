@@ -61,15 +61,21 @@
 .pj-upload { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; }
 .pj-docs .row .lead svg.i { color: var(--ink-3); }
 
-/* The person sheet. */
-.pj-person-id { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; }
-.pj-person-id b { display: block; font-size: 17px; }
-.pj-person-id span { display: block; font-size: 13px; }
-.pj-facts { margin: 0; }
-.pj-facts > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
-.pj-facts dt { color: var(--ink-3); }
-.pj-facts dd { margin: 0; overflow-wrap: anywhere; }
-.pj-sheet-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+/* People & companies: the row is the link to their page; its ⋯ sits beside it, at the row's
+   end, over the relation's word while it shows (on pointing or focus; always on touch). */
+.pj-who { position: relative; }
+.pj-who > a.row { color: inherit; text-decoration: none; }
+.pj-who + .pj-who > .row::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; border-top: 1px solid var(--line); }
+.pj-who:hover > .row::before, .pj-who:hover + .pj-who > .row::before { border-color: transparent; }
+.pj-who-act.btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; }
+.pj-who:hover .pj-who-act, .pj-who:focus-within .pj-who-act, .pj-who.open .pj-who-act { opacity: 1; }
+.pj-who.has-act:hover .r, .pj-who.has-act:focus-within .r, .pj-who.open .r { visibility: hidden; }
+/* On touch, and on a phone-wide window, the ⋯ always shows, after the word. */
+@media (hover: none), (max-width: 760px) {
+  .pj-who-act.btn { opacity: 1; }
+  .pj-who.has-act > .row { padding-right: 48px; }
+  .pj-who.has-act:hover .r, .pj-who.has-act:focus-within .r, .pj-who.open .r { visibility: visible; }
+}
 
 /* ---- the bar above a working tab: a switch, a hint, its actions -------------------------- */
 .pj-bar3 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 12px; }

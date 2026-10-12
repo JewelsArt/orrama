@@ -5,7 +5,8 @@
  *
  * Its dates are typed as text and written once, when a field is left (WEB-023): never a
  * half-typed year, never while typing, and one write after another. Its status is the vault's
- * vocabulary, written as the ontology's id. Its tabs are addresses.
+ * vocabulary, written as the ontology's id. Its tabs are addresses. A person or company on it
+ * opens their own page, and is taken off the project from the row's ⋯ menu (F2).
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,9 @@ const server = vi.hoisted(() => ({
   workspace: {} as Record<string, unknown>,
   /** When set, a PATCH waits for this before it answers (a slow server). */
   hold: null as Promise<void> | null,
+  /** What the graph says the project has, by relation. */
+  relations: [] as { relation: string; to: { id: string; title: string; type: string }[] }[],
+  contacts: [] as Record<string, unknown>[],
 }));
 
 vi.mock("./ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
@@ -33,7 +37,8 @@ vi.mock("./api.js", async (orig) => {
       if (method === "PATCH" && server.hold) await server.hold;
       if (method === "GET" && url === "/api/projects/thesis") return server.workspace;
       if (method === "GET" && url.startsWith("/api/graph/relations"))
-        return { entity: { id: "n-1", title: "Thesis", type: "project", summary: "", fields: {} }, relations: [], warnings: [] };
+        return { entity: { id: "n-1", title: "Thesis", type: "project", summary: "", fields: {} }, relations: server.relations, warnings: [] };
+      if (method === "GET" && url === "/api/contacts") return server.contacts;
       if (method === "GET" && url.startsWith("/api/vault/note/")) return { id: "n-1", path: "04-Projects/thesis.md", title: "Thesis", content: "", hash: "h", tags: [], canEdit: true };
       if (method === "GET") return [];
       return { ok: true };
@@ -48,6 +53,8 @@ const SOURCE = "- [x] Pick a supervisor\n- [ ] Defend in January\n  - book the r
 beforeEach(() => {
   server.calls = [];
   server.hold = null;
+  server.relations = [];
+  server.contacts = [];
   server.workspace = {
     slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null,
     status: "on-track", start: "2026-09-01", deadline: "2027-01-15", prompt: "",
@@ -197,5 +204,68 @@ describe("decisions", () => {
       fireEvent.click(within(box).getByRole("button", { name: "Add" }));
     });
     expect(server.calls.find((c) => c.method === "POST")).toMatchObject({ url: "/api/projects/thesis/decisions", body: { text: "Two markets only" } });
+  });
+});
+
+describe("people and companies (F2)", () => {
+  const INES = { id: "n-iv", title: "Ines Vermaat", kind: "contact", role: "Supervisor", company: "[[Westerdok]]", linkedin: "", path: "03-People/Ines Vermaat.md" };
+  const KADE = { id: "n-ks", title: "Kade Social", kind: "company", role: "", company: "", linkedin: "", path: "03-People/Companies/Kade Social.md" };
+  const panel = () => screen.getByRole("group", { name: "People and companies" });
+  const deletes = () => server.calls.filter((c) => c.method === "DELETE").map((c) => c.url);
+
+  it("a name opens their own page, a person's and a company's, as everywhere else", async () => {
+    server.workspace = { ...server.workspace, people: [INES, KADE] };
+    await open();
+    const ines = within(panel()).getByRole("link", { name: /Ines Vermaat/ });
+    expect(ines.getAttribute("href")).toBe("/people/ines-vermaat");
+    expect(within(panel()).getByRole("link", { name: /Kade Social/ }).getAttribute("href")).toBe("/companies/kade-social");
+    await act(async () => {
+      fireEvent.click(ines);
+    });
+    expect(location.pathname).toBe("/people/ines-vermaat");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("someone only the graph names opens their page too, and has nothing to remove", async () => {
+    server.relations = [{ relation: "supervised_by", to: [{ id: "n-tb", title: "Thijs Brouwer", type: "person" }] }];
+    server.contacts = [{ id: "n-tb", name: "Thijs Brouwer", path: "03-People/Thijs Brouwer.md", sector: "", role: "", company: "", email: "", phone: "", linkedin: "", personal: false }];
+    await open();
+    expect(within(panel()).getByRole("link", { name: /Thijs Brouwer/ }).getAttribute("href")).toBe("/people/thijs-brouwer");
+    expect(within(panel()).getByText("supervises")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More for Thijs Brouwer" })).toBeNull();
+  });
+
+  it("Remove from this project is in the row's ⋯ menu, behind the same Confirm", async () => {
+    server.workspace = { ...server.workspace, people: [INES, KADE] };
+    await open();
+    const more = () => screen.getByRole("button", { name: "More for Ines Vermaat" });
+    // The ⋯ is beside the link, never inside it.
+    expect(within(panel()).getByRole("link", { name: /Ines Vermaat/ }).contains(more())).toBe(false);
+
+    fireEvent.click(more());
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this project" }));
+    let ask = screen.getByRole("alertdialog", { name: "Take Ines Vermaat off Thesis?" });
+    expect(ask.textContent).toContain("Their own note stays as it is.");
+    fireEvent.click(within(ask).getByRole("button", { name: "Keep it" }));
+    await act(async () => {});
+    expect(deletes()).toEqual([]);
+
+    fireEvent.click(more());
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this project" }));
+    ask = screen.getByRole("alertdialog", { name: "Take Ines Vermaat off Thesis?" });
+    const before = server.calls.length;
+    await act(async () => {
+      fireEvent.click(within(ask).getByRole("button", { name: "Take them off" }));
+    });
+    expect(deletes()).toEqual(["/api/projects/thesis/people/n-iv"]);
+    // The page reloads the project after the link is gone.
+    expect(server.calls.slice(before).some((c) => c.method === "GET" && c.url === "/api/projects/thesis")).toBe(true);
+  });
+
+  it("without edit there is no ⋯ to remove anyone", async () => {
+    server.workspace = { ...server.workspace, people: [INES, KADE], canEdit: false };
+    await open();
+    expect(within(panel()).getAllByRole("link")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
   });
 });

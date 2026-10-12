@@ -14,7 +14,8 @@ import { api, isAbort, type Me, type NoteDetail } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DocViewer } from "./DocViewer.js";
 import { Editor } from "./Editor.js";
-import { RelationRows, rolesOf, type RelationItem, type RelationsState } from "./entity/index.js";
+import { RelationRows, rolesOf, type RelationsState } from "./entity/index.js";
+import { linkTo, slugOf } from "./entity/links.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { tabHref } from "./Project.js";
 import { dueOf, taskState, uploadProjectFiles, useTaskCard, type ProjectTask } from "./ProjectViews.js";
@@ -23,7 +24,7 @@ import { dateLabel } from "./ui/dates.js";
 import { Input, SearchField, Textarea } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { Module, Row, RowList } from "./ui/layout.js";
-import { Sheet } from "./ui/overlays.js";
+import { Menu } from "./ui/overlays.js";
 import { navigate } from "./ui/router.js";
 import { Notice } from "./ui/states.js";
 import { onWs } from "./ws.js";
@@ -362,11 +363,18 @@ interface Person {
   linked: ProjectPerson | null;
 }
 
+type PoolEntry = { id: string; name: string; sub: string; kind: "person" | "company"; path: string };
+
+/**
+ * Who works on the project. A name opens their own page (`/people/<slug>`, `/companies/<slug>`),
+ * as everywhere else (§1.7); taking someone off this project is the row's ⋯ menu, and only
+ * drops the `[[link]]` from the project note, never their note.
+ */
 function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; relations: RelationsState; onChanged: () => Promise<void>; onOpenNote: (id: string) => void }) {
-  const [open, setOpen] = useState<Person | null>(null);
   const [q, setQ] = useState("");
-  const [pool, setPool] = useState<{ id: string; name: string; sub: string; kind: "person" | "company" }[] | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [pool, setPool] = useState<PoolEntry[] | null>(null);
+  const [failed, setFailed] = useState<"attach" | "remove" | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const roles = useMemo(() => rolesOf(relations.by), [relations.by]);
 
   // The note's links, then whoever the graph says is involved or supervises without a link
@@ -380,9 +388,12 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
         if (!out.has(r.id) && (r.type === "person" || r.type === "company")) out.set(r.id, { id: r.id, title: r.title, kind: r.type, sub: "", linked: null });
     return [...out.values()];
   }, [w.people, relations.by]);
+  // Someone the graph names but the note does not link: their page is found by the file name,
+  // which only People's lists carry.
+  const needPool = people.some((p) => !p.linked);
 
   useEffect(() => {
-    if (q.trim() === "" || pool) return;
+    if ((q.trim() === "" && !needPool) || pool) return;
     const ac = new AbortController();
     Promise.all([
       api<Contact[]>("GET", "/api/contacts", undefined, { signal: ac.signal }),
@@ -390,15 +401,15 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
     ])
       .then(([contacts, companies]) =>
         setPool([
-          ...contacts.map((c) => ({ id: c.id, name: c.name, sub: plain([c.role, c.company].filter(Boolean).join(" · ")), kind: "person" as const })),
-          ...companies.map((c) => ({ id: c.id, name: c.name, sub: c.sector, kind: "company" as const })),
+          ...contacts.map((c) => ({ id: c.id, name: c.name, sub: plain([c.role, c.company].filter(Boolean).join(" · ")), kind: "person" as const, path: c.path })),
+          ...companies.map((c) => ({ id: c.id, name: c.name, sub: c.sector, kind: "company" as const, path: c.path })),
         ]),
       )
       .catch((e) => {
         if (!isAbort(e)) setPool([]);
       });
     return () => ac.abort();
-  }, [q, pool]);
+  }, [q, pool, needPool]);
 
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -408,28 +419,48 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
   }, [q, pool, people]);
 
   const attach = async (id: string) => {
-    setFailed(false);
+    setFailed(null);
     try {
       await api("POST", `/api/projects/${encodeURIComponent(w.slug)}/people`, { noteId: id });
       setQ("");
       await onChanged();
     } catch {
-      setFailed(true);
+      setFailed("attach");
     }
   };
 
-  const items: RelationItem[] = people.map((p) => ({
-    id: p.id,
-    title: p.title,
-    kind: p.kind,
-    meta: p.sub || undefined,
-    word: roles.get(p.id) ?? "involved",
-    onOpen: () => setOpen(p),
-  }));
+  const remove = (p: Person) =>
+    setConfirm({
+      title: `Take ${p.title} off ${w.name}?`,
+      body: "This removes the link from the project note. Their own note stays as it is.",
+      confirmLabel: "Take them off",
+      danger: true,
+      onConfirm: async () => {
+        setFailed(null);
+        try {
+          await api("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/people/${p.id}`);
+          await onChanged();
+        } catch {
+          setFailed("remove");
+        }
+      },
+    });
+
+  /** Their page, by the file name; a note People does not list (no `#contact`/`#company`) opens in Notes. */
+  const linkOf = (p: Person) => {
+    const path = p.linked?.path ?? pool?.find((x) => x.id === p.id && x.kind === p.kind)?.path;
+    return path ? linkTo({ kind: p.kind, slug: slugOf(path) }) : { onOpen: () => onOpenNote(p.id) };
+  };
 
   return (
     <Module title="People & companies" count={people.length} className="pj-people">
-      {people.length > 0 && <RelationRows items={items} label="People and companies" />}
+      {people.length > 0 && (
+        <RowList label="People and companies">
+          {people.map((p) => (
+            <PersonRow key={p.id} p={p} word={roles.get(p.id) ?? "involved"} link={linkOf(p)} onRemove={w.canEdit && p.linked ? () => remove(p) : undefined} />
+          ))}
+        </RowList>
+      )}
       {people.length === 0 && !w.canEdit && <p className="q3 pj-none">Nobody linked yet.</p>}
       {w.canEdit && (
         <div className="pj-picker">
@@ -444,136 +475,38 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
           {q.trim() && pool && matches.length === 0 && <p className="q3 pj-none">Nobody by that name who is not here already.</p>}
         </div>
       )}
-      {failed && <Notice title="Not attached" text="The link could not be written into the note. Try again." />}
-      {open && (
-        <PersonSheet
-          person={open}
-          projectName={w.name}
-          canEdit={w.canEdit}
-          onClose={() => setOpen(null)}
-          onOpenNote={(id) => {
-            setOpen(null);
-            onOpenNote(id);
-          }}
-          onRemove={async () => {
-            await api("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/people/${open.id}`);
-            setOpen(null);
-            await onChanged();
-          }}
-        />
-      )}
+      {failed === "attach" && <Notice title="Not attached" text="The link could not be written into the note. Try again." />}
+      {failed === "remove" && <Notice title="Not removed" text="The link could not be taken out of the note. Try again." />}
+      <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </Module>
   );
 }
 
 /**
- * A person or company, opened from the project without leaving it (a sheet): what their note
- * says, and the one action that only makes sense here, taking them off this project (which
- * drops the `[[link]]`, never the note).
+ * One person or company: the row is the link to their page, and the ⋯ beside it (never inside
+ * it) holds Remove from this project. It shows on pointing or focus, always on a touch screen.
  */
-function PersonSheet({
-  person,
-  projectName,
-  canEdit,
-  onClose,
-  onOpenNote,
-  onRemove,
-}: {
-  person: Person;
-  projectName: string;
-  canEdit: boolean;
-  onClose: () => void;
-  onOpenNote: (id: string) => void;
-  onRemove: () => Promise<void>;
-}) {
-  const [facts, setFacts] = useState<[string, React.ReactNode][] | null>(null);
-  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
-
-  useEffect(() => {
-    const ac = new AbortController();
-    const link = (u: string) => (
-      <a className="lk" href={/^https?:\/\//.test(u) ? u : `https://${u}`} target="_blank" rel="noreferrer">
-        {u.replace(/^https?:\/\//, "")}
-      </a>
-    );
-    (person.kind === "company"
-      ? api<Company[]>("GET", "/api/companies", undefined, { signal: ac.signal }).then((all) => {
-          const c = all.find((x) => x.id === person.id);
-          return c
-            ? ([
-                ["Sector", c.sector],
-                ["Location", c.location],
-                ["Website", c.website && link(c.website)],
-                ["LinkedIn", c.linkedin && link(c.linkedin)],
-                ["About", c.description],
-                ["Hiring", c.positions.join(", ")],
-              ] as [string, React.ReactNode][])
-            : [];
-        })
-      : api<Contact[]>("GET", "/api/contacts", undefined, { signal: ac.signal }).then((all) => {
-          const c = all.find((x) => x.id === person.id);
-          return c
-            ? ([
-                ["Role", c.role],
-                ["Company", plain(c.company)],
-                ["Email", c.email && <a className="lk" href={`mailto:${c.email}`}>{c.email}</a>],
-                ["Phone", c.phone && <a className="lk" href={`tel:${c.phone.replace(/\s/g, "")}`}>{c.phone}</a>],
-                ["LinkedIn", c.linkedin && link(c.linkedin)],
-                ["Sector", c.sector],
-              ] as [string, React.ReactNode][])
-            : [];
-        })
-    )
-      .then((rows) => setFacts(rows.filter(([, v]) => !!v)))
-      .catch((e) => {
-        if (!isAbort(e)) setFacts([]);
-      });
-    return () => ac.abort();
-  }, [person]);
-
+function PersonRow({ p, word, link, onRemove }: { p: Person; word: string; link: { href?: string; onOpen: () => void }; onRemove?: () => void }) {
+  const [menu, setMenu] = useState(false);
+  const at = useRef<HTMLButtonElement>(null);
   return (
-    <Sheet title={person.title} onClose={onClose} className="pj-person">
-      <div className="pj-person-id">
-        {person.kind === "company" ? <Square name={person.title} /> : <Ring name={person.title} />}
-        <div>
-          <b>{person.title}</b>
-          <span className="q3">{person.sub || (person.kind === "company" ? "Company" : "Person")} · on {projectName}</span>
-        </div>
-      </div>
-      {facts && facts.length > 0 && (
-        <dl className="pj-facts">
-          {facts.map(([k, v]) => (
-            <div key={k}>
-              <dt>{k}</dt>
-              <dd>{v}</dd>
-            </div>
-          ))}
-        </dl>
+    <div className={`pj-who${onRemove ? " has-act" : ""}${menu ? " open" : ""}`}>
+      <Row
+        className="ent-rel"
+        lead={p.kind === "company" ? <Square name={p.title} small /> : <Ring name={p.title} small />}
+        title={p.title}
+        meta={p.sub || undefined}
+        trailing={word}
+        href={link.href}
+        onOpen={link.onOpen}
+      />
+      {onRemove && (
+        <>
+          <Button ref={at} kind="quiet" size="sm" icon="dots" className="pj-who-act" aria-label={`More for ${p.title}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />
+          {menu && <Menu anchor={at} align="end" label={p.title} onClose={() => setMenu(false)} items={[{ label: "Remove from this project", danger: true, onSelect: onRemove }]} />}
+        </>
       )}
-      <div className="acts pj-sheet-acts">
-        <Button icon="notes" onClick={() => onOpenNote(person.id)}>
-          Open the note
-        </Button>
-        {canEdit && person.linked && (
-          <Button
-            kind="quiet"
-            danger
-            onClick={() =>
-              setConfirm({
-                title: `Take ${person.title} off ${projectName}?`,
-                body: "This removes the link from the project note. Their own note stays as it is.",
-                confirmLabel: "Take them off",
-                danger: true,
-                onConfirm: () => void onRemove(),
-              })
-            }
-          >
-            Remove from this project
-          </Button>
-        )}
-      </div>
-      <Confirm request={confirm} onClose={() => setConfirm(null)} />
-    </Sheet>
+    </div>
   );
 }
 
