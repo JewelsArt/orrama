@@ -111,8 +111,10 @@ describe("delete the database, re-index the vault", () => {
   });
 
   it("wrote it where a person can read it", () => {
-    const oct = fs.readFileSync(path.join(vault, "01-Me/Calendar/2026-10.md"), "utf8");
-    const nov = fs.readFileSync(path.join(vault, "01-Me/Calendar/2026-11.md"), "utf8");
+    // erin and mara read 01-Me through the seed's root viewer grants, so
+    // jules's calendar is in his personal folder (ACL-009).
+    const oct = fs.readFileSync(path.join(vault, "Personal/jules/Calendar/2026-10.md"), "utf8");
+    const nov = fs.readFileSync(path.join(vault, "Personal/jules/Calendar/2026-11.md"), "utf8");
     expect(oct).toMatch(/^calendar: jules$/m);
     expect(oct).toContain("| 2026-10-02 | 09:00 | 10:00 | Dentist |  |");
     expect(oct).toMatch(/\| 2026-10-05 \| 14:00 \| 16:00 \| dashboard API \| \[\[Engineering\/Atlas Roadmap#\^t-[\w-]+\]\] \| blk-/);

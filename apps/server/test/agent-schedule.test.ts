@@ -20,7 +20,8 @@ const { tables } = await import("../src/db.js");
 const jules = s.aclUser("jules");
 const note = s.built.store.write(jules, "Shared/Chapters.md", "# Chapters\n\n- [ ] Draft chapter 3\n- [ ] Draft chapter 4\n");
 const calendarNote = (month: string) => {
-  const abs = path.join(s.vault, "01-Me", "Calendar", `${month}.md`);
+  // erin and mara read 01-Me through the seed's root viewer grants, so jules's calendar is his by path (ACL-009).
+  const abs = path.join(s.vault, "Personal", "jules", "Calendar", `${month}.md`);
   return fs.existsSync(abs) ? fs.readFileSync(abs, "utf8") : "";
 };
 const planBlocks = async (text: string) => {

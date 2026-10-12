@@ -70,6 +70,11 @@ describe("the index follows the notes", () => {
     // under a loaded full run.
     fs.mkdirSync(path.join(vault, "01-Me/Calendar"), { recursive: true });
     b = await buildServer();
+    // 01-Me as it is on a one-person install: no other account reads it. The
+    // seed's root viewer grants would let erin and mara read it, and the app
+    // then keeps jules's calendar in Personal/jules/Calendar instead (ACL-009).
+    b.db.insert(tables.teams).values({ id: "t-solo", slug: "solo", name: "Solo", color: "#888888" }).run();
+    b.db.insert(tables.folderGrants).values({ id: "g-solo", teamId: "t-solo", folder: "01-Me", role: "editor" }).run();
     julesId = b.db.select().from(tables.users).where(eq(tables.users.username, "jules")).get()!.id;
   });
   afterAll(async () => {

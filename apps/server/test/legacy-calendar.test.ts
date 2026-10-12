@@ -31,7 +31,8 @@ describe("legacy calendar rows", () => {
     db.insert(tables.events).values({ id: "ev-legacy1", ownerId: users.get("jules")!, title: "Old standup", date: "2026-07-10", startMin: 540, durationMin: 30, createdAt: 2 }).run();
 
     const b = await buildServer();
-    const julesNote = fs.readFileSync(path.join(vault, "01-Me/Calendar/2026-07.md"), "utf8");
+    // erin and mara read 01-Me through the seed's root viewer grants, so jules's calendar is his by path (ACL-009).
+    const julesNote = fs.readFileSync(path.join(vault, "Personal/jules/Calendar/2026-07.md"), "utf8");
     expect(julesNote).toContain("| 2026-07-10 | 09:00 | 09:30 | Old standup |  | ev-legacy1 |");
     // The block belongs to the task's assignee (erin), who writes to her own calendar.
     const erinNote = fs.readFileSync(path.join(vault, "Personal/erin/Calendar/2026-07.md"), "utf8");

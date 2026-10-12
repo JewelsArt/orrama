@@ -24,11 +24,15 @@
  *
  * Notes go in `01-Me/Calendar/` (Jules's choice, 2026-09-29). A user who
  * cannot edit there gets `Personal/<username>/Calendar/`, which is theirs by
- * path under the ACL.
+ * path under the ACL — and so does one whose `01-Me/Calendar/` note another
+ * account could read. Events are "yours only" in /api/events, and a row in a
+ * note the teams can search is not (audit ACL-009). Owners read everything
+ * by design (permission model rule 4), so they are not "another account"
+ * here; on a one-account install nothing moves.
  */
 import crypto from "node:crypto";
 import { eq, isNull } from "drizzle-orm";
-import { canEdit, type AclUser, type IndexedNote } from "@basalt/core";
+import { canEdit, canRead, type AclNote, type AclUser, type IndexedNote } from "@basalt/core";
 import { tables, type Db } from "./db.js";
 import { HttpError, type VaultStore } from "./vaultStore.js";
 
@@ -290,12 +294,25 @@ export class CalendarNotes {
     }
   }
 
-  /** The note holding `user`'s calendar for `month`, created if there is none yet. */
+  /** Whether an account other than `user` (owners aside) could read `note` (ACL-009). */
+  private exposed(user: AclUser, note: AclNote): boolean {
+    const grants = this.store.grants();
+    return this.db
+      .select()
+      .from(tables.users)
+      .all()
+      .some((u) => u.id !== user.id && !u.isOwner && canRead(this.store.aclUser(u.id), note, grants));
+  }
+
+  /** The note holding `user`'s calendar for `month`, created if there is none yet — one no other account can read. */
   private noteFor(user: AclUser, month: string): { path: string; content: string; id: string | null } {
-    const mine = this.store.index.all().find((n) => ownerOf(n) === user.username && monthOf(n) === month && inCalendarDir(n.path, user.username));
+    const mine = this.store.index
+      .all()
+      .find((n) => ownerOf(n) === user.username && monthOf(n) === month && inCalendarDir(n.path, user.username) && !this.exposed(user, n));
     if (mine) return { path: mine.path, content: mine.content, id: mine.id };
     const grants = this.store.grants();
-    const dir = canEdit(user, { folder: CAL_DIR, onlyTeams: [], shareTeams: [] }, grants) ? CAL_DIR : `Personal/${user.username}/Calendar`;
+    const shared: AclNote = { folder: CAL_DIR, onlyTeams: [], shareTeams: [] };
+    const dir = canEdit(user, shared, grants) && !this.exposed(user, shared) ? CAL_DIR : `Personal/${user.username}/Calendar`;
     let path = `${dir}/${month}.md`;
     if (this.store.index.getByPath(path)) path = `${dir}/${month} ${user.username}.md`;
     return { path, content: monthNote(user.username, month), id: null };
@@ -318,7 +335,8 @@ export class CalendarNotes {
     if (!realDay(row.date)) throw new HttpError(400, "date must be a real YYYY-MM-DD day");
     const home = this.homeOf(row.id);
     const month = row.date.slice(0, 7);
-    if (home && monthOf(home) === month && ownerOf(home) === user.username) {
+    // A row in a note others can read moves to one they cannot when it is next written (ACL-009).
+    if (home && monthOf(home) === month && ownerOf(home) === user.username && !this.exposed(user, home)) {
       this.store.write(user, home.path, placeRow(user.username, home.content, row));
       return;
     }

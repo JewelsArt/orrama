@@ -285,3 +285,28 @@ describe("ACL-010: a removed or renamed account's username is never handed out a
     expect(row().username).toBe("olaf2");
   });
 });
+
+describe("ACL-009: your events stay yours in the vault too", () => {
+  // The seed gives both teams `viewer` on the vault root, so erin and mara can read 01-Me/.
+  it("an event lands in a note no other account can search or read", async () => {
+    const ev = await api("POST", "/api/events", "jules", { title: "Couples therapy", date: "2026-10-06", startMin: 1080, durationMin: 60 });
+    expect(ev.status).toBe(200);
+    expect(((await api("GET", "/api/events?from=2026-10-01&to=2026-10-31", "jules")).json as { title: string }[]).map((e) => e.title)).toContain("Couples therapy");
+    for (const who of ["erin", "mara"]) {
+      expect((await api("GET", "/api/vault/search?q=therapy", who)).json).toEqual([]);
+      const tree = (await api("GET", "/api/vault/tree", who)).json as { id: string; path: string }[];
+      for (const n of tree.filter((x) => x.path.includes("Calendar/"))) {
+        expect((await api("GET", `/api/vault/note/${n.id}`, who)).json.content).not.toContain("Couples therapy");
+      }
+    }
+  });
+
+  it("a row in a calendar note others can read moves out of it when it is next written", async () => {
+    const file = path.join(process.env.BASALT_VAULT_DIR!, "01-Me/Calendar/2026-12.md");
+    const julesUser = b.store.aclUser(b.db.select().from(tables.users).all().find((u) => u.username === "jules")!.id);
+    b.store.write(julesUser, "01-Me/Calendar/2026-12.md", '---\ncalendar: jules\nmonth: "2026-12"\n---\n| Date | Start | End | What | Task | id |\n| --- | --- | --- | --- | --- | --- |\n| 2026-12-01 | 09:00 | 10:00 | Biopsy results |  | ev-acl009 |\n');
+    expect((await api("PATCH", "/api/events/ev-acl009", "jules", { startMin: 600 })).status).toBe(200);
+    expect(fs.readFileSync(file, "utf8")).not.toContain("Biopsy results");
+    expect(fs.readFileSync(path.join(process.env.BASALT_VAULT_DIR!, "Personal/jules/Calendar/2026-12.md"), "utf8")).toContain("| 2026-12-01 | 10:00 | 11:00 | Biopsy results |  | ev-acl009 |");
+  });
+});
