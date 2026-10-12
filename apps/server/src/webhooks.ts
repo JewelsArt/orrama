@@ -1,7 +1,8 @@
 /**
  * Outgoing webhooks: the "connect anything" layer. Subscribers get an
  * HMAC-signed POST when something they're allowed to see changes — the ACL
- * check runs per webhook owner, so a hook never learns about notes its owner
+ * check runs per webhook owner, when the event fires and again when a
+ * debounced delivery goes out, so a hook never learns about notes its owner
  * can't read (same leak rule as every other surface, spec §5.4).
  */
 import crypto from "node:crypto";
@@ -125,7 +126,15 @@ export function initWebhooks(db: Db, store: VaultStore) {
         key,
         setTimeout(() => {
           pending.delete(key);
-          void deliver(db, hook, {
+          // Asked again now, about the note as it is now: the payload is read
+          // now, and in the wait the note may have been moved where the
+          // owner cannot read it, or restricted and retitled — the save that
+          // protects a note sent its new path and title to every hook that
+          // could read the old one (audit ACL-007). The hook itself may be
+          // gone or switched off by now too.
+          const now = hooksFor("note.changed", e.noteId).find((h) => h.id === hook.id);
+          if (!now) return;
+          void deliver(db, now, {
             event: "note.changed",
             at: new Date().toISOString(),
             note: notePayload(e.noteId),

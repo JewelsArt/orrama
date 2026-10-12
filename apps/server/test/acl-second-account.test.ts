@@ -11,6 +11,7 @@
  * the caller controls — their own notes' tags, their own guesses.
  */
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -19,6 +20,9 @@ process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-acl-
 process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
 process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+// Webhooks (ACL-007) deliver to a receiver on this machine, after a short debounce.
+process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
+process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "150";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -198,5 +202,51 @@ describe("ACL-005: saves, moves and links never confirm a note you cannot read",
     expect(back.map((l) => l.fromId)).toContain(w.json.id);
     const graph = (await api("GET", "/api/vault/graph", "erin")).json as { edges: { from: string; to: string }[] };
     expect(graph.edges).toContainEqual({ from: w.json.id, to: atlas.id });
+  });
+});
+
+describe("ACL-007: a webhook delivery is judged when it goes out", () => {
+  const got: { event: string; note: { id: string; path: string; title: string } | null }[] = [];
+  let receiver: http.Server;
+  const settle = () => new Promise((r) => setTimeout(r, 600));
+
+  beforeAll(async () => {
+    receiver = http.createServer((req, res) => {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        got.push(JSON.parse(body));
+        res.end("ok");
+      });
+    });
+    await new Promise<void>((r) => receiver.listen(0, "127.0.0.1", () => r()));
+    const port = (receiver.address() as { port: number }).port;
+    expect((await api("POST", "/api/webhooks", "erin", { url: `http://127.0.0.1:${port}/hook`, events: ["note.changed"] })).status).toBe(200);
+  });
+  afterAll(() => new Promise<void>((r) => receiver.close(() => r())));
+
+  it("a note moved where the hook's owner cannot read it is not delivered", async () => {
+    got.length = 0;
+    expect((await put("jules", "Shared/Draft.md", "---\ntitle: Draft\n---\nwip\n")).status).toBe(200);
+    expect((await api("POST", "/api/vault/move", "jules", { fromPath: "Shared/Draft.md", toPath: "Marketing/Layoffs plan - March.md" })).status).toBe(200);
+    await settle();
+    expect(JSON.stringify(got)).not.toContain("Layoffs");
+  });
+
+  it("a note restricted and retitled in the wait is not delivered", async () => {
+    got.length = 0;
+    const first = await put("jules", "Shared/Notes.md", "---\ntitle: Notes\n---\nwip\n");
+    expect(first.status).toBe(200);
+    const second = await put("jules", "Shared/Notes.md", "---\ntitle: Acquisition of Acme Corp\ntags: [only/marketing]\n---\nwip\n", { baseHash: first.json.hash });
+    expect(second.status).toBe(200);
+    await settle();
+    expect(JSON.stringify(got)).not.toContain("Acquisition");
+  });
+
+  it("a note the owner can still read is delivered as before", async () => {
+    got.length = 0;
+    expect((await put("jules", "Shared/Weekly.md", "---\ntitle: Weekly\n---\nagenda\n")).status).toBe(200);
+    await settle();
+    expect(got.map((p) => [p.event, p.note?.path])).toEqual([["note.changed", "Shared/Weekly.md"]]);
   });
 });
