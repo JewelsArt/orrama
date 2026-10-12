@@ -252,6 +252,9 @@ one is in CLAUDE.md, "Releases".
 - Projects has one shelf for finished work, **Done**: completed and archived
   projects sit on it together, the most recently worked on first. A project's
   status in its note is unchanged.
+- On a project's page, a person's or company's name opens their own page, as
+  everywhere else. Taking them off the project is in the ⋯ menu at the end of
+  their row (on a phone it always shows), behind the same confirmation.
 
 ### Removed
 
@@ -282,8 +285,10 @@ one is in CLAUDE.md, "Releases".
 - Finance's purple card and its own colours.
 - The old search palette (note titles and paths only).
 - "Ask your vault" and "a workspace owner" in Ask.
-- "Today's summary" on Projects (Orr's digest of the board). Today already
-  says what's due.
+- "Today's summary" on Projects (Orr's digest of the board), and the server's
+  digest behind it. Today already says what's due.
+- The sheet a person or company opened in on a project's page (their own page
+  has what it showed).
 
 ### Fixed
 
@@ -477,8 +482,7 @@ one is in CLAUDE.md, "Releases".
 - "Put it on Wednesday" from Claude Code now books a block you can see in
   Planning, on Today and on the project's Timeline.
 - Closing the Ask panel stops Orr's run on the server, and a provider that
-  hangs stops after 2 minutes with a message. The digest gives up after one
-  failed try.
+  hangs stops after 2 minutes with a message.
 - A stored AI key that can no longer be read (after a secret-key change) turns
   AI off instead of breaking Planning.
 - Orr's search finds your longest notes.
@@ -599,8 +603,8 @@ one is in CLAUDE.md, "Releases".
   agents follow are yours to write.
 - The vault's CLAUDE.md reaches Orr only for someone who can read it, and as
   your note, not as system instructions.
-- A failed digest no longer writes your latest notes into server.log, and no
-  error log carries what was sent to or received from a provider.
+- No error log carries what was sent to or received from an AI provider (your
+  notes once reached server.log that way).
 - An `#only/<team>` restriction is kept when the front matter has a YAML error
   (e.g. an unquoted colon in the title), uses `tags: a, only/x` or `tag:`, or
   follows a one-line ```` ```js``` ```` or an indented ```` ``` ````; a
@@ -623,6 +627,23 @@ one is in CLAUDE.md, "Releases".
 - Personal data removed from source comments, the demo seed and CLAUDE.md (a
   history rewrite follows after the audit).
 - CI actions are pinned to commits and the workflow token is read-only.
+- A project whose note lives outside `04-Projects/` can no longer be opened —
+  documents, board, name — by someone who tags a note of their own with its
+  key; the project's note is fixed when it is registered (ACL-002).
+- The team dashboard no longer names projects you cannot read (ACL-004).
+- Saving, moving or linking to a note you cannot read answers exactly as if
+  there were no note: no "changed since it was opened", no "already exists",
+  no locked link — and no way to confirm a private note's text by guessing its
+  hash (ACL-005).
+- Webhooks check the note again when the delivery goes out, so a note moved or
+  restricted in the debounce window is not sent with its new path and title
+  (ACL-007).
+- A removed or renamed account's username is retired: nobody can sign up as it
+  and inherit `Personal/<username>/` (ACL-010).
+- Your events and time blocks are written to a calendar note no other account
+  can read — `Personal/<you>/Calendar/` when another account could read
+  `01-Me/` (ACL-009).
+- Search result order no longer depends on notes you cannot read (ACL-008).
 
 ### Internal
 
@@ -658,7 +679,7 @@ one is in CLAUDE.md, "Releases".
 - The MCP server's tools live in `apps/mcp/src/tools.ts`, testable from the
   server's tests; a fake Chat-Completions provider
   (`test/helpers/fakeChat.ts`) stands in for a model. `BASALT_AI_TIMEOUT_MS`
-  (120 s) bounds an Ask run and the digest.
+  (120 s) bounds an Ask run.
 - New reads for the redesigned screens, each with a schema and a contract row:
   `GET /api/tasks` is typed, `GET /api/notes/overview` (Notes home's pins and
   counts), `GET /api/people/context` (each person's and company's relations
@@ -682,12 +703,21 @@ one is in CLAUDE.md, "Releases".
   third-party licence notices; `tsx` is a production dependency; Node types
   are 22.
 - ESLint with the React hooks rules (`pnpm lint`).
+- `store.projects(user)` takes the reader; `VaultStore.projectNote(key)` is
+  the one way to the note a project is authorised against.
+- `VaultIndex.resolveLink/resolveLinkOf` take `among`, the notes a link may
+  name.
+- Account removal is `removeAccount.ts` (remove-user.ts is its prompt);
+  retired usernames are `usernames.ts`.
 
 ### Upgrading
 
 - The first start of this version encrypts every stored webhook secret and
   stamps the database as schema 3; an older build then refuses to open it, so
   take a database backup before shipping.
+- Schema 4 (`projects.note_id`): a database opened by this build refuses to
+  open in an older one. Existing projects are anchored to their note on first
+  use.
 - Reaching Basalt by a bare LAN or tailnet IP now needs that address in
   `BASALT_PUBLIC_ORIGINS`.
 - A Touch ID passkey created as non-discoverable (unlikely on macOS) needs

@@ -288,7 +288,7 @@
 
 ### `apps/web/src/ProjectOverview.tsx`
 - **Exports**: ProjectOverview, decisionOf
-- **Imports**: react, @basalt/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ws.js, @basalt/schema/responses
+- **Imports**: react, @basalt/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./entity/links.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ws.js, @basalt/schema/responses
 
 ### `apps/web/src/ProjectViews.tsx`
 - **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
