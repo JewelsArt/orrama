@@ -524,7 +524,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
 
     const readable = store.readable(user);
     const recent = [...readable].sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0)).slice(0, 10);
-    const tasks = store.index.tasks(user, store.grants(), store.projects());
+    const tasks = store.index.tasks(user, store.grants(), store.projects(user));
     const open = tasks.filter((t) => !t.checked).length;
     const done = tasks.filter((t) => t.checked).length;
     const context = recent.map((n) => `<note title="${n.title}">\n${n.content.slice(0, 1500)}\n</note>`).join("\n");

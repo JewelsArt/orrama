@@ -1,9 +1,8 @@
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { canRead, projectName, projectSlugOf } from "@basalt/core";
+import { canRead, projectSlugOf } from "@basalt/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { projectNoteFor } from "./projects.js";
 
 /**
  * The team command center (spec §6). Every number here is a view over the vault,
@@ -20,13 +19,20 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     if (!user.isOwner && !user.teams.includes(team.slug)) throw new HttpError(404, "team not found");
 
     const grants = store.grants();
-    const allProjects = db.select().from(tables.projects).all();
-    const teamProjects = allProjects.filter((p) => !p.hidden && (p.teamId === team.id || p.teamId === null));
-    // Every lookup below is by KEY: two projects may share a name, and keyed by
-    // name they were one card with both task lists (audit COR-004). A project
-    // is named by its project note, one the caller can read.
+    // The projects the requester can see at all (store.projects): a tag
+    // project whose note they cannot read, or a folder project whose folder
+    // they cannot read, is not on their board — not even by name as an "empty"
+    // project (audit ACL-004), and not because a note of their own carries its
+    // tag (ACL-002). Every lookup below is by KEY: two projects may share a
+    // name, and keyed by name they were one card with both task lists (audit
+    // COR-004).
+    const rowByKey = new Map(db.select().from(tables.projects).all().map((p) => [p.key, p]));
+    const projectDefs = store.projects(user).filter((d) => {
+      const row = rowByKey.get(d.key);
+      return !!row && (row.teamId === team.id || row.teamId === null);
+    });
+    const teamProjects = projectDefs.map((d) => rowByKey.get(d.key)!);
     const readable = store.readable(user);
-    const projectDefs = teamProjects.map((p) => ({ kind: p.kind, key: p.key, name: p.kind === "tag" ? projectName(projectNoteFor(readable, p.key), p.name) : p.name }));
     const domainByKey = new Map(teamProjects.map((p) => [p.key, p.domain ?? null]));
     // The workspace page is addressed by slug, so the board carries it — only
     // a slug the workspace route accepts (REG-017).
@@ -35,8 +41,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     // on-track…), so the board reads it from the note, not from a column.
     const statusByKey = new Map(
       teamProjects.map((p) => {
-        const note = projectNoteFor(readable, p.key);
-        const raw = note?.frontmatter["status"];
+        const raw = store.projectNote(p.key)?.frontmatter["status"];
         return [p.key, typeof raw === "string" ? raw.trim().toLowerCase() : ""];
       }),
     );

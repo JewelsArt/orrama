@@ -22,7 +22,7 @@ export async function notesHomeRoutes(app: FastifyInstance, store: VaultStore) {
     const user = store.aclUser(req.userId);
     const readable = store.readable(user);
     const conversation = (n: (typeof readable)[number]) => n.kind === "conversation" || n.path.startsWith(SESSION_DIR);
-    const tasks = store.index.tasks(user, store.grants(), store.projects());
+    const tasks = store.index.tasks(user, store.grants(), store.projects(user));
     return {
       pinned: readable
         .filter((n) => isPinned(n.frontmatter["pinned"]))

@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { chargeDates, isoLocal, parseSubscriptions, projectName, type AclUser } from "@basalt/core";
+import { chargeDates, isoLocal, parseSubscriptions, type AclUser } from "@basalt/core";
 import { taskPlaceSchema } from "@basalt/schema";
 import type { z } from "zod";
 import type { CalendarNotes } from "../calendarNotes.js";
@@ -17,7 +17,6 @@ import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { projectNoteFor } from "./projects.js";
 import { promoteNamedTask } from "./tasks.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -255,7 +254,7 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const inRange = (d: string) => d >= from && d <= to;
     const out: DayMarker[] = [];
 
-    for (const t of store.index.tasks(user, store.grants(), store.projects())) {
+    for (const t of store.index.tasks(user, store.grants(), store.projects(user))) {
       if (t.checked || !t.due || !inRange(t.due)) continue;
       out.push({
         id: `due-${t.noteId}-${t.line}`,
@@ -275,14 +274,14 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
 
     // Project milestones live in the note's front-matter, so they are read off
     // the note rather than the projects table (which stores neither date).
-    const readable = store.readable(user);
-    for (const p of db.select().from(tables.projects).all()) {
-      if (p.hidden) continue;
-      const note = projectNoteFor(readable, p.key);
+    // The project's own note, the same whoever asks, among the projects the
+    // caller can read (store.projects, audit ACL-002).
+    for (const p of store.projects(user)) {
+      const note = p.kind === "tag" ? store.projectNote(p.key) : undefined;
       if (!note) continue;
       const fm = note.frontmatter as Record<string, unknown>;
       const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
-      const name = projectName(note, p.name); // as on the board (COR-004)
+      const name = p.name; // named by its note, as on the board (COR-004)
       for (const [field, label] of [["start", "starts"], ["deadline", "due"]] as const) {
         const date = str(fm[field]);
         if (!DAY_RE.test(date) || !inRange(date)) continue;

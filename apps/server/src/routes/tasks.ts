@@ -78,7 +78,7 @@ export async function taskRoutes(app: FastifyInstance, db: Db, store: VaultStore
   /** All tasks visible to the requester, with project + task-object overlay. */
   app.get("/api/tasks", auth, async (req) => {
     const user = store.aclUser(req.userId);
-    const tasks = store.index.tasks(user, store.grants(), store.projects());
+    const tasks = store.index.tasks(user, store.grants(), store.projects(user));
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
     return tasks.map((t) => ({

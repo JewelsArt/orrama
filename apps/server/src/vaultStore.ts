@@ -22,6 +22,7 @@ import {
   projectName,
   projectNoteFor,
   projectSlugOf,
+  PROJECTS_DIR,
   stampId,
   titleFromPath,
   validateEdit,
@@ -493,7 +494,7 @@ export class VaultStore {
     const mtimeMs = fs.statSync(abs).mtimeMs;
     const note = this.index.upsert({ path: rel, content, mtimeMs, id: fallbackId });
     this.syncNoteRow(note);
-    this.syncProjectRow(note);
+    this.syncProjectRow(note, { anchor: false });
   }
 
   /** Stop watching the vault. Called when the app closes, before the database
@@ -653,7 +654,7 @@ export class VaultStore {
    * the owner removed (hidden=1) is never resurrected. Body mentions of
    * "project/…" (line ≠ 0) are ignored.
    */
-  private syncProjectRow(note: IndexedNote): void {
+  private syncProjectRow(note: IndexedNote, opts: { anchor: boolean } = { anchor: true }): void {
     // The one slug grammar (core projectSlugOf): a tag registered here is a
     // project every route can open (audit REG-017).
     const keys = note.tags.filter((t) => t.line === 0 && projectSlugOf(t.tag) !== null).map((t) => t.tag);
@@ -661,11 +662,42 @@ export class VaultStore {
       const existing = this.db.select().from(tables.projects).where(eq(tables.projects.key, key)).get();
       if (existing) continue;
       const domain = typeof note.frontmatter?.["domain"] === "string" ? (note.frontmatter["domain"] as string) : null;
+      // The note that registered the key is the project (projectNote). At boot
+      // the index is half-built and this is walk order, so the anchor is left
+      // for projectNote to choose once everything is indexed.
+      const noteId = opts.anchor ? note.id : null;
       this.db
         .insert(tables.projects)
-        .values({ id: `p-${crypto.randomUUID().slice(0, 8)}`, kind: "tag", key, name: note.title, teamId: null, domain, hidden: null })
+        .values({ id: `p-${crypto.randomUUID().slice(0, 8)}`, kind: "tag", key, name: note.title, teamId: null, domain, hidden: null, noteId })
         .run();
     }
+  }
+
+  /**
+   * The note that IS project `key` — the one its documents, board and name
+   * are authorised against (audit ACL-002). The conventional
+   * `04-Projects/<slug>.md` first, then the note the registration row is
+   * anchored to, while it still carries the tag. Never chosen from the notes a
+   * caller can read: tags are free text, and "the caller's own note tagged
+   * project/<slug>" made any folder editor the owner of another team's
+   * project. Ranking among the tagged notes is no better — a note's id and
+   * folder are its author's to write — so the ranking (projectNoteFor) is used
+   * only to anchor a row that has none yet (a database from before schema 4, a
+   * rebuild) or whose note is gone or untagged, and the choice is stored.
+   * Every other note carrying the tag only joins the project.
+   */
+  projectNote(key: string): IndexedNote | undefined {
+    const slug = projectSlugOf(key);
+    if (slug === null) return undefined;
+    const conventional = this.index.getByPath(`${PROJECTS_DIR}/${slug}.md`);
+    if (conventional) return conventional;
+    const row = this.db.select().from(tables.projects).where(eq(tables.projects.key, key)).get();
+    if (!row) return undefined;
+    const anchored = row.noteId ? this.index.get(row.noteId) : undefined;
+    if (anchored && anchored.tags.some((t) => t.line === 0 && t.tag === key)) return anchored;
+    const chosen = projectNoteFor(this.index.all(), key);
+    if ((chosen?.id ?? null) !== row.noteId) this.db.update(tables.projects).set({ noteId: chosen?.id ?? null }).where(eq(tables.projects.id, row.id)).run();
+    return chosen;
   }
 
   doc(noteId: string): Y.Doc {
@@ -775,20 +807,31 @@ export class VaultStore {
   }
 
   /**
-   * The registered projects, each named by its project note (projectName),
-   * read now: the row's `name` is whichever tagged note was indexed first —
-   * after a rebuild that is walk order, a chapter draft as easily as the
-   * project note (audit COR-004). Names are for display; projects are told
-   * apart by key.
+   * The registered projects `user` can see, each named by its project note
+   * (projectName), read now: the row's `name` is whichever tagged note was
+   * indexed first — after a rebuild that is walk order, a chapter draft as
+   * easily as the project note (audit COR-004). Names are for display;
+   * projects are told apart by key. A project whose note (projectNote) or
+   * folder the user cannot read does not exist for them: tagging your own note
+   * `project/<slug>` does not put another team's project, or its name, on
+   * your tasks and boards (audit ACL-002), and a project with no tasks you can
+   * read is not listed by name on your team's board (ACL-004).
    */
-  projects(): ProjectDef[] {
-    const notes = this.index.all();
-    return this.db
-      .select()
-      .from(tables.projects)
-      .all()
-      .filter((p) => !p.hidden)
-      .map((p) => ({ kind: p.kind, key: p.key, name: p.kind === "tag" ? projectName(projectNoteFor(notes, p.key), p.name) : p.name }));
+  projects(user: AclUser): ProjectDef[] {
+    const grants = this.grants();
+    const out: ProjectDef[] = [];
+    for (const p of this.db.select().from(tables.projects).all()) {
+      if (p.hidden) continue;
+      if (p.kind !== "tag") {
+        // A folder project is the folder: its name is the reader's only if the folder is.
+        if (canRead(user, { folder: p.key, onlyTeams: [], shareTeams: [] }, grants)) out.push({ kind: p.kind, key: p.key, name: p.name });
+        continue;
+      }
+      const note = this.projectNote(p.key);
+      // A registration whose tag no note carries any more is the owners' to see.
+      if (note ? canRead(user, note, grants) : user.isOwner) out.push({ kind: p.kind, key: p.key, name: projectName(note, p.name) });
+    }
+    return out;
   }
 
   /**

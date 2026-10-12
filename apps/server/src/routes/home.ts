@@ -51,7 +51,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
   app.get("/api/home", { preHandler: [app.authenticate] }, async (req) => {
     const user = store.aclUser(req.userId);
     const grants = store.grants();
-    const projects = store.projects();
+    const projects = store.projects(user);
     const notes = store.readable(user);
     const curated = notes.filter((n) => !isSessionLog(n.path));
     const tasks = store.index.tasks(user, grants, projects);

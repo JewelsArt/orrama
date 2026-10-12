@@ -200,10 +200,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const user = store.aclUser(userId);
     const row = db.select().from(tables.projects).where(eq(tables.projects.key, `project/${slug}`)).get();
     const grants = store.grants();
-    // The note is the project; the row is only its registration.
-    const note =
-      store.index.getByPath(`${PROJECTS_DIR}/${slug}.md`) ??
-      projectNoteFor(store.readable(user), `project/${slug}`);
+    // The note is the project; the row is only its registration. Which note
+    // that is never depends on who asks (store.projectNote): picked from the
+    // caller's readable notes, a note of their own tagged `project/<slug>`
+    // opened another team's documents and board (audit ACL-002).
+    const note = store.projectNote(`project/${slug}`);
     if (!note || !canRead(user, note, grants)) throw new HttpError(404, "project not found");
     return { user, grants, row, note };
   };
@@ -215,7 +216,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // Only projects whose slug every route accepts: a card that cannot be
     // opened is worse than none (REG-017). Joined by key, never by name, and
     // named by the project note the caller can read (COR-004).
-    const defs = store.projects().filter((p) => p.kind !== "tag" || projectSlugOf(p.key) !== null);
+    const defs = store.projects(user).filter((p) => p.kind !== "tag" || projectSlugOf(p.key) !== null);
     const rows = db.select().from(tables.projects).all().filter((p) => defs.some((d) => d.key === p.key));
     const progress = new Map(store.index.progress(user, grants, defs).map((p) => [p.key, p]));
     const readable = store.readable(user);
@@ -241,8 +242,10 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return rows
       .map((p) => {
         const slug = p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key;
-        // The note may live anywhere (a personal project note is still a project).
-        const note = projectNoteFor(readable, p.key);
+        // The note may live anywhere (a personal project note is still a project),
+        // and is the same note whoever asks (ACL-002); defs holds only readable ones.
+        const def = defs.find((d) => d.key === p.key);
+        const note = def ? store.projectNote(p.key) : undefined;
         const prog = progress.get(p.key);
         const dates = openByProject.get(p.key);
         const fm = (note?.frontmatter ?? {}) as Record<string, unknown>;
@@ -279,7 +282,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // Membership as every other surface decides it: against ALL projects, then
     // this one's key. With only this project's definition, a note tagged with
     // two projects counted in both here and in one on the board (COR-006).
-    const defs = store.projects();
+    const defs = store.projects(user);
     const inProject = (n: IndexedNote | undefined) => !!row && !!n && store.index.projectKeyOf(n, defs) === row.key;
     const tasks = store.index.tasks(user, grants, defs).filter((t) => inProject(store.index.get(t.noteId)));
     const objects = db.select().from(tables.taskObjects).all();

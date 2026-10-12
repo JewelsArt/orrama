@@ -296,6 +296,7 @@ export const projects = sqliteTable("projects", {
   teamId: text("team_id"), // owning team for dashboard grouping (null = all teams)
   domain: text("domain"), // life-area for the Overview separation: personal | professional | academic
   hidden: integer("hidden"), // 1 = removed from the board; survives re-index (auto-sync respects it)
+  noteId: text("note_id"), // the note that IS the project, fixed at registration (ACL-002); re-derived when gone
 });
 
 /** One-shot data migrations that must not run twice, by name (apps/server/src/migrations.ts). */

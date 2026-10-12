@@ -11,7 +11,7 @@
  * graph has no types and every row's relations are empty: the page is plain.
  */
 import type { FastifyInstance } from "fastify";
-import { ONTOLOGY_TAG, projectNoteFor, type IndexedNote } from "@basalt/core";
+import { ONTOLOGY_TAG, type IndexedNote } from "@basalt/core";
 import type { VaultStore } from "../vaultStore.js";
 import { graphFor } from "./graph.js";
 
@@ -43,9 +43,9 @@ export async function peopleRoutes(app: FastifyInstance, store: VaultStore) {
     // own note links to people as a matter of record, not because you met.
     const recordNotes = new Set(
       store
-        .projects()
+        .projects(user)
         .filter((p) => p.kind === "tag")
-        .map((p) => projectNoteFor(readable, p.key)?.id)
+        .map((p) => store.projectNote(p.key)?.id)
         .filter((id): id is string => !!id),
     );
     const today = new Date().toISOString().slice(0, 10);

@@ -65,7 +65,8 @@ CREATE TABLE IF NOT EXISTS invites (
   expires_at INTEGER NOT NULL, used_by TEXT
 );
 CREATE TABLE IF NOT EXISTS projects (
-  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT, domain TEXT, hidden INTEGER
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, team_id TEXT, domain TEXT, hidden INTEGER,
+  note_id TEXT
 );
 CREATE TABLE IF NOT EXISTS task_blocks (
   id TEXT PRIMARY KEY, task_object_id TEXT NOT NULL, date TEXT NOT NULL,
@@ -125,8 +126,11 @@ CREATE TABLE IF NOT EXISTS webhooks (
  *   3  — webhook signing secrets encrypted at rest; an older build would
  *        sign with the ciphertext and every receiver would reject it
  *        (webhooks.ts, Oct 2026).
+ *   4  — projects.note_id, the note a project's documents and board are
+ *        authorised against; an older build would pick it from the caller's
+ *        own notes again (audit ACL-002, Oct 2026).
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** `ALTER TABLE … ADD COLUMN` for each column its table lacks; a failure throws with the statement. */
 export function addColumns(sqlite: Database.Database, columns: [table: string, column: string, decl: string][]): void {
@@ -175,6 +179,7 @@ export function createDb(file = dbPath()) {
       ["users", "appearance", "TEXT"],
       ["projects", "domain", "TEXT"],
       ["projects", "hidden", "INTEGER"],
+      ["projects", "note_id", "TEXT"],
       ["workspace", "ai_instructions", "TEXT"],
       ["workspace", "ai_base_url", "TEXT"],
       // The calendar note a block/event row was read from (calendarNotes.ts).
