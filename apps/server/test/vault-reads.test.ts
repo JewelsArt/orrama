@@ -26,7 +26,7 @@ const token = (await app.inject({ method: "POST", url: "/api/auth/login", payloa
 const get = (url: string) => app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
 
 describe("vault reads", () => {
-  it("opening a note with many links reads the grants once, and still locks what it should", async () => {
+  it("opening a note with many links reads the grants once, and still hides what it should", async () => {
     // mara (marketing) can read Shared/ but not the #only/engineering runbook.
     const links = Array.from({ length: 40 }, (_, i) => `- [[Meeting Notes 2026-07-01]] ${i}`).join("\n");
     const put = await app.inject({
@@ -44,7 +44,8 @@ describe("vault reads", () => {
     expect(calls).toBeLessThanOrEqual(3);
     const out = r.json().links as { target: string; locked: boolean; targetId: string | null }[];
     expect(out.filter((l) => l.target === "Meeting Notes 2026-07-01").every((l) => !l.locked && l.targetId)).toBe(true);
-    expect(out.find((l) => l.target === "Incident Runbook")).toMatchObject({ locked: true, targetId: null });
+    // An unreadable target reads like no target at all: no id, and no "locked" to say it exists (ACL-005).
+    expect(out.find((l) => l.target === "Incident Runbook")).toMatchObject({ locked: false, targetId: null });
   });
 
   it("the tree hashes a note once per version, not once per request", async () => {

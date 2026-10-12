@@ -10,7 +10,7 @@ import type {
   VaultTask,
   WikiLink,
 } from "./types.js";
-import { filterReadable, foldPath } from "./acl.js";
+import { canRead, filterReadable, foldPath } from "./acl.js";
 
 /**
  * `target` read relative to `folder` (`..` and `.` segments applied), or null
@@ -230,12 +230,12 @@ export class VaultIndex {
    * note in 07-Claude/agents/) — and it no longer depends on which note
    * happened to be indexed last.
    */
-  private byLinkKey(key: string): IndexedNote | undefined {
+  private byLinkKey(key: string, among?: (n: IndexedNote) => boolean): IndexedNote | undefined {
     let best: IndexedNote | undefined;
     let bestRank = Infinity;
     for (const [id, rank] of this.byKey.get(key) ?? []) {
       const note = this.notes.get(id);
-      if (!note) continue;
+      if (!note || (among && !among(note))) continue;
       if (rank < bestRank || (rank === bestRank && best && note.path > best.path)) {
         best = note;
         bestRank = rank;
@@ -258,9 +258,13 @@ export class VaultIndex {
    * case- and Unicode-normalisation-insensitively, with or without the `.md`,
    * and tolerant of the `./` and `%20` forms Obsidian writes into
    * markdown-style links. `fromFolder`: also try the target as a path
-   * relative to that folder, first — see resolveLinkOf.
+   * relative to that folder, first — see resolveLinkOf. `among`: only these
+   * notes can be named — a reader's readable ones. Resolving over the whole
+   * vault and hiding the answer afterwards told a reader that a note they
+   * cannot read holds that title, alias or filename, and let it capture a
+   * link meant for one they can (audit ACL-005).
    */
-  resolveLink(target: string, fromFolder?: string): IndexedNote | undefined {
+  resolveLink(target: string, fromFolder?: string, among?: (n: IndexedNote) => boolean): IndexedNote | undefined {
     let key = target.trim();
     if (key.includes("%")) {
       try {
@@ -271,13 +275,13 @@ export class VaultIndex {
     }
     if (fromFolder !== undefined) {
       const rel = relativeTo(fromFolder, key.replace(/\/+$/, ""));
-      const note = rel === null ? undefined : (this.byPathKey(rel) ?? this.byPathKey(`${rel}.md`));
+      const note = rel === null ? undefined : (this.byPathKey(rel, among) ?? this.byPathKey(`${rel}.md`, among));
       if (note) return note;
     }
     key = key.replace(/^\.\//, "").replace(/\/+$/, "");
     const tries = [key, key.replace(/\.md$/i, "")];
     for (const t of tries) {
-      const note = this.byLinkKey(foldPath(t));
+      const note = this.byLinkKey(foldPath(t), among);
       if (note) return note;
     }
     return undefined;
@@ -289,16 +293,16 @@ export class VaultIndex {
    * path to file"), so it is tried from the note's folder first, then as any
    * link; a wiki link is never relative (audit COR-016).
    */
-  resolveLinkOf(src: { folder: string }, link: WikiLink): IndexedNote | undefined {
-    return this.resolveLink(link.target, /^!?\[\[/.test(link.raw) ? undefined : src.folder);
+  resolveLinkOf(src: { folder: string }, link: WikiLink, among?: (n: IndexedNote) => boolean): IndexedNote | undefined {
+    return this.resolveLink(link.target, /^!?\[\[/.test(link.raw) ? undefined : src.folder, among);
   }
 
   /** The note at exactly this vault path (folded), by the path key alone. */
-  private byPathKey(p: string): IndexedNote | undefined {
+  private byPathKey(p: string, among?: (n: IndexedNote) => boolean): IndexedNote | undefined {
     let best: IndexedNote | undefined;
     for (const [id, rank] of this.byKey.get(foldPath(p)) ?? []) {
       const note = this.notes.get(id);
-      if (rank === 0 && note && (!best || note.path > best.path)) best = note;
+      if (rank === 0 && note && (!among || among(note)) && (!best || note.path > best.path)) best = note;
     }
     return best;
   }
@@ -311,10 +315,14 @@ export class VaultIndex {
   backlinks(id: NoteId, user?: AclUser, grants: FolderGrant[] = []): Backlink[] {
     const out: Backlink[] = [];
     const sources = user ? filterReadable(user, this.all(), grants) : this.all();
+    // A link counts when, among the notes the reader can read (and this one),
+    // it names this note — not when an unreadable note with a stronger key
+    // takes it (ACL-005).
+    const among = user ? (n: IndexedNote) => n.id === id || canRead(user, n, grants) : undefined;
     for (const src of sources) {
       if (src.id === id) continue;
       for (const link of src.links) {
-        if (this.resolveLinkOf(src, link)?.id === id) {
+        if (this.resolveLinkOf(src, link, among)?.id === id) {
           const context = src.content.split("\n")[link.line]?.trim() ?? "";
           out.push({ fromId: src.id, fromTitle: src.title, fromPath: src.path, line: link.line, context });
         }

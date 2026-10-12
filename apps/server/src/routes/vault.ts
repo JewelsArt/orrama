@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@basalt/sync";
 import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
-import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, describeNote, parseVaultCategoryRules, suggestRelated } from "@basalt/core";
+import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, describeNote, parseVaultCategoryRules, suggestRelated, type IndexedNote } from "@basalt/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";
@@ -38,13 +38,16 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const user = store.aclUser(req.userId);
     const note = store.requireReadable(user, req.params.id);
     const grants = store.grants();
-    // Locked-stub info for outgoing links (§5.4): reveal only what the author wrote.
-    // canRead on the one target — it used to filter the WHOLE vault through
-    // the ACL (and re-read the grants from the DB) once per link.
+    // Links resolve among the notes the reader can read (§5.4): a link whose
+    // only target is a note they cannot read is the author's text alone,
+    // exactly like a link to nothing. `locked: true` for one and `false` for
+    // the other said which unreadable titles, aliases and paths exist, and an
+    // unreadable note with a stronger key captured a link meant for one they
+    // can read (audit ACL-005). `locked` stays in the answer, always false.
+    const readable = (n: IndexedNote) => canRead(user, n, grants);
     const links = note.links.map((l) => {
-      const target = store.index.resolveLinkOf(note, l);
-      const readable = target ? canRead(user, target, grants) : false;
-      return { ...l, targetId: readable && target ? target.id : null, locked: !!target && !readable };
+      const target = store.index.resolveLinkOf(note, l, readable);
+      return { ...l, targetId: target ? target.id : null, locked: false };
     });
     return {
       id: note.id,
@@ -159,8 +162,9 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const edges: { from: string; to: string; relation?: string; implied?: true }[] = [];
     for (const n of readable) {
       for (const l of n.links) {
-        const t = store.index.resolveLinkOf(n, l);
-        if (t && ids.has(t.id) && t.id !== n.id) edges.push({ from: n.id, to: t.id });
+        // Among the readable notes, as the note view resolves them (ACL-005).
+        const t = store.index.resolveLinkOf(n, l, (x) => ids.has(x.id));
+        if (t && t.id !== n.id) edges.push({ from: n.id, to: t.id });
       }
     }
     // Typed relations ride on the same edges: a link that says `works_at` carries the name, and a relation

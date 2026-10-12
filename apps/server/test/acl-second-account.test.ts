@@ -138,3 +138,65 @@ describe("ACL-004: the team dashboard names only projects you can read", () => {
     expect(await names("jules", "engineering")).toContain("Divorce lawyer shortlist");
   });
 });
+
+describe("ACL-005: saves, moves and links never confirm a note you cannot read", () => {
+  const vault = () => process.env.BASALT_VAULT_DIR!;
+  const same = (a: { status: number; body: string }, b: { status: number; body: string }) => expect([a.status, a.body]).toEqual([b.status, b.body]);
+  const probe = (notePath: string, extra: Record<string, unknown> = {}) => put("erin", notePath, "probe", extra);
+
+  beforeAll(async () => {
+    expect((await api("POST", "/api/capture", "mara", { text: "call the recruiter" })).status).toBe(200); // Personal/mara/Inbox.md
+    // In a folder erin edits, restricted to marketing.
+    expect((await put("mara", "Shared/Launch plan.md", "---\ntags: [only/marketing]\n---\nheadcount cuts: 4\n")).status).toBe(200);
+    // An unreadable note whose filename is a readable note's alias.
+    expect((await put("jules", "Marketing/Roadmap.md", "---\ntags: [only/marketing]\n---\nsecret roadmap\n")).status).toBe(200);
+  });
+
+  it("a save with any baseHash answers an unreadable note as it answers a missing one", async () => {
+    same(await probe("Marketing/Surprise Campaign.md", { baseHash: "0000000000000000" }), await probe("Marketing/No Such Note.md", { baseHash: "0000000000000000" }));
+    same(await probe("Personal/mara/Inbox.md", { baseHash: "0000000000000000" }), await probe("Personal/mara/Diary.md", { baseHash: "0000000000000000" }));
+    same(await probe("Personal/mara/Inbox.md"), await probe("Personal/mara/Diary.md"));
+  });
+
+  it("a right and a wrong guess of an unreadable note's text get the same answer", async () => {
+    const { hash } = await import("../src/vaultStore.js");
+    const real = fs.readFileSync(path.join(vault(), "Shared/Launch plan.md"), "utf8");
+    const right = await probe("Shared/Launch plan.md", { baseHash: hash(real) });
+    const wrong = await probe("Shared/Launch plan.md", { baseHash: hash(real.replace("4", "5")) });
+    same(right, wrong);
+    expect(right.status).toBe(403);
+    expect(fs.readFileSync(path.join(vault(), "Shared/Launch plan.md"), "utf8")).toBe(real);
+  });
+
+  it("a create-only save answers an unreadable note as it answers a missing one", async () => {
+    same(await probe("Personal/mara/Inbox.md", { create: true }), await probe("Personal/mara/Diary.md", { create: true }));
+  });
+
+  it("moving onto an unreadable note answers as moving onto nothing", async () => {
+    const move = (toPath: string) => api("POST", "/api/vault/move", "erin", { fromPath: "Engineering/Atlas Architecture.md", toPath });
+    same(await move("Marketing/Surprise Campaign.md"), await move("Marketing/No Such Note.md"));
+    same(await move("Personal/mara/Inbox.md"), await move("Personal/mara/Diary.md"));
+  });
+
+  it("a link to an unreadable note reads exactly like a link to nothing", async () => {
+    const w = await put("erin", "Engineering/probe.md", "[[Surprise Campaign]] [[Nonexistent Campaign]] [[Personal/mara/Inbox]] [[Personal/mara/Diary]]\n");
+    const links = (await api("GET", `/api/vault/note/${w.json.id}`, "erin")).json.links as { target: string; locked: boolean; targetId: string | null }[];
+    const shape = (t: string) => {
+      const l = links.find((x) => x.target === t)!;
+      return { locked: l.locked, targetId: l.targetId };
+    };
+    expect(shape("Surprise Campaign")).toEqual(shape("Nonexistent Campaign"));
+    expect(shape("Personal/mara/Inbox")).toEqual(shape("Personal/mara/Diary"));
+  });
+
+  it("a link resolves to the note you can read, not to an unreadable one with a stronger key", async () => {
+    const atlas = b.store.index.getByPath("Engineering/Atlas Roadmap.md")!;
+    const w = await put("erin", "Engineering/probe2.md", "see [[Roadmap]]\n");
+    const links = (await api("GET", `/api/vault/note/${w.json.id}`, "erin")).json.links as { targetId: string | null }[];
+    expect(links.map((l) => l.targetId)).toEqual([atlas.id]);
+    const back = (await api("GET", `/api/vault/note/${atlas.id}`, "erin")).json.backlinks as { fromId: string }[];
+    expect(back.map((l) => l.fromId)).toContain(w.json.id);
+    const graph = (await api("GET", "/api/vault/graph", "erin")).json as { edges: { from: string; to: string }[] };
+    expect(graph.edges).toContainEqual({ from: w.json.id, to: atlas.id });
+  });
+});

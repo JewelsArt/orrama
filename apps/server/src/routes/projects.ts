@@ -292,8 +292,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     // company note — the picker writes those links, so the panel is just a view.
     const linked = new Map<string, { id: string; title: string; kind: string; role: string; company: string; linkedin: string; path: string }>();
     for (const link of note.links) {
-      const target = store.index.resolveLink(link.target);
-      if (!target || !canRead(user, target, grants) || linked.has(target.id)) continue;
+      const target = store.index.resolveLink(link.target, undefined, (n) => canRead(user, n, grants)); // among the readable (ACL-005)
+      if (!target || linked.has(target.id)) continue;
       const kind = target.tags.some((t) => t.tag === "company") ? "company" : target.tags.some((t) => t.tag === "contact") ? "contact" : "";
       if (!kind) continue;
       const tfm = target.frontmatter as Record<string, unknown>;

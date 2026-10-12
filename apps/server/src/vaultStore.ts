@@ -954,6 +954,21 @@ export class VaultStore {
     // exactly as the watcher would record it, and the caller's change is merged
     // on top, against the text the caller actually started from.
     const disk = fs.existsSync(abs) ? readNote(abs) : null;
+    const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
+    // A note the caller cannot read is answered as an empty path would be,
+    // before its text is looked at (§5.4, audit ACL-005): comparing a
+    // `baseHash` with it first made a wrong guess a 409 and a right one a 403
+    // — a way to confirm a private note's exact text — and a stale hash a 409
+    // where a missing note was a 403. Where the caller could create a note at
+    // this path, refusing is unavoidable; nothing else is said.
+    const there = existing ?? (disk ? parseNote(disk.content, titleFromPath(relPath)) : null);
+    if (there && !canRead(user, { folder, onlyTeams: there.onlyTeams, shareTeams: there.shareTeams }, grants)) {
+      opts.guard?.({ path: relPath, before: null, content });
+      const sent = parseNote(content, titleFromPath(relPath));
+      const asNew = validateEdit(user, { folder, onlyTeams: [], shareTeams: [] }, { folder, onlyTeams: sent.onlyTeams, shareTeams: sent.shareTeams }, grants);
+      if (!asNew.ok) throw new HttpError(403, asNew.message);
+      throw opts.create ? this.taken(user, existing, relPath) : new HttpError(403, "You do not have edit access to this note.");
+    }
     if (opts.create && (existing || disk)) throw this.taken(user, existing, relPath);
     // A file that is not UTF-8 was read with U+FFFD for every byte that did
     // not decode; saving over it writes those (audit STO-011). Refuse.
@@ -997,7 +1012,6 @@ export class VaultStore {
     // tokens may not rewrite an agent's standing instructions (audit AI-003).
     opts.guard?.({ path: relPath, before: existing ?? null, content });
     const after = parseNote(content, titleFromPath(relPath));
-    const folder = relPath.includes("/") ? relPath.slice(0, relPath.lastIndexOf("/")) : "";
     const afterAcl = { folder, onlyTeams: after.onlyTeams, shareTeams: after.shareTeams };
 
     let verdict: EditValidation;
@@ -1089,6 +1103,17 @@ export class VaultStore {
     const { rel: toPath, abs: absTo, taken } = this.resolvePath(inputTo, { asNamed: true });
     const note = this.index.getByPath(fromPath);
     if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
+    // Edit on both ends first, then whether the destination is taken: the
+    // other way round, "a note already exists at that path" answered for
+    // folders the caller cannot write to, or read — a probe for any path in
+    // the vault (§5.4, audit ACL-005).
+    const toFolder = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : "";
+    if (
+      !canEdit(user, note, this.grants()) ||
+      !canEdit(user, { folder: toFolder, onlyTeams: note.onlyTeams, shareTeams: note.shareTeams }, this.grants())
+    ) {
+      throw new HttpError(403, "need edit access to both source and destination folders");
+    }
     // fs.renameSync REPLACES an existing destination. Moving onto a note that
     // exists destroyed it on disk and then failed half-way (500), leaving the
     // index and the notes table disagreeing about the path — which stopped the
@@ -1098,13 +1123,6 @@ export class VaultStore {
     // file it may be is the note itself, renamed only in case.
     if (toPath !== fromPath && (this.index.getByPath(toPath) || (taken !== undefined ? taken !== fromPath : fs.existsSync(absTo)))) {
       throw new HttpError(409, "a note already exists at that path");
-    }
-    const toFolder = toPath.includes("/") ? toPath.slice(0, toPath.lastIndexOf("/")) : "";
-    if (
-      !canEdit(user, note, this.grants()) ||
-      !canEdit(user, { folder: toFolder, onlyTeams: note.onlyTeams, shareTeams: note.shareTeams }, this.grants())
-    ) {
-      throw new HttpError(403, "need edit access to both source and destination folders");
     }
     fs.mkdirSync(path.dirname(absTo), { recursive: true });
     // A rename produces unlink+add; the destination arrives holding the note's
