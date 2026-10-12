@@ -444,7 +444,7 @@ export class VaultIndex {
       return terms.every((t) => text.includes(t));
     });
     if (terms.length === 0) return hits;
-    return this.rank(hits, terms);
+    return this.rank(hits, terms, notes);
   }
 
   /**
@@ -452,16 +452,32 @@ export class VaultIndex {
    * BM25-style score over whole words starting with each term. Unranked, the
    * route's first-50 cut kept whatever came first in index order — a note with
    * the word in its title could be dropped behind 50 passing mentions.
+   *
+   * The corpus statistics (how many notes, their average length, how many
+   * contain a word) are the reader's: `corpus` is the notes they can read.
+   * Counted over the whole vault, adding unreadable notes that say "layoffs"
+   * flipped the order of two of the reader's own notes, which told them how
+   * many private notes say it (audit ACL-008). A reader who can read every
+   * note — an owner, the single user — gets the vault-wide counts kept at
+   * index time.
    */
-  private rank(hits: IndexedNote[], terms: string[]): IndexedNote[] {
-    const n = this.notes.size;
-    const avg = [...this.searchText.values()].reduce((a, s) => a + s.length, 0) / Math.max(1, this.searchText.size);
+  private rank(hits: IndexedNote[], terms: string[], corpus: IndexedNote[]): IndexedNote[] {
+    const whole = corpus.length === this.notes.size;
+    const stats = whole ? [...this.searchText.values()] : corpus.map((c) => this.searchText.get(c.id)!).filter(Boolean);
+    const n = stats.length;
+    const avg = stats.reduce((a, s) => a + s.length, 0) / Math.max(1, n);
     const prefixDf = new Map<string, number>();
     const df = (term: string) => {
       let v = prefixDf.get(term);
       if (v === undefined) {
         v = 0;
-        for (const [w, c] of this.docFreq) if (w.startsWith(term)) v = Math.max(v, c);
+        if (whole) {
+          for (const [w, c] of this.docFreq) if (w.startsWith(term)) v = Math.max(v, c);
+        } else {
+          const perWord = new Map<string, number>();
+          for (const st of stats) for (const w of st.words.keys()) if (w.startsWith(term)) perWord.set(w, (perWord.get(w) ?? 0) + 1);
+          for (const c of perWord.values()) v = Math.max(v, c);
+        }
         prefixDf.set(term, v);
       }
       return v;
