@@ -11,7 +11,7 @@ import { bookTaskBlock, clampSlot } from "./calendar.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
-import { aiConfig, callOptions, completeText, resolveModel } from "../aiProvider.js";
+import { aiConfig, callOptions, resolveModel } from "../aiProvider.js";
 import { credsFor, getMessage, listInbox } from "../mail.js";
 import { stageDraft } from "./mail.js";
 import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
@@ -30,7 +30,7 @@ const EXCERPT_CHARS = 2000;
 const READ_CHARS = 60_000;
 /** read_email sends at most this much of a message: one newsletter filled every later step's context. */
 const EMAIL_CHARS = 20_000;
-/** The longest an Ask run, or a digest, may take (BASALT_AI_TIMEOUT_MS, checked in env.ts). */
+/** The longest an Ask run may take (BASALT_AI_TIMEOUT_MS, checked in env.ts). */
 const AI_TIMEOUT_MS = Number(process.env.BASALT_AI_TIMEOUT_MS ?? 120_000);
 
 /** Replacing a note with text over a fifth (and 200 characters) shorter: the "rest unchanged…" rewrite. */
@@ -152,12 +152,6 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
       out.push(n);
     }
     return out;
-  };
-
-  const callProvider = async (c: NonNullable<ReturnType<typeof config>>, system: string, prompt: string): Promise<string> => {
-    // One attempt, bounded: two retries against a failing provider tripled the
-    // wait, and nothing stopped one that accepted and stalled (audit AI-006).
-    return completeText(c, { system, prompt, abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS), maxRetries: 0 });
   };
 
   /** Ask your vault (§9.1): answers cite [[notes]]. */
@@ -506,45 +500,5 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
     pipeUIMessageStreamToResponse({ response: reply.raw, stream: ends });
     reply.hijack();
     return;
-  });
-
-  /** Team digest (§9.2): dashboard banner, generated on demand, cached daily per team. */
-  const digestCache = new Map<string, { day: string; digest: string }>();
-  app.post<{ Params: { teamSlug: string } }>("/api/ai/digest/:teamSlug", auth, async (req) => {
-    const c = config();
-    if (!c) throw new HttpError(400, "AI is not configured");
-    const user = store.aclUser(req.userId);
-    if (!user.isOwner && !user.teams.includes(req.params.teamSlug)) throw new HttpError(404, "team not found");
-    // Keyed on the local day, so the digest turns over at local midnight
-    // rather than an hour or two either side of it.
-    const day = isoLocal();
-    const cacheKey = `${req.params.teamSlug}:${req.userId}`;
-    const hit = digestCache.get(cacheKey);
-    if (hit && hit.day === day) return { digest: hit.digest, cached: true };
-
-    const readable = store.readable(user);
-    const recent = [...readable].sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0)).slice(0, 10);
-    const tasks = store.index.tasks(user, store.grants(), store.projects(user));
-    const open = tasks.filter((t) => !t.checked).length;
-    const done = tasks.filter((t) => t.checked).length;
-    const context = recent.map((n) => `<note title="${n.title}">\n${n.content.slice(0, 1500)}\n</note>`).join("\n");
-    let digest: string;
-    try {
-      digest = await callProvider(
-        c,
-        "Write a crisp morning digest for a team dashboard: what changed, what got completed, what looks stale, and 1-2 suggested connections between notes that discuss the same topic but aren't linked. Max 120 words. Plain prose, no headers.",
-        `Open tasks: ${open}, completed: ${done}.\nRecently edited notes:\n${context}`,
-      );
-    } catch (err) {
-      // The error carries the whole prompt — the ten notes' text — and the
-      // generic handler logged all of it to server.log (audit AI-008). Log
-      // the provider's words and status only, and say who failed.
-      const msg = (err instanceof Error ? err.message : String(err)).slice(0, 200);
-      const status = (err as { statusCode?: unknown }).statusCode;
-      req.log.warn({ status: typeof status === "number" ? status : null }, `ai/digest: the provider did not answer: ${msg}`);
-      throw new HttpError(502, `The AI provider did not answer: ${msg}`);
-    }
-    digestCache.set(cacheKey, { day, digest });
-    return { digest, cached: false };
   });
 }

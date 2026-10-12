@@ -1,19 +1,18 @@
 /**
- * A failed digest never writes note text into server.log (audit AI-008).
+ * Logged errors never carry a request or response body (audit AI-008).
  *
- * The digest sends the ten most recently edited notes to the provider. When
- * that call failed, the error reached Fastify's generic handler, which logged
- * it whole — and the AI SDK's errors carry the request body (the prompt, the
- * notes) in `requestBodyValues`, once per attempt in `errors`/`lastError`.
- * Whatever Jules last edited landed in ~/.basalt-run/server.log in plain text.
+ * The AI SDK's errors hold the request body (the prompt, the notes in it) in
+ * `requestBodyValues`, once per attempt in `errors`/`lastError`, and Fastify's
+ * generic handler logged an error whole: a failed model call once wrote the
+ * text of the notes it was sent into ~/.basalt-run/server.log. `errSerializer`
+ * (logging.ts) keeps the message and the error's own fields and drops the rest.
  */
 import fs from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
 import { bootAi } from "./helpers/aiServer.js";
 
-const s = await bootAi("agent-digest-log");
+const s = await bootAi("log-bodies");
 afterAll(() => s.close());
-const jules = s.aclUser("jules");
 const MARKER = "PAYSLIP-NOTE-BODY-7731";
 
 /** What the log file holds once pino has flushed it. */
@@ -21,20 +20,6 @@ const log = async () => {
   await new Promise((r) => setTimeout(r, 200));
   return fs.readFileSync(s.logPath, "utf8");
 };
-
-describe("a failing digest", () => {
-  it("answers 502 naming the provider, and the log holds no note text", async () => {
-    s.built.store.write(jules, "Shared/Payslip October.md", `# Payslip October\n\nNet pay 2,140.00 — ${MARKER}\n`);
-    s.queue.push({ status: 500, message: "upstream exploded" });
-    const r = await s.call("jules", "POST", "/api/ai/digest/engineering");
-    expect(s.llm.requests.at(-1)?.body.messages.map((m: any) => JSON.stringify(m.content)).join("")).toContain(MARKER); // it was sent
-    expect(r.status).toBe(502);
-    expect(r.json.error).toMatch(/^The AI provider did not answer: .*upstream exploded/);
-    const text = await log();
-    expect(text).toContain("ai/digest: the provider did not answer");
-    expect(text).not.toContain(MARKER);
-  });
-});
 
 describe("the error serializer", () => {
   it("keeps an error's message and own fields, and drops any request or response body", async () => {

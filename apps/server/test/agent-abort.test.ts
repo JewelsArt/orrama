@@ -4,9 +4,8 @@
  * /api/ai/ask ran streamText with no abort signal: closing the panel left
  * the run going on the server, every remaining model call made and every
  * tool call it produced run — notes, calendar rows, drafts — for nobody.
- * A provider that accepted and stalled held the request forever, and the
- * digest retried twice with no time limit. A read_email of one newsletter
- * filled the context of every later step.
+ * A provider that accepted and stalled held the request forever. A
+ * read_email of one newsletter filled the context of every later step.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -75,21 +74,14 @@ describe("stopping an Ask run", () => {
   });
 });
 
-describe("the digest", () => {
-  it("asks once: a failing provider is not retried", async () => {
-    s.queue.push({ status: 500, message: "upstream down" });
+describe("Ask is the one way in", () => {
+  // The team digest (POST /api/ai/digest/:team) lost its last caller with Projects'
+  // summary of today and was removed (F2): nothing else sends notes to the model.
+  it("the old digest address answers 404 and calls no model", async () => {
     const before = s.llm.requests.length;
     const r = await s.call("jules", "POST", "/api/ai/digest/engineering");
-    expect(r.status).toBeGreaterThanOrEqual(500);
-    expect(s.llm.requests.length - before).toBe(1);
-  });
-
-  it("a provider that never answers ends the digest within the deadline", async () => {
-    s.queue.push({ hang: true });
-    const t0 = Date.now();
-    const r = await s.call("jules", "POST", "/api/ai/digest/marketing");
-    expect(r.status).toBeGreaterThanOrEqual(500);
-    expect(Date.now() - t0).toBeLessThan(DEADLINE_MS + 5000);
+    expect(r.status).toBe(404);
+    expect(s.llm.requests.length).toBe(before);
   });
 });
 
