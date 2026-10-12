@@ -116,8 +116,12 @@ describe("addresses", () => {
 
   it("a project's tab is its address, and moving between tabs keeps the same page (R8)", async () => {
     at("/projects/thesis/timeline");
+    // The count runs across the file, and the page mounts in an effect once
+    // sign-in has resolved: wait for this render's one mount before moving.
+    const start = mounted.project;
     render(<App />);
     expect(await view()).toMatch(/^project slug=thesis tab=timeline/);
+    await waitFor(() => expect(mounted.project).toBe(start + 1));
     const before = mounted.project;
     act(() => void window.history.pushState({ depth: 1 }, "", "/projects/thesis/todo"));
     await act(async () => void window.dispatchEvent(new PopStateEvent("popstate")));
