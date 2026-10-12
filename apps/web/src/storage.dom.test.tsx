@@ -72,5 +72,7 @@ describe("with storage refused", () => {
     const { App } = await import("./App.js");
     render(<App />);
     expect(await screen.findByLabelText(/password/i)).toBeTruthy();
-  });
+    // A cold import of the whole app (resetModules above): 5–6 s while every package's
+    // suite runs at once, as in verify.sh and pnpm ship. The bound is the import, not the app.
+  }, 30_000);
 });
