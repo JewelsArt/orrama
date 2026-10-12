@@ -310,3 +310,21 @@ describe("ACL-009: your events stay yours in the vault too", () => {
     expect(fs.readFileSync(path.join(process.env.BASALT_VAULT_DIR!, "Personal/jules/Calendar/2026-12.md"), "utf8")).toContain("| 2026-12-01 | 10:00 | 11:00 | Biopsy results |  | ev-acl009 |");
   });
 });
+
+describe("ACL-003: the Dashboard agenda never shows a block on a task you cannot read", () => {
+  // Fixed with COR-003 (6069114): blocks are the rows of your own calendar
+  // notes, on tasks you can read, not tasks whose line @mentions you.
+  it("a block on a task in a note erin cannot read, mentioning @erin, is not on her agenda or in her hours", async () => {
+    const hr = await put("jules", "Personal/jules/HR.md", "---\ntitle: HR\n---\n# HR\n\n- [ ] performance warning for erin @erin\n");
+    expect(hr.status).toBe(200);
+    const { isoLocal } = await import("@basalt/core");
+    const today = isoLocal(new Date());
+    expect((await api("POST", "/api/tasks/blocks", "jules", { noteId: hr.json.id, text: "performance warning for erin @erin", date: today, startMin: 600, durationMin: 120 })).status).toBe(200);
+    const erin = (await api("GET", "/api/home", "erin")).json as { agenda: { title: string; noteId: string | null }[]; stats: { weekHours: number } };
+    expect(JSON.stringify(erin.agenda)).not.toContain("performance warning");
+    expect(erin.agenda.some((r) => r.noteId === hr.json.id)).toBe(false);
+    expect(erin.stats.weekHours).toBe(0);
+    const jules = (await api("GET", "/api/home", "jules")).json as { agenda: { title: string }[] };
+    expect(jules.agenda.map((r) => r.title)).toContain("performance warning for erin");
+  });
+});
