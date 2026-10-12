@@ -250,3 +250,38 @@ describe("ACL-007: a webhook delivery is judged when it goes out", () => {
     expect(got.map((p) => [p.event, p.note?.path])).toEqual([["note.changed", "Shared/Weekly.md"]]);
   });
 });
+
+describe("ACL-010: a removed or renamed account's username is never handed out again", () => {
+  const invite = (token: string) => b.db.insert(tables.invites).values({ token, teamIds: "[]", createdBy: "test", expiresAt: Date.now() + 60_000 }).run();
+  const register = (username: string, token: string) =>
+    b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: `${username}-${token}@x.dev`, username, displayName: username, password: "password123", inviteToken: token } });
+
+  it("after removing an account, signing up with its username is refused", async () => {
+    const { removeAccount } = await import("../src/removeAccount.js");
+    invite("inv-nina-1");
+    const first = await register("nina", "inv-nina-1");
+    expect(first.statusCode).toBe(200);
+    const nina = first.json() as { token: string; user: { id: string; username: string } };
+    tokens["nina"] = nina.token;
+    expect((await put("nina", "Personal/nina/Inbox.md", "- [ ] interviewing elsewhere\n")).status).toBe(200);
+
+    removeAccount(b.db, { id: nina.user.id, username: "nina" });
+    invite("inv-nina-2");
+    const again = await register("NINA", "inv-nina-2");
+    expect(again.statusCode).toBe(409);
+    expect(b.db.select().from(tables.users).all().some((u) => u.username === "nina")).toBe(false);
+    expect(fs.existsSync(path.join(process.env.BASALT_VAULT_DIR!, "Personal/nina/Inbox.md"))).toBe(true);
+  });
+
+  it("renaming an account retires its old name, and no rename takes a retired one", async () => {
+    const { applyAccountChange } = await import("../src/account.js");
+    invite("inv-olaf-1");
+    const olaf = (await register("olaf", "inv-olaf-1")).json().user as { id: string };
+    const row = () => b.db.select().from(tables.users).all().find((u) => u.id === olaf.id)!;
+    applyAccountChange(b.db, olaf.id, { email: row().email, username: "olaf2", displayName: "Olaf", passwordHash: null });
+    invite("inv-olaf-2");
+    expect((await register("olaf", "inv-olaf-2")).statusCode).toBe(409);
+    expect(() => applyAccountChange(b.db, olaf.id, { email: row().email, username: "nina", displayName: "Olaf", passwordHash: null })).toThrow();
+    expect(row().username).toBe("olaf2");
+  });
+});

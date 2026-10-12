@@ -13,6 +13,7 @@ import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSc
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
 import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS } from "../sessions.js";
+import { RETIRED_USERNAME, usernameRetired } from "../usernames.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
@@ -73,6 +74,9 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       const problem = inviteProblem(db, body.inviteToken);
       if (problem) throw new HttpError(403, problem);
     }
+    // A removed or renamed account's name still owns Personal/<name>/ by path:
+    // whoever took it next read and edited those notes (audit ACL-010).
+    if (usernameRetired(db, body.username)) throw new HttpError(409, RETIRED_USERNAME);
     // Hash BEFORE deciding anything. The count used to be read, then the hash
     // awaited (~100 ms), then the row inserted with `isOwner: count === 0` — so
     // two sign-ups on an empty server both saw 0 and both became owner. The
@@ -83,6 +87,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const id = `u-${crypto.randomUUID().slice(0, 8)}`;
     const teamIds = db.transaction((tx) => {
       const first = !hasUsers(tx);
+      if (usernameRetired(tx, body.username)) throw new HttpError(409, RETIRED_USERNAME);
       let teams: string[] = [];
       if (!first) {
         const problem = inviteProblem(tx, body.inviteToken);

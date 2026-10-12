@@ -19,12 +19,17 @@
  *   untouched THE VAULT. Personal/<username>/ is reported and left alone. Those
  *             are real Markdown files, possibly in a shared Obsidian vault, and
  *             deleting notes is not what "remove an account" should mean.
+ *   retired   the username (usernames.ts): the folder answers to it by path,
+ *             so a new account may never take it (audit ACL-010)
+ *
+ * The removal itself is removeAccount.ts.
  */
 import { eq } from "drizzle-orm";
 import readline from "node:readline";
 import fs from "node:fs";
 import path from "node:path";
 import { createDb, tables } from "./db.js";
+import { removeAccount } from "./removeAccount.js";
 import { vaultDir } from "./env.js";
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -93,6 +98,7 @@ async function main(): Promise<void> {
     console.log(`\n  Their personal vault folder is LEFT ALONE:`);
     console.log(`    ${personal}  (${notes.length} note${notes.length === 1 ? "" : "s"})`);
     console.log(`    Delete it yourself if you want it gone - these are real files.`);
+    console.log(`    The username is retired, so no new account can sign up as "${user.username}" and read it.`);
   }
 
   const confirm = await ask(`\nType the email to confirm: `);
@@ -100,26 +106,9 @@ async function main(): Promise<void> {
     bail("Did not match. Nothing was changed.");
   }
 
-  // One transaction: a half-removed account is worse than either outcome.
-  db.transaction((tx) => {
-    tx.update(tables.taskObjects).set({ assigneeId: null }).where(eq(tables.taskObjects.assigneeId, user.id)).run();
-    tx.update(tables.ydocUpdates).set({ authorId: null }).where(eq(tables.ydocUpdates.authorId, user.id)).run();
-    tx.delete(tables.memberships).where(eq(tables.memberships.userId, user.id)).run();
-    tx.delete(tables.apiTokens).where(eq(tables.apiTokens.userId, user.id)).run();
-    tx.delete(tables.webauthnCredentials).where(eq(tables.webauthnCredentials.userId, user.id)).run();
-    tx.delete(tables.sessions).where(eq(tables.sessions.userId, user.id)).run();
-    tx.delete(tables.webauthnChallenges).where(eq(tables.webauthnChallenges.userId, user.id)).run();
-    tx.delete(tables.icsFeeds).where(eq(tables.icsFeeds.ownerId, user.id)).run();
-    tx.delete(tables.webhooks).where(eq(tables.webhooks.ownerId, user.id)).run();
-    tx.delete(tables.events).where(eq(tables.events.ownerId, user.id)).run();
-    tx.delete(tables.mailAccounts).where(eq(tables.mailAccounts.userId, user.id)).run();
-    tx.delete(tables.mailDrafts).where(eq(tables.mailDrafts.userId, user.id)).run();
-    tx.delete(tables.invites).where(eq(tables.invites.createdBy, user.id)).run();
-    tx.delete(tables.taskComments).where(eq(tables.taskComments.authorId, user.id)).run();
-    tx.delete(tables.users).where(eq(tables.users.id, user.id)).run();
-  });
+  removeAccount(db, user);
 
-  console.log(`\nRemoved ${user.email}.`);
+  console.log(`\nRemoved ${user.email}. The username "${user.username}" is retired: no new account can take it.`);
   console.log("Any session token they still hold stops working on its next request.\n");
   rl.close();
 }

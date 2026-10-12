@@ -4,7 +4,7 @@
 
 ### `apps/server/src/account.ts`
 - **Exports**: applyAccountChange
-- **Imports**: drizzle-orm, node:readline, @node-rs/argon2, ./db.js, ./entry.js, ./sessions.js
+- **Imports**: drizzle-orm, node:readline, @node-rs/argon2, ./db.js, ./entry.js, ./sessions.js, ./usernames.js
 
 ### `apps/server/src/agentWrites.ts`
 - **Exports**: isInstructionFile, untrustedWriter, agentWriter, tokenWriter, both
@@ -88,7 +88,11 @@
 - **Imports**: node:worker_threads
 
 ### `apps/server/src/remove-user.ts`
-- **Imports**: drizzle-orm, node:readline, node:fs, node:path, ./db.js, ./env.js
+- **Imports**: drizzle-orm, node:readline, node:fs, node:path, ./db.js, ./removeAccount.js, ./env.js
+
+### `apps/server/src/removeAccount.ts`
+- **Exports**: removeAccount
+- **Imports**: drizzle-orm, ./db.js, ./usernames.js
 
 ### `apps/server/src/rotate-secret-key.ts`
 - **Exports**: COLUMNS, RotateError, rotateSecrets
@@ -104,11 +108,11 @@
 
 ### `apps/server/src/routes/auth.ts`
 - **Exports**: sessionOnly, MAX_LIVE_CHALLENGES, authRoutes, publicUser, webauthnOrigin
-- **Imports**: node:crypto, @node-rs/argon2, drizzle-orm, fastify, zod, @simplewebauthn/server, @basalt/schema, ../db.js, ../loginLimit.js, ../sessions.js, ../env.js, ../vaultStore.js
+- **Imports**: node:crypto, @node-rs/argon2, drizzle-orm, fastify, zod, @simplewebauthn/server, @basalt/schema, ../db.js, ../loginLimit.js, ../sessions.js, ../usernames.js, ../env.js, ../vaultStore.js
 
 ### `apps/server/src/routes/calendar.ts`
 - **Exports**: DEFAULT_BLOCK_MIN, clampSlot, DayMarker, bookTaskBlock, calendarRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/core, @basalt/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./projects.js, ./tasks.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/core, @basalt/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./tasks.js
 
 ### `apps/server/src/routes/contacts.ts`
 - **Exports**: contactRoutes
@@ -116,7 +120,7 @@
 
 ### `apps/server/src/routes/dashboard.ts`
 - **Exports**: dashboardRoutes
-- **Imports**: drizzle-orm, fastify, @basalt/core, ../db.js, ../vaultStore.js, ./projects.js
+- **Imports**: drizzle-orm, fastify, @basalt/core, ../db.js, ../vaultStore.js
 
 ### `apps/server/src/routes/finance.ts`
 - **Exports**: FINANCE_TAG, FINANCE_DIR, canReadFinanceFiles, FinanceKind, LEDGER_TAGS, ledgerCandidates, ledgerNote, ledgerConflicts, financeNote, StatementFileSummary, readStatementFile, loadTxns, loadStatements, ownAccountsFor, statementsFor, txnsFor, savingsDrift, balanceSpan, balanceTrend, buildRules, savingsCategories, writtenBalance, netTotals, typicalAround, planSavings, financeRoutes
@@ -202,6 +206,10 @@
 - **Exports**: StoredUpload, numbered, storeUpload, contentDisposition, CONTROL_CHARS
 - **Imports**: node:fs, node:path, @basalt/core, ./atomicWrite.js
 
+### `apps/server/src/usernames.ts`
+- **Exports**: retireUsername, usernameRetired, RETIRED_USERNAME
+- **Imports**: drizzle-orm, ./db.js
+
 ### `apps/server/src/vaultStore.ts`
 - **Exports**: hash, HttpError, NoteChangedEvent, WriteGuard, isRootGuide, VaultStore
 - **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @basalt/core, @basalt/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js
@@ -264,10 +272,10 @@
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @basalt/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ws.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @basalt/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ws.js
 
 ### `apps/web/src/OverviewHead.tsx`
-- **Exports**: BoardPerson, BoardProject, stepOrder, boardProject, nextDate, ProjectRow, ProjectSteps
+- **Exports**: BoardShelf, SHELVES, boardShelf, shelfRows, BoardPerson, BoardProject, stepOrder, boardProject, nextDate, ProjectRow, ProjectSteps
 - **Imports**: react, ./api.js, ./categories.js, ./entity/index.js, ./entity/StatusMenu.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js
 
 ### `apps/web/src/Planning.tsx`
@@ -823,7 +831,7 @@
 - **Exports**: installReloadKey
 
 ### `apps/web/src/ui/router.ts`
-- **Exports**: Place, PLACES, MoneyPage, ProjectTab, SettingsSection, Route, parseRoute, routeHref, placeOf, placeRoute, isDeep, navigate, canGoBack, goBack, useLocation, useRoute, canonical
+- **Exports**: Place, PLACES, MoneyPage, ProjectTab, ProjectShelf, SettingsSection, Route, parseRoute, routeHref, placeOf, placeRoute, isDeep, navigate, canGoBack, goBack, useLocation, useRoute, canonical
 - **Imports**: react
 
 ### `apps/web/src/ui/shell/KeysSheet.tsx`

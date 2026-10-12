@@ -18,6 +18,7 @@ import { hash as argonHash } from "@node-rs/argon2";
 import { createDb, tables, type Db } from "./db.js";
 import { isEntry } from "./entry.js";
 import { revokeEverything } from "./sessions.js";
+import { RETIRED_USERNAME, retireUsername, usernameRetired } from "./usernames.js";
 
 const ETX = "\u0003";       // Ctrl-C
 const BACKSPACE = "\u007f";
@@ -36,6 +37,13 @@ export function applyAccountChange(
 ) {
   const { passwordHash, ...profile } = change;
   return db.transaction((tx) => {
+    // A rename retires the old name and may not take a retired one: both own
+    // a Personal/<name>/ folder by path (usernames.ts, audit ACL-010).
+    const before = tx.select().from(tables.users).where(eq(tables.users.id, userId)).get();
+    if (before && before.username !== profile.username) {
+      if (usernameRetired(tx, profile.username)) throw new Error(RETIRED_USERNAME);
+      retireUsername(tx, before.username);
+    }
     tx.update(tables.users)
       .set(passwordHash ? { ...profile, passwordHash } : profile)
       .where(eq(tables.users.id, userId))
@@ -119,6 +127,14 @@ async function main(): Promise<void> {
     process.exitCode = 1;
     return;
   }
+
+  if (username !== user.username && usernameRetired(db, username)) {
+    console.error(`\n${RETIRED_USERNAME}`);
+    rl.close();
+    process.exitCode = 1;
+    return;
+  }
+  if (username !== user.username) console.log(`The old username "${user.username}" will be retired: Personal/${user.username}/ stays on disk and no account can take that name again.`);
 
   const password = await askSecret("New password (Enter to keep the current one): ");
   let passwordHash: string | null = null;
