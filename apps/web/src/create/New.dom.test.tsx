@@ -89,6 +89,17 @@ describe("New", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
+  it("a name a Windows disk can't hold: the server's reason is said and the dialog stays open", async () => {
+    answers["PUT /api/vault/note"] = () => Response.json({ error: `a note name can't contain " * : < > ? or |` }, { status: 400 });
+    const onDone = await pick({ kind: "today" }, "Note");
+    type("Path", "Ideas/Why now?");
+    await submit("New note");
+    expect((await screen.findByRole("alert")).textContent).toBe(`a note name can't contain " * : < > ? or |`);
+    expect(screen.getByRole("dialog", { name: "New note" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Path" })).toHaveProperty("value", "Ideas/Why now?");
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
   it("an event goes on your calendar on the day shown, at the time and for the length typed", async () => {
     await pick({ kind: "planning", scale: "day", at: "2026-10-16" }, "Event");
     type("What", "Dashboard review");

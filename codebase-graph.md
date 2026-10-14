@@ -87,6 +87,9 @@
 - **Exports**: PDF_LIMITS, PdfText, readPdfText
 - **Imports**: node:worker_threads
 
+### `apps/server/src/portableName.ts`
+- **Exports**: unportableName
+
 ### `apps/server/src/remove-user.ts`
 - **Imports**: drizzle-orm, node:readline, node:fs, node:path, ./db.js, ./removeAccount.js, ./env.js
 
@@ -212,7 +215,7 @@
 
 ### `apps/server/src/vaultStore.ts`
 - **Exports**: hash, HttpError, NoteChangedEvent, WriteGuard, isRootGuide, VaultStore
-- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @basalt/core, @basalt/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js
+- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @basalt/core, @basalt/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js, ./portableName.js
 
 ### `apps/server/src/webhooks.ts`
 - **Exports**: WEBHOOK_EVENTS, WebhookEvent, TaskCompletedEvent, signPayload, WEBHOOK_SECRET_PREFIX, sealWebhookSecret, sealPlainWebhookSecrets, deliver, initWebhooks
@@ -268,7 +271,7 @@
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
-- **Imports**: react, @basalt/core, @basalt/schema/responses, @basalt/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js
+- **Imports**: react, @basalt/core, @basalt/schema/responses, @basalt/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
@@ -840,7 +843,7 @@
 
 ### `apps/web/src/ui/shell/Shell.tsx`
 - **Exports**: ShellProps, Shell
-- **Imports**: react, ../Icon.js, ../orr/Orr.js, ../overlays.js, ../router.js
+- **Imports**: react, ../Icon.js, ../orr/Orr.js, ../theme.js, ../overlays.js, ../router.js
 
 ### `apps/web/src/ui/states.tsx`
 - **Exports**: EmptyState, Notice, Skeleton, Progress
@@ -879,8 +882,8 @@
 - **Exports**: isoLocal, monthKey, shiftMonth, daysInMonth, daysTo, addDays
 
 ### `packages/core/src/describe.ts`
-- **Exports**: DESCRIPTION_MAX, describeNote
-- **Imports**: ./frontmatter.js
+- **Exports**: DESCRIPTION_MAX, describeNote, isIdTitle, NAME_GIST_MAX, displayTitle
+- **Imports**: ./dates.js, ./frontmatter.js
 
 ### `packages/core/src/frontmatter.ts`
 - **Exports**: FrontmatterResult, parseFrontmatter, withFrontmatter, updateFrontmatter, IdStamp, stampId
@@ -956,7 +959,7 @@
 
 ### `packages/core/src/vault.ts`
 - **Exports**: generateNoteId, PROJECTS_DIR, PROJECT_SLUG_RE, projectSlugOf, projectNoteFor, projectName, ProjectDef, VaultIndex
-- **Imports**: ./parse.js, ./types.js, ./acl.js
+- **Imports**: ./parse.js, ./describe.js, ./types.js, ./acl.js
 
 ### `packages/core/src/vaultCategories.ts`
 - **Exports**: VAULT_CATEGORY_IDS, VaultCategoryId, VaultCategoryRule, DEFAULT_VAULT_CATEGORY_RULES, REGEX_BUDGET, REGEX_HAY, splitMatches, parseVaultCategoryRules, categorizeNote

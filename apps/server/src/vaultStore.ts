@@ -38,6 +38,7 @@ import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";
 import { writeFileAtomic } from "./atomicWrite.js";
 import { AmbiguousPathError, linksIntoVault, listedExactly, onDisk, sameFile, throughVaultLink } from "./diskPath.js";
+import { unportableName } from "./portableName.js";
 
 /** How long after a folder appears it is read again (lookAgainLater). The
  *  gap it covers is microseconds wide; this is margin for a busy event loop. */
@@ -953,6 +954,23 @@ export class VaultStore {
   }
 
   /**
+   * A new name must be one every disk holds (portableName.ts): the note's
+   * file name, unless it is `keepName` (a move that keeps it), and every
+   * folder the write would create. A name already on disk is never judged.
+   */
+  private requirePortable(rel: string, keepName?: string): void {
+    const parts = rel.split("/");
+    const name = parts.pop()!;
+    const why = name === keepName ? null : unportableName(name, "note");
+    if (why) throw new HttpError(400, why);
+    for (let i = 0; i < parts.length; i++) {
+      if (fs.existsSync(path.join(this.root, ...parts.slice(0, i + 1)))) continue;
+      const folder = unportableName(parts[i]!, "folder");
+      if (folder) throw new HttpError(400, folder);
+    }
+  }
+
+  /**
    * Create or update a note. Returns the updated note. `create` makes it
    * create-only: a note already at the path — indexed or only on disk, in any
    * spelling — is a 409 and nothing is written (audit WEB-001).
@@ -987,6 +1005,7 @@ export class VaultStore {
       throw opts.create ? this.taken(user, existing, relPath) : new HttpError(403, "You do not have edit access to this note.");
     }
     if (opts.create && (existing || disk)) throw this.taken(user, existing, relPath);
+    if (!existing && !disk) this.requirePortable(relPath);
     // A file that is not UTF-8 was read with U+FFFD for every byte that did
     // not decode; saving over it writes those (audit STO-011). Refuse.
     if (disk && !disk.utf8) throw new HttpError(409, `This note ${NOT_UTF8}`);
@@ -1131,6 +1150,7 @@ export class VaultStore {
     ) {
       throw new HttpError(403, "need edit access to both source and destination folders");
     }
+    this.requirePortable(toPath, fromPath.slice(fromPath.lastIndexOf("/") + 1));
     // fs.renameSync REPLACES an existing destination. Moving onto a note that
     // exists destroyed it on disk and then failed half-way (500), leaving the
     // index and the notes table disagreeing about the path — which stopped the
