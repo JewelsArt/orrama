@@ -393,8 +393,8 @@ export function App() {
   const openNote = useCallback((noteId: string) => navigate({ kind: "architecture", noteId }), [navigate]);
 
   /*
-   * A theme change, with the circular wipe (it left the rail with the Dark button, §8 #4, and
-   * stays for Settings → Appearance and ⌘K). It grows out of the control that asked for it:
+   * A theme change, with the circular wipe, from the rail's light ↔ dark button (back since
+   * 13 Oct, F3), Settings → Appearance and ⌘K. It grows out of the control that asked for it:
    * the focused element, which is the button just clicked or pressed.
    *
    * `choice` is "light", "dark" ("command" is the account's word for it) or "match": this
@@ -491,6 +491,8 @@ export function App() {
       // On the phone: Today's + is Capture (§1.3), every other page's is New, prefilled for it.
       onNew={route.kind === "today" ? () => setCaptureOpen(true) : route.kind === "settings" ? undefined : (button) => setNewAt(button)}
       mailDot={draftsWaiting}
+      shown={themeShown}
+      onTheme={changeTheme}
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
           going to another address (a new key) starts the page afresh. */}

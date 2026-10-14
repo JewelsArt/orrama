@@ -3,9 +3,10 @@
  *
  * Desktop: a rail on the paper ground with the eight places in order, then the update note
  * (only after a ship), Find, Ask Orr (his head) and your Orr at the foot, which opens
- * Settings → You. Reload, Dark and Back left the rail (§8 #4): ⌘R, Settings and ⌘K, and the
- * browser's own Back, do those now. No keycaps on screen (§8 #5): a place's key is in its
- * tooltip.
+ * Settings → You. Reload and Back left the rail (§8 #4): ⌘R and the browser's own Back do
+ * those now. Dark came back (Jules, 13 Oct, F3): one button above Find switches light ↔ dark
+ * for the account, and its tooltip says which way. No keycaps on screen (§8 #5): a place's key
+ * is in its tooltip.
  *
  * Phone (≤ 760 px): a top bar (Back when the page is deeper than its tab, the title, Find),
  * and tabs Today · Planning · Ask Orr · Notes · More. More is a sheet: your Orr at the top,
@@ -15,6 +16,7 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Icon, type IconName } from "../Icon.js";
 import { Avatar, HeadMark } from "../orr/Orr.js";
+import type { Shown } from "../theme.js";
 import { Sheet } from "../overlays.js";
 import { goBack, isDeep, navigate, PLACES, placeOf, placeRoute, routeHref, type Place, type Route } from "../router.js";
 
@@ -50,12 +52,15 @@ export interface ShellProps {
   onNew?: (button: HTMLElement) => void;
   /** How many of Orr's drafts wait for you: the rail's Mail dot (Jules, 11 Oct), never unread mail. */
   mailDot?: number;
+  /** The theme the page shows, and App's changeTheme: the rail's light ↔ dark button. */
+  shown: Shown;
+  onTheme: (choice: Shown) => void;
   children: ReactNode;
 }
 
 const YOU: Route = { kind: "settings", section: "you" };
 
-export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, children }: ShellProps) {
+export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, shown, onTheme, children }: ShellProps) {
   const here = placeOf(route);
   const [more, setMore] = useState(false);
   useEffect(() => {
@@ -92,6 +97,7 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
             Update ready<span>Reload</span>
           </button>
         )}
+        <ThemeButton shown={shown} onTheme={onTheme} />
         <button type="button" className="ri" data-tip="Find  ⌘K" onClick={onFind}>
           <Icon name="search" />
           Find
@@ -206,5 +212,22 @@ function PhoneTab({ place, on }: { place: Place; on: boolean }) {
       <Icon name={ICON[place]} />
       {label}
     </a>
+  );
+}
+
+/**
+ * Light ↔ dark for the account, in one click (Jules, 13 Oct). It shows the way it goes: the
+ * moon and "Dark" while the page is light, the sun and "Light" while it is dark. A device on
+ * Match this device stops matching and takes the opposite of what it shows (changeTheme with
+ * "light" or "dark" does both).
+ */
+function ThemeButton({ shown, onTheme }: { shown: Shown; onTheme: (choice: Shown) => void }) {
+  const to: Shown = shown === "dark" ? "light" : "dark";
+  const word = to === "dark" ? "Dark" : "Light";
+  return (
+    <button type="button" className="ri theme" data-tip={`Switch to ${to}`} aria-label={`Switch to ${to}`} onClick={() => onTheme(to)}>
+      <Icon name={to === "dark" ? "moon" : "sun"} />
+      {word}
+    </button>
   );
 }

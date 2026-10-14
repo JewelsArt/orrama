@@ -172,14 +172,14 @@ describe("addresses", () => {
 });
 
 describe("the shell", () => {
-  it("lists the eight places in order, then Find, Ask Orr and your Orr; no Reload, Dark or Back", async () => {
+  it("lists the eight places in order, then the theme, Find, Ask Orr and your Orr; no Reload or Back", async () => {
     at("/today");
     render(<App />);
     await view();
     const rail = screen.getAllByRole("navigation", { name: "Places" })[0]!;
     const items = [...rail.querySelectorAll(".ri")].map((e) => e.textContent);
-    expect(items).toEqual(["Today", "Planning", "Notes", "Orrery", "Projects", "People", "Mail", "Money", "Find", "Ask Orr"]);
-    expect(rail.textContent).not.toMatch(/Reload|Dark|Light|Back|your vault|Ask vault/);
+    expect(items).toEqual(["Today", "Planning", "Notes", "Orrery", "Projects", "People", "Mail", "Money", "Dark", "Find", "Ask Orr"]);
+    expect(rail.textContent).not.toMatch(/Reload|Back|your vault|Ask vault/);
     expect(rail.querySelector("kbd, .kbd, .rail-kbd")).toBeNull(); // keys live in tooltips (§8 #5)
     expect(rail.querySelector(".ri[data-tip]")?.getAttribute("data-tip")).toBe("Today  1");
     expect(screen.getByRole("link", { name: "Jules: Settings" })).toBeTruthy();
@@ -490,6 +490,55 @@ describe("the theme (§9)", () => {
     await user.click(screen.getByRole("button", { name: "theme light" }));
     expect(html.dataset.theme).toBe("light");
     expect(localStorage.getItem("basalt-theme-device")).toBeNull();
+    flip(false);
+    flip(true);
+    expect(html.dataset.theme).toBe("light"); // no longer following the system
+  });
+
+  /** The rail's light ↔ dark button (F3). */
+  const railTheme = () => screen.getAllByRole("navigation", { name: "Places" })[0]!.querySelector<HTMLButtonElement>(".ri.theme")!;
+
+  it("the rail's button switches light ↔ dark for the account, and says which way it goes (F3)", async () => {
+    const user = userEvent.setup();
+    system(false);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", vision: "none", profiles: [] } } });
+    const sent = patches();
+    at("/today");
+    render(<App />);
+    await view();
+    await waitFor(() => expect(railTheme().getAttribute("aria-label")).toBe("Switch to dark"));
+    expect(railTheme().getAttribute("data-tip")).toBe("Switch to dark");
+    expect(railTheme().textContent).toBe("Dark");
+
+    await user.click(railTheme());
+    expect(html.dataset.theme).toBe("dark");
+    await waitFor(() => expect(sent.map((b) => b.appearance?.theme)).toContain("command"));
+    expect(railTheme().getAttribute("aria-label")).toBe("Switch to light");
+    expect(railTheme().getAttribute("data-tip")).toBe("Switch to light");
+    expect(railTheme().textContent).toBe("Light");
+    expect(screen.getByRole("button", { name: "Switch to light" })).toBe(railTheme());
+
+    await user.click(railTheme());
+    expect(html.dataset.theme).toBe("light");
+    await waitFor(() => expect(sent.map((b) => b.appearance?.theme).at(-1)).toBe("light"));
+    expect(railTheme().getAttribute("aria-label")).toBe("Switch to dark");
+  });
+
+  it("on a device matching its system, the rail's button stops matching and takes the opposite of what shows (F3)", async () => {
+    const user = userEvent.setup();
+    const flip = system(true);
+    localStorage.setItem("basalt-theme-device", "match");
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "command", vision: "none", profiles: [] } } });
+    at("/today");
+    render(<App />);
+    await view();
+    expect(html.dataset.theme).toBe("dark");
+    await waitFor(() => expect(railTheme().getAttribute("aria-label")).toBe("Switch to light"));
+
+    await user.click(railTheme());
+    expect(html.dataset.theme).toBe("light");
+    expect(localStorage.getItem("basalt-theme-device")).toBeNull();
+    expect(localStorage.getItem("basalt-theme")).toBe("light");
     flip(false);
     flip(true);
     expect(html.dataset.theme).toBe("light"); // no longer following the system
