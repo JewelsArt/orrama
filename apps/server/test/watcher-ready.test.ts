@@ -26,6 +26,7 @@ for (const f of folders) {
 }
 const { buildServer } = await import("../src/main.js");
 const { createDb } = await import("../src/db.js");
+const { closeDb } = await import("./helpers/db.js");
 const { VaultStore } = await import("../src/vaultStore.js");
 
 afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
@@ -33,7 +34,8 @@ afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force:
 const settled = async (p: Promise<void>) => Promise.race([p.then(() => "settled"), Promise.resolve().then(() => "pending")]);
 
 it("store.watching settles once every folder of the vault is watched", async () => {
-  const store = new VaultStore(createDb());
+  const db = createDb();
+  const store = new VaultStore(db);
   store.load();
   await store.watching;
   try {
@@ -42,6 +44,7 @@ it("store.watching settles once every folder of the vault is watched", async () 
     for (const f of folders) expect(watched).toContain(f);
   } finally {
     await store.close();
+    closeDb(db);
   }
 });
 

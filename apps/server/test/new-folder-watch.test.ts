@@ -30,6 +30,8 @@ fs.mkdirSync(vault, { recursive: true });
 fs.writeFileSync(path.join(vault, "root.md"), "# root\n");
 
 const { createDb } = await import("../src/db.js");
+const { closeDb } = await import("./helpers/db.js");
+const db = createDb();
 const { VaultStore } = await import("../src/vaultStore.js");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -68,13 +70,14 @@ beforeAll(async () => {
     });
   }) as typeof fs.watch;
   syncBuiltinESMExports();
-  store = new VaultStore(createDb());
+  store = new VaultStore(db);
   store.load();
   await store.watching;
 });
 
 afterAll(async () => {
   await store.close();
+  closeDb(db);
   fs.watch = realWatch;
   syncBuiltinESMExports();
   fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });

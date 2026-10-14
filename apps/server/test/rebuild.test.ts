@@ -22,6 +22,7 @@ process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { tables, createDb } = await import("../src/db.js");
+const { closeDb } = await import("./helpers/db.js");
 
 type Booted = Awaited<ReturnType<typeof buildServer>>;
 const dbFile = path.join(process.env.BASALT_DATA_DIR!, "basalt.db");
@@ -172,7 +173,7 @@ function wipeIndex() {
   const keep = ["users", "teams", "memberships", "folder_grants", "workspace"].map((t) => ({ t, rows: old.prepare(`SELECT * FROM ${t}`).all() as Record<string, unknown>[] }));
   old.close();
   for (const f of ["basalt.db", "basalt.db-wal", "basalt.db-shm"]) fs.rmSync(path.join(process.env.BASALT_DATA_DIR!, f), { force: true });
-  createDb(); // bootstrap the schema
+  closeDb(createDb()); // bootstrap the schema
   const fresh = new Database(dbFile);
   for (const { t, rows } of keep) {
     for (const r of rows) {

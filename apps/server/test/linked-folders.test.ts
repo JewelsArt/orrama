@@ -34,18 +34,21 @@ fs.symlinkSync(OUTSIDE, path.join(OUTSIDE, "deeper", "again"), "dir");
 fs.symlinkSync(OUTSIDE, path.join(VAULT, "Notes", "Same folder"), "dir");
 
 const { createDb } = await import("../src/db.js");
+const { closeDb } = await import("./helpers/db.js");
 const { VaultStore } = await import("../src/vaultStore.js");
 let store: InstanceType<typeof VaultStore>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const paths = () => store.index.all().map((n) => n.path).sort();
 
+const db = createDb();
 beforeAll(async () => {
-  store = new VaultStore(createDb());
+  store = new VaultStore(db);
   store.load();
   await store.watching;
 });
 afterAll(async () => {
   await store.close();
+  closeDb(db);
   fs.rmSync(ROOT, { recursive: true, force: true });
 });
 
@@ -72,11 +75,13 @@ it("the watcher does not walk into a link that loops", () => {
 
 it("a restart finds the same set again", async () => {
   const before = paths();
-  const again = new VaultStore(createDb());
+  const db2 = createDb();
+  const again = new VaultStore(db2);
   again.load();
   await again.watching;
   expect(again.index.all().map((n) => n.path).sort()).toEqual(before);
   await again.close();
+  closeDb(db2);
 });
 
 const owner = { id: "u-owner", username: "owner", teams: [], isOwner: true };

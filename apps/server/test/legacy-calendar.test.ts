@@ -17,6 +17,7 @@ process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { createDb, tables } = await import("../src/db.js");
+const { closeDb } = await import("./helpers/db.js");
 const vault = process.env.BASALT_VAULT_DIR!;
 
 afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
@@ -29,6 +30,7 @@ describe("legacy calendar rows", () => {
     const obj = db.select().from(tables.taskObjects).get()!;
     db.insert(tables.taskBlocks).values({ id: "blk-legacy1", taskObjectId: obj.id, date: "2026-07-09", startMin: 600, durationMin: 90, createdAt: 1 }).run();
     db.insert(tables.events).values({ id: "ev-legacy1", ownerId: users.get("jules")!, title: "Old standup", date: "2026-07-10", startMin: 540, durationMin: 30, createdAt: 2 }).run();
+    closeDb(db);
 
     const b = await buildServer();
     // erin and mara read 01-Me through the seed's root viewer grants, so jules's calendar is his by path (ACL-009).

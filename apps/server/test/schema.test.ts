@@ -46,6 +46,7 @@ describe("schema", () => {
   it("opens with a lock timeout and stamps the schema version", () => {
     const db = createDb(path.join(dir, "pragmas.db"));
     const sqlite = (db as unknown as { $client: Database.Database }).$client;
+    opened.push(sqlite);
     expect(sqlite.pragma("busy_timeout", { simple: true })).toBe(5000);
     expect(sqlite.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
   });
