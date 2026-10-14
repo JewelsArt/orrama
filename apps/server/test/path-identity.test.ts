@@ -138,7 +138,8 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
       } else {
         expect(res.status).toBe(200);
         expect(fs.readdirSync(VAULT)).toContain("Perſonal");
-        expect(read("Perſonal/jules/Private.md")).toBe("mara was here\n");
+        // A new note of mara's own: the server stamps its id, as on every create.
+        expect(read("Perſonal/jules/Private.md")).toMatch(/^---\nid: n-[a-z0-9]+\n---\nmara was here\n$/);
         fs.rmSync(abs("Perſonal"), { recursive: true });
       }
     } finally {
