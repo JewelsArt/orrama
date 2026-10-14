@@ -118,12 +118,14 @@ one is in CLAUDE.md, "Releases".
   question.
 - Each shelf under the Projects board has its own address
   (`/projects?shelf=done`), next to the area filter's.
+- A light ↔ dark button at the foot of the rail, above Find. On the phone, the
+  theme stays in Settings.
 
 ### Changed
 
 - The rail holds the eight places (Today, Planning, Notes, Orrery, Projects,
-  People, Mail, Money) with Find, Ask Orr and your Orr at the foot. Reload,
-  Dark and Back left it: use ⌘R, Settings → Appearance and the browser's Back.
+  People, Mail, Money) with Find, Ask Orr and your Orr at the foot. Reload
+  and Back left it: use ⌘R and the browser's Back.
 - On a phone: a top bar and five tabs (Today, Planning, Ask Orr, Notes, More).
   More holds the other places and Settings.
 - Number keys follow the rail: 1 Today, 2 Planning, 3 Notes, 4 Orrery,
@@ -255,6 +257,9 @@ one is in CLAUDE.md, "Releases".
 - On a project's page, a person's or company's name opens their own page, as
   everywhere else. Taking them off the project is in the ⋯ menu at the end of
   their row (on a phone it always shows), behind the same confirmation.
+- Every page shares one width (1,440 px of content) and sits centred beside the
+  rail. On a big screen there is room on both sides, and pages line up with each
+  other.
 
 ### Removed
 
@@ -563,6 +568,34 @@ one is in CLAUDE.md, "Releases".
   the server.
 - A failed capture no longer loses what you typed.
 - Picking an area on Projects no longer reloads the whole board.
+- A change that doesn't save is never silent: a toast says what didn't happen
+  and why, with Retry when the server didn't answer; forms keep what you typed
+  and their button comes back.
+- Confirm dialogs (delete a document, remove a project from the board) stay open
+  and say why when the server refuses, instead of closing as if it had worked.
+- Mail no longer says "isn't connected" when the server didn't answer; it says
+  so, with Retry.
+- The project note on a project page says it didn't open, with Retry, instead of
+  "Opening the note…" for ever.
+- Planning's new-event popover keeps its title when the event didn't save.
+- Sending a staged draft whose clean-up fails says the draft is still listed, so
+  it isn't sent twice.
+- Uploading a document whose name has `" * : < > ? |`, ends in a dot or a space,
+  or is a name Windows keeps for a device (CON, NUL, COM1…) is refused with the
+  reason, on every computer, so a vault made on the Mac still opens on Windows.
+  On Windows such an upload failed, or for a device name stored nothing. Files
+  already in your vault keep opening.
+- Stopping the server closes the database after the vault watcher, not before (a
+  file changed in the last moment could hit a closed database).
+- The server's log rotates on Windows too (it truncated through a handle Windows
+  opens append-only).
+- A note titled only by an id (an old Claude session's "394a1725") is shown by
+  its kind, date and first words, e.g. "Conversation, 4 Jun 2026: Tidying the
+  reading list…", in Orr noticed, Today, Notes, Find, the Orrery, entity pages
+  and the window title. The note itself is unchanged, and links and search still
+  know it by its id.
+- A project's To-do bar ends where its list ends; an entity page's note keeps a
+  readable line length on wide screens.
 
 ### Security
 
@@ -709,6 +742,12 @@ one is in CLAUDE.md, "Releases".
   name.
 - Account removal is `removeAccount.ts` (remove-user.ts is its prompt);
   retired usernames are `usernames.ts`.
+- The server suite runs green on Windows (windows.yml also runs the webhook
+  tests 20 times in a row and starts the dev server); a test file that leaves a
+  database open fails on every platform.
+- Every MCP tool has a test of the request it sends and of the server's answer.
+- ESLint's `basalt/async-handler-catches` refuses an async event handler that
+  awaits outside a try/catch (WEB-010).
 
 ### Upgrading
 

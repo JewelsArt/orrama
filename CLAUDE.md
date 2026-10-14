@@ -723,7 +723,12 @@ parsed before it is known to be a valid auth.
   (`apps/web/src/newNote.ts`) — without it PUT is an upsert. Uploads go through
   `storeUpload` (`apps/server/src/uploads.ts`): the same bytes are that file, a
   different file with a used name becomes `name (2).ext`, and the answer names
-  the file stored. `writeFileAtomic(…, { exclusive: true })` links instead of
+  the file stored. A new file's name must be one every disk holds
+  (`unportableName`, uploads.ts): no `" * : < > ? |`, no trailing dot or space,
+  no Windows device name (CON, NUL, COM1…, with any extension). Both upload
+  routes answer 400 with the reason, on every platform, as Obsidian does (Jules,
+  14 Oct 2026); files already in the vault are served under their own name.
+  `writeFileAtomic(…, { exclusive: true })` links instead of
   renaming, so a file that appeared since the check is not lost. Files are
   served under their own name with `contentDisposition` (same file): an ASCII
   fallback plus RFC 5987 `filename*` — a raw name above U+00FF in a header
@@ -740,7 +745,9 @@ parsed before it is known to be a valid auth.
   line terminated (Obsidian writes no final newline).
 - **The agent's log rotates itself** (`rotateLogIfLarge`, `logging.ts`): past
   5 MB at boot or on the hourly check, `~/.basalt-run/server.log` moves to
-  `server.log.1` (owner-only) and starts again — only when stdout really is
+  `server.log.1` (owner-only) and starts again (truncated by name after the
+  inode check: Windows refuses to truncate through an append-only handle) —
+  only when stdout really is
   that file. URLs in it are already redacted (no query strings or secret paths).
 - **An Ask run stops with its request** (`routes/ai.ts`): the response closing early (the
   panel's Stop, closing the panel, leaving the page) aborts the run, so no later model call
@@ -750,6 +757,10 @@ parsed before it is known to be a valid auth.
   (`agent-abort-midstream.test.ts`). **Logged errors carry no bodies**: `errSerializer`
   (logging.ts) drops `requestBodyValues`, `responseBody`, `errors`, `lastError` and the
   like — the AI SDK's errors hold the whole prompt.
+- **Fastify runs onClose hooks last-registered first.** The database's hook is
+  registered before everything that uses it (main.ts), so it closes last;
+  registered after them, it closed first and a pending vault watcher timer fired
+  into a closed database (OPS-003).
 - **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
   Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
   auth hook and the live-sync socket refuse a token whose row is gone or
@@ -802,7 +813,9 @@ parsed before it is known to be a valid auth.
   own origin (the CSP allows no inline script), puts the stored theme and
   colour-vision mode on `<html>` before anything paints; `ui/theme.ts` holds the
   same rule and a test runs the file against it. The account keeps light or
-  dark; "Match this device" is a per-device key, `basalt-theme-device`.
+  dark; "Match this device" is a per-device key, `basalt-theme-device`. The
+  rail's light ↔ dark button (`ThemeButton`, `ui/shell/Shell.tsx`) calls App's
+  `changeTheme("light" | "dark")`, which also stops Match this device.
 - **Storage**: read and write through `apps/web/src/storage.ts`. The browser can
   refuse storage (the getter throws), and `guardStorage()` in `main.tsx` gives
   the older direct callers an in-memory one.
@@ -811,7 +824,12 @@ parsed before it is known to be a valid auth.
   symlinks or signal handlers says so through `test/helpers/platform.ts`
   (`POSIX_MODES`, `canSymlink`, `SIGNAL_HANDLERS`) and skips only that part;
   compare paths after `.split(path.sep).join("/")` or `path.resolve`; close
-  every database handle before deleting its folder. Package scripts never set
+  every database handle before deleting its folder (`closeDb`,
+  `test/helpers/db.ts`; `store.close()` does not close the database): the setup
+  file `test/helpers/open-databases.ts` fails a server test file that leaves one
+  open, on every platform. A volume's behaviour (case folding, ſ) is probed in a
+  temp folder, never assumed from the platform; `import()` takes a
+  `pathToFileURL(...)`, never a bare path. Package scripts never set
   variables as `VAR=1 cmd` (cmd.exe cannot); `.gitattributes` keeps every
   checkout LF.
 - **Web tests**: `*.test.ts(x)` run in Node; `*.dom.test.ts(x)` run in happy-dom
@@ -830,6 +848,14 @@ parsed before it is known to be a valid auth.
   and asks first only when a save is already failing. A sync follows the note's path from
   the server's answers (a rename outside Basalt) and stops saving when the note is gone.
   Never save a note any other way.
+- **A failed write is never silent** (`apps/web/src/ui/writes.ts`, audit WEB-010): a
+  one-click write goes through `attempt(what, run)` (a toast with the reason, and Retry when
+  the server didn't answer), a form through `useWrite()` (the reason beside it, busy always
+  ends, nothing typed is cleared), and a Confirm's `onConfirm` may return the write's promise
+  (the dialog waits and says why it failed). `api()` remembers failed writes and
+  `installWriteNet` (main.tsx) says any nobody caught. ESLint's `basalt/async-handler-catches`
+  refuses an async `on…=` handler that awaits outside a try/catch. The message is the page's,
+  never Orr's: what didn't happen, then why ("The step wasn't ticked. The server didn't answer.").
 - **A pin is front matter**: `pinned: true` in the note, written through
   `updateFrontmatter` and the note's sync; `GET /api/notes/overview` lists the readable
   pinned notes.
@@ -910,13 +936,18 @@ in currentColor): no glyphs (✕ × ‹ ›) and no emoji. Orr is `<Orr pose siz
 poses; below 48 px he is Hello, below 20 px the head mark), your Orr is
 `<Avatar>`, the logo's O is `<HeadMark>`; Orr never appears in an error. A
 screen's own styles go in its area's file, `styles/<area>.css`, never in a shared
-one.
+one. **One page width.** `.main > *` in `styles/shell.css` caps every page at
+`--page-max` (`--page-content` 1,440 px between two `--page-gutter`s of 40 px) and
+centres it beside the rail. A page pads by `var(--page-gutter)` and never sets its
+own `max-width`. Reading columns keep their own measure inside it (a note 720,
+Settings' section 820, a mail 760).
 
 **One of each pattern.** Overlays go through one stack (`ui/overlays.tsx`):
 palette over dialog over sheet over panel, popovers above; one of a kind at a
 time; Escape closes the top one only; a modal layer takes focus, keeps Tab inside
 and gives focus back; a panel sits beside the page and leaves it in use. Never
 `window.prompt`, `alert` or `confirm`: use `Confirm`, `Dialog` or `NameDialog`.
+A failed change is said with `ui/writes.ts`, never `console.error` or nothing.
 Dates and times come from `ui/dates.ts` ("Fri 9 Oct", "Thu 8 Oct, 10:01",
 24-hour), never `toLocale*` or a sliced ISO date. Every place and thing has an
 address (`ui/router.ts`): go there with a link or `navigate()`, not with state.
@@ -968,7 +999,13 @@ searchable, linkable and readable by the agent and MCP like any note, but its
 text adds no links, tags or tasks (`ParsedNote.kind`, `packages/core/src/parse.ts`)
 — transcripts quote file paths, spreadsheet errors and colours, and once made
 up 87% of the vault and almost all of its unresolved links and junk tags. The
-Orrery shows them as open circles in the topic of what they are `about`.
+Orrery shows them as open circles in the topic of what they are `about`. A note
+whose title is only an id (`title: 394a1725`, a session's hex file name, the note's
+own `n-…`) is named by `displayTitle` (`packages/core/src/describe.ts`): its kind,
+date and gist, "Conversation, 4 Jun 2026: Tidying the reading list…".
+`VaultIndex.upsert` applies it, so every surface gets the name; `writtenTitle` keeps
+the title as written, for link keys and search only. Never show `writtenTitle`, and
+never write the name back into a note.
 
 **Life-areas (School / Work / Knowledge / Claude & tools / Personal) are vault
 data.** A note tagged `#vault-categories` holds `| Category | Matches |` rows —
