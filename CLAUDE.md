@@ -204,7 +204,9 @@ A person or company in the project's panel opens their own page
 (`/people/<slug>`, `/companies/<slug>`, by file name; someone the graph names but
 no `#contact`/`#company` note lists opens in Notes). The ⋯ beside a row the note
 links holds Remove from this project (behind a Confirm), which deletes just that
-`[[link]]` line from `## People` (`DELETE /api/projects/:slug/people/:noteId`);
+`[[link]]` line from `## People` (`DELETE /api/projects/:slug/people/:noteId`).
+Each person carries `inText` (linked outside `## People` too): such a person
+stays listed after Remove, and the Confirm says so. Beside them,
 whoever the graph says supervises or is involved in the project shows too, with
 the relation's word. Documents open in the app's
 own reader (`DocViewer.tsx`) — PDFs and images through a blob URL, text inline,
@@ -723,11 +725,15 @@ parsed before it is known to be a valid auth.
   (`apps/web/src/newNote.ts`) — without it PUT is an upsert. Uploads go through
   `storeUpload` (`apps/server/src/uploads.ts`): the same bytes are that file, a
   different file with a used name becomes `name (2).ext`, and the answer names
-  the file stored. A new file's name must be one every disk holds
-  (`unportableName`, uploads.ts): no `" * : < > ? |`, no trailing dot or space,
-  no Windows device name (CON, NUL, COM1…, with any extension). Both upload
-  routes answer 400 with the reason, on every platform, as Obsidian does (Jules,
-  14 Oct 2026); files already in the vault are served under their own name.
+  the file stored. A new file's or note's name must be one every disk holds
+  (`unportableName`, `portableName.ts`): no `" * : < > ? |`, no trailing dot
+  or space, no Windows device name (CON, NUL, COM1…, with any extension). Both
+  upload routes answer 400 with the reason; so do `VaultStore.write` for a new
+  note (its name and any folder it makes) and `move` for a new name, so New
+  note, the agent, MCP and moves all refuse it — on every platform, as
+  Obsidian does (Jules, 14 Oct 2026). Only new names are judged: files already
+  in the vault are served under their own name, and existing notes keep
+  working.
   `writeFileAtomic(…, { exclusive: true })` links instead of
   renaming, so a file that appeared since the check is not lost. Files are
   served under their own name with `contentDisposition` (same file): an ASCII
@@ -760,7 +766,9 @@ parsed before it is known to be a valid auth.
 - **Fastify runs onClose hooks last-registered first.** The database's hook is
   registered before everything that uses it (main.ts), so it closes last;
   registered after them, it closed first and a pending vault watcher timer fired
-  into a closed database (OPS-003).
+  into a closed database (OPS-003). The store schedules nothing once `close()`
+  starts (`closing`), and `load()` closes the watcher it replaces: a leaked
+  watcher went on reporting into a closed database (F4).
 - **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
   Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
   auth hook and the live-sync socket refuse a token whose row is gone or

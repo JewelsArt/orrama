@@ -260,6 +260,12 @@ one is in CLAUDE.md, "Releases".
 - Every page shares one width (1,440 px of content) and sits centred beside the
   rail. On a big screen there is room on both sides, and pages line up with each
   other.
+- A new note, or a note moved to a new name, must have a name every disk can
+  hold: no `" * : < > ? |`, no trailing dot or space, no Windows device name
+  (CON, NUL, COM1…). The New note dialog says why. Notes that already have such
+  a name keep working.
+- On a project's page, removing someone who is also linked in the note's text
+  says that they stay listed, and why.
 
 ### Removed
 
@@ -748,6 +754,9 @@ one is in CLAUDE.md, "Releases".
 - Every MCP tool has a test of the request it sends and of the server's answer.
 - ESLint's `basalt/async-handler-catches` refuses an async event handler that
   awaits outside a try/catch (WEB-010).
+- The vault store schedules nothing once it starts closing, and re-loading it
+  closes the watcher it replaces (no more "The database connection is not
+  open" after a test run).
 
 ### Upgrading
 
