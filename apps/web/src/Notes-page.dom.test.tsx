@@ -7,7 +7,8 @@
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useRoute } from "./ui/router.js";
+import { routeHref, useRoute } from "./ui/router.js";
+import { usePageTitleFor } from "./entity/title.js";
 
 const srv = vi.hoisted(() => ({
   typed: true,
@@ -39,6 +40,8 @@ const TREE = [
   T("ideas", "Ideas.md", { mtimeMs: NOW - 120_000, tags: ["thesis"] }),
   T("chat", "Conversations/Forecast chat.md", { category: "tools" }),
   T("inbox", "Personal/jules/Inbox.md", { openTasks: 4 }),
+  // A session note titled by its id: the server names it by kind, date and gist (F3).
+  { ...T("sess", "Claude Sessions/394a1725.md", { category: "tools" }), title: "Conversation, 4 Jun 2026: Tidying the reading list" },
 ];
 const CONTENT: Record<string, string> = {
   plan: "---\ntags:\n  - project/graduation-thesis\n  - thesis\ndeadline: 2026-10-19\n---\nAsk [[Ines Vermaat]] and [[Kade Social]].\n",
@@ -49,6 +52,7 @@ const CONTENT: Record<string, string> = {
   ideas: "---\nid: n-ideas\n---\n# Ideas\n\nSee [[Research plan]].\n",
   chat: "---\ntype: claude-session\n---\nTranscript.\n",
   inbox: "# Inbox\n- [ ] one\n",
+  sess: "---\ntitle: 394a1725\ntype: claude-session\n---\n**Jules:** Tidy the reading list.\n",
 };
 const LINKS: Record<string, { target: string; targetId: string | null; locked: boolean; raw: string; line: number }[]> = {
   plan: [
@@ -145,6 +149,28 @@ describe("Notes home", () => {
     fireEvent.click(recent.getAllByRole("link")[0]!);
     await flush();
     expect(path()).toBe("/notes/04-Projects/graduation-thesis/Research plan");
+  });
+});
+
+describe("the note's name", () => {
+  /** What the window title and the phone's top bar say for this address (App reads it so). */
+  function Titled() {
+    const r = useRoute();
+    const title = usePageTitleFor(r ? routeHref(r) : "");
+    return (
+      <>
+        <Routed />
+        <output data-testid="page-title">{title ?? ""}</output>
+      </>
+    );
+  }
+
+  it("the window says the note's name as the page does, not its file name (F3)", async () => {
+    at("/notes/Claude Sessions/394a1725");
+    render(<Titled />);
+    await flush();
+    expect(screen.getByRole("heading", { level: 1, name: "Conversation, 4 Jun 2026: Tidying the reading list" })).toBeTruthy();
+    expect(screen.getByTestId("page-title").textContent).toBe("Conversation, 4 Jun 2026: Tidying the reading list");
   });
 });
 

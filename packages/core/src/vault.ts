@@ -1,4 +1,5 @@
 import { parseNote, titleFromPath } from "./parse.js";
+import { displayTitle } from "./describe.js";
 import type {
   AclUser,
   Backlink,
@@ -150,6 +151,9 @@ export class VaultIndex {
     // really are different notes are the store's to tell apart — it gives the
     // copy its own id before it gets here (vaultStore.ts, claimId).
     if (this.notes.has(id)) this.removeById(id);
+    // A title that is only an id is shown as the note's kind, date and gist, everywhere a
+    // name is shown (F3); the note, its links and its search keep the title it writes.
+    const shown = displayTitle({ ...parsed, id, content: file.content, mtimeMs: file.mtimeMs });
     const note: IndexedNote = {
       ...parsed,
       id,
@@ -157,15 +161,17 @@ export class VaultIndex {
       folder: folderOf(file.path),
       content: file.content,
       mtimeMs: file.mtimeMs,
+      ...(shown !== parsed.title ? { title: shown, writtenTitle: parsed.title } : {}),
     };
     this.notes.set(note.id, note);
     this.byPath.set(note.path, note.id);
     this.registerTitles(note);
-    const text = fold(`${note.title}\n${note.content}`);
+    const titles = note.writtenTitle === undefined ? note.title : `${note.title}\n${note.writtenTitle}`;
+    const text = fold(`${titles}\n${note.content}`);
     const words = new Map<string, number>();
     for (const w of text.match(WORD_RE) ?? []) words.set(w, (words.get(w) ?? 0) + 1);
     for (const w of words.keys()) this.docFreq.set(w, (this.docFreq.get(w) ?? 0) + 1);
-    this.searchText.set(note.id, { title: fold(note.title), text, words, length: [...words.values()].reduce((a, b) => a + b, 0) });
+    this.searchText.set(note.id, { title: fold(titles), text, words, length: [...words.values()].reduce((a, b) => a + b, 0) });
     return note;
   }
 
@@ -209,7 +215,7 @@ export class VaultIndex {
     add(note.path, 0);
     add(note.path.replace(/\.md$/i, ""), 0);
     add(titleFromPath(note.path), 1);
-    add(note.title, 2);
+    add(note.writtenTitle ?? note.title, 2);
     for (const a of note.aliases) add(a, 3);
     return keys;
   }

@@ -11,6 +11,7 @@
  * which is why a model-written `description:` (written to the note's front
  * matter once approved) always wins over it.
  */
+import { isoLocal } from "./dates.js";
 import { parseFrontmatter } from "./frontmatter.js";
 
 export const DESCRIPTION_MAX = 220;
@@ -59,4 +60,67 @@ export function describeNote(n: { frontmatter: Record<string, unknown>; content:
     if (text.length > 1) return cut(text);
   }
   return "";
+}
+
+/**
+ * Is this title only an id? A saved session's note is often titled by its session id
+ * (`title: 394a1725`) or named after it (`c0ffee12-bead.md`), and Orr noticed then said
+ * "394a1725 isn't about anything yet" (F3). An id title is the note's own id (`n-…`), or a
+ * run of hex in dash-separated groups, at least eight hex characters, holding a digit and a
+ * letter: so a real word that happens to be hex ("facade", "decade") and a number or a date
+ * ("20261014", "2026-10") stay names.
+ */
+export function isIdTitle(title: string, noteId?: string): boolean {
+  const t = title.trim();
+  if (t === "") return false;
+  if (noteId !== undefined && t === noteId) return true;
+  if (/^n-[0-9a-z]{8,}$/.test(t)) return true;
+  if (!/^[0-9a-f]+(?:-[0-9a-f]+)*$/i.test(t)) return false;
+  const hex = t.replace(/-/g, "");
+  return hex.length >= 8 && /[0-9]/.test(hex) && /[a-f]/i.test(hex);
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** NAME_GIST_MAX characters of gist at most in a name, cut at a word. */
+export const NAME_GIST_MAX = 60;
+
+/** "2026-06-04" (or an ISO time on that day) as "4 Jun 2026"; anything else as null. */
+function dayWords(v: unknown): string | null {
+  const m = typeof v === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim()) : null;
+  if (!m) return null;
+  const month = MONTHS[Number(m[2]) - 1];
+  const day = Number(m[3]);
+  return month && day >= 1 && day <= 31 ? `${day} ${month} ${m[1]}` : null;
+}
+
+/** The first words of a gist, whole words only, for a name. */
+function firstWords(gist: string): string {
+  // A name sits inside sentences ("… isn't about anything yet"): no full stop of its own.
+  const g = gist.replace(/…$/, "").trim().replace(/[.!?;:,]+$/, "");
+  if (g.length <= NAME_GIST_MAX) return g;
+  const cutAt = g.lastIndexOf(" ", NAME_GIST_MAX - 1);
+  return `${g.slice(0, cutAt > NAME_GIST_MAX / 2 ? cutAt : NAME_GIST_MAX - 1).replace(/[\s,;:.–—-]+$/, "")}…`;
+}
+
+/**
+ * The name a note is shown by. Its title, unless the title is only an id (isIdTitle): then its
+ * kind and date plus its gist, "Conversation, 4 Jun 2026: Tidying the reading list…". The date
+ * is the front matter's `date:` (else `created:`, else the file's time, `mtimeMs`), the gist
+ * describeNote's. Display only: the note, its title and its links are untouched.
+ */
+export function displayTitle(n: {
+  title: string;
+  id?: string;
+  frontmatter: Record<string, unknown>;
+  content: string;
+  kind?: "note" | "conversation";
+  mtimeMs?: number;
+}): string {
+  if (!isIdTitle(n.title, n.id)) return n.title;
+  const kind = n.kind === "conversation" ? "Conversation" : "Note";
+  const fileDay = n.mtimeMs !== undefined && Number.isFinite(n.mtimeMs) ? isoLocal(new Date(n.mtimeMs)) : undefined;
+  const day = dayWords(n.frontmatter["date"]) ?? dayWords(n.frontmatter["created"]) ?? dayWords(fileDay);
+  const head = day ? `${kind}, ${day}` : kind;
+  const gist = describeNote(n);
+  return gist ? `${head}: ${firstWords(gist)}` : head;
 }

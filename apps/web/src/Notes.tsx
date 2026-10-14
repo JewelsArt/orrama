@@ -21,6 +21,7 @@ import { Notice } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { dateLabel, dateTimeLabel } from "./ui/dates.js";
 import { navigate, routeHref } from "./ui/router.js";
+import { usePageTitle } from "./entity/title.js";
 
 /** The note open when you left Notes, which /notes opens on next time (structure.md §2.3). */
 export const LAST_NOTE_KEY = "basalt-notes-last";
@@ -453,6 +454,9 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
   const due = open ? dueOf(text) : null;
   const ordinary = !!open && isOrdinary({ content: text, tags: open.tags }, { project: isProject, type: relations?.entity.type ?? null });
   const orrery = open ? routeHref({ kind: "orrery", center: project && projects.find((p) => p.noteId === open.id) ? project.slug : slugOf(open.path) }) : "/orrery";
+  // The window and the phone's top bar name the note as the page does (a title that is only an
+  // id is shown by its kind, date and gist, F3), not by its file name.
+  usePageTitle(open ? routeHref({ kind: "notes", path: addressOf(open.path) }) : "", open?.title);
   const menu: MenuItem[] = open
     ? [
         ...(open.canEdit ? [{ label: pinned ? "Unpin from Notes home" : "Pin to Notes home", onSelect: togglePin }] : []),

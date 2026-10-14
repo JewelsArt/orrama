@@ -121,6 +121,11 @@ export interface IndexedNote extends ParsedNote {
   folder: string;
   content: string;
   mtimeMs?: number;
+  /**
+   * The title as the note writes it, when that is only an id and `title` is the name it is
+   * shown by instead (displayTitle, describe.ts). Links and search still know it by this.
+   */
+  writtenTitle?: string;
 }
 
 export interface Backlink {
