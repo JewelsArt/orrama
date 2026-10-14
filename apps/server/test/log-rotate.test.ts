@@ -13,8 +13,26 @@ import { POSIX_MODES } from "./helpers/platform.js";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-logrotate-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+/**
+ * Whether this platform can stat a handle opened for append, which is how the
+ * server knows its stdout is the log file. Where it cannot, rotation is off
+ * (rotateLogIfLarge answers false) and there is nothing to test.
+ */
+const STAT_APPEND = (() => {
+  const fd = fs.openSync(path.join(tmp, "probe.log"), "a");
+  try {
+    fs.fstatSync(fd);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    fs.closeSync(fd);
+  }
+})();
+const NO_STAT = "(skipped: this platform cannot stat an append-mode handle)";
+
 describe("rotateLogIfLarge", () => {
-  it("past the cap: the contents move to .1 (owner-only) and the log starts again", () => {
+  it.skipIf(!STAT_APPEND)(`past the cap: the contents move to .1 (owner-only) and the log starts again ${STAT_APPEND ? "" : NO_STAT}`, () => {
     const file = path.join(tmp, "a.log");
     const fd = fs.openSync(file, "a"); // how launchd opens StandardOutPath
     try {
@@ -59,7 +77,7 @@ describe("rotateLogIfLarge", () => {
 });
 
 describe("the server under launchd", () => {
-  it("rotates an over-size log when it starts", async () => {
+  it.skipIf(!STAT_APPEND)(`rotates an over-size log when it starts ${STAT_APPEND ? "" : NO_STAT}`, async () => {
     const home = path.join(tmp, "home");
     const log = path.join(home, ".basalt-run", "server.log");
     fs.mkdirSync(path.dirname(log), { recursive: true });

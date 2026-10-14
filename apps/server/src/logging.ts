@@ -96,6 +96,10 @@ export const AGENT_LOG = path.join(os.homedir(), ".basalt-run", "server.log");
  * the file is truncated in place. Append mode means the next write lands at
  * the new end. Lines written between the copy and the truncate — a few
  * milliseconds — are lost. Returns whether it rotated.
+ *
+ * Truncated by its name, just checked to be the same file, not through `fd`:
+ * Windows opens an append-mode handle with append rights only, and refuses
+ * to truncate through it (audit OPS-003).
  */
 export function rotateLogIfLarge(opts: { fd?: number; file?: string; maxBytes?: number } = {}): boolean {
   const { fd = 1, file = AGENT_LOG, maxBytes = LOG_ROTATE_BYTES } = opts;
@@ -107,7 +111,7 @@ export function rotateLogIfLarge(opts: { fd?: number; file?: string; maxBytes?: 
     const previous = `${file}.1`;
     fs.copyFileSync(file, previous);
     fs.chmodSync(previous, 0o600);
-    fs.ftruncateSync(fd, 0);
+    fs.truncateSync(file, 0);
     return true;
   } catch {
     // No such file, not ours, or not a file: a terminal or a pipe needs nothing.
