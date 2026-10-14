@@ -5,12 +5,17 @@
  * held the whole server for 3.5 s each time the message was opened, in Mail
  * or through the agent's read_email (audit OPS-002).
  */
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { readMessage } from "../src/mail.js";
 
 const source = (headers: string) => Buffer.from(`${headers}\r\nSubject: hi\r\nMessage-ID: <m1@example.org>\r\n\r\nbody\r\n`);
 
 describe("readMessage on a hostile message", () => {
+  // The first parse also loads and compiles mailparser: not what is measured.
+  beforeAll(async () => {
+    await readMessage(1, source("From: x@example.org\r\nTo: j@example.org"));
+  });
+
   for (const header of ["From", "To", "Cc", "Reply-To"]) {
     it(`a 64 KB ${header} of "a." parses in well under a second`, async () => {
       const other = header === "To" ? "From: x@example.org" : "To: j@example.org";
@@ -18,7 +23,9 @@ describe("readMessage on a hostile message", () => {
       const m = await readMessage(1, source(`${header}: ${"a.".repeat(32_000)}\r\n${other}`));
       const ms = performance.now() - t;
       expect(m.subject).toBe("hi");
-      expect(ms).toBeLessThan(200); // ~3,500 ms before
+      // ~3,500 ms before; ~20 ms now. 500 leaves room for a loaded machine
+      // running every suite at once (200 failed there) and still catches it.
+      expect(ms).toBeLessThan(500);
     });
   }
 
