@@ -211,6 +211,10 @@ describe("outbound ICS feed", () => {
 
 describe("webhooks", () => {
   let secret = "";
+  // Deliveries are judged by what they are about, never by their place in the
+  // queue: a debounced delivery from the step before can still land in this
+  // one's window (the audit's Windows runs saw one, OPS-008).
+  const payloads = () => received.map((m) => ({ m, p: JSON.parse(m.body) }));
 
   it("registers a hook and receives a signed test ping", async () => {
     const r = await api("POST", "/api/webhooks", tokens["mara"], {
@@ -224,10 +228,10 @@ describe("webhooks", () => {
     received.length = 0;
     const test = await api("POST", `/api/webhooks/${r.json().id}/test`, tokens["mara"]);
     expect(test.json().status).toBe(200);
-    expect(received).toHaveLength(1);
-    const expected = `sha256=${crypto.createHmac("sha256", secret).update(received[0]!.body).digest("hex")}`;
-    expect(received[0]!.headers["x-basalt-signature"]).toBe(expected);
-    expect(JSON.parse(received[0]!.body).event).toBe("ping");
+    const pings = payloads().filter(({ p }) => p.event === "ping");
+    expect(pings).toHaveLength(1);
+    const expected = `sha256=${crypto.createHmac("sha256", secret).update(pings[0]!.m.body).digest("hex")}`;
+    expect(pings[0]!.m.headers["x-basalt-signature"]).toBe(expected);
   });
 
   it("fires note.changed for readable notes, signed and debounced", async () => {
@@ -241,13 +245,17 @@ describe("webhooks", () => {
     });
     expect(w.status).toBe(200);
 
-    expect(await waitFor(() => received.length >= 1)).toBe(true);
-    const payload = JSON.parse(received[0]!.body);
-    expect(payload.event).toBe("note.changed");
-    expect(payload.note.path).toBe("Marketing/Surprise Campaign.md");
+    const mine = () => payloads().filter(({ p }) => p.event === "note.changed" && p.note?.path === "Marketing/Surprise Campaign.md");
+    expect(await waitFor(() => mine().length >= 1)).toBe(true);
+    const { m, p: payload } = mine()[0]!;
     expect(payload.author).toBe("mara");
-    const expected = `sha256=${crypto.createHmac("sha256", secret).update(received[0]!.body).digest("hex")}`;
-    expect(received[0]!.headers["x-basalt-signature"]).toBe(expected);
+    const expected = `sha256=${crypto.createHmac("sha256", secret).update(m.body).digest("hex")}`;
+    expect(m.headers["x-basalt-signature"]).toBe(expected);
+    // One save, one delivery. And nothing about any other
+    // note: the vault-root CLAUDE.md once fired here on Windows (OPS-003).
+    await waitFor(() => false, 200);
+    expect(mine()).toHaveLength(1);
+    expect(payloads().filter(({ p }) => p.event !== "ping").map(({ p }) => p.note?.path)).toEqual(["Marketing/Surprise Campaign.md"]);
   });
 
   it("never fires for a note the hook owner cannot read (§5.4)", async () => {
@@ -260,7 +268,8 @@ describe("webhooks", () => {
       path: "Engineering/Incident Runbook.md",
       content: detail.json().content + "\nsecret engineering line\n",
     });
-    expect(await waitFor(() => received.length > 0, 400)).toBe(false);
+    const aboutIt = () => received.some((m) => m.body.includes("Incident Runbook") || m.body.includes("secret engineering line") || m.body.includes(runbook.id));
+    expect(await waitFor(aboutIt, 400)).toBe(false);
   });
 
   it("fires task.completed when a checkbox is checked", async () => {
