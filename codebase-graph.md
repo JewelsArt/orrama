@@ -232,7 +232,7 @@
 
 ### `apps/web/src/Confirm.tsx`
 - **Exports**: ConfirmRequest, Confirm
-- **Imports**: ./ui/controls.js, ./ui/overlays.js
+- **Imports**: react, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js
 
 ### `apps/web/src/DocViewer.tsx`
 - **Exports**: readerError, DocViewer
