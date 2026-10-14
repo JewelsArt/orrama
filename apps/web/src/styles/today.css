@@ -4,8 +4,7 @@
    layout and the few parts only Today has: the key row, the date column, the money figure,
    Orr noticed, the foot and Customise, and the phone. */
 
-.today { padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 16px; }
-.today > * { max-width: 1240px; width: 100%; }
+.today { padding: 24px var(--page-gutter) 40px; display: flex; flex-direction: column; gap: 16px; }
 
 /* The three columns; on a phone the modules stack in their order (below). */
 .td-dash { display: grid; gap: 0 16px; align-items: start; }

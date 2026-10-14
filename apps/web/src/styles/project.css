@@ -2,8 +2,7 @@
    the boards project.html, project-timeline.html, project-documents.html and project-todo.html.
    The header is the entity page's own (styles/entity.css). Tokens only. */
 
-.pj-page { padding: 20px 40px 48px; display: flex; flex-direction: column; }
-.pj-page > * { max-width: 1280px; width: 100%; }
+.pj-page { padding: 20px var(--page-gutter) 48px; display: flex; flex-direction: column; }
 .pj-page > .tabs { margin-top: 2px; }
 .pj-tab { padding-top: 16px; min-width: 0; }
 .pj-late { color: var(--late); font-weight: 600; }
@@ -118,6 +117,9 @@
 
 /* ---- To-do: the note's sections, each a box ---------------------------------------------- */
 .pj-sections { display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+/* The To-do list keeps its 980 px measure; its bar (filters, the hint, Add a step) ends where
+   the list ends, not at the far side of the page (F3). */
+.pj-todo > .pj-bar3 { max-width: 980px; }
 .card.pj-sec { padding: 10px 18px 8px; }
 .pj-sh { display: flex; align-items: center; gap: 9px; margin-bottom: 2px; }
 .pj-sh h2 { margin: 0; font-size: 17px; line-height: 26px; font-weight: 750; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

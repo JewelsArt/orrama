@@ -61,8 +61,7 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
    Orr's warnings and "With …" on the side. Phone: one column, warnings, facts, relations,
    activity, then the note (structure.md §2.6). */
 
-.ent-page { padding: 22px 44px 48px; display: flex; flex-direction: column; }
-.ent-page > * { max-width: 1120px; width: 100%; }
+.ent-page { padding: 22px var(--page-gutter) 48px; display: flex; flex-direction: column; }
 
 /* the header: a 72 px ring or square, the title, one line about them */
 .ent-page .ent-head { margin: 0 0 22px; }
@@ -150,6 +149,8 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
 .ent-path-link { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 4px; min-width: 0; }
 .ent-path-link:hover { color: var(--accent); }
 .ent-editor { font-size: 16px; line-height: 27px; min-height: 120px; }
+/* The note and a conversation's turns keep the note's reading measure in the wider page (F3). */
+.ent-editor, .ent-turns .ent-said { max-width: 720px; }
 
 /* a conversation, as turns */
 .ent-turns ol { list-style: none; margin: 0; padding: 0; }

@@ -3,8 +3,7 @@
    buttons, status words and name links (ui/ui.css); this file only places them. The sentence
    and fix rows follow the graph-warnings cards on mockups/screens/states.html. */
 
-.noticed-page { padding: 20px 36px 40px; display: flex; flex-direction: column; gap: 14px; }
-.noticed-page > * { max-width: 1180px; width: 100%; }
+.noticed-page { padding: 20px var(--page-gutter) 40px; display: flex; flex-direction: column; gap: 14px; }
 .noti-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 
 /* ---- what needs a look ------------------------------------------------------------------- */

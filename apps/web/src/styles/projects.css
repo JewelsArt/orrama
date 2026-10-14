@@ -2,8 +2,7 @@
    (Gantt.tsx), which lives in a project's Timeline tab and keeps its own classes, restyled
    through tokens only (structure.md §6, "Kept as they are"). */
 
-.pjs { padding: 20px 36px 40px; display: flex; flex-direction: column; gap: 12px; }
-.pjs > * { max-width: 1280px; width: 100%; }
+.pjs { padding: 20px var(--page-gutter) 40px; display: flex; flex-direction: column; gap: 12px; }
 .pjs code { font-family: var(--mono); font-size: 12px; }
 .pjs-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .pjs-filters .lbl { font-size: 13px; font-weight: 650; color: var(--ink-3); margin-right: 4px; }

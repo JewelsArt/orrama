@@ -119,12 +119,13 @@
 .mail .mc-acts { display: flex; align-items: center; gap: 8px; }
 
 /* not connected, and the first load */
-.mail.mail-off { display: block; padding: 12px; }
+.mail.mail-off { display: block; padding: 20px var(--page-gutter); }
 .mail.mail-off .mread { margin: 0; max-width: 760px; }
 
 /* ===== Phone: the list is one screen, the message (or the composer) the next ============== */
 @media (max-width: 760px) {
   .mail { display: block; }
+  .mail.mail-off { padding: 12px; }
   .mail[data-screen="list"] > .mread { display: none; }
   .mail[data-screen="pane"] > .mlist { display: none; }
   .mail .mlist { overflow: visible; }

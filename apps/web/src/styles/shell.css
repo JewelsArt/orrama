@@ -5,6 +5,13 @@
    like this"). Imported after the other areas: its phone rules frame every page. */
 
 .app {
+  /* One width for every page (Jules, 13 Oct): 1,440 px of content between two gutters,
+     centred in the space beside the rail, so a big window has room on both sides and every
+     page lines up. Reading columns keep their own measure inside it (the note 720, Settings'
+     section 820, a mail 760). The rule that applies it is under "the page frame". */
+  --page-content: 1440px;
+  --page-gutter: 40px;
+  --page-max: calc(var(--page-content) + 2 * var(--page-gutter));
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr);
   height: 100%;
@@ -81,6 +88,10 @@
 /* ---- the page frame ------------------------------------------------------------------- */
 .frame { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; }
+/* The page, whatever it is: no wider than the shared width, centred. Pages with a gutter pad
+   by --page-gutter; the full-height ones (Notes, Mail, Planning, the Orrery, Settings) fill
+   the same box with their own columns. */
+.main > * { width: 100%; max-width: var(--page-max); margin-inline: auto; box-sizing: border-box; }
 .ptop, .ptabs { display: none; }
 
 /* ---- the More sheet (phone) ------------------------------------------------------------ */
