@@ -9,6 +9,7 @@ import { Button } from "../ui/controls.js";
 import { Field, Input, Textarea } from "../ui/fields.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
+import { toast } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
 import type { Draft } from "./compose.js";
 
@@ -57,7 +58,8 @@ export function Composer({
     try {
       await api("POST", "/api/mail/send", { to, subject, body, inReplyTo: draft.inReplyTo, references: draft.references });
       // The staged row has served its purpose once the real message is away.
-      if (draft.id) await api("DELETE", `/api/mail/drafts/${draft.id}`).catch(() => {});
+      // Sent is sent; a draft still listed after it would read as not sent and go twice.
+      if (draft.id && !(await api("DELETE", `/api/mail/drafts/${draft.id}`).then(() => true, () => false))) toast("Sent. Its draft is still listed: discard it.");
       setSent(true);
       closing.current = setTimeout(onSent, 700);
     } catch (e) {

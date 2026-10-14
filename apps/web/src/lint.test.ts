@@ -22,6 +22,21 @@ describe("eslint (apps/web)", () => {
     expect(conditional.join("\n")).toMatch(/react-hooks\/rules-of-hooks/);
   }, 30_000);
 
+  it("an async event handler must catch what it awaits (WEB-010)", async () => {
+    const silent = await lint(`export const A = () => <button onClick={async () => { await fetch("/x"); }} />;\n`);
+    expect(silent.join("\n")).toMatch(/basalt\/async-handler-catches: This async onClick awaits outside a try\/catch/);
+    const control = await lint(`import { Button } from "./ui/controls.js";\nexport const A = () => <Button onClick={async () => { for await (const x of []) {} }} />;\n`);
+    expect(control.join("\n")).toMatch(/basalt\/async-handler-catches/);
+    const caught = await lint(`export const A = () => <form onSubmit={async () => { try { await fetch("/x"); } catch { /* said */ } }} />;\n`);
+    const finallyOnly = await lint(`export const A = () => <form onSubmit={async () => { try { await fetch("/x"); } finally { } }} />;\n`);
+    const awaitedByItsComponent = await lint(`import { NameDialog } from "./ui/NameDialog.js";\nexport const A = () => <NameDialog onSubmit={async () => { await fetch("/x"); }} />;\n`);
+    const nested = await lint(`export const A = () => <button onClick={async () => { void (async () => { await fetch("/x"); })().catch(() => {}); }} />;\n`);
+    expect(caught).toEqual([]);
+    expect(finallyOnly.join("\n")).toMatch(/basalt\/async-handler-catches/);
+    expect(awaitedByItsComponent).toEqual([]);
+    expect(nested).toEqual([]);
+  }, 30_000);
+
   it("reports a suppression that suppresses nothing", async () => {
     const unused = await lint(`export const x = 1; // eslint-disable-line react-hooks/exhaustive-deps\n`);
     expect(unused.join("\n")).toMatch(/Unused eslint-disable directive/);

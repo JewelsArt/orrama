@@ -33,6 +33,7 @@ import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark } from "./ui/theme.js";
+import { attempt } from "./ui/writes.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 import { flushAll } from "./noteSync.js";
 
@@ -354,9 +355,10 @@ export function App() {
     // Recorded on success only. A write that fails during a server restart must
     // not be remembered as synced — that is how a stale value gets resurrected
     // and pushed back up as if it were a choice.
-    api<Me>("PATCH", "/api/me", { appearance: { theme, vision, profiles } })
-      .then(() => setServerSnapshot(next))
-      .catch(() => {});
+    // This device keeps the look either way; the account copy is said when it fails (WEB-010).
+    void attempt("Your appearance is on this device but didn't save to your account.", () =>
+      api<Me>("PATCH", "/api/me", { appearance: { theme, vision, profiles } }).then(() => setServerSnapshot(next)),
+    );
   }, [me, serverSnapshot, theme, vision, profiles]);
 
   useLiveSync(me?.id, getToken);

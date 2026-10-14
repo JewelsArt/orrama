@@ -5,7 +5,7 @@
  * reads; nothing is matched on a guess (a whole name, an exact address or domain).
  */
 import type { CalEvent, DashboardTask, MailAccount } from "@basalt/schema/responses";
-import { api } from "../api.js";
+import { api, ApiError } from "../api.js";
 import { useTaskCard } from "../ProjectViews.js";
 import { Checkbox } from "../ui/controls.js";
 import { dateLabel, dateTimeLabel, minutesLabel } from "../ui/dates.js";
@@ -13,6 +13,7 @@ import { Icon } from "../ui/Icon.js";
 import { Module, Row, RowList } from "../ui/layout.js";
 import { toast } from "../ui/overlays.js";
 import { routeHref } from "../ui/router.js";
+import { attempt } from "../ui/writes.js";
 import { anchor, linkTo } from "./links.js";
 import { useLoad, type Load } from "./known.js";
 import { activityOf, type InboxItem, type Who } from "./model.js";
@@ -45,15 +46,17 @@ export function ActivityModule({ title, sources, who, onChanged }: { title: stri
   const loading = sources.tasks.state === "loading" || sources.events.state === "loading";
   const empty = a.mail.length + a.events.length + a.tasks.length === 0;
   if (loading || empty) return null;
-  const tick = async (t: DashboardTask) => {
-    try {
-      await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: true });
-    } catch {
-      toast("That step changed in its note since this page was drawn.");
-    } finally {
-      onChanged();
-    }
-  };
+  const tick = (t: DashboardTask) =>
+    attempt("The step wasn't ticked.", async () => {
+      try {
+        await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: true });
+      } catch (e) {
+        if (!(e instanceof ApiError && e.status === 409)) throw e;
+        toast("That step changed in its note since this page was drawn.");
+      } finally {
+        onChanged();
+      }
+    });
   return (
     <Module title={title} className="ent-act">
       <RowList label={title}>

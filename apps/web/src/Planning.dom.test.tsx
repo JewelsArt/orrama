@@ -15,6 +15,8 @@ const server = vi.hoisted(() => ({
   markers: [] as DayMarker[],
   feeds: [] as Feed[],
   fail: false,
+  /** A write to a matching address fails as a server that isn't there would (WEB-010). */
+  writeFail: null as RegExp | null,
   proposals: [] as unknown[],
 }));
 
@@ -38,6 +40,7 @@ vi.mock("./api.js", async (orig) => {
         throw new Error(`unexpected GET ${url}`);
       }
       server.calls.push({ method, url, body });
+      if (server.writeFail?.test(url)) throw new TypeError("Failed to fetch");
       if (url === "/api/plan/auto") return { proposals: server.proposals, unplaced: 0 };
       return {};
     },
@@ -94,6 +97,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   server.calls = [];
   server.fail = false;
+  server.writeFail = null;
   server.feeds = [];
   server.proposals = [];
   server.tasks = [
@@ -326,6 +330,33 @@ describe("drag and drop", () => {
     fireEvent.keyDown(title, { key: "Enter" });
     await act(async () => {});
     expect(writes("/api/events")).toEqual([{ method: "POST", url: "/api/events", body: { title: "Lunch with Emma", date: "2026-10-08", startMin: 630, durationMin: 60 } }]);
+  });
+});
+
+describe("a write that didn't save (WEB-010)", () => {
+  it("a new event that didn't save keeps its popover and its title, says why, and goes on the next try", async () => {
+    localStorage.setItem("basalt-plan-view", "hours");
+    const { Toaster } = await import("./ui/overlays.js");
+    render(<Toaster />);
+    await open();
+    server.writeFail = /^\/api\/events$/;
+    const thu = document.querySelector<HTMLElement>(".plan-hg-cols")!.children[3] as HTMLElement;
+    at("dblClick", thu, 350, 3 * 48);
+    const pop = screen.getByRole("dialog", { name: "New event" });
+    const title = within(pop).getByRole("textbox", { name: "Event title" }) as HTMLInputElement;
+    fireEvent.change(title, { target: { value: "Lunch with Emma" } });
+    await act(async () => {
+      fireEvent.keyDown(title, { key: "Enter" });
+    });
+    expect(screen.getByRole("dialog", { name: "New event" })).toBe(pop);
+    expect(title.value).toBe("Lunch with Emma");
+    expect([...document.querySelectorAll(".toast span")].map((t) => t.textContent)).toContain("The event wasn't added. The server didn't answer. Check it's running, then try again.");
+    server.writeFail = null;
+    await act(async () => {
+      fireEvent.keyDown(title, { key: "Enter" });
+    });
+    expect(writes("/api/events")).toHaveLength(2);
+    expect(screen.queryByRole("dialog", { name: "New event" })).toBeNull();
   });
 });
 

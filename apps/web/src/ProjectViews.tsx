@@ -15,6 +15,7 @@ import { Icon } from "./ui/Icon.js";
 import { HeadMark } from "./ui/orr/Orr.js";
 import { Dialog, Menu, toast } from "./ui/overlays.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { readKey, writeKey } from "./storage.js";
 
 /**
@@ -205,22 +206,26 @@ export function ProjectTimeline({ w, lane, onChanged, onOpenNote }: { w: Project
     rail.current.scrollLeft = Math.max(0, el.offsetLeft - (narrow ? 0 : el.offsetWidth));
   }, [w.slug]);
 
+  // A drop that didn't save puts the card back (the reload) and says why, with Retry (WEB-010).
   const move = async (t: ProjectTask, toWeek: number) => {
     const shift = toWeek - mondayOf(t.due!);
     if (!shift) return;
     const due = isoOf(dayNum(t.due!) + shift);
-    await api("POST", "/api/tasks/dates", {
-      noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, due,
-      ...(t.start ? { start: isoOf(dayNum(t.start) + shift) } : {}),
-    });
-    toast(`Moved “${t.text.slice(0, 48)}${t.text.length > 48 ? "…" : ""}” to ${dateLabel(due)}.`);
+    const moved = await attempt("The step wasn't moved.", () =>
+      api("POST", "/api/tasks/dates", {
+        noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, due,
+        ...(t.start ? { start: isoOf(dayNum(t.start) + shift) } : {}),
+      }),
+    );
+    if (moved) toast(`Moved “${t.text.slice(0, 48)}${t.text.length > 48 ? "…" : ""}” to ${dateLabel(due)}.`);
     await onChanged();
   };
 
-  const setDates = async (t: DashboardTask, dates: { start?: string | null; due?: string | null }) => {
-    await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, ...dates });
-    await onChanged();
-  };
+  const setDates = (t: DashboardTask, dates: { start?: string | null; due?: string | null }) =>
+    attempt("The step's dates weren't changed.", async () => {
+      await api("POST", "/api/tasks/dates", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, ...dates });
+      await onChanged();
+    });
 
   return (
     <section className="pj-timeline" style={{ ["--lane" as string]: lane ?? "var(--ink-3)" }}>
@@ -411,14 +416,16 @@ export function ProjectTodo({ w, lane, onChanged, onOpenNote, onAdd }: { w: Proj
   };
   const count = (f: Filter) => tasks.filter(passes[f]).length;
 
-  const setStatus = async (t: ProjectTask, status: string) => {
-    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
-    await onChanged();
-  };
-  const check = async (t: ProjectTask) => {
-    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
-    await onChanged();
-  };
+  const setStatus = (t: ProjectTask, status: string) =>
+    attempt("The step's status wasn't changed.", async () => {
+      await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
+      await onChanged();
+    });
+  const check = (t: ProjectTask) =>
+    attempt(t.checked ? "The step wasn't unticked." : "The step wasn't ticked.", async () => {
+      await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
+      await onChanged();
+    });
 
   // The project note's own sections in the note's order, then each other note of the project.
   const firstLine = new Map<string, number>();
@@ -648,15 +655,17 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
       type="file"
       multiple
       hidden
-      onChange={async (e) => {
+      onChange={(e) => {
         const list = e.target.files;
         e.target.value = "";
         if (!list?.length) return;
+        // Each file that didn't upload is listed by name (uploadProjectFiles never throws).
         const failed: string[] = [];
-        await uploadProjectFiles(w.slug, list, setBusy, (m) => failed.push(m));
-        setBusy("");
-        setUploadErrors(failed);
-        await onChanged();
+        void uploadProjectFiles(w.slug, list, setBusy, (m) => failed.push(m)).then(() => {
+          setBusy("");
+          setUploadErrors(failed);
+          return onChanged();
+        });
       }}
     />
   );

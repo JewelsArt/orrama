@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
 import { Mail } from "./Mail.js";
+import { Toaster } from "./ui/overlays.js";
 import type { Company, Contact } from "@basalt/schema/responses";
 import { INBOX, json, stubMailbox } from "./test/mail-fixture.js";
 
@@ -338,5 +339,31 @@ describe("after Send", () => {
     });
     expect(back).not.toHaveBeenCalled();
     expect(location.pathname).toBe("/mail/102");
+  });
+});
+
+describe("Mail when the server fails (WEB-010)", () => {
+  it("an account that couldn't be read says so with Retry, never \"Mail isn't connected\"", async () => {
+    let down = true;
+    stubMailbox({ "GET /api/mail/account": () => (down ? json({ error: "internal error" }, 500) : json({ connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null })) });
+    const user = userEvent.setup();
+    render(<Mail me={me} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Mail didn't open.");
+    expect(screen.queryByText("Mail isn't connected yet.")).toBeNull();
+    down = false;
+    await user.click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Mail isn't connected yet.")).toBeTruthy();
+  });
+
+  it("a sent draft that couldn't be cleared says so, so it isn't sent twice", async () => {
+    history.replaceState(null, "", "/mail/101");
+    stubMailbox({ "DELETE /api/mail/drafts/d-b": () => json({ error: "internal error" }, 500) });
+    const user = userEvent.setup();
+    render(<Toaster />);
+    render(<Mail me={me} />);
+    const card = await screen.findByRole("article", { name: "Draft: Re: Research plan — section 3" });
+    await user.click(within(card).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect([...document.querySelectorAll(".toast span")].map((t) => t.textContent)).toContain("Sent to i.vermaat@westerdok.example. Its draft is still listed: discard it."));
   });
 });

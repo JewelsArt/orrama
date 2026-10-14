@@ -7,6 +7,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIDDEN_KEY, Today } from "./Today.js";
+import { Toaster } from "./ui/overlays.js";
 import { DRAFTS, INBOX, NOW, SCHEMA_TYPED, stubToday, WARNINGS_TYPED } from "./test/today-fixture.js";
 
 // Live sync, without a socket: a test says a note changed.
@@ -110,6 +111,22 @@ describe("Today: the modules", () => {
     // Ticking the box does not open the row (the task card is named by its task).
     expect(screen.queryByRole("dialog", { name: "Refine research question" })).toBeNull();
     expect(document.querySelector(".tt-orr")!.getAttribute("data-pose")).toBe("read");
+  });
+
+  it("a tick the server didn't take is said with Retry; a task that moved is said as such (WEB-010)", async () => {
+    const { routes, sent } = stubToday({ "POST /api/tasks/check": 500 });
+    const user = userEvent.setup();
+    render(<Toaster />);
+    await shown();
+    const said = () => [...document.querySelectorAll(".toast span")].map((t) => t.textContent);
+    await user.click(within(mod("Due")).getByRole("checkbox", { name: "Done: Refine research question" }));
+    await waitFor(() => expect(said()).toContain("The task wasn't ticked. Try again in a moment."));
+    routes["POST /api/tasks/check"] = { ok: true };
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(sent.filter((r) => r.method === "POST")).toHaveLength(2));
+    routes["POST /api/tasks/check"] = 409;
+    await user.click(within(mod("Due")).getByRole("checkbox", { name: "Done: Refine research question" }));
+    await waitFor(() => expect(said()).toContain("That task changed in its note since Today was drawn. Here it is as it is now."));
   });
 
   it("Orr jumps once when a key deadline is met, wherever it was ticked, then goes back to the day", async () => {

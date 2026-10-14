@@ -9,7 +9,8 @@
  * opens their own page, and is taken off the project from the row's ⋯ menu (F2).
  */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Toaster } from "./ui/overlays.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const server = vi.hoisted(() => ({
   calls: [] as { method: string; url: string; body: Record<string, unknown> }[],
@@ -19,6 +20,8 @@ const server = vi.hoisted(() => ({
   /** What the graph says the project has, by relation. */
   relations: [] as { relation: string; to: { id: string; title: string; type: string }[] }[],
   contacts: [] as Record<string, unknown>[],
+  /** When it says yes, that request fails as a server that isn't there would (WEB-010). */
+  fail: null as ((method: string, url: string) => boolean) | null,
 }));
 
 vi.mock("./ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
@@ -34,6 +37,7 @@ vi.mock("./api.js", async (orig) => {
     ...real,
     api: async (method: string, url: string, body?: Record<string, unknown>) => {
       server.calls.push({ method, url, body: body ?? {} });
+      if (server.fail?.(method, url)) throw new TypeError("Failed to fetch");
       if (method === "PATCH" && server.hold) await server.hold;
       if (method === "GET" && url === "/api/projects/thesis") return server.workspace;
       if (method === "GET" && url.startsWith("/api/graph/relations"))
@@ -55,6 +59,7 @@ beforeEach(() => {
   server.hold = null;
   server.relations = [];
   server.contacts = [];
+  server.fail = null;
   server.workspace = {
     slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null,
     status: "on-track", start: "2026-09-01", deadline: "2027-01-15", prompt: "",
@@ -267,5 +272,90 @@ describe("people and companies (F2)", () => {
     await open();
     expect(within(panel()).getAllByRole("link")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
+  });
+});
+
+describe("a failed write is never silent (WEB-010)", () => {
+  const down = "The server didn't answer. Check it's running, then try again.";
+  const toasts = () => [...document.querySelectorAll(".toast span")].map((t) => t.textContent);
+  const openWithToasts = async () => {
+    render(<Toaster />);
+    await open();
+  };
+  afterEach(() => {
+    for (const b of screen.queryAllByRole("button", { name: "Dismiss" })) fireEvent.click(b);
+  });
+
+  it("a form: the goals that didn't save stay in the box, the reason under them, Save still there", async () => {
+    server.fail = (m) => m === "PATCH";
+    await openWithToasts();
+    const goals = screen.getByRole("region", { name: "Goals" });
+    fireEvent.click(within(goals).getByRole("button", { name: "Edit" }));
+    const box = within(goals).getByRole("textbox", { name: "Goals" }) as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "Defend in February" } });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save goals"));
+    });
+    expect(within(goals).getByRole("alert").textContent).toBe(`The goals weren't saved. ${down}`);
+    expect((within(goals).getByRole("textbox", { name: "Goals" }) as HTMLTextAreaElement).value).toBe("Defend in February");
+    const save = within(goals).getByRole("button", { name: "Save goals" }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    server.fail = null;
+    await act(async () => {
+      fireEvent.click(save);
+    });
+    expect(patches()).toEqual([{ goals: "Defend in February" }, { goals: "Defend in February" }]);
+    expect(within(goals).queryByRole("textbox", { name: "Goals" })).toBeNull();
+  });
+
+  it("an inline edit: a date that didn't save is said, and leaving the field again sends it again", async () => {
+    server.fail = (m) => m === "PATCH";
+    await openWithToasts();
+    const { deadline } = await dates();
+    fireEvent.change(deadline, { target: { value: "2 Feb 2027" } });
+    await act(async () => {
+      fireEvent.blur(deadline);
+    });
+    expect(toasts()).toEqual([`The deadline date wasn't saved. ${down}`]);
+    expect(deadline.value).toBe("2 Feb 2027");
+    server.fail = null;
+    await act(async () => {
+      fireEvent.blur(deadline);
+    });
+    expect(patches()).toEqual([{ deadline: "2027-02-02" }, { deadline: "2027-02-02" }]);
+  });
+
+  it("a tick: a step that didn't tick is said, with Retry, which ticks it", async () => {
+    server.workspace = {
+      ...server.workspace,
+      tasks: [{ noteId: "n-1", notePath: "04-Projects/thesis.md", noteTitle: "Thesis", project: "thesis", object: null, line: 3, checked: false, status: "todo", text: "Book the room", raw: "- [ ] Book the room", indent: 0, section: "Tasks" }],
+    };
+    server.fail = (m, url) => m === "POST" && url === "/api/tasks/check";
+    await openWithToasts();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("checkbox", { name: "Done: Book the room" }));
+    });
+    expect(toasts()).toEqual([`The step wasn't ticked. ${down}`]);
+    server.fail = null;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    });
+    const checks = server.calls.filter((c) => c.url === "/api/tasks/check");
+    expect(checks).toHaveLength(2);
+    expect(checks[1]!.body).toMatchObject({ noteId: "n-1", text: "Book the room", checked: true });
+    expect(toasts()).toEqual([]);
+  });
+
+  it("the project note that didn't open says so, with Retry, instead of opening for ever", async () => {
+    server.fail = (m, url) => m === "GET" && url.startsWith("/api/vault/note/");
+    await openWithToasts();
+    const doc = screen.getByRole("article", { name: "The project note" });
+    expect(within(doc).getByRole("alert").textContent).toContain("The note didn't open.");
+    server.fail = null;
+    await act(async () => {
+      fireEvent.click(within(doc).getByRole("button", { name: "Retry" }));
+    });
+    expect(within(doc).queryByRole("alert")).toBeNull();
+    expect(within(doc).queryByText("Opening the note…")).toBeNull();
   });
 });

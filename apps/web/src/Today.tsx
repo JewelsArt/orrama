@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, isoLocal } from "@basalt/core/dates";
 import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
-import { api } from "./api.js";
+import { api, ApiError } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
 import { New } from "./create/New.js";
 import { addressOf } from "./mail/people.js";
@@ -26,6 +26,7 @@ import { PageHeader } from "./ui/layout.js";
 import { Popover, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type Route } from "./ui/router.js";
 import { Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { AddMoneyRow } from "./today/AddMoneyRow.js";
 import { minuteOf, poseAt, type DayItem } from "./today/day.js";
 import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, type ComingRow } from "./today/model.js";
@@ -211,17 +212,20 @@ export function Today() {
 
   /* ---- ticking a task: the checkbox in its note ---- */
   const tick1 = useCallback(
-    async (t: DashboardTask) => {
-      try {
-        // Named by its block id or its text, the line only a hint (COR-001): a note that moved
-        // since this page was drawn gets the right task or a 409, never its neighbour.
-        await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: true });
-      } catch {
-        toast("That task changed in its note since Today was drawn. Here it is as it is now.");
-      } finally {
-        reload();
-      }
-    },
+    (t: DashboardTask) =>
+      attempt("The task wasn't ticked.", async () => {
+        try {
+          // Named by its block id or its text, the line only a hint (COR-001): a note that moved
+          // since this page was drawn gets the right task or a 409, never its neighbour.
+          await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: true });
+        } catch (e) {
+          // Anything else (the server down, a 500) is said by attempt, with Retry (WEB-010).
+          if (!(e instanceof ApiError && e.status === 409)) throw e;
+          toast("That task changed in its note since Today was drawn. Here it is as it is now.");
+        } finally {
+          reload();
+        }
+      }),
     [reload],
   );
 

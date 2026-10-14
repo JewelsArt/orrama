@@ -17,9 +17,10 @@ export type Pop = { kind: "item"; item: Item; anchor: HTMLElement } | { kind: "n
 
 export interface PopActions {
   /** Change a block's or an event's length or name. */
-  patch: (item: Item, change: { durationMin?: number; title?: string }) => Promise<void>;
-  remove: (item: Item) => Promise<void>;
-  create: (date: string, startMin: number, durationMin: number, title: string) => Promise<void>;
+  // Each says whether it landed: the popover closes only then, and keeps what was typed (WEB-010).
+  patch: (item: Item, change: { durationMin?: number; title?: string }) => Promise<boolean>;
+  remove: (item: Item) => Promise<boolean>;
+  create: (date: string, startMin: number, durationMin: number, title: string) => Promise<boolean>;
   openStep: (item: Item, anchor: HTMLElement) => void;
   openNote: (noteId: string) => void;
 }
@@ -74,8 +75,7 @@ function NewEvent({ pop, onClose, actions }: { pop: Extract<Pop, { kind: "new-ev
     if (!title.trim() || busy) return;
     setBusy(true);
     try {
-      await actions.create(pop.date, pop.startMin, len, title.trim());
-      onClose();
+      if (await actions.create(pop.date, pop.startMin, len, title.trim())) onClose();
     } finally {
       setBusy(false);
     }
@@ -116,8 +116,9 @@ function ItemBody({ item, anchor, onClose, actions }: { item: Item; anchor: HTML
   const editable = item.kind === "bk" || (!!ev && ev.mine && !ev.readonly);
   const when = `${dateLabel(item.date)}${item.startMin !== null && !item.allDay ? ` · ${minutesLabel(item.startMin)}–${minutesLabel(Math.min(item.startMin + len, 24 * 60))}` : " · all day"}`;
   const setLength = async (v: number) => {
+    const was = len;
     setLen(v);
-    await actions.patch(item, { durationMin: v });
+    if (!(await actions.patch(item, { durationMin: v }))) setLen(was);
   };
 
   if (item.kind === "bk" && item.task) {
@@ -160,10 +161,7 @@ function ItemBody({ item, anchor, onClose, actions }: { item: Item; anchor: HTML
             size="sm"
             kind="quiet"
             danger
-            onClick={async () => {
-              await actions.remove(item);
-              onClose();
-            }}
+            onClick={() => void actions.remove(item).then((ok) => ok && onClose())}
           >
             Remove from calendar
           </Button>
@@ -201,10 +199,7 @@ function ItemBody({ item, anchor, onClose, actions }: { item: Item; anchor: HTML
               size="sm"
               kind="quiet"
               danger
-              onClick={async () => {
-                await actions.remove(item);
-                onClose();
-              }}
+              onClick={() => void actions.remove(item).then((ok) => ok && onClose())}
             >
               Delete event
             </Button>

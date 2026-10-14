@@ -7,6 +7,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { dateLabel, dayMonthLabel } from "../ui/dates.js";
 import { Popover } from "../ui/overlays.js";
+import { attempt } from "../ui/writes.js";
 import { parseDateInput } from "./dateInput.js";
 
 export interface DateSlot {
@@ -64,8 +65,9 @@ function DateField({ slot, onCommit }: { slot: DateSlot; onCommit: (v: string) =
   const commit = () => {
     if (parsed === null || parsed === sent.current) return;
     sent.current = parsed;
-    void onCommit(parsed).catch(() => {
-      sent.current = slot.value;
+    // A date the server refused is said, and sent again on the next leave (WEB-010).
+    void attempt(`The ${slot.label.toLowerCase()} date wasn't saved.`, () => onCommit(parsed)).then((ok) => {
+      if (!ok) sent.current = slot.value;
     });
   };
   // Closing the box unmounts the field, sometimes before its blur arrives: leave it then.

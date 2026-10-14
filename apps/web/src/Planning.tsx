@@ -12,6 +12,7 @@ import { NameDialog } from "./ui/NameDialog.js";
 import { anyLayerOpen, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type Route } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
 import { Hours, type DraggedStep } from "./planning/Hours.js";
 import { ItemPopover, type Pop, type PopActions } from "./planning/ItemPopover.js";
@@ -194,40 +195,44 @@ export function Planning({
     setPop({ kind: "item", item: i, anchor: el });
   };
 
-  const after = async (work: Promise<unknown>, said?: string) => {
-    try {
-      await work;
-      if (said) toast(said);
-    } catch {
-      toast("That didn't save. Try again.");
-    }
-    await load();
+  /** Every calendar write: the page is redrawn from the server either way, so a drag that
+   *  didn't save goes back; the toast says what didn't happen, with Retry (WEB-010). True when
+   *  it landed, so a popover closes only then and keeps what was typed otherwise. */
+  const after = async (what: string, work: () => Promise<unknown>, said?: string): Promise<boolean> => {
+    const ok = await attempt(what, async () => {
+      try {
+        await work();
+      } finally {
+        await load();
+      }
+    });
+    if (ok && said) toast(said);
+    return ok;
   };
 
   const moveItem = (i: Item, date: string) => {
-    if (i.kind === "bk" && i.block) return void after(api("PATCH", `/api/blocks/${i.block.id}`, { date }), `Moved to ${dateLabel(date)}`);
-    if (i.kind === "ev" && i.event) return void after(api("PATCH", `/api/events/${i.event.id}`, { date }), `Moved to ${dateLabel(date)}`);
+    if (i.kind === "bk" && i.block) return void after("The block wasn't moved.", () => api("PATCH", `/api/blocks/${i.block!.id}`, { date }), `Moved to ${dateLabel(date)}`);
+    if (i.kind === "ev" && i.event) return void after("The event wasn't moved.", () => api("PATCH", `/api/events/${i.event!.id}`, { date }), `Moved to ${dateLabel(date)}`);
     if ((i.kind === "du" || i.kind === "key") && i.marker?.noteId) {
       const t = findTask(i);
       return void after(
-        api("POST", "/api/tasks/dates", { noteId: i.marker.noteId, line: i.marker.line ?? undefined, blockId: t?.blockId ?? undefined, text: t?.text ?? i.title, due: date }),
+        "The due date wasn't moved.",
+        () => api("POST", "/api/tasks/dates", { noteId: i.marker!.noteId, line: i.marker!.line ?? undefined, blockId: t?.blockId ?? undefined, text: t?.text ?? i.title, due: date }),
         `Due ${dateLabel(date)}`,
       );
     }
   };
 
   const popActions: PopActions = {
-    patch: async (i, change) => {
+    patch: (i, change) => {
       const url = i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`;
-      await after(api("PATCH", url, change));
+      return after(i.kind === "bk" ? "The block wasn't changed." : "The event wasn't changed.", () => api("PATCH", url, change));
     },
-    remove: async (i) => {
+    remove: (i) => {
       const url = i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`;
-      await after(api("DELETE", url));
+      return after(i.kind === "bk" ? "The block wasn't removed." : "The event wasn't deleted.", () => api("DELETE", url));
     },
-    create: async (date, startMin, durationMin, title) => {
-      await after(api("POST", "/api/events", { title, date, startMin, durationMin }));
-    },
+    create: (date, startMin, durationMin, title) => after("The event wasn't added.", () => api("POST", "/api/events", { title, date, startMin, durationMin })),
     openStep: (i, anchor) => {
       setPop(null);
       if (i.task) setCard({ task: i.task, anchor });
@@ -240,7 +245,8 @@ export function Planning({
 
   const bookStep = (s: DraggedStep, date: string, startMin: number) =>
     void after(
-      api("POST", "/api/tasks/blocks", { noteId: s.noteId, line: s.line, blockId: s.blockId ?? undefined, text: s.text, date, startMin, estimateHours: s.estimateHours }),
+      "The step wasn't booked.",
+      () => api("POST", "/api/tasks/blocks", { noteId: s.noteId, line: s.line, blockId: s.blockId ?? undefined, text: s.text, date, startMin, estimateHours: s.estimateHours }),
       `Booked ${dateLabel(date)}`,
     );
 
@@ -375,9 +381,7 @@ export function Planning({
         <Button
           size="sm"
           onClick={() =>
-            void after(
-              Promise.all(broken.map((f) => api("POST", `/api/calendar/feeds/${f.id}/refresh`))),
-            )
+            void after("The calendars weren't read again.", () => Promise.all(broken.map((f) => api("POST", `/api/calendar/feeds/${f.id}/refresh`))))
           }
         >
           Retry
@@ -401,7 +405,7 @@ export function Planning({
       onOpen={openItem}
       onNewEvent={(date, startMin, anchor) => setPop({ kind: "new-event", date, startMin, anchor })}
       onBook={bookStep}
-      onPatch={(i, to) => void after(api("PATCH", i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`, to))}
+      onPatch={(i, to) => void after(i.kind === "bk" ? "The block wasn't moved." : "The event wasn't moved.", () => api("PATCH", i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`, to))}
       onOpenDay={list.length > 1 ? openDay : undefined}
       colorOf={colorOf}
       pending={pop?.kind === "new-event" ? { date: pop.date, startMin: pop.startMin } : null}
@@ -563,10 +567,7 @@ export function Planning({
           help="It goes into your inbox note, due that day."
           confirm="Add it"
           onClose={() => setAdding(null)}
-          onSubmit={async (name) => {
-            await api("POST", "/api/capture", { text: `- [ ] ${name} due:${adding}` });
-            await load();
-          }}
+          onSubmit={(name) => api("POST", "/api/capture", { text: `- [ ] ${name} due:${adding}` }).then(() => load())}
         />
       )}
     </div>

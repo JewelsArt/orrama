@@ -15,6 +15,7 @@ import { NameDialog } from "./ui/NameDialog.js";
 import type { MenuItem } from "./ui/overlays.js";
 import { navigate, useRoute } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
 
 interface Loaded {
@@ -158,18 +159,21 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const areaCounts = CATEGORIES.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length })).filter((c) => c.n > 0 || c.id === area);
 
   const card = useTaskCard(() => load(), onOpenNote);
-  const setStatus = async (t: DashboardTask, status: string) => {
-    await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
-    await load();
-  };
-  const check = async (t: DashboardTask) => {
-    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
-    await load();
-  };
-  const setLifecycle = async (p: BoardProject, status: string) => {
-    await api("PATCH", `/api/projects/${encodeURIComponent(p.slug)}`, { status });
-    await load();
-  };
+  const setStatus = (t: DashboardTask, status: string) =>
+    attempt("The step's status wasn't changed.", async () => {
+      await api("POST", "/api/tasks/status", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, status });
+      await load();
+    });
+  const check = (t: DashboardTask) =>
+    attempt(t.checked ? "The step wasn't unticked." : "The step wasn't ticked.", async () => {
+      await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
+      await load();
+    });
+  const setLifecycle = (p: BoardProject, status: string) =>
+    attempt(`${p.name} wasn't moved.`, async () => {
+      await api("PATCH", `/api/projects/${encodeURIComponent(p.slug)}`, { status });
+      await load();
+    });
 
   /** The ⋯ menu on a row: where the project stands, and (owners) taking it off the board. */
   const menuFor = (p: BoardProject): (MenuItem | "-")[] => {
@@ -200,6 +204,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
             body: "The note and its tag stay; it stops being tracked as a project.",
             confirmLabel: "Remove",
             danger: true,
+            failed: `${p.name} wasn't removed from the board.`,
             onConfirm: async () => {
               await api("DELETE", `/api/admin/projects/${p.projectId}`);
               await load();

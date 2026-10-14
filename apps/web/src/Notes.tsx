@@ -18,6 +18,7 @@ import { NameDialog } from "./ui/NameDialog.js";
 import { Button } from "./ui/controls.js";
 import { anyLayerOpen, Sheet, toast, type MenuItem } from "./ui/overlays.js";
 import { Notice } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { dateLabel, dateTimeLabel } from "./ui/dates.js";
 import { navigate, routeHref } from "./ui/router.js";
 
@@ -310,20 +311,26 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
   // 409, and the panel reloads either way (COR-001, WEB-004).
   const checkTask = async (t: NoteDetail["tasks"][number], checked: boolean) => {
     if (!open) return;
-    try {
-      await api("POST", "/api/tasks/check", { noteId: open.id, line: t.line, blockId: t.blockId, text: t.text, checked });
-    } finally {
-      await openNote(open.id);
-    }
+    const id = open.id;
+    await attempt(checked ? "The task wasn't ticked." : "The task wasn't unticked.", async () => {
+      try {
+        await api("POST", "/api/tasks/check", { noteId: id, line: t.line, blockId: t.blockId, text: t.text, checked });
+      } finally {
+        await openNote(id);
+      }
+    });
   };
 
   const promote = async (t: NoteDetail["tasks"][number]) => {
     if (!open) return;
-    try {
-      await api("POST", "/api/tasks/promote", { noteId: open.id, line: t.line, text: t.text });
-    } finally {
-      await openNote(open.id);
-    }
+    const id = open.id;
+    await attempt("The task wasn't promoted.", async () => {
+      try {
+        await api("POST", "/api/tasks/promote", { noteId: id, line: t.line, text: t.text });
+      } finally {
+        await openNote(id);
+      }
+    });
   };
 
   const project = useMemo(() => {
@@ -336,9 +343,12 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
   const isProject = (open?.tags?.some((t) => /^project\//i.test(t.tag)) ?? false) || projects.some((p) => p.noteId === open?.id);
   const makeProject = async () => {
     if (!open) return;
-    await api("POST", "/api/projects/promote", { noteId: open.id });
-    api<{ slug: string; name: string; noteId: string | null }[]>("GET", "/api/projects").then(setProjects, () => {});
-    await openNote(open.id);
+    const id = open.id;
+    await attempt("The note wasn't made a project.", async () => {
+      await api("POST", "/api/projects/promote", { noteId: id });
+      api<{ slug: string; name: string; noteId: string | null }[]>("GET", "/api/projects").then(setProjects, () => {});
+      await openNote(id);
+    });
   };
 
   /** The note's text as the editor has it now. */

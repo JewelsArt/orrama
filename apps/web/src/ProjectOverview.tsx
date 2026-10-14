@@ -27,6 +27,7 @@ import { Module, Row, RowList } from "./ui/layout.js";
 import { Menu } from "./ui/overlays.js";
 import { navigate } from "./ui/router.js";
 import { Notice } from "./ui/states.js";
+import { attempt, useWrite } from "./ui/writes.js";
 import { onWs } from "./ws.js";
 import type { Company, Contact, ProjectPerson, ProjectWorkspace } from "@basalt/schema/responses";
 
@@ -100,6 +101,9 @@ export function ProjectOverview({
 function NoteEditor({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpenNote: (id: string) => void }) {
   const [note, setNote] = useState<NoteDetail | null>(null);
   const [state, setState] = useState<SaveState | "idle">("idle");
+  // A first load that failed says so with Retry, instead of "Opening the note…" for ever (WEB-010).
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [tries, setTries] = useState(0);
   // The text goes through a NoteSync (packages/sync/src/client.ts). It used to load the note
   // once and never again, while Decisions, the Inbox and Goals on this same page write into
   // this same note on the server, so the next keystroke here saved stale text over the entry
@@ -109,13 +113,16 @@ function NoteEditor({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpen
   useEffect(() => {
     let live = true;
     let s: NoteSync | null = null;
+    setLoadFailed(false);
     void (async () => {
       const n = await api<NoteDetail>("GET", `/api/vault/note/${w.noteId}`);
       if (!live) return;
       s = n.canEdit ? openNoteSync(n, { status: setState }, 700) : null;
       setNote(n);
       setSync(s);
-    })().catch(() => {});
+    })().catch(() => {
+      if (live) setLoadFailed(true);
+    });
     const off = onWs((msg) => {
       if (msg.type === "note-changed" && (msg.noteId === w.noteId || msg.resync)) void s?.refresh();
     });
@@ -124,7 +131,7 @@ function NoteEditor({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpen
       off();
       retire(s);
     };
-  }, [w.noteId]);
+  }, [w.noteId, tries]);
 
   const completions = useMemo(
     () => ({ titles: [...w.people.map((p) => p.title), ...w.notes.map((n) => n.title)], users: [me.username], tags: [] as string[] }),
@@ -159,6 +166,16 @@ function NoteEditor({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpen
             }}
           />
         </div>
+      ) : loadFailed ? (
+        <Notice
+          title="The note didn't open."
+          text="The server didn't answer. Check it's running, then try again."
+          actions={
+            <Button size="sm" onClick={() => setTries((n) => n + 1)}>
+              Retry
+            </Button>
+          }
+        />
       ) : (
         <p className="q3">Opening the note…</p>
       )}
@@ -260,10 +277,11 @@ function NextSteps({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
     .slice()
     .sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999") || Number(b.status === "in-progress") - Number(a.status === "in-progress"))
     .slice(0, NEXT_STEPS);
-  const check = async (t: ProjectTask) => {
-    await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
-    await onChanged();
-  };
+  const check = (t: ProjectTask) =>
+    attempt(t.checked ? "The step wasn't unticked." : "The step wasn't ticked.", async () => {
+      await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: !t.checked });
+      await onChanged();
+    });
   return (
     <Module
       title="Next steps"
@@ -307,6 +325,7 @@ function NextSteps({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
 function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => Promise<unknown> }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const save = useWrite();
   if (!w.canEdit && w.goals.length === 0) return null;
   return (
     <Module title="Goals" count={w.goals.length || undefined} className="pj-goals">
@@ -320,6 +339,7 @@ function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => P
             // untouched (COR-005). The list below is display only.
             setDraft(w.goalsSource);
             setEditing((e) => !e);
+            save.clear();
           }}
         >
           {editing ? "Cancel" : "Edit"}
@@ -328,15 +348,17 @@ function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => P
       {editing ? (
         <form
           className="pj-form"
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault();
-            await onSave(draft);
-            setEditing(false);
+            void save.run("The goals weren't saved.", () => onSave(draft)).then((ok) => ok && setEditing(false));
           }}
         >
           <Textarea value={draft} rows={5} onChange={(e) => setDraft(e.target.value)} aria-label="Goals" />
+          {save.error && <Notice title={save.error} />}
           <div className="acts">
-            <Button type="submit">Save goals</Button>
+            <Button type="submit" disabled={save.busy}>
+              Save goals
+            </Button>
           </div>
         </form>
       ) : w.goals.length === 0 ? (
@@ -594,6 +616,7 @@ function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
                           body: `This removes the file from disk, from 04-Projects/${w.slug}/files/. Orrama cannot bring it back.`,
                           confirmLabel: "Delete",
                           danger: true,
+                          failed: `${f.name} wasn't deleted.`,
                           onConfirm: async () => {
                             await api("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(f.name)}`);
                             await onChanged();
@@ -643,17 +666,20 @@ function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
 function Prompt({ w, onSave }: { w: ProjectWorkspace; onSave: (text: string) => Promise<unknown> }) {
   const [draft, setDraft] = useState(w.prompt);
   const [saved, setSaved] = useState(false);
+  const save = useWrite();
   useEffect(() => setDraft(w.prompt), [w.prompt]);
   return (
     <Module title="The prompt" className="pj-prompt">
       <p className="q3 pj-hint">Standing context for Orr and for Claude over MCP (`get_project`), so a session can pick this project up cold.</p>
       <form
         className="pj-form"
-        onSubmit={async (e) => {
+        onSubmit={(e) => {
           e.preventDefault();
-          await onSave(draft);
-          setSaved(true);
-          setTimeout(() => setSaved(false), 1500);
+          void save.run("The prompt wasn't saved.", () => onSave(draft)).then((ok) => {
+            if (!ok) return;
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1500);
+          });
         }}
       >
         <Textarea
@@ -664,9 +690,10 @@ function Prompt({ w, onSave }: { w: ProjectWorkspace; onSave: (text: string) => 
           placeholder="You are helping with… Always check the latest export before…"
           aria-label="Project prompt"
         />
+        {save.error && <Notice title={save.error} />}
         {w.canEdit && (
           <div className="acts">
-            <Button type="submit" disabled={draft === w.prompt && !saved}>
+            <Button type="submit" disabled={save.busy || (draft === w.prompt && !saved)}>
               {saved ? "Saved" : "Save the prompt"}
             </Button>
           </div>

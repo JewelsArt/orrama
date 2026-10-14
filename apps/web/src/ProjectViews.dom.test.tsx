@@ -18,6 +18,8 @@ const server = vi.hoisted(() => ({
   puts: [] as { url: string; body: { nodes: Node[]; edges: Edge[] } }[],
   posts: [] as { url: string; body: Record<string, unknown> }[],
   board: null as unknown,
+  /** When it says yes, that write fails as a server that isn't there would (WEB-010). */
+  fail: null as ((method: string, url: string) => boolean) | null,
 }));
 
 vi.mock("./DocViewer.js", () => ({ DocViewer: () => null }));
@@ -28,6 +30,10 @@ vi.mock("./api.js", async (orig) => {
     ...real,
     api: async (method: string, url: string, body?: unknown) => {
       if (method === "GET" && url === "/api/projects/thesis/board") return server.board;
+      if (server.fail?.(method, url)) {
+        server.posts.push({ url: `failed ${url}`, body: body as never });
+        throw new TypeError("Failed to fetch");
+      }
       if (method === "PUT") server.puts.push({ url, body: body as never });
       if (method === "POST") server.posts.push({ url, body: body as never });
       return {};
@@ -35,7 +41,8 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
-const { AddStepDialog, ProjectBoard, ProjectTodo } = await import("./ProjectViews.js");
+const { AddStepDialog, ProjectBoard, ProjectTimeline, ProjectTodo } = await import("./ProjectViews.js");
+const { Toaster } = await import("./ui/overlays.js");
 const files = "04-Projects/thesis/files/";
 const SOURCES = { nodes: [{ id: "g-1", type: "group", label: "Sources", x: 0, y: 0, width: 480, height: 220 }], edges: [], canEdit: true };
 const SUGGESTED = {
@@ -52,6 +59,7 @@ beforeEach(() => {
   server.puts = [];
   server.posts = [];
   server.board = SOURCES;
+  server.fail = null;
 });
 
 describe("the Documents board (WEB-014)", () => {
@@ -172,5 +180,33 @@ describe("Add a step", () => {
     });
     expect(server.posts).toEqual([{ url: "/api/projects/thesis/capture", body: { text: "Run the pilot interview due:2026-10-29", task: true } }]);
     expect(added).toHaveBeenCalled();
+  });
+});
+
+describe("a drag that didn't save (WEB-010)", () => {
+  it("the Gantt bar goes back, a toast says why, and Retry sends the same dates", async () => {
+    localStorage.setItem("basalt-proj-gantt", "thesis");
+    server.fail = (m, url) => m === "POST" && url === "/api/tasks/dates";
+    const changed = vi.fn(async () => {});
+    render(<Toaster />);
+    render(<ProjectTimeline w={{ ...(w as object), name: "Thesis", tasks: [step("Write chapter 2", "Writing", { start: "2026-10-05", due: "2026-10-09" })] } as never} onChanged={changed} onOpenNote={() => {}} />);
+    const bar = document.querySelector<HTMLElement>(".gantt-bar")!;
+    const left = bar.style.left;
+    await act(async () => {
+      fireEvent.pointerDown(bar, { clientX: 100, pointerId: 1 });
+      fireEvent.pointerMove(bar, { clientX: 100 + 26 * 3, pointerId: 1 });
+      fireEvent.pointerUp(bar, { clientX: 100 + 26 * 3, pointerId: 1 });
+    });
+    expect(server.posts.map((p) => p.url)).toEqual(["failed /api/tasks/dates"]);
+    expect(server.posts[0]!.body).toMatchObject({ text: "Write chapter 2", start: "2026-10-08", due: "2026-10-12" });
+    expect(document.querySelector<HTMLElement>(".gantt-bar")!.style.left).toBe(left);
+    expect([...document.querySelectorAll(".toast span")].map((t) => t.textContent)).toEqual(["The step's dates weren't changed. The server didn't answer. Check it's running, then try again."]);
+    expect(changed).not.toHaveBeenCalled();
+    server.fail = null;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    });
+    expect(server.posts.at(-1)).toMatchObject({ url: "/api/tasks/dates", body: { text: "Write chapter 2", start: "2026-10-08", due: "2026-10-12" } });
+    expect(changed).toHaveBeenCalledTimes(1);
   });
 });

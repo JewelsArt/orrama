@@ -15,9 +15,10 @@ import type { Company, Contact, GraphRelations, InboxItem, MailAccount as Accoun
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { readKey, writeKey } from "./storage.js";
-import { LinkButton } from "./ui/controls.js";
+import { Button, LinkButton } from "./ui/controls.js";
 import { goBack, navigate, routeHref, useLocation, useRoute, type Route } from "./ui/router.js";
-import { EmptyState, Skeleton } from "./ui/states.js";
+import { EmptyState, Notice, Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { toast } from "./ui/overlays.js";
 import { Composer } from "./mail/Composer.js";
 import { composeHref, composeOf, emptyDraft, forwardDraft, replyDraft, stagedDraft, type Compose, type Draft } from "./mail/compose.js";
@@ -46,7 +47,9 @@ export function Mail(_props: { me: Me }) {
   const path = routeHref(at);
   const compose = composeOf(href.includes("?") ? href.slice(href.indexOf("?")) : "");
 
+  // null: the account couldn't be read — said with Retry, never as "Mail isn't connected" (WEB-010).
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
+  const [accountTry, setAccountTry] = useState(0);
   const [messages, setMessages] = useState<InboxItem[] | null>(null);
   const [listFailed, setListFailed] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
@@ -115,7 +118,7 @@ export function Mail(_props: { me: Me }) {
         }
       })
       .catch(() => setAccount(null));
-  }, [loadInbox, loadDrafts, loadPeople]);
+  }, [loadInbox, loadDrafts, loadPeople, accountTry]);
 
   const [retry, setRetry] = useState(0);
   const connected = !!account?.connected;
@@ -247,7 +250,7 @@ export function Mail(_props: { me: Me }) {
   const composingDraft = compose?.kind === "draft" ? compose.id : null;
   const discardDraft = useCallback(
     async (id: string) => {
-      await api("DELETE", `/api/mail/drafts/${id}`).catch(() => {});
+      if (!(await attempt("The draft wasn't discarded.", () => api("DELETE", `/api/mail/drafts/${id}`)))) return;
       if (composingDraft === id) closeComposer();
       void loadDrafts();
     },
@@ -261,8 +264,9 @@ export function Mail(_props: { me: Me }) {
       setFailedDraft(null);
       try {
         await api("POST", "/api/mail/send", { to: p.to, subject: p.subject, body: p.body, inReplyTo: p.inReplyTo ?? undefined, references: p.references ?? undefined });
-        await api("DELETE", `/api/mail/drafts/${p.id}`).catch(() => {});
-        toast(`Sent to ${contactNameOf(p.to) ?? p.to}.`);
+        // Sent is sent; a draft still listed after it would read as not sent and go twice.
+        const cleared = await api("DELETE", `/api/mail/drafts/${p.id}`).then(() => true, () => false);
+        toast(`Sent to ${contactNameOf(p.to) ?? p.to}.${cleared ? "" : " Its draft is still listed: discard it."}`);
         void loadDrafts();
       } catch {
         setFailedDraft(p.id);
@@ -295,6 +299,30 @@ export function Mail(_props: { me: Me }) {
       <div className="mail ui mail-off">
         <div className="mread">
           <Skeleton rows={4} label="Opening Mail" />
+        </div>
+      </div>
+    );
+
+  if (account === null)
+    return (
+      <div className="mail ui mail-off">
+        <div className="mread">
+          <h2>Mail</h2>
+          <Notice
+            title="Mail didn't open."
+            text="The server didn't say whether mail is connected. Check it's running, then try again."
+            actions={
+              <Button
+                size="sm"
+                onClick={() => {
+                  setAccount(undefined);
+                  setAccountTry((n) => n + 1);
+                }}
+              >
+                Retry
+              </Button>
+            }
+          />
         </div>
       </div>
     );

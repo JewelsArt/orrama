@@ -13,6 +13,7 @@ import { Orr } from "./ui/orr/Orr.js";
 import { Menu } from "./ui/overlays.js";
 import { navigate, routeHref, type ProjectTab } from "./ui/router.js";
 import { Notice, Skeleton } from "./ui/states.js";
+import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
 import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@basalt/schema/responses";
 export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
@@ -137,7 +138,7 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
   const area = areaOf(areas.get(w.noteId), w.domain);
   const left = w.deadline && status !== "completed" && status !== "archived" && status !== "cancelled" ? leftLabel(w.deadline) : null;
   const finished = w.total > 0 && w.done === w.total && shelfOf(w) === "completed" && status !== "completed" && status !== "archived";
-  const setStatus = (id: StatusId) => void patch({ status: id });
+  const setStatus = (id: StatusId) => void attempt("The status wasn't changed.", () => patch({ status: id }));
   // The graph's warnings about this project; its own say about a missing status, when it has
   // one, rather than ours twice.
   const warnings = relations.warnings.some((x) => /status/i.test(x)) ? relations.warnings : [...statusProblems(w.status), ...relations.warnings];
