@@ -319,7 +319,7 @@
 - **Imports**: react, ./ui/controls.js, ./ui/overlays.js, ./palette.js
 
 ### `apps/web/src/api.ts`
-- **Exports**: default, getToken, setToken, clearToken, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isAbort, unlessAborted, latestOnly, SESSION_ENDED, signOut, apiBlob, ApiError
+- **Exports**: default, getToken, setToken, clearToken, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isFailedWrite, isAbort, unlessAborted, latestOnly, SESSION_ENDED, signOut, apiBlob, ApiError
 - **Imports**: @basalt/schema/responses, ./storage.js
 
 ### `apps/web/src/ask/Answer.tsx`
@@ -514,7 +514,7 @@
 - **Imports**: ../ui/dates.js
 
 ### `apps/web/src/main.tsx`
-- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js
+- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
 
 ### `apps/web/src/money/Category.tsx`
 - **Exports**: pickMonth, CategoryPage
@@ -849,6 +849,10 @@
 ### `apps/web/src/ui/theme.ts`
 - **Exports**: Shown, ThemeChoice, THEME_KEY, DEVICE_KEY, shownOf, accountTheme, resolveTheme, systemIsDark, useSystemDark
 - **Imports**: react
+
+### `apps/web/src/ui/writes.ts`
+- **Exports**: failureText, worthRetrying, attempt, useWrite, installWriteNet
+- **Imports**: react, ../api.js, ./overlays.js
 
 ### `apps/web/src/ws.ts`
 - **Exports**: NoteChangedMsg, PresenceMsg, WsMsg, reconnectDelay, connectWs, disconnectWs, onWs, sendEditing, useLiveSync

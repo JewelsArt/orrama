@@ -150,7 +150,21 @@ interface PublicKeyCredentialRequestOptionsJSON {
  * a slow answer to an older question cannot overwrite a newer one.
  */
 export async function api<T>(method: string, url: string, body?: unknown, opts: { signal?: AbortSignal } = {}): Promise<T> {
-  const { signal } = opts;
+  try {
+    return await request<T>(method, url, body, opts.signal);
+  } catch (e) {
+    // Remembered so a write nobody caught is still said on screen (ui/writes.ts, WEB-010).
+    if (method !== "GET" && !isAbort(e) && typeof e === "object" && e !== null) failedWrites.add(e);
+    throw e;
+  }
+}
+
+const failedWrites = new WeakSet<object>();
+
+/** Did this error come from a write (anything but a GET) that failed? A cancelled one never did. */
+export const isFailedWrite = (e: unknown): boolean => typeof e === "object" && e !== null && failedWrites.has(e);
+
+async function request<T>(method: string, url: string, body: unknown, signal: AbortSignal | undefined): Promise<T> {
   const token = getToken();
   const res = await fetch(url, {
     method,

@@ -36,6 +36,7 @@ import { guardStorage } from "./storage.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { installReloadKey } from "./ui/reloadKey.js";
 import { installLeaveGuard } from "./noteSync.js";
+import { installWriteNet } from "./ui/writes.js";
 
 // Before anything renders: a browser that refuses storage gets an in-memory one, so screens
 // that still call localStorage directly keep working (WEB-025).
@@ -45,6 +46,8 @@ guardStorage();
 installReloadKey();
 // Reload, ⌘R, Update ready and closing the window send a note's pending typing on the way out (WEB-002).
 installLeaveGuard();
+// A write that failed and that nothing caught is still said on screen, not only in the console (WEB-010).
+installWriteNet();
 
 const root = createRoot(document.getElementById("root")!);
 if (import.meta.env.DEV && location.pathname === "/dev/ui") {
