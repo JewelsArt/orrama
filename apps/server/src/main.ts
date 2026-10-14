@@ -183,14 +183,17 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
       return reply.code(421).send({ error: "this server does not answer to that host name — add it to BASALT_PUBLIC_ORIGINS" });
     }
   });
-  // Stop the vault watcher with the app, so a closed server stops reacting to files.
-  app.addHook("onClose", async () => store.close());
+  // Fastify runs onClose hooks last-registered first, so the database's hook is
+  // registered before everything that writes to it: it closes last. Registered
+  // after them, it closed first, and a vault watcher timer still pending fired
+  // into a closed database (audit OPS-003, on Windows).
+  app.addHook("onClose", async () => (db as unknown as { $client: { close(): void } }).$client.close());
   compact();
   const compactTimer = setInterval(compact, 24 * 3_600_000);
   compactTimer.unref();
   app.addHook("onClose", async () => clearInterval(compactTimer));
-  // Last: the database, once everything that writes to it has stopped.
-  app.addHook("onClose", async () => (db as unknown as { $client: { close(): void } }).$client.close());
+  // Stop the vault watcher with the app, so a closed server stops reacting to files.
+  app.addHook("onClose", async () => store.close());
   app.addHook("onSend", async (req, reply, payload) => {
     reply.header("x-content-type-options", "nosniff");
     // Every non-API response, not just text/html: a revalidated index.html
