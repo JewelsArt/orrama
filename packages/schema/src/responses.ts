@@ -384,6 +384,8 @@ export const projectPersonSchema = o({
   company: z.string(),
   linkedin: z.string(),
   path: z.string(),
+  /** Also linked in the note outside `## People`: removing them leaves them listed. */
+  inText: z.boolean(),
 });
 
 export const projectNoteSchema = o({

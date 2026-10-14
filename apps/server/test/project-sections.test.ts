@@ -146,6 +146,21 @@ describe("the people picker links the note it was given (COR-017)", () => {
     expect((await api("GET", "/api/projects/people")).json.people).toEqual([]);
   });
 
+  it("says who the text links too: Remove leaves them listed, and the page can say why", async () => {
+    const thijs = await put("Contacts/People/Thijs Brouwer.md", "---\ntitle: Thijs Brouwer\naliases: [Thijs]\ntags: [contact]\n---\nx\n");
+    const lena = await put("Contacts/People/Lena Smit.md", "---\ntitle: Lena Smit\ntags: [contact]\n---\nx\n");
+    // Thijs is in the text by an alias; Lena only under ## People.
+    await put("04-Projects/mention.md", "---\ntitle: Mention\ntags: [project/mention]\n---\n# Mention\n\nAsk [[Thijs]] to sign the data agreement.\n\n## People\n- [[Contacts/People/Thijs Brouwer|Thijs Brouwer]]\n- [[Contacts/People/Lena Smit|Lena Smit]]\n");
+    const people = async () => Object.fromEntries((await api("GET", "/api/projects/mention")).json.people.map((p: { id: string; inText: boolean }) => [p.id, p.inText]));
+    expect(await people()).toEqual({ [thijs]: true, [lena]: false });
+
+    await api("DELETE", `/api/projects/mention/people/${thijs}`);
+    expect(onDisk("04-Projects/mention.md")).toContain("Ask [[Thijs]] to sign");
+    expect(onDisk("04-Projects/mention.md")).not.toContain("[[Contacts/People/Thijs Brouwer");
+    // Still listed, through the text alone.
+    expect(await people()).toEqual({ [thijs]: true, [lena]: false });
+  });
+
   it("a title or path a wiki link cannot hold still links the right note", async () => {
     const odd = await put("Contacts/People/A [b] #1.md", "---\ntitle: A | B [c]\ntags: [contact]\n---\nx\n");
     await put("04-Projects/odd.md", "---\ntitle: Odd\ntags: [project/odd]\n---\n# Odd\n");

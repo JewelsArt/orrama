@@ -454,7 +454,8 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
   const remove = (p: Person) =>
     setConfirm({
       title: `Take ${p.title} off ${w.name}?`,
-      body: "This removes the link from the project note. Their own note stays as it is.",
+      // Remove takes the link out of `## People` only: someone the note's text links too stays.
+      body: `This removes the link from the project note. Their own note stays as it is.${p.linked?.inText ? " They are still mentioned elsewhere in the project note, so they stay listed." : ""}`,
       confirmLabel: "Take them off",
       danger: true,
       onConfirm: async () => {

@@ -290,9 +290,17 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
 
     // People and companies are whatever the note links to that is a contact or a
     // company note — the picker writes those links, so the panel is just a view.
-    const linked = new Map<string, { id: string; title: string; kind: string; role: string; company: string; linkedin: string; path: string }>();
+    const readable = (n: IndexedNote) => canRead(user, n, grants); // links resolve among the readable (ACL-005)
+    // Who the note also links outside `## People`: Remove takes only the line
+    // there, so they stay listed, and the page's Confirm says so.
+    const inText = new Set<string>();
+    for (const link of parseNote(writeSection(note.content, SEC.people, "")).links) {
+      const target = store.index.resolveLink(link.target, undefined, readable);
+      if (target) inText.add(target.id);
+    }
+    const linked = new Map<string, { id: string; title: string; kind: string; role: string; company: string; linkedin: string; path: string; inText: boolean }>();
     for (const link of note.links) {
-      const target = store.index.resolveLink(link.target, undefined, (n) => canRead(user, n, grants)); // among the readable (ACL-005)
+      const target = store.index.resolveLink(link.target, undefined, readable);
       if (!target || linked.has(target.id)) continue;
       const kind = target.tags.some((t) => t.tag === "company") ? "company" : target.tags.some((t) => t.tag === "contact") ? "contact" : "";
       if (!kind) continue;
@@ -305,6 +313,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
         company: str(tfm["company"]),
         linkedin: str(tfm["linkedin"]),
         path: target.path,
+        inText: inText.has(target.id),
       });
     }
 

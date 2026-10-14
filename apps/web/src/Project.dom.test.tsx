@@ -213,8 +213,8 @@ describe("decisions", () => {
 });
 
 describe("people and companies (F2)", () => {
-  const INES = { id: "n-iv", title: "Ines Vermaat", kind: "contact", role: "Supervisor", company: "[[Westerdok]]", linkedin: "", path: "03-People/Ines Vermaat.md" };
-  const KADE = { id: "n-ks", title: "Kade Social", kind: "company", role: "", company: "", linkedin: "", path: "03-People/Companies/Kade Social.md" };
+  const INES = { id: "n-iv", title: "Ines Vermaat", kind: "contact", role: "Supervisor", company: "[[Westerdok]]", linkedin: "", path: "03-People/Ines Vermaat.md", inText: false };
+  const KADE = { id: "n-ks", title: "Kade Social", kind: "company", role: "", company: "", linkedin: "", path: "03-People/Companies/Kade Social.md", inText: false };
   const panel = () => screen.getByRole("group", { name: "People and companies" });
   const deletes = () => server.calls.filter((c) => c.method === "DELETE").map((c) => c.url);
 
@@ -265,6 +265,27 @@ describe("people and companies (F2)", () => {
     expect(deletes()).toEqual(["/api/projects/thesis/people/n-iv"]);
     // The page reloads the project after the link is gone.
     expect(server.calls.slice(before).some((c) => c.method === "GET" && c.url === "/api/projects/thesis")).toBe(true);
+  });
+
+  it("the Confirm says when they are still mentioned in the note, and only then", async () => {
+    // Ines is linked under ## People and in the text ("Ask [[Ines Vermaat]] to sign…"); Kade only under ## People.
+    server.workspace = { ...server.workspace, people: [{ ...INES, inText: true }, KADE] };
+    await open();
+    const still = "They are still mentioned elsewhere in the project note, so they stay listed.";
+    const ask = (name: string) => {
+      fireEvent.click(screen.getByRole("button", { name: `More for ${name}` }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this project" }));
+      return screen.getByRole("alertdialog", { name: `Take ${name} off Thesis?` });
+    };
+    let dialog = ask("Ines Vermaat");
+    expect(dialog.textContent).toContain("This removes the link from the project note.");
+    expect(dialog.textContent).toContain(still);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep it" }));
+    await act(async () => {});
+    dialog = ask("Kade Social");
+    expect(dialog.textContent).toContain("This removes the link from the project note.");
+    expect(dialog.textContent).not.toContain(still);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep it" }));
   });
 
   it("without edit there is no ⋯ to remove anyone", async () => {
