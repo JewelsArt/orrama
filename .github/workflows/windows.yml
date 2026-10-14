@@ -19,7 +19,7 @@ jobs:
   check-windows:
     name: typecheck · test (windows)
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
@@ -31,4 +31,34 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test
+      # --continue: every package reports, so one red package does not hide another.
+      - run: pnpm exec turbo run test --continue
+      # Audit OPS-008: the webhook tests were flaky on Windows only. Green means
+      # 20 runs in a row; it runs even when the suite above failed.
+      - name: webhook tests, 20 runs in a row
+        if: success() || failure()
+        working-directory: apps/server
+        shell: bash
+        run: |
+          for i in $(seq 1 20); do
+            echo "::group::run $i"
+            pnpm exec vitest run test/integrations.test.ts test/webhook-close.test.ts test/webhook-secrets.test.ts || { echo "::error::webhook tests failed on run $i of 20"; exit 1; }
+            echo "::endgroup::"
+          done
+      # OPS-003: `pnpm --dir apps/server dev` starts on Windows, where pnpm runs
+      # package scripts through cmd.exe. Green means /api/health answered.
+      - name: the dev server starts
+        if: success() || failure()
+        shell: bash
+        run: |
+          export BASALT_DATA_DIR="$RUNNER_TEMP/basalt-dev" BASALT_VAULT_DIR="$RUNNER_TEMP/basalt-dev/vault"
+          mkdir -p "$BASALT_VAULT_DIR"
+          pnpm --dir apps/server dev > "$RUNNER_TEMP/dev.log" 2>&1 &
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4627/api/health; then ok=1; echo; break; fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/dev.log"
+          taskkill //F //T //IM node.exe > /dev/null 2>&1 || true
+          [ "$ok" = 1 ] || { echo "::error::the dev server did not answer /api/health on :4627"; exit 1; }
