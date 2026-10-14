@@ -39,6 +39,31 @@ describe("booting", () => {
     expect(Object.keys(snapshot()).sort()).toEqual(["Notes/a.md"]);
   });
 
+  it("a vault-root CLAUDE.md stays the user's: byte-identical and out of the index, at boot and when edited while running", async () => {
+    // The watcher's half is the one Windows broke: chokidar spells the path
+    // C:/…/CLAUDE.md there, and a string compare let it be indexed and
+    // id-stamped (OPS-003). windows.yml runs this file on Windows.
+    const guide = path.join(vault, "CLAUDE.md");
+    fs.writeFileSync(guide, "# How I work\n\nShort answers.\n");
+    const { app, store } = await buildServer();
+    try {
+      expect(store.index.getByPath("CLAUDE.md")).toBeUndefined();
+      fs.writeFileSync(guide, "# How I work\n\nShort answers. Dates as words.\n");
+      // A note written beside it is the watcher's proof of life: once that is
+      // indexed, the guide's own event has been seen and settled too.
+      fs.writeFileSync(path.join(vault, "Notes", "b.md"), "# B\n");
+      for (let i = 0; i < 200 && !store.index.getByPath("Notes/b.md"); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(store.index.getByPath("Notes/b.md")).toBeDefined();
+      await new Promise((r) => setTimeout(r, 400));
+      expect(store.index.getByPath("CLAUDE.md")).toBeUndefined();
+      expect(fs.readFileSync(guide, "utf8")).toBe("# How I work\n\nShort answers. Dates as words.\n");
+    } finally {
+      await app.close();
+      fs.rmSync(guide);
+      fs.rmSync(path.join(vault, "Notes", "b.md"));
+    }
+  });
+
   it("leaves an already-indexed vault byte-identical", async () => {
     const before = snapshot();
     const { app } = await buildServer();
