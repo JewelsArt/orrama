@@ -38,6 +38,15 @@ const CASE_INSENSITIVE = (() => {
   return folds;
 })();
 
+/** Whether this volume reads `ſ` (U+017F, long s) as `s`: APFS does; ext4 and, by the Windows run, NTFS do not. */
+const FOLDS_LONG_S = (() => {
+  const probe = path.join(process.env.BASALT_DATA_DIR!, "sprobe");
+  fs.writeFileSync(probe, "");
+  const folds = fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "\u017Fprobe"));
+  fs.rmSync(probe);
+  return folds;
+})();
+
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let b: Built;
 const tokens: Record<string, string> = {};
@@ -108,10 +117,12 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     }
   });
 
-  it.runIf(CASE_INSENSITIVE)("a spelling only the volume folds (ſ for s) is still another user's personal note, and is refused", async () => {
+  it("a spelling only the volume folds (ſ for s) is still another user's personal note, and is refused", async () => {
     // APFS reads `Perſonal` (U+017F, long s) as `Personal`; NFC and toLowerCase
     // leave it alone. The audit's repro wrote erin's inbox through it (ACL-001).
     // mara edits the vault root, as in the repro; Personal/ is never hers.
+    // Where the volume does not fold ſ (Linux, Windows), `Perſonal` is a folder
+    // of its own that mara may create; the private note is untouched either way.
     const mkt = b.db.select().from(tables.teams).where(eq(tables.teams.slug, "marketing")).get()!;
     const rootGrant = and(eq(tables.folderGrants.teamId, mkt.id), eq(tables.folderGrants.folder, ""));
     b.db.update(tables.folderGrants).set({ role: "editor" }).where(rootGrant).run();
@@ -120,9 +131,16 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
       expect((await put("jules", { path: real, content: "---\ntitle: Private\n---\nmine\n" })).status).toBe(200);
       const before = read(real);
       const res = await put("mara", { path: "Perſonal/jules/Private.md", content: "mara was here\n" });
-      expect(res.status).toBe(403);
       expect(read(real)).toBe(before);
-      expect(fs.readdirSync(VAULT)).not.toContain("Perſonal");
+      if (FOLDS_LONG_S) {
+        expect(res.status).toBe(403);
+        expect(fs.readdirSync(VAULT)).not.toContain("Perſonal");
+      } else {
+        expect(res.status).toBe(200);
+        expect(fs.readdirSync(VAULT)).toContain("Perſonal");
+        expect(read("Perſonal/jules/Private.md")).toBe("mara was here\n");
+        fs.rmSync(abs("Perſonal"), { recursive: true });
+      }
     } finally {
       b.db.update(tables.folderGrants).set({ role: "viewer" }).where(rootGrant).run();
     }

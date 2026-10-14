@@ -28,13 +28,19 @@ function run(args: string[], env: Record<string, string>, cwd = server) {
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
 
-const probe = `const { env, assertProductionSecrets } = await import(${JSON.stringify(path.join(server, "src/env.ts"))});
+// import() takes a URL: a bare `D:\…` path reads as the scheme "d:" on Windows.
+const probe = `const { env, assertProductionSecrets } = await import(${JSON.stringify(pathToFileURL(path.join(server, "src/env.ts")).href)});
 let secrets = "ok"; try { assertProductionSecrets(); } catch { secrets = "refused"; }
-console.log(JSON.stringify({ port: env.port, dataDir: env.dataDir, secrets }));`;
+console.log(JSON.stringify({ port: env.port, dataDir: env.dataDir, secrets, cwd: process.cwd() }));`;
+/** The dev settings a process started in `cwd` gets; `dataDir` relative to its own cwd. */
 const envOf = (flag: string[], cwd: string, env: Record<string, string> = {}) => {
   const r = run(["--input-type=module", "-e", probe, "--", ...flag], env, cwd);
   expect(r.code, r.out).toBe(0);
-  return JSON.parse(r.out.trim().split("\n").pop()!) as { port: number; dataDir: string; secrets: string };
+  const out = JSON.parse(r.out.trim().split("\n").pop()!) as { port: number; dataDir: string; secrets: string; cwd: string };
+  // The child spells its cwd its own way (/private/var on macOS, a short
+  // RUNNER~1 on Windows): compare the folder, then name the path from it.
+  expect(fs.realpathSync.native(out.cwd)).toBe(fs.realpathSync.native(cwd));
+  return { port: out.port, secrets: out.secrets, dataDir: out.dataDir, inCwd: path.relative(out.cwd, out.dataDir).split(path.sep).join("/") };
 };
 
 describe("dev loop", () => {
@@ -47,12 +53,11 @@ describe("dev loop", () => {
 
   it("--dev keeps away from the live database and port unless told otherwise", () => {
     const cwd = fs.mkdtempSync(path.join(tmp, "cwd-"));
-    const real = fs.realpathSync(cwd);
-    expect(envOf(["--dev"], cwd)).toEqual({ port: 4627, dataDir: path.join(real, "data-dev"), secrets: "ok" });
+    expect(envOf(["--dev"], cwd)).toMatchObject({ port: 4627, inCwd: "data-dev", secrets: "ok" });
     // `start` (the launchd agent) is unchanged: ./data, :4623, real secrets required.
-    expect(envOf([], cwd)).toEqual({ port: 4623, dataDir: path.join(real, "data"), secrets: "refused" });
+    expect(envOf([], cwd)).toMatchObject({ port: 4623, inCwd: "data", secrets: "refused" });
     // An explicit setting still wins in dev — the session scratch servers rely on it.
-    expect(envOf(["--dev"], cwd, { PORT: "4721", BASALT_DATA_DIR: path.join(real, "x") })).toMatchObject({ port: 4721, dataDir: path.join(real, "x") });
+    expect(envOf(["--dev"], cwd, { PORT: "4721", BASALT_DATA_DIR: path.join(cwd, "x") })).toMatchObject({ port: 4721, dataDir: path.join(cwd, "x") });
   }, 30_000);
 
   it("seed refuses a vault that already holds notes, and writes nothing", () => {

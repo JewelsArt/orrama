@@ -20,12 +20,12 @@ fs.writeFileSync(path.join(vault, "Notes", "a.md"), "# A\n\nSome text.\n");
 const { buildServer } = await import("../src/main.js");
 afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
 
-/** Every file in the vault, hidden ones included, with its bytes. */
+/** Every file in the vault, hidden ones included, with its bytes, keyed by its `/` path. */
 const snapshot = (dir = vault, out: Record<string, string> = {}) => {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const abs = path.join(dir, e.name);
     if (e.isDirectory()) snapshot(abs, out);
-    else out[path.relative(vault, abs)] = fs.readFileSync(abs, "base64");
+    else out[path.relative(vault, abs).split(path.sep).join("/")] = fs.readFileSync(abs, "base64");
   }
   return out;
 };
@@ -34,6 +34,8 @@ describe("booting", () => {
   it("creates no .mcp.json or CLAUDE.md in the vault root", async () => {
     const { app } = await buildServer();
     await app.close();
+    expect(fs.existsSync(path.join(vault, ".mcp.json"))).toBe(false);
+    expect(fs.existsSync(path.join(vault, "CLAUDE.md"))).toBe(false);
     expect(Object.keys(snapshot()).sort()).toEqual(["Notes/a.md"]);
   });
 
