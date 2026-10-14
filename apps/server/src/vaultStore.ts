@@ -145,6 +145,8 @@ export class VaultStore {
   private inFlightWrites = new Map<string, string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private watcher: FSWatcher | null = null;
+  /** Set when close() starts: from then on no watcher event schedules work. */
+  private closing = false;
   /**
    * Settles once the watcher is attached to every folder. load() returns
    * before that: chokidar walks the tree asynchronously, and a file written
@@ -256,6 +258,11 @@ export class VaultStore {
       }
     }
 
+    // Loading again (a re-index) replaces the watcher. The old one, left
+    // open, kept its listeners: past close() it went on reporting the vault's
+    // changes into this store, and its timers fired into a closed database.
+    // chokidar's close() detaches the listeners at once; the rest settles alone.
+    void this.watcher?.close().catch(() => {});
     const watcher = chokidar.watch(this.root, {
       ignored: (filePath: string, stats?: fs.Stats) => {
         const basename = path.basename(filePath);
@@ -302,6 +309,7 @@ export class VaultStore {
 
   /** Debounce the watcher's events per path: the last one settles it, 300ms on. */
   private settleLater(event: string, relPath: string, absPath: string): void {
+    if (this.closing) return;
     const pending = this.watchTimeouts.get(relPath);
     if (pending) clearTimeout(pending);
     this.watchTimeouts.set(relPath, setTimeout(() => {
@@ -321,6 +329,7 @@ export class VaultStore {
    * never saw is handed to it and looked at the same way.
    */
   private lookAgainLater(absDir: string): void {
+    if (this.closing) return;
     const key = `dir:${absDir}`;
     const pending = this.watchTimeouts.get(key);
     if (pending) clearTimeout(pending);
@@ -498,12 +507,20 @@ export class VaultStore {
   }
 
   /** Stop watching the vault. Called when the app closes, before the database
-   *  is: "closed" tells listeners holding timers to drop them (webhooks.ts). */
+   *  is: "closed" tells listeners holding timers to drop them (webhooks.ts).
+   *  chokidar can still deliver events while its close() is awaited, and the
+   *  database closes as soon as this resolves: once closing, no event sets a
+   *  timer, and the timers are cleared again after the watcher is gone. */
   async close(): Promise<void> {
-    for (const t of this.watchTimeouts.values()) clearTimeout(t);
-    this.watchTimeouts.clear();
+    this.closing = true;
+    const clearTimers = () => {
+      for (const t of this.watchTimeouts.values()) clearTimeout(t);
+      this.watchTimeouts.clear();
+    };
+    clearTimers();
     await this.watcher?.close();
     this.watcher = null;
+    clearTimers();
     this.events.emit("closed");
   }
 
