@@ -16,7 +16,7 @@ import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { DOCX_CAPS, officeRefusal, readOfficeFile, XLSX_CAPS } from "../zip.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
-import { CONTROL_CHARS, contentDisposition, numbered, storeUpload } from "../uploads.js";
+import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
@@ -519,6 +519,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       if (!canEdit(user, note, grants)) throw new HttpError(403, "you cannot edit this project");
       const body = (req.body ?? {}) as { name?: string; dataBase64?: string };
       const name = safeName(body.name);
+      const unportable = unportableName(name);
+      if (unportable) throw new HttpError(400, unportable);
       const data = Buffer.from(String(body.dataBase64 ?? ""), "base64");
       if (data.length === 0) throw new HttpError(400, "empty file");
       if (data.length > MAX_UPLOAD) throw new HttpError(413, "file too large (25 MB max)");

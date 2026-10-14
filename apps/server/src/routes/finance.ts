@@ -65,7 +65,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
-import { CONTROL_CHARS, contentDisposition, storeUpload } from "../uploads.js";
+import { CONTROL_CHARS, contentDisposition, storeUpload, unportableName } from "../uploads.js";
 import { officeRefusal, readOfficeFile, TooLargeError, XLSX_CAPS } from "../zip.js";
 import { readPdfText } from "../pdfText.js";
 
@@ -1341,6 +1341,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     requireFinanceFiles(store, user, true);
     const body = (req.body ?? {}) as { name?: string; dataBase64?: string };
     const name = safeUploadName(body.name);
+    const unportable = unportableName(name);
+    if (unportable) throw new HttpError(400, unportable);
     const data = Buffer.from(String(body.dataBase64 ?? ""), "base64");
     if (data.length === 0) throw new HttpError(400, "empty file");
     if (data.length > MAX_UPLOAD) throw new HttpError(413, "file too large (15 MB max)");

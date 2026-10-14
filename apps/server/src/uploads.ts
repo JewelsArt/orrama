@@ -68,3 +68,20 @@ export function contentDisposition(kind: "inline" | "attachment", name: string):
 /** Characters no filename of ours may hold: C0 and C1 controls, DEL, and the
  *  Unicode line and paragraph separators. */
 export const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+/**
+ * Why a new file may not take this name, or null when every disk the vault
+ * travels to can hold it (audit OPS-003). Windows cannot: `" * : < > ? |`, a
+ * name ending in a dot or a space, or a device name (CON, NUL, COM1…, with any
+ * extension). There an upload under such a name answered 500, a `:` would
+ * have written into a hidden stream of another file, and `NUL.pdf` would have
+ * stored nothing and answered 200. Refused everywhere, as Obsidian does, so a
+ * vault made on the Mac still opens on Windows (Jules, 14 Oct 2026). Files
+ * already in the vault keep opening under whatever name they have.
+ */
+export function unportableName(name: string): string | null {
+  if (/["*:<>?|]/.test(name)) return 'a file name can\'t contain " * : < > ? or |';
+  if (/[. ]$/.test(name)) return "a file name can't end with a dot or a space";
+  if (/^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3]) *(\.|$)/i.test(name)) return `Windows keeps the name "${name.split(".")[0]}" for a device`;
+  return null;
+}
