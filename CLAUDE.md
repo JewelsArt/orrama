@@ -479,9 +479,10 @@ app needs to keep exposed. `node-pty` and the `@xterm/*` packages went with it.
 
 ## Still called Basalt, on purpose
 
-The app was Basalt until October 2026 (R13 renamed the code; `changes/R13.md`). These
-names were kept because something outside the repo, or already stored, depends on
-them. Do not "finish" the rename on any of them without a migration:
+The app was Basalt until October 2026 (R13 renamed the code; its notes:
+`git show ba617c7:changes/R13.md`). These names were kept because something outside
+the repo, or already stored, depends on them. Do not "finish" the rename on any of
+them without a migration:
 
 - the launchd labels and plists (`dev.basalt.server`, `dev.basalt.vault-backup`), the
   log folder `~/.basalt-run`, the database file `basalt.db`, the `~/basalt` checkout,

@@ -1,8 +1,8 @@
 # Changelog
 
-What changed in each release of Basalt, newest first. The commit messages carry
-the detail — the why, how it was verified, what was left out; this file is the
-map. Releases are git tags (`v0.1.0`) on the commit that was shipped; how to cut
+What changed in each release of Orrama (called Basalt until October 2026),
+newest first. The commit messages carry the detail — the why, how it was
+verified, what was left out; this file is the map. Releases are git tags (`v0.1.0`) on the commit that was shipped; how to cut
 one is in CLAUDE.md, "Releases".
 
 ## [Unreleased]
@@ -266,6 +266,16 @@ one is in CLAUDE.md, "Releases".
   a name keep working.
 - On a project's page, removing someone who is also linked in the note's text
   says that they stay listed, and why.
+
+- Basalt is Orrama in the code as well as on screen: package names, the MCP
+  server (`orrama-mcp`), the desktop app's name and window title (once
+  rebuilt), the demo accounts (`@orrama.dev`, `orrama-demo`) and the export
+  (`orrama-export-<time>/`).
+- The settings variables are `ORRAMA_*` (`ORRAMA_VAULT_DIR`, `ORRAMA_DATA_DIR`,
+  `ORRAMA_JWT_SECRET`, `ORRAMA_SECRET_KEY`, `ORRAMA_URL`, `ORRAMA_TOKEN`, …).
+  The old `BASALT_*` names are no longer read, and a `BASALT_` variable left
+  without its `ORRAMA_` twin stops the server, its scripts, the MCP server and
+  the web dev server with a message naming it.
 
 ### Removed
 
@@ -752,7 +762,7 @@ one is in CLAUDE.md, "Releases".
   tests 20 times in a row and starts the dev server); a test file that leaves a
   database open fails on every platform.
 - Every MCP tool has a test of the request it sends and of the server's answer.
-- ESLint's `basalt/async-handler-catches` refuses an async event handler that
+- ESLint's `orrama/async-handler-catches` refuses an async event handler that
   awaits outside a try/catch (WEB-010).
 - The vault store schedules nothing once it starts closing, and re-loading it
   closes the watcher it replaces (no more "The database connection is not
@@ -760,14 +770,18 @@ one is in CLAUDE.md, "Releases".
 
 ### Upgrading
 
+- Rename every `BASALT_` variable to `ORRAMA_` (same value) in the launchd
+  plist, Docker's `.env` and the MCP server's config before starting this
+  version. Browsers keep you signed in: what they stored under `basalt-…`
+  moves to `orrama-…` on first load.
 - The first start of this version encrypts every stored webhook secret and
   stamps the database as schema 3; an older build then refuses to open it, so
   take a database backup before shipping.
 - Schema 4 (`projects.note_id`): a database opened by this build refuses to
   open in an older one. Existing projects are anchored to their note on first
   use.
-- Reaching Basalt by a bare LAN or tailnet IP now needs that address in
-  `BASALT_PUBLIC_ORIGINS`.
+- Reaching Orrama by a bare LAN or tailnet IP now needs that address in
+  `ORRAMA_PUBLIC_ORIGINS`.
 - A Touch ID passkey created as non-discoverable (unlikely on macOS) needs
   enrolling again.
 - Project names now come from the project note's `title:` (unchanged when it
