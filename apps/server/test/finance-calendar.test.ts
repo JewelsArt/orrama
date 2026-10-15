@@ -79,7 +79,7 @@ describe("the Finance ledger calendar keeps no date arithmetic of its own (FIN-0
     const web = path.join(__dirname, "../../web/src");
     const files = ["Finance.tsx", ...fs.readdirSync(path.join(web, "money")).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f)).map((f) => `money/${f}`)];
     const src = files.map((f) => fs.readFileSync(path.join(web, f), "utf8")).join("\n");
-    expect(src).toMatch(/import \{[^}]*\bchargeDates\b[^}]*\} from "@basalt\/core\/subscriptions"/);
+    expect(src).toMatch(/import \{[^}]*\bchargeDates\b[^}]*\} from "@orrama\/core\/subscriptions"/);
     expect(src).not.toMatch(/setUTC(Date|Month|FullYear)\(/);
   });
 });

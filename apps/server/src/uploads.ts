@@ -15,7 +15,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { foldPath } from "@basalt/core";
+import { foldPath } from "@orrama/core";
 import { writeFileAtomic } from "./atomicWrite.js";
 
 export interface StoredUpload {

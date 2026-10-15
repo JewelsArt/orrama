@@ -5,7 +5,7 @@
  * be typed instead of dragged.
  */
 import type { CSSProperties } from "react";
-import type { PlanTask } from "@basalt/schema/responses";
+import type { PlanTask } from "@orrama/schema/responses";
 import { Tabs } from "../ui/controls.js";
 import { Sheet } from "../ui/overlays.js";
 import { dueWords, type ToPlanCut } from "./model.js";

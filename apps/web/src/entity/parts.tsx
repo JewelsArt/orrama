@@ -5,7 +5,7 @@
  * the system's module and rows; every name opens its thing (§1.7 #1).
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { NoteSync, SaveState } from "@basalt/sync/client";
+import type { NoteSync, SaveState } from "@orrama/sync/client";
 import { api, isAbort, type NoteDetail } from "../api.js";
 import { CATEGORIES } from "../categories.js";
 import { Editor } from "../Editor.js";

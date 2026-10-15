@@ -6,7 +6,7 @@
  */
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { MailMessage } from "@basalt/schema/responses";
+import type { MailMessage } from "@orrama/schema/responses";
 import { frameCsp, frameDoc, MessageBody, SANDBOX } from "./MessageBody.js";
 
 const html: MailMessage = {

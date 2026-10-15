@@ -12,7 +12,7 @@
  * (People's, the Projects board's, the vault's map, R1's SETTINGS_INDEX).
  */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { PeopleContext, SearchHit } from "@basalt/schema/responses";
+import type { PeopleContext, SearchHit } from "@orrama/schema/responses";
 import { api, unlessAborted, type Me } from "../api.js";
 import { useKnown, useLoad } from "../entity/known.js";
 import { blankNote, createNote } from "../newNote.js";

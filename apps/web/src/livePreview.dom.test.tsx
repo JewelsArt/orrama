@@ -4,7 +4,7 @@
  */
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { isoLocal } from "@basalt/core/dates";
+import { isoLocal } from "@orrama/core/dates";
 import { Editor } from "./Editor.js";
 
 const day = (offset: number) => {

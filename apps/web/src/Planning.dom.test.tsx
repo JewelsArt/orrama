@@ -5,7 +5,7 @@
  */
 import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CalEvent, DayMarker, Feed, PlanTask } from "@basalt/schema/responses";
+import type { CalEvent, DayMarker, Feed, PlanTask } from "@orrama/schema/responses";
 import { event, marker, task } from "./test/planning-fixtures.js";
 
 const server = vi.hoisted(() => ({

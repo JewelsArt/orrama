@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/schema",
+  "name": "@orrama/schema",
   "version": "0.1.0",
   "description": "Zod API schemas + Drizzle table definitions shared by server and clients.",
   "license": "Apache-2.0",

@@ -7,7 +7,7 @@
  * the same path every other mutation takes, ACL and note id included.
  */
 import { useState } from "react";
-import { isoLocal } from "@basalt/core/dates";
+import { isoLocal } from "@orrama/core/dates";
 import { api } from "../api.js";
 import { Button } from "../ui/controls.js";
 import { Field, Form, Input, Select } from "../ui/fields.js";

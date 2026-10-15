@@ -3,7 +3,7 @@
  * conversations from the lists the app already reads, the eight places, the settings by name
  * (R1's SETTINGS_INDEX), and actions. Pure: the palette hands in what it loaded and the query.
  */
-import type { Company, Contact, GraphData, PeopleContext, ProjectRow, SearchHit, TreeNote } from "@basalt/schema/responses";
+import type { Company, Contact, GraphData, PeopleContext, ProjectRow, SearchHit, TreeNote } from "@orrama/schema/responses";
 import { STATUS_WORD, statusOf } from "../entity/status.js";
 import { notePath, slugOf } from "../entity/links.js";
 import { companyFor, keyRelation, linkText, peopleAt } from "../people/model.js";

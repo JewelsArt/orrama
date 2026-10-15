@@ -1,4 +1,4 @@
-# @basalt/mcp
+# @orrama/mcp
 
 Basalt MCP Server for Claude Code integration.
 

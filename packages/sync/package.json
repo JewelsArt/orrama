@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/sync",
+  "name": "@orrama/sync",
   "version": "0.1.0",
   "description": "Sync protocol logic: Yjs note docs, update encoding, partial-checkout manifests.",
   "license": "Apache-2.0",
@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@basalt/core": "workspace:*",
+    "@orrama/core": "workspace:*",
     "yjs": "^13.6.20"
   },
   "devDependencies": {

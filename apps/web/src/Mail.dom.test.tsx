@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
 import { Mail } from "./Mail.js";
 import { Toaster } from "./ui/overlays.js";
-import type { Company, Contact } from "@basalt/schema/responses";
+import type { Company, Contact } from "@orrama/schema/responses";
 import { INBOX, json, stubMailbox } from "./test/mail-fixture.js";
 
 const me = { id: "u1", email: "jules@basalt.dev", displayName: "Jules" } as unknown as Me;

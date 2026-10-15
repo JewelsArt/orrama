@@ -4,8 +4,8 @@
  * order and add up the server's own figures, and each one says what its rows add up to, so a
  * test can hold that sum to the server's total.
  */
-import { CADENCES, type Cadence } from "@basalt/core/subscriptions";
-import type { FinanceData, MonthDetail, Recurring } from "@basalt/schema/responses";
+import { CADENCES, type Cadence } from "@orrama/core/subscriptions";
+import type { FinanceData, MonthDetail, Recurring } from "@orrama/schema/responses";
 import { colouredCategories, OTHER_COLOUR, paletteFor, UNCATEGORISED } from "./palette.js";
 
 type Categories = FinanceData["spending"]["categories"];

@@ -17,7 +17,7 @@ import {
   typicalMonth,
   isoLocal,
   parsePayslipTable,
-} from "@basalt/core";
+} from "@orrama/core";
 import { ownerOf } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";

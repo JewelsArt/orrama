@@ -2,7 +2,7 @@
  * The "New …" flows create, never upsert (audit WEB-001), and their templates
  * are valid front matter whatever the name holds.
  */
-import { parseNote } from "@basalt/core";
+import { parseNote } from "@orrama/core";
 import { describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("localStorage", { getItem: () => "t-abc", setItem: () => {}, removeItem: () => {} });

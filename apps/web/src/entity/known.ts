@@ -5,7 +5,7 @@
  * after the last note changes.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, GraphData, ProjectRow, TreeNote } from "@basalt/schema/responses";
+import type { Company, Contact, GraphData, ProjectRow, TreeNote } from "@orrama/schema/responses";
 import { api, isAbort } from "../api.js";
 import { onWs } from "../ws.js";
 import type { Known } from "./links.js";

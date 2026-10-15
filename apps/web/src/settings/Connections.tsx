@@ -6,7 +6,7 @@
  * (every calendar subscribed to it stops updating).
  */
 import { useEffect, useState } from "react";
-import type { Feed, MailAccount } from "@basalt/schema/responses";
+import type { Feed, MailAccount } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { Button } from "../ui/controls.js";

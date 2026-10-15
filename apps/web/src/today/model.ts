@@ -5,8 +5,8 @@
  * Nothing here invents a word the data doesn't hold. Where the graph has nothing (a vault with
  * no ontology note), a phrase comes back null and the module shows its plain form.
  */
-import { addDays, daysTo } from "@basalt/core/dates";
-import type { CalEvent, Contact, DashboardTask, GraphRelations, HomeData, ProjectRow } from "@basalt/schema/responses";
+import { addDays, daysTo } from "@orrama/core/dates";
+import type { CalEvent, Contact, DashboardTask, GraphRelations, HomeData, ProjectRow } from "@orrama/schema/responses";
 import { isProjectActive } from "../categories.js";
 
 /* ---- Due ------------------------------------------------------------------------------------ */

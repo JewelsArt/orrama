@@ -3,7 +3,7 @@
  * transaction with it, newest first, grouped by month. The end of the drill-down, where a number
  * stops being a summary and becomes something you remember doing.
  */
-import type { MerchantDetail } from "@basalt/schema/responses";
+import type { MerchantDetail } from "@orrama/schema/responses";
 import { Tabs } from "../ui/controls.js";
 import { Crumbs, type Crumb } from "../ui/layout.js";
 import { navigate } from "../ui/router.js";

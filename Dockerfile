@@ -42,7 +42,7 @@ RUN pnpm --dir apps/web build
 # The server and what it needs at run time, nothing else: no vite, vitest,
 # typescript or Tauri CLI in the image (audit OPS-006). tsx is a production
 # dependency because it is how the server runs (OPS-011).
-RUN pnpm --filter @basalt/server deploy --prod --legacy /out/apps/server
+RUN pnpm --filter @orrama/server deploy --prod --legacy /out/apps/server
 
 FROM node:22-slim
 WORKDIR /app

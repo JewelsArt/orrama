@@ -5,7 +5,7 @@
  * its type and size; facts: which project, which folder; relations: what it is part of and
  * who mentions it; then the reader (R7's DocViewer, in the page) or the note in the editor.
  */
-import type { Me, ProjectWorkspace } from "@basalt/schema/responses";
+import type { Me, ProjectWorkspace } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { DocViewer } from "../DocViewer.js";
 import { folderName } from "../notes/read.js";

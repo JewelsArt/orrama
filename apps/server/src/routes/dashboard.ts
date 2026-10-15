@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { canRead, projectSlugOf } from "@basalt/core";
+import { canRead, projectSlugOf } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 

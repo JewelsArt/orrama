@@ -1,5 +1,5 @@
 /** Planning test data: a step, a dated marker and an event, with sensible defaults. */
-import type { CalEvent, DayMarker, PlanTask } from "@basalt/schema/responses";
+import type { CalEvent, DayMarker, PlanTask } from "@orrama/schema/responses";
 
 export const task = (o: Partial<PlanTask> & { text: string }): PlanTask => ({
   noteId: "n-thesis",

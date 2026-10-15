@@ -4,7 +4,7 @@
  *
  * turbo.json had `typecheck: {}`: cached, no dependsOn. Turbo hashes a task
  * from its own package's files and the tasks it depends on, so an edit in
- * packages/core left @basalt/server#typecheck's hash unchanged and the cache
+ * packages/core left @orrama/server#typecheck's hash unchanged and the cache
  * replayed its last "success" — on the machine `pnpm ship` deploys from.
  * Checked the way the ticket did: `turbo run typecheck --dry=json` hashes, on a
  * scratch copy of the working tree, before and after an edit.
@@ -44,13 +44,13 @@ describe("turbo typecheck cache", () => {
     const before = hashes();
     append("packages/core/src/acl.ts", "\nexport const __probe: number = 1;\n");
     const core = hashes();
-    for (const t of ["@basalt/core#typecheck", "@basalt/sync#typecheck", "@basalt/server#typecheck", "@basalt/web#typecheck"]) {
+    for (const t of ["@orrama/core#typecheck", "@orrama/sync#typecheck", "@orrama/server#typecheck", "@orrama/web#typecheck"]) {
       expect(core[t], t).toBeDefined();
       expect(core[t], t).not.toBe(before[t]);
     }
     append("packages/schema/src/responses.ts", "\nexport const __probe2: number = 1;\n");
     const schema = hashes();
-    for (const t of ["@basalt/server#typecheck", "@basalt/web#typecheck"]) expect(schema[t], t).not.toBe(core[t]);
+    for (const t of ["@orrama/server#typecheck", "@orrama/web#typecheck"]) expect(schema[t], t).not.toBe(core[t]);
     // The shared compiler options are every package's input.
     append("tsconfig.base.json", "\n");
     const base = hashes();

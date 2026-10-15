@@ -32,7 +32,7 @@
  */
 import crypto from "node:crypto";
 import { eq, isNull } from "drizzle-orm";
-import { canEdit, canRead, type AclNote, type AclUser, type IndexedNote } from "@basalt/core";
+import { canEdit, canRead, type AclNote, type AclUser, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "./db.js";
 import { HttpError, type VaultStore } from "./vaultStore.js";
 

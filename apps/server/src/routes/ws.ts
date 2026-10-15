@@ -6,7 +6,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
-import { canRead } from "@basalt/core";
+import { canRead } from "@orrama/core";
 import type { Db } from "../db.js";
 import { sessionUser } from "../sessions.js";
 import type { NoteChangedEvent, VaultStore } from "../vaultStore.js";

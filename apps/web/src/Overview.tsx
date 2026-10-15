@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, isAbort, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
 import { CATEGORIES } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
-import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@basalt/schema/responses";
+import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
 import { boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
 import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
 import { areaOf, useNoteAreas } from "./projectArea.js";

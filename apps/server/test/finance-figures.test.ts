@@ -71,7 +71,7 @@ const { csv: STATEMENT, currentAt } = statement((row) => {
 
 const { buildServer } = await import("../src/main.js");
 const { balanceTrend, loadStatements, planSavings, writtenBalance } = await import("../src/routes/finance.js");
-const { completeMonths, mainPocket, monthlyByCategory, parseStatement } = await import("@basalt/core");
+const { completeMonths, mainPocket, monthlyByCategory, parseStatement } = await import("@orrama/core");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
 const get = async (url: string) => {

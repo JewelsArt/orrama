@@ -11,7 +11,7 @@
  * graph has no types and every row's relations are empty: the page is plain.
  */
 import type { FastifyInstance } from "fastify";
-import { ONTOLOGY_TAG, type IndexedNote } from "@basalt/core";
+import { ONTOLOGY_TAG, type IndexedNote } from "@orrama/core";
 import type { VaultStore } from "../vaultStore.js";
 import { graphFor } from "./graph.js";
 

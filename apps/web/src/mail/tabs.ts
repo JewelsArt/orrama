@@ -5,7 +5,7 @@
  * categories appear once mail has landed in them. What doesn't fit goes into More (§2.8), so a
  * tab never scrolls All out of view.
  */
-import type { InboxItem, MailCategory } from "@basalt/schema/responses";
+import type { InboxItem, MailCategory } from "@orrama/schema/responses";
 
 export type MailTab = MailCategory | "all";
 

@@ -8,7 +8,7 @@
  * nothing new: a known contact is a person; a role address (noreply@, news@) or a sender named
  * after their company is an organisation; anyone else is a person.
  */
-import type { Company, Contact, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, ProjectRow } from "@orrama/schema/responses";
 
 export interface Sender {
   kind: "person" | "company";

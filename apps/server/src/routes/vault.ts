@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { computeManifest } from "@basalt/sync";
-import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@basalt/schema";
-import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, describeNote, parseVaultCategoryRules, suggestRelated, type IndexedNote } from "@basalt/core";
+import { computeManifest } from "@orrama/sync";
+import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@orrama/schema";
+import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, describeNote, parseVaultCategoryRules, suggestRelated, type IndexedNote } from "@orrama/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { replay } from "../history.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/mcp",
+  "name": "@orrama/mcp",
   "version": "0.1.0",
   "description": "Basalt's MCP server: the vault, projects, tasks and calendar as tools for Claude, over the local API with a personal token.",
   "license": "Apache-2.0",

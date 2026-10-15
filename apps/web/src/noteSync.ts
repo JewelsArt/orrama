@@ -1,5 +1,5 @@
-import { NoteSync, type NoteSyncHooks, type SaveBody } from "@basalt/sync/client";
-import { mergeText } from "@basalt/sync/merge";
+import { NoteSync, type NoteSyncHooks, type SaveBody } from "@orrama/sync/client";
+import { mergeText } from "@orrama/sync/merge";
 import { api, getToken, type NoteDetail } from "./api.js";
 import { readJson, removeKey, writeKey } from "./storage.js";
 

@@ -13,7 +13,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { canRead } from "@basalt/core";
+import { canRead } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { buildIcs, expandIcsReport, parseIcs, type IcsExportItem, type VEvent } from "../ics.js";
 import { decryptSecret, encryptSecret } from "../secrets.js";

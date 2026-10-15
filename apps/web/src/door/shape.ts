@@ -4,7 +4,7 @@
  * that already filter what this account can read. Before that, the door knows nothing.
  */
 import { api, type TreeNote } from "../api.js";
-import type { Company, Contact, GraphData, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, GraphData, ProjectRow } from "@orrama/schema/responses";
 import { CATEGORIES } from "../categories.js";
 import type { VaultShape } from "./dots.js";
 

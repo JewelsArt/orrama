@@ -20,7 +20,7 @@ import {
   parseOntology,
   vaultSchema,
   type KnowledgeGraph,
-} from "@basalt/core";
+} from "@orrama/core";
 import { z } from "zod";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 

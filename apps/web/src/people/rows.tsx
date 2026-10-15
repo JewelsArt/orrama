@@ -5,7 +5,7 @@
  * thing (§1.7 #1), without opening the row.
  */
 import { type MouseEvent, type ReactNode } from "react";
-import type { Company, Contact } from "@basalt/schema/responses";
+import type { Company, Contact } from "@orrama/schema/responses";
 import { Row } from "../ui/layout.js";
 import { Ring, Square } from "../ui/controls.js";
 import { HeadMark } from "../ui/orr/Orr.js";

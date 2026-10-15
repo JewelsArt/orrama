@@ -13,10 +13,10 @@
  *  - tables render as tables, `---` as a rule, fenced code gets a slab
  */
 import { RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
-import { daysTo, isoLocal } from "@basalt/core/dates";
+import { daysTo, isoLocal } from "@orrama/core/dates";
 // One tag grammar for the index and the chips: a chip drawn over half a tag
 // would show a different tag from the one the note is filed under.
-import { TAG_RE } from "@basalt/core";
+import { TAG_RE } from "@orrama/core";
 import {
   Decoration,
   EditorView,

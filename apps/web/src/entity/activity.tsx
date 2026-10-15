@@ -4,7 +4,7 @@
  * is the mail from its domains and the events that name it. Read from the same endpoints Today
  * reads; nothing is matched on a guess (a whole name, an exact address or domain).
  */
-import type { CalEvent, DashboardTask, MailAccount } from "@basalt/schema/responses";
+import type { CalEvent, DashboardTask, MailAccount } from "@orrama/schema/responses";
 import { api, ApiError } from "../api.js";
 import { useTaskCard } from "../ProjectViews.js";
 import { Checkbox } from "../ui/controls.js";

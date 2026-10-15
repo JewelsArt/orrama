@@ -10,7 +10,7 @@
  * work (§5).
  */
 import { useEffect, useState, type ReactNode } from "react";
-import type { GraphRelations } from "@basalt/schema/responses";
+import type { GraphRelations } from "@orrama/schema/responses";
 import { api, isAbort } from "../api.js";
 import { Ring, Square } from "../ui/controls.js";
 import { Icon } from "../ui/Icon.js";

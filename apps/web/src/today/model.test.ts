@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CalEvent, Contact, DashboardTask, GraphRelations, ProjectRow } from "@basalt/schema/responses";
+import type { CalEvent, Contact, DashboardTask, GraphRelations, ProjectRow } from "@orrama/schema/responses";
 import { boxState, comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, weekEnd } from "./model.js";
 
 const TODAY = "2026-10-08"; // a Thursday

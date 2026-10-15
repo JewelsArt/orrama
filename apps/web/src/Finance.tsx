@@ -13,8 +13,8 @@
  * This file holds the state and every request the screen makes (the contract test scans the top
  * level of src/ for GETs); the pages it draws are in money/.
  */
-import { monthKey } from "@basalt/core/dates";
-import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail, Recurring } from "@basalt/schema/responses";
+import { monthKey } from "@orrama/core/dates";
+import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail, Recurring } from "@orrama/schema/responses";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";

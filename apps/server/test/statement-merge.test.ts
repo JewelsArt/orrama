@@ -88,7 +88,7 @@ describe("loadTxns", () => {
   // here: a refund for something bought before the statement starts is money
   // back, and one for a purchase in range cancels it in the purchase's month.
   it("hands every page refunds already settled against their purchases", async () => {
-    const { costOf } = await import("@basalt/core");
+    const { costOf } = await import("@orrama/core");
     const root = vaultWith({
       "statement.csv": [
         HEADER,

@@ -3,7 +3,7 @@
  * Discard. "2 drafts" anywhere in the app opens this (§1.7 #2).
  */
 import type { ReactNode } from "react";
-import type { PendingDraft } from "@basalt/schema/responses";
+import type { PendingDraft } from "@orrama/schema/responses";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { EmptyState } from "../ui/states.js";
 

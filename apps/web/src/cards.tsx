@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
-import type { Company as CompanyRecord, Contact as ContactRecord } from "@basalt/schema/responses";
+import type { Company as CompanyRecord, Contact as ContactRecord } from "@orrama/schema/responses";
 export type { CompanyRecord, ContactRecord };
 
 const href = (url: string) => `https://${url.replace(/^https?:\/\//, "")}`;

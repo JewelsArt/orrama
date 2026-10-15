@@ -12,7 +12,7 @@
  * MessageBody.dom.test.tsx holds them to that (OPS-008, the web half).
  */
 import { useEffect, useRef, useState } from "react";
-import type { MailMessage } from "@basalt/schema/responses";
+import type { MailMessage } from "@orrama/schema/responses";
 import { readKey, writeKey } from "../storage.js";
 import { PlainText } from "./plainText.js";
 

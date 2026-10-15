@@ -3,7 +3,7 @@
  * when the note is closed, reopened, or the page goes away while the server is not answering.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RETRY_FIRST_MS } from "@basalt/sync/client";
+import { RETRY_FIRST_MS } from "@orrama/sync/client";
 
 const server = vi.hoisted(() => ({
   down: false,

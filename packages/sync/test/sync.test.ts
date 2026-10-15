@@ -10,7 +10,7 @@ import {
   encodeStateB64,
   updateDocContent,
 } from "../src/index.js";
-import type { AclUser, FolderGrant } from "@basalt/core";
+import type { AclUser, FolderGrant } from "@orrama/core";
 
 describe("note docs", () => {
   it("round-trips content through updates", () => {

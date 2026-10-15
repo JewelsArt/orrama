@@ -6,7 +6,7 @@
  * to change by hand.
  */
 import { useState, type ReactNode } from "react";
-import type { Me } from "@basalt/schema/responses";
+import type { Me } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { StatusMenu } from "../entity/StatusMenu.js";
 import { linkTo, notePath, routeOf, type Known } from "../entity/links.js";

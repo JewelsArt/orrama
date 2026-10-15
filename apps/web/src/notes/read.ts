@@ -3,7 +3,7 @@
  * how long it is, when it is due, whether it is an ordinary note, how a relation reads in words,
  * a backlink as one clean line. Pure, so each rule has a test.
  */
-import { parseFrontmatter } from "@basalt/core";
+import { parseFrontmatter } from "@orrama/core";
 import { dayMonthLabel, timeLabel, toDate, weekdayLabel } from "../ui/dates.js";
 
 /** The body after the front matter (`bodyStart` is the body's first line). */

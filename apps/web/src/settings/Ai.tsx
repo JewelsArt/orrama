@@ -9,7 +9,7 @@
  * comes back here (apps/server/src/chatgpt.ts), from a browser on the Mac itself.
  */
 import { useCallback, useEffect, useState } from "react";
-import type { AiConfig } from "@basalt/schema/responses";
+import type { AiConfig } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { Button } from "../ui/controls.js";

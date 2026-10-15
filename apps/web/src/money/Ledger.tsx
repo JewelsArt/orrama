@@ -8,8 +8,8 @@
  * and it is the word the savings plan uses for what only a cancellation changes. The tab keeps the
  * board's word.
  */
-import { monthKey, shiftMonth } from "@basalt/core/dates";
-import type { FinanceData, Ledger, MoneyItem, PayslipRow, Recurring } from "@basalt/schema/responses";
+import { monthKey, shiftMonth } from "@orrama/core/dates";
+import type { FinanceData, Ledger, MoneyItem, PayslipRow, Recurring } from "@orrama/schema/responses";
 import { Button, NameLink } from "../ui/controls.js";
 import { Switch } from "../ui/fields.js";
 import { navigate } from "../ui/router.js";

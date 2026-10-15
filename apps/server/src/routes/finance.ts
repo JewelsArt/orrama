@@ -60,7 +60,7 @@ import {
   parseOwnAccounts,
   type OwnAccount,
   recentMonths,
-} from "@basalt/core";
+} from "@orrama/core";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db.js";

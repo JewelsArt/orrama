@@ -10,7 +10,7 @@
  * note has, and the blocks that would be empty are not drawn.
  */
 import { useMemo, useState } from "react";
-import type { Company, Contact, GraphPath, PeopleContext } from "@basalt/schema/responses";
+import type { Company, Contact, GraphPath, PeopleContext } from "@orrama/schema/responses";
 import { api, ApiError, type Me } from "../api.js";
 import { CompanyEdit } from "../people/CompanyEdit.js";
 import { companyFor, linkText, peopleAt, sameSector } from "../people/model.js";

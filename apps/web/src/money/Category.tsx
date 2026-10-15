@@ -3,7 +3,7 @@
  * month by month, and below the chart the month you picked — where it went, shop by shop, and
  * every purchase. `?month=` is that month; a column click moves it.
  */
-import type { CategoryDetail, MonthDetail } from "@basalt/schema/responses";
+import type { CategoryDetail, MonthDetail } from "@orrama/schema/responses";
 import { useState } from "react";
 import { Segmented, Tabs } from "../ui/controls.js";
 import { Crumbs } from "../ui/layout.js";

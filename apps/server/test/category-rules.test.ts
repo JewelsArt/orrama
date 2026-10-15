@@ -48,7 +48,7 @@ const STATEMENT = [
 
 const { buildServer } = await import("../src/main.js");
 const { buildRules, loadTxns, savingsCategories } = await import("../src/routes/finance.js");
-const { categoryOf, monthlyByCategory, parseCategoryRules, parseSubscriptions, ruleFor } = await import("@basalt/core");
+const { categoryOf, monthlyByCategory, parseCategoryRules, parseSubscriptions, ruleFor } = await import("@orrama/core");
 
 const RULES_MD = note(
   "Spending categories",

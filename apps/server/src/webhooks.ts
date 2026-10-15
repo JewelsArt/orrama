@@ -7,7 +7,7 @@
  */
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
-import { canRead } from "@basalt/core";
+import { canRead } from "@orrama/core";
 import { tables, type Db } from "./db.js";
 import { outcomeOf, safeFetch, type Outcome } from "./safeFetch.js";
 import { decryptSecret, encryptSecret } from "./secrets.js";

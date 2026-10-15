@@ -4,7 +4,7 @@
  * The people are the mockups' fictional ones.
  */
 import { vi } from "vitest";
-import type { InboxItem, MailMessage, PendingDraft } from "@basalt/schema/responses";
+import type { InboxItem, MailMessage, PendingDraft } from "@orrama/schema/responses";
 
 export interface Sent {
   method: string;

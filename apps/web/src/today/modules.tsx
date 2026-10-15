@@ -8,7 +8,7 @@
  * The data comes in through props: Today.tsx asks the server, these only draw.
  */
 import type { MouseEvent, ReactNode } from "react";
-import type { Company, Contact, DashboardTask, HomeData, InboxItem, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, DashboardTask, HomeData, InboxItem, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { Bar, Checkbox, DeadlineChip, Dot, LinkButton, ProgressRing, Ring, Square } from "../ui/controls.js";
 import { dateLabel, dayMonthLabel, minutesLabel, timeLabel, toDate, weekdayLabel } from "../ui/dates.js";
 import { Group, Module, Row, RowList } from "../ui/layout.js";

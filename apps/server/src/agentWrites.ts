@@ -14,7 +14,7 @@
  * section. The user still edits all of it in Basalt or Obsidian. Settings → AI
  * instructions is the third channel; `/api/admin/*` is session-only already.
  */
-import { parseNote, projectSlugOf, readSection } from "@basalt/core";
+import { parseNote, projectSlugOf, readSection } from "@orrama/core";
 import { HttpError, type WriteGuard } from "./vaultStore.js";
 
 const INSTRUCTION_FILES = new Set(["claude.md", "claude.local.md", "agents.md"]);

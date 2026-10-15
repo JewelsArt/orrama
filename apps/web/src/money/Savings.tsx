@@ -3,7 +3,7 @@
  * "you could save €240" is a claim; the same number as surplus plus a per-category gap between a
  * typical month and a good one is an argument, and you can disagree with any one line of it.
  */
-import type { FinanceData } from "@basalt/schema/responses";
+import type { FinanceData } from "@orrama/schema/responses";
 import { eur, monthName } from "./format.js";
 import { link, to } from "./links.js";
 

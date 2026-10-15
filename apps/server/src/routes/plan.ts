@@ -7,8 +7,8 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { canEdit, isoLocal } from "@basalt/core";
-import type { AclUser, VaultTask } from "@basalt/core";
+import { canEdit, isoLocal } from "@orrama/core";
+import type { AclUser, VaultTask } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { aiConfig, completeText, type AiConfig } from "../aiProvider.js";
 import { icsEventsFor } from "./ics.js";

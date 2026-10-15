@@ -14,8 +14,8 @@ process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const vault = process.env.BASALT_VAULT_DIR;
-const { ONTOLOGY_TEMPLATE } = await import("@basalt/core");
-const { peopleContextResponse } = await import("@basalt/schema/responses");
+const { ONTOLOGY_TEMPLATE } = await import("@orrama/core");
+const { peopleContextResponse } = await import("@orrama/schema/responses");
 const { buildServer } = await import("../src/main.js");
 
 const put = (rel: string, content: string) => {

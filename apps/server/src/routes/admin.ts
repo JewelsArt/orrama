@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@basalt/schema";
+import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
 import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIWC, startSignIn } from "../chatgpt.js";

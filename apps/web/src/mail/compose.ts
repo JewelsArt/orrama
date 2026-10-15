@@ -4,7 +4,7 @@
  * opened from plus `?write=new|reply|forward`, or `?draft=<id>` for a draft Orr staged. Back
  * closes it; a reload keeps the page and drops the composer, as before.
  */
-import type { MailMessage, PendingDraft } from "@basalt/schema/responses";
+import type { MailMessage, PendingDraft } from "@orrama/schema/responses";
 import { dateTimeLabel } from "../ui/dates.js";
 
 export interface Draft {

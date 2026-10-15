@@ -6,8 +6,8 @@
  * A month other than the current one (`/money?month=2026-09`) shows that month: what it cost, by
  * category, and its charges. Pace is only for the month the statements are inside.
  */
-import { isoLocal } from "@basalt/core/dates";
-import type { FinanceData, MonthDetail, MoneyItem, Recurring } from "@basalt/schema/responses";
+import { isoLocal } from "@orrama/core/dates";
+import type { FinanceData, MonthDetail, MoneyItem, Recurring } from "@orrama/schema/responses";
 import { useMemo, type ReactNode } from "react";
 import { Button } from "../ui/controls.js";
 import { NameLink } from "../ui/controls.js";

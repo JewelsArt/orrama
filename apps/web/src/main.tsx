@@ -1,10 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import "@basalt/ui/fonts.css";
-import "@basalt/ui/tokens.css";
+import "@orrama/ui/fonts.css";
+import "@orrama/ui/tokens.css";
 // After tokens.css: a vision mode overrides the palette it just defined.
-import "@basalt/ui/vision.css";
-import "@basalt/ui/base.css";
+import "@orrama/ui/vision.css";
+import "@orrama/ui/base.css";
 // The old app.css, one file per area (R0, a pure move). The order is the cascade: each file's
 // rules kept their order, and no rule that used to override another now comes before it
 // (checked rule by rule, then every page compared computed style for computed style). The shell

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { tables } from "@basalt/schema";
+import { tables } from "@orrama/schema";
 import { dbPath, env } from "./env.js";
 
 export type Db = ReturnType<typeof createDb>;

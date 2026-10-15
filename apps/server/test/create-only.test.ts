@@ -23,7 +23,7 @@ fs.mkdirSync(VAULT, { recursive: true });
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { writeFileAtomic } = await import("../src/atomicWrite.js");
-const { docContent } = await import("@basalt/sync");
+const { docContent } = await import("@orrama/sync");
 
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};

@@ -25,7 +25,7 @@ process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
-const { docContent, docFromUpdates } = await import("@basalt/sync");
+const { docContent, docFromUpdates } = await import("@orrama/sync");
 
 const VAULT = process.env.BASALT_VAULT_DIR;
 const ORIG = "Engineering/Atlas Roadmap.md";

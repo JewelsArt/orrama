@@ -4,7 +4,7 @@
  * and folder grants are still enforced underneath (CLAUDE.md "One user, one vault") and have no
  * screen yet.
  */
-import type { Member } from "@basalt/schema/responses";
+import type { Member } from "@orrama/schema/responses";
 import { Avatar } from "../ui/orr/Orr.js";
 import { SectionHead, SubHead, type SectionMeta } from "./parts.js";
 

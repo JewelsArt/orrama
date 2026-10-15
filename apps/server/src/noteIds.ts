@@ -12,7 +12,7 @@
  * on disk with that id (otherwise the newcomer is that note, renamed). At
  * boot, when several files carry one id, it is decided here.
  */
-import { parseFrontmatter } from "@basalt/core";
+import { parseFrontmatter } from "@orrama/core";
 
 /** The id a note's front matter carries — what parseNote would read. */
 export function carriedId(content: string): string | undefined {

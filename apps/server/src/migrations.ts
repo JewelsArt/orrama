@@ -8,7 +8,7 @@
  * migration records its name in `meta` when it has run, and never looks again.
  */
 import { eq, inArray } from "drizzle-orm";
-import { setTaskStatus, type AclUser } from "@basalt/core";
+import { setTaskStatus, type AclUser } from "@orrama/core";
 import { tables, type Db } from "./db.js";
 import type { CalendarNotes } from "./calendarNotes.js";
 import type { VaultStore } from "./vaultStore.js";

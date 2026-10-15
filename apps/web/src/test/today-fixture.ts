@@ -4,7 +4,7 @@
  * The people and projects are the mockups' fictional ones. No real vault, ever.
  */
 import { vi } from "vitest";
-import type { CalEvent, Company, Contact, DashboardTask, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import type { CalEvent, Company, Contact, DashboardTask, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 
 export const NOW = new Date(2026, 9, 8, 10, 40);
 export const TODAY = "2026-10-08";

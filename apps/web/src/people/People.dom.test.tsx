@@ -6,7 +6,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Company, Contact, PeopleContext, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, PeopleContext, ProjectRow } from "@orrama/schema/responses";
 import type { Me } from "../api.js";
 import { People } from "./People.js";
 

@@ -5,7 +5,7 @@
  * first (WEB-017): whatever used them stops working.
  */
 import { useEffect, useState } from "react";
-import type { ApiToken as TokenRow, Webhook as HookRow } from "@basalt/schema/responses";
+import type { ApiToken as TokenRow, Webhook as HookRow } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { Button } from "../ui/controls.js";

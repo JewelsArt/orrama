@@ -12,7 +12,7 @@
  *   money        mn  a subscription charge or income from the ledgers
  *   milestone    ms  a project's start or deadline (front matter), a diamond
  */
-import type { CalEvent, DayMarker, PlanTask, TimeBlock } from "@basalt/schema/responses";
+import type { CalEvent, DayMarker, PlanTask, TimeBlock } from "@orrama/schema/responses";
 import { CATEGORIES } from "../categories.js";
 import { DAY_MS, addDays, dayOf, isoDay } from "../calendarMath.js";
 

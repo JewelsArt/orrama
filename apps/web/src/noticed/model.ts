@@ -3,7 +3,7 @@
  * note it is about, with one fix. Pure, so the page and its tests agree. Nothing changes until
  * a fix is clicked; a fix the server has no safe write for opens the note instead.
  */
-import type { GraphWarnings } from "@basalt/schema/responses";
+import type { GraphWarnings } from "@orrama/schema/responses";
 
 export type Warning = GraphWarnings["warnings"][number];
 export type NoteRef = Warning["note"];

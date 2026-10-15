@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CalEvent, DayMarker, Feed, PlanData, PlanTask, TreeNote } from "@basalt/schema/responses";
+import type { CalEvent, DayMarker, Feed, PlanData, PlanTask, TreeNote } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { CATEGORIES, categoryColor } from "./categories.js";
 import { addDays, dayAt, isoDay, isoWeek, longMonth, longWeekday, monthAt, monthCells, monthKey, mondayOf, rangeLabel, weekAt } from "./calendarMath.js";

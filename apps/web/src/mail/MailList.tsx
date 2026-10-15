@@ -4,7 +4,7 @@
  * move between rows, and a click the app follows itself (⌘-click still opens a new tab).
  */
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { InboxItem, PendingDraft } from "@basalt/schema/responses";
+import type { InboxItem, PendingDraft } from "@orrama/schema/responses";
 import { Button, Ring, Square } from "../ui/controls.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";

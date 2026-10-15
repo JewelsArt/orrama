@@ -25,7 +25,7 @@ const months = (what: string, from: number, n: number) =>
 
 const { buildServer } = await import("../src/main.js");
 const { loadStatements } = await import("../src/routes/finance.js");
-const { monthlyByCategory } = await import("@basalt/core");
+const { monthlyByCategory } = await import("@orrama/core");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
 const get = async (url: string) => {

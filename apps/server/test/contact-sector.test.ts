@@ -14,7 +14,7 @@ process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const vault = process.env.BASALT_VAULT_DIR;
-const { parseNote } = await import("@basalt/core");
+const { parseNote } = await import("@orrama/core");
 const { buildServer } = await import("../src/main.js");
 
 const put = (rel: string, content: string) => {

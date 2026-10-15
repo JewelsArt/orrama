@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { convertToModelMessages, pipeUIMessageStreamToResponse, stepCountIs, streamText, tool, type ModelMessage, type UIMessage, type UIMessageChunk, type UserModelMessage } from "ai";
 import { z } from "zod";
-import { askVaultSchema, taskDatesSchema } from "@basalt/schema";
+import { askVaultSchema, taskDatesSchema } from "@orrama/schema";
 import crypto from "node:crypto";
-import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@basalt/core";
+import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@orrama/core";
 import { graphFor, resolveRef } from "./graph.js";
 import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
 import { applyTaskDates, applyTaskStatus } from "./tasks.js";

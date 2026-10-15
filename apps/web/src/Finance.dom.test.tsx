@@ -6,7 +6,7 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail } from "@basalt/schema/responses";
+import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail } from "@orrama/schema/responses";
 import { Money } from "./Finance.js";
 import fixture from "./test/money-fixture.json";
 

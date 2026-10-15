@@ -3,7 +3,7 @@
  * model (model.ts). The ontology's schema only adds words for relations it defines, so the
  * Orrery still opens if that one fails.
  */
-import type { GraphData, TreeNote } from "@basalt/schema/responses";
+import type { GraphData, TreeNote } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { buildModel, signature, type Model, type ProjectRow, type SchemaRelations } from "./model.js";
 

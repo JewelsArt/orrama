@@ -6,8 +6,8 @@ import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { Annotation, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { lineHunks } from "@basalt/sync/merge";
-import type { NoteSync } from "@basalt/sync/client";
+import { lineHunks } from "@orrama/sync/merge";
+import type { NoteSync } from "@orrama/sync/client";
 import { useEffect, useRef } from "react";
 import { livePreview } from "./livePreview.js";
 

@@ -317,7 +317,7 @@ describe("ACL-003: the Dashboard agenda never shows a block on a task you cannot
   it("a block on a task in a note erin cannot read, mentioning @erin, is not on her agenda or in her hours", async () => {
     const hr = await put("jules", "Personal/jules/HR.md", "---\ntitle: HR\n---\n# HR\n\n- [ ] performance warning for erin @erin\n");
     expect(hr.status).toBe(200);
-    const { isoLocal } = await import("@basalt/core");
+    const { isoLocal } = await import("@orrama/core");
     const today = isoLocal(new Date());
     expect((await api("POST", "/api/tasks/blocks", "jules", { noteId: hr.json.id, text: "performance warning for erin @erin", date: today, startMin: 600, durationMin: 120 })).status).toBe(200);
     const erin = (await api("GET", "/api/home", "erin")).json as { agenda: { title: string; noteId: string | null }[]; stats: { weekHours: number } };

@@ -15,8 +15,8 @@ export type {
   TaskObject,
   Team,
   TreeNote,
-} from "@basalt/schema/responses";
-import type { Me } from "@basalt/schema/responses";
+} from "@orrama/schema/responses";
+import type { Me } from "@orrama/schema/responses";
 import { readKey, removeKey, writeKey } from "./storage.js";
 
 const TOKEN_KEY = "basalt-token";

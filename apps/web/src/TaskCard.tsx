@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { ProjectWorkspace } from "@basalt/schema/responses";
+import type { ProjectWorkspace } from "@orrama/schema/responses";
 import { api, unlessAborted } from "./api.js";
 import { isoDay, parseDayInput, parseDurationInput, parsePlanInput, parseTimeInput } from "./calendarMath.js";
 import { Button, DeadlineChip, Ring, Square, Status, type StatusWord } from "./ui/controls.js";

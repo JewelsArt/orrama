@@ -17,7 +17,7 @@
  * is "Kade Social"). A conversation sits with what it is about; a project, a person or a
  * company with the topic most of its own notes are in.
  */
-import type { GraphData, TreeNote } from "@basalt/schema/responses";
+import type { GraphData, TreeNote } from "@orrama/schema/responses";
 import type { StatusWord } from "../ui/controls.js";
 
 export type Kind = 0 | 1 | 2 | 3 | 4 | 5;

@@ -1,5 +1,5 @@
-import { parseLedger } from "@basalt/core/subscriptions";
-import type { MonthDetail, Recurring } from "@basalt/schema/responses";
+import { parseLedger } from "@orrama/core/subscriptions";
+import type { MonthDetail, Recurring } from "@orrama/schema/responses";
 import { describe, expect, it } from "vitest";
 import { monthName, monthShort } from "./format.js";
 import { cadenceOf, monthByCategory, monthStep, recurringRow, shopsOf } from "./model.js";

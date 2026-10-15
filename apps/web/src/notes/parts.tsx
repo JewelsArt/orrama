@@ -3,7 +3,7 @@
  * note's header, and the side panel. They draw; Notes.tsx holds the state and every request.
  */
 import { useRef, useState, type MouseEvent, type ReactNode } from "react";
-import type { GraphRelations, NoteDetail, NotesOverview, TreeNote } from "@basalt/schema/responses";
+import type { GraphRelations, NoteDetail, NotesOverview, TreeNote } from "@orrama/schema/responses";
 import { CATEGORIES, categoryOf } from "../categories.js";
 import { FileTree } from "../FileTree.js";
 import { Icon } from "../ui/Icon.js";

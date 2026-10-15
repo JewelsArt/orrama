@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@basalt/core";
+import { appendToSection, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";

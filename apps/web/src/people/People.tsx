@@ -10,7 +10,7 @@
  * on a vault without an ontology. Search and the sector are in the address (`?q=`, `&sector=`).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, PeopleContext, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, PeopleContext, ProjectRow } from "@orrama/schema/responses";
 import { api, isAbort, type Me } from "../api.js";
 import { onWs } from "../ws.js";
 import { Button, Segmented, Tabs } from "../ui/controls.js";

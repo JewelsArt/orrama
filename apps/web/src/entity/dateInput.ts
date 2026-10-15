@@ -8,7 +8,7 @@
  * Day before month, as everywhere in the app ("Fri 9 Oct"). A year before 1900 is never a date:
  * only a half-typed year looks like one.
  */
-import { addDays, isoLocal } from "@basalt/core/dates";
+import { addDays, isoLocal } from "@orrama/core/dates";
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 

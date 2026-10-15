@@ -1,6 +1,6 @@
 /** People's model: what a row says and how the lists are cut (structure.md §2.7). */
 import { describe, expect, it } from "vitest";
-import type { Company, Contact } from "@basalt/schema/responses";
+import type { Company, Contact } from "@orrama/schema/responses";
 import { byRecent, bySlug, companiesWithoutNote, companyFor, groupsOf, keyRelation, linkText, matches, peopleAt, sectorsIn, slugOf, type Entry } from "./model.js";
 import { initials } from "../ui/controls.js";
 

@@ -9,7 +9,7 @@
  * `[[links]]` in `## People`. Documents are files in the project's folder.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NoteSync, SaveState } from "@basalt/sync/client";
+import type { NoteSync, SaveState } from "@orrama/sync/client";
 import { api, isAbort, type Me, type NoteDetail } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DocViewer } from "./DocViewer.js";
@@ -29,7 +29,7 @@ import { navigate } from "./ui/router.js";
 import { Notice } from "./ui/states.js";
 import { attempt, useWrite } from "./ui/writes.js";
 import { onWs } from "./ws.js";
-import type { Company, Contact, ProjectPerson, ProjectWorkspace } from "@basalt/schema/responses";
+import type { Company, Contact, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
 
 const NEXT_STEPS = 5;
 const kb = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);

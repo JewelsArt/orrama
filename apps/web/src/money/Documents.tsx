@@ -2,8 +2,8 @@
  * Every uploaded file (`/money/documents`), newest first, grouped by the month it arrived, and
  * readable in place rather than only downloadable.
  */
-import { isoLocal, monthKey } from "@basalt/core/dates";
-import type { FinanceData } from "@basalt/schema/responses";
+import { isoLocal, monthKey } from "@orrama/core/dates";
+import type { FinanceData } from "@orrama/schema/responses";
 import { Button } from "../ui/controls.js";
 import { EmptyState } from "../ui/states.js";
 import { dayLabel, FINANCE_FILES_DIR, kb, monthLong, plural } from "./format.js";

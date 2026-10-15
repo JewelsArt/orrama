@@ -13,7 +13,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
-import { ONTOLOGY_TEMPLATE } from "@basalt/core";
+import { ONTOLOGY_TEMPLATE } from "@orrama/core";
 import { deck } from "./helpers/pptx.js";
 
 /**

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { updateFrontmatter } from "@basalt/core";
-import type { GraphRelations, GraphSchema, NotesOverview } from "@basalt/schema/responses";
-import type { NoteSync } from "@basalt/sync/client";
+import { updateFrontmatter } from "@orrama/core";
+import type { GraphRelations, GraphSchema, NotesOverview } from "@orrama/schema/responses";
+import type { NoteSync } from "@orrama/sync/client";
 import { api, ApiError, isAbort, latestOnly, unlessAborted, type Me, type NoteDetail, type TreeNote } from "./api.js";
 import { readKey, removeKey, writeKey } from "./storage.js";
 import { blankNote, createNote as createNoteAt } from "./newNote.js";

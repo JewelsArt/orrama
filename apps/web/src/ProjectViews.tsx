@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { addDays, isoLocal } from "@basalt/core/dates";
+import { addDays, isoLocal } from "@orrama/core/dates";
 import { api } from "./api.js";
 import { daysTo } from "./categories.js";
 import { DocViewer } from "./DocViewer.js";
@@ -7,7 +7,7 @@ import { parseDateInput } from "./entity/index.js";
 import { Gantt } from "./Gantt.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
-import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, GroupNode, ProjectTask } from "@basalt/schema/responses";
+import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, GroupNode, ProjectTask } from "@orrama/schema/responses";
 import { Bar, Button, Checkbox, Segmented, Tabs, type TaskState } from "./ui/controls.js";
 import { dateLabel, dayMonthLabel } from "./ui/dates.js";
 import { Field, Input, SearchField } from "./ui/fields.js";

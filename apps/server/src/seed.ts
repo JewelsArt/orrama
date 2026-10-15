@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { hash as argonHash } from "@node-rs/argon2";
-import { promoteTaskLine } from "@basalt/core";
+import { promoteTaskLine } from "@orrama/core";
 import { writeFileAtomic } from "./atomicWrite.js";
 import { createDb, tables } from "./db.js";
 import { vaultDir } from "./env.js";

@@ -4,8 +4,8 @@
  * category, and every purchase in it. The overview answers "how is this month going"; these
  * answer "what does a year of it look like" and "where did that month go".
  */
-import { rollUpYears } from "@basalt/core/spending";
-import type { FinanceData, MonthDetail } from "@basalt/schema/responses";
+import { rollUpYears } from "@orrama/core/spending";
+import type { FinanceData, MonthDetail } from "@orrama/schema/responses";
 import { useState } from "react";
 import { Button, Segmented, Tabs } from "../ui/controls.js";
 import { Crumbs } from "../ui/layout.js";

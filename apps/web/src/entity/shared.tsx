@@ -4,7 +4,7 @@
  * Orrery's address.
  */
 import { useMemo } from "react";
-import type { GraphWarnings, Me } from "@basalt/schema/responses";
+import type { GraphWarnings, Me } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Fixes, Sentence, useFixes } from "../noticed/fixes.js";
 import { itemsOf } from "../noticed/model.js";

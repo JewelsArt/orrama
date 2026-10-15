@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Company, Contact, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, ProjectRow } from "@orrama/schema/responses";
 import { entityItems, noteItems, placeItems, settingItems, type Lists } from "./build.js";
 import { flat, groupsOf, isFilterQuery, markOf, nextType, parseQuery, remember, scoreOf, withFolders, type Item } from "./model.js";
 

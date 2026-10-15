@@ -7,7 +7,7 @@
  * they cannot read, or a relation to one, does not exist for them (§5.4).
  */
 import type { FastifyInstance } from "fastify";
-import { ONTOLOGY_TAG, type GraphWarning } from "@basalt/core";
+import { ONTOLOGY_TAG, type GraphWarning } from "@orrama/core";
 import type { VaultStore } from "../vaultStore.js";
 import { graphFor } from "./graph.js";
 

@@ -4,7 +4,7 @@
  * and under it the reply Orr drafted, if he did.
  */
 import { useRef, useState, type ReactNode } from "react";
-import type { MailMessage, PendingDraft } from "@basalt/schema/responses";
+import type { MailMessage, PendingDraft } from "@orrama/schema/responses";
 import { Button } from "../ui/controls.js";
 import { Ring, Square, NameLink } from "../ui/controls.js";
 import { dateTimeLabel } from "../ui/dates.js";

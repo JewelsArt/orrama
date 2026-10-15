@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { mailConnectSchema, mailSendSchema } from "@basalt/schema";
+import { mailConnectSchema, mailSendSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
 import { HttpError } from "../vaultStore.js";

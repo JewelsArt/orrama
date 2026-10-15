@@ -6,7 +6,7 @@
  * #share/<team>, keep private ones in your personal folder.
  */
 import type { FastifyInstance } from "fastify";
-import { updateFrontmatter } from "@basalt/core";
+import { updateFrontmatter } from "@orrama/core";
 import type { Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 

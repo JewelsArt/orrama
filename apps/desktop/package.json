@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/desktop",
+  "name": "@orrama/desktop",
   "version": "0.1.0",
   "description": "Basalt desktop shell (Tauri 2): a native window on the local Basalt server.",
   "license": "Apache-2.0",

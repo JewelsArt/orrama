@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/web",
+  "name": "@orrama/web",
   "version": "0.1.0",
   "description": "Basalt web client — the same workspace in the browser (spec §2).",
   "license": "Apache-2.0",
@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.16",
-    "@basalt/core": "workspace:*",
-    "@basalt/schema": "workspace:*",
-    "@basalt/sync": "workspace:*",
-    "@basalt/ui": "workspace:*",
+    "@orrama/core": "workspace:*",
+    "@orrama/schema": "workspace:*",
+    "@orrama/sync": "workspace:*",
+    "@orrama/ui": "workspace:*",
     "@codemirror/autocomplete": "^6.18.0",
     "@codemirror/commands": "^6.8.0",
     "@codemirror/lang-markdown": "^6.3.0",

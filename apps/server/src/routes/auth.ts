@@ -9,7 +9,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
-import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@basalt/schema";
+import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
 import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS } from "../sessions.js";

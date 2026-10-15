@@ -17,7 +17,7 @@
  */
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import * as Y from "yjs";
-import { applyUpdateB64, docContent } from "@basalt/sync";
+import { applyUpdateB64, docContent } from "@orrama/sync";
 import { tables, type Db } from "./db.js";
 
 export interface LogRow {

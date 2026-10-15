@@ -4,7 +4,7 @@
  * then the transcript as speaker turns, never as `**Jules:**` markup. A note that has no turns
  * is shown in the editor like any note.
  */
-import type { Me, TreeNote } from "@basalt/schema/responses";
+import type { Me, TreeNote } from "@orrama/schema/responses";
 import { Icon } from "../ui/Icon.js";
 import { LinkButton } from "../ui/controls.js";
 import { dateLabel } from "../ui/dates.js";

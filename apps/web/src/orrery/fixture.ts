@@ -2,7 +2,7 @@
  * A small fictional vault in the shapes the server sends (/api/vault/graph, /api/vault/tree,
  * /api/projects), for the Orrery's tests. The names are the mockups' fictional ones.
  */
-import type { GraphData, TreeNote } from "@basalt/schema/responses";
+import type { GraphData, TreeNote } from "@orrama/schema/responses";
 import type { ProjectRow } from "./model.js";
 
 type GNode = GraphData["nodes"][number];

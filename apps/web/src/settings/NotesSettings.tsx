@@ -5,7 +5,7 @@
  * and the ontology are notes, so this section shows them and opens them rather than editing.
  */
 import { useEffect, useState, type MouseEvent } from "react";
-import type { GraphSchema, ServerSettings, TreeNote } from "@basalt/schema/responses";
+import type { GraphSchema, ServerSettings, TreeNote } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { CATEGORIES } from "../categories.js";
 import { Dot } from "../ui/controls.js";

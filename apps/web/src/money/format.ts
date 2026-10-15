@@ -3,8 +3,8 @@
  * pure helpers the pages share. The arithmetic here is the old Finance page's, moved, not
  * changed: a redesign changes how money looks, never what it adds up to.
  */
-import { chargeDates, type Cadence } from "@basalt/core/subscriptions";
-import type { Ledger } from "@basalt/schema/responses";
+import { chargeDates, type Cadence } from "@orrama/core/subscriptions";
+import type { Ledger } from "@orrama/schema/responses";
 import { dayMonthLabel, monthLabel, weekdayLabel } from "../ui/dates.js";
 
 /** "€1,372.02", "−€6.40": en-GB grouping whatever the browser's language. */

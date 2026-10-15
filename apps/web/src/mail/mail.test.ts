@@ -1,6 +1,6 @@
 /** Mail's pure parts: list dates, the tabs and More, who a sender is, and the composer's address. */
 import { describe, expect, it } from "vitest";
-import type { Company, Contact, InboxItem, MailMessage } from "@basalt/schema/responses";
+import type { Company, Contact, InboxItem, MailMessage } from "@orrama/schema/responses";
 import { composeHref, composeOf, forwardDraft, replyDraft } from "./compose.js";
 import { addressOf, entitySlug, hostOf, matchSender } from "./people.js";
 import { fitTabs, mailTabs, splitTabs, validTab } from "./tabs.js";

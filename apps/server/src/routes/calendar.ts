@@ -9,8 +9,8 @@
 import crypto from "node:crypto";
 import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { chargeDates, isoLocal, parseSubscriptions, type AclUser } from "@basalt/core";
-import { taskPlaceSchema } from "@basalt/schema";
+import { chargeDates, isoLocal, parseSubscriptions, type AclUser } from "@orrama/core";
+import { taskPlaceSchema } from "@orrama/schema";
 import type { z } from "zod";
 import type { CalendarNotes } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";

@@ -11,7 +11,7 @@
  * folder's top level for GETs); the pieces it draws are in mail/.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, GraphRelations, InboxItem, MailAccount as Account, MailMessage, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import type { Company, Contact, GraphRelations, InboxItem, MailAccount as Account, MailMessage, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { readKey, writeKey } from "./storage.js";

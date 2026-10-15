@@ -4,7 +4,7 @@
  * company's entity page opens it in a sheet (R11); People's sheets it lived in are gone.
  */
 import { useState } from "react";
-import type { Company } from "@basalt/schema/responses";
+import type { Company } from "@orrama/schema/responses";
 import { api, ApiError } from "../api.js";
 import { Button } from "../ui/controls.js";
 import { Field, Form, Input, Textarea } from "../ui/fields.js";

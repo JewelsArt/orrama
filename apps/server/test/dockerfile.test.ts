@@ -35,7 +35,7 @@ describe("Dockerfile", () => {
     expect(runtime).not.toMatch(/COPY --from=build \/app \./);
     expect(runtime).toMatch(/COPY --from=build \/out\/apps\/server apps\/server/);
     expect(runtime).toMatch(/COPY --from=build \/app\/apps\/web\/dist apps\/web\/dist/);
-    expect(read("Dockerfile")).toMatch(/pnpm --filter @basalt\/server deploy --prod/);
+    expect(read("Dockerfile")).toMatch(/pnpm --filter @orrama\/server deploy --prod/);
     expect(runtime).toMatch(/chown node:node \/data$/m);
     expect(runtime).not.toMatch(/chown[^\n]*\/app/);
     expect(runtime).not.toMatch(/^USER /m); // the entrypoint drops to node

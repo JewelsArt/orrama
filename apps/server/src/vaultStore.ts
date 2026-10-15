@@ -2,7 +2,7 @@
  * The server's vault service: real Markdown files in a real folder tree on disk
  * (admins can rsync/git-backup it), an in-memory VaultIndex over them, and a
  * Y.Doc per note whose update log lives in SQLite for history + CRDT merge.
- * Every read surface goes through @basalt/core ACL — implemented once, used everywhere.
+ * Every read surface goes through @orrama/core ACL — implemented once, used everywhere.
  */
 import crypto from "node:crypto";
 import { isUtf8 } from "node:buffer";
@@ -31,8 +31,8 @@ import {
   type FolderGrant,
   type IndexedNote,
   type ProjectDef,
-} from "@basalt/core";
-import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, SpliceMismatchError, updateDocContent } from "@basalt/sync";
+} from "@orrama/core";
+import { createNoteDoc, docContent, docFromUpdates, encodeStateB64, mergeText, SpliceMismatchError, updateDocContent } from "@orrama/sync";
 import { tables, type Db } from "./db.js";
 import { vaultDir } from "./env.js";
 import { carriedId, chooseIdOwner } from "./noteIds.js";

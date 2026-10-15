@@ -10,8 +10,8 @@
  * view").
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, isoLocal } from "@basalt/core/dates";
-import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@basalt/schema/responses";
+import { addDays, isoLocal } from "@orrama/core/dates";
+import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api, ApiError } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
 import { New } from "./create/New.js";

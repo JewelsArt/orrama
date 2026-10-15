@@ -1,5 +1,5 @@
 {
-  "name": "@basalt/ui",
+  "name": "@orrama/ui",
   "version": "0.1.0",
   "description": "Design tokens, base styles and the Figtree font: Orrama's paper (light) and night (dark) themes.",
   "license": "Apache-2.0",

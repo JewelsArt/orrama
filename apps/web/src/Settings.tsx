@@ -10,7 +10,7 @@
  * API tokens, webhooks, sign out), and everything that cannot be undone asks first (WEB-017).
  */
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import type { AiConfig, Feed, MailAccount, Member, ServerSettings } from "@basalt/schema/responses";
+import type { AiConfig, Feed, MailAccount, Member, ServerSettings } from "@orrama/schema/responses";
 import { api, type Me, type SessionInfo } from "./api.js";
 import type { VisionProfile } from "./palette.js";
 import { AccessSection } from "./settings/Access.js";

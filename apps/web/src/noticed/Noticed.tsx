@@ -9,7 +9,7 @@
  * project with no note creates that project's note; anything else opens the note to change by
  * hand. Without an ontology note there is nothing to check, and the page says so plainly.
  */
-import type { GraphSchema, GraphWarnings, Me, NotesOverview } from "@basalt/schema/responses";
+import type { GraphSchema, GraphWarnings, Me, NotesOverview } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { useKnown, useLoad, useNotesTick, type Load } from "../entity/known.js";
 import { anchor, linkTo, notePath } from "../entity/links.js";

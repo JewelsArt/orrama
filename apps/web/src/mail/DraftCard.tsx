@@ -5,7 +5,7 @@
  * path (POST /api/mail/send, a signed-in session only); Edit opens it in the composer. The
  * agent itself can never send (CLAUDE.md "The agent can draft mail, never send it").
  */
-import type { PendingDraft } from "@basalt/schema/responses";
+import type { PendingDraft } from "@orrama/schema/responses";
 import { Button } from "../ui/controls.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";

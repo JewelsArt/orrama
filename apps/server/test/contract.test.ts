@@ -23,7 +23,7 @@ process.env.BASALT_FETCH_ALLOW = "127.0.0.1"; // the local calendar feed below
 
 const vault = process.env.BASALT_VAULT_DIR;
 const fx = await import("./contract-fixtures.js");
-const R = await import("@basalt/schema/responses");
+const R = await import("@orrama/schema/responses");
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 const { encryptSecret } = await import("../src/secrets.js");

@@ -3,7 +3,7 @@
  * under a name says, how the A–Z runs are cut, and the companies people name that have no note
  * yet. Pure functions over what the server sends, so the page and its tests agree.
  */
-import type { Company, Contact, PeopleContext } from "@basalt/schema/responses";
+import type { Company, Contact, PeopleContext } from "@orrama/schema/responses";
 
 export type Entry = PeopleContext["entries"][number];
 export type Brief = Entry["relations"][number]["to"][number];

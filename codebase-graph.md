@@ -8,7 +8,7 @@
 
 ### `apps/server/src/agentWrites.ts`
 - **Exports**: isInstructionFile, untrustedWriter, agentWriter, tokenWriter, both
-- **Imports**: @basalt/core, ./vaultStore.js
+- **Imports**: @orrama/core, ./vaultStore.js
 
 ### `apps/server/src/aiProvider.ts`
 - **Exports**: AiConfig, aiConfig, callOptions, completeText, resolveModel
@@ -23,7 +23,7 @@
 
 ### `apps/server/src/calendarNotes.ts`
 - **Exports**: CAL_DIR, CalRow, parseCalendarRows, renderRow, placeRow, dropRow, ownerOf, CalendarNotes
-- **Imports**: node:crypto, drizzle-orm, @basalt/core, ./db.js, ./vaultStore.js
+- **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./vaultStore.js
 
 ### `apps/server/src/chatgpt.ts`
 - **Exports**: SIWC, ChatGptCredentials, chatgptCredentials, hostId, startSignIn, setKeySetForTests, finishSignIn, chatgptAccessToken, ChatGptModel, listModels, disconnect
@@ -31,11 +31,11 @@
 
 ### `apps/server/src/db.ts`
 - **Exports**: Db, SCHEMA_VERSION, addColumns, createDb, dataDirs
-- **Imports**: node:fs, node:path, better-sqlite3, drizzle-orm/better-sqlite3, @basalt/schema, ./env.js
+- **Imports**: node:fs, node:path, better-sqlite3, drizzle-orm/better-sqlite3, @orrama/schema, ./env.js
 
 ### `apps/server/src/diskPath.ts`
 - **Exports**: AmbiguousPathError, onDisk, listedExactly, sameFile, linksIntoVault, throughVaultLink
-- **Imports**: node:fs, node:path, @basalt/core
+- **Imports**: node:fs, node:path, @orrama/core
 
 ### `apps/server/src/docHtml.ts`
 - **Exports**: safeHref, sanitizeDocHtml
@@ -55,7 +55,7 @@
 
 ### `apps/server/src/history.ts`
 - **Exports**: LogRow, replay, bucketOf, compactionRuns, compactNote, compactAll
-- **Imports**: drizzle-orm, yjs, @basalt/sync, ./db.js
+- **Imports**: drizzle-orm, yjs, @orrama/sync, ./db.js
 
 ### `apps/server/src/ics.ts`
 - **Exports**: MAX_EXPAND_STEPS, VEvent, IcsOccurrence, wallToUtc, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
@@ -77,11 +77,11 @@
 
 ### `apps/server/src/migrations.ts`
 - **Exports**: runDataMigrations
-- **Imports**: drizzle-orm, @basalt/core, ./db.js, ./calendarNotes.js, ./vaultStore.js
+- **Imports**: drizzle-orm, @orrama/core, ./db.js, ./calendarNotes.js, ./vaultStore.js
 
 ### `apps/server/src/noteIds.ts`
 - **Exports**: carriedId, IdCandidate, chooseIdOwner
-- **Imports**: @basalt/core
+- **Imports**: @orrama/core
 
 ### `apps/server/src/pdfText.ts`
 - **Exports**: PDF_LIMITS, PdfText, readPdfText
@@ -103,43 +103,43 @@
 
 ### `apps/server/src/routes/admin.ts`
 - **Exports**: adminRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/schema, ../db.js, ../secrets.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/schema, ../db.js, ../secrets.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/ai.ts`
 - **Exports**: aiRoutes
-- **Imports**: fastify, ai, zod, @basalt/schema, node:crypto, @basalt/core, ./graph.js, ./projects.js, ./tasks.js, ./calendar.js, ../calendarNotes.js, drizzle-orm, ../db.js, ../aiProvider.js, ../mail.js, ./mail.js, ../vaultStore.js, ../agentWrites.js
+- **Imports**: fastify, ai, zod, @orrama/schema, node:crypto, @orrama/core, ./graph.js, ./projects.js, ./tasks.js, ./calendar.js, ../calendarNotes.js, drizzle-orm, ../db.js, ../aiProvider.js, ../mail.js, ./mail.js, ../vaultStore.js, ../agentWrites.js
 
 ### `apps/server/src/routes/auth.ts`
 - **Exports**: sessionOnly, MAX_LIVE_CHALLENGES, authRoutes, publicUser, webauthnOrigin
-- **Imports**: node:crypto, @node-rs/argon2, drizzle-orm, fastify, zod, @simplewebauthn/server, @basalt/schema, ../db.js, ../loginLimit.js, ../sessions.js, ../usernames.js, ../env.js, ../vaultStore.js
+- **Imports**: node:crypto, @node-rs/argon2, drizzle-orm, fastify, zod, @simplewebauthn/server, @orrama/schema, ../db.js, ../loginLimit.js, ../sessions.js, ../usernames.js, ../env.js, ../vaultStore.js
 
 ### `apps/server/src/routes/calendar.ts`
 - **Exports**: DEFAULT_BLOCK_MIN, clampSlot, DayMarker, bookTaskBlock, calendarRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/core, @basalt/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./tasks.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./tasks.js
 
 ### `apps/server/src/routes/contacts.ts`
 - **Exports**: contactRoutes
-- **Imports**: fastify, @basalt/core, ../db.js, ../vaultStore.js
+- **Imports**: fastify, @orrama/core, ../db.js, ../vaultStore.js
 
 ### `apps/server/src/routes/dashboard.ts`
 - **Exports**: dashboardRoutes
-- **Imports**: drizzle-orm, fastify, @basalt/core, ../db.js, ../vaultStore.js
+- **Imports**: drizzle-orm, fastify, @orrama/core, ../db.js, ../vaultStore.js
 
 ### `apps/server/src/routes/finance.ts`
 - **Exports**: FINANCE_TAG, FINANCE_DIR, canReadFinanceFiles, FinanceKind, LEDGER_TAGS, ledgerCandidates, ledgerNote, ledgerConflicts, financeNote, StatementFileSummary, readStatementFile, loadTxns, loadStatements, ownAccountsFor, statementsFor, txnsFor, savingsDrift, balanceSpan, balanceTrend, buildRules, savingsCategories, writtenBalance, netTotals, typicalAround, planSavings, financeRoutes
-- **Imports**: node:fs, node:path, @basalt/core, fastify, zod, ../db.js, ../vaultStore.js, ../uploads.js, ../zip.js, ../pdfText.js
+- **Imports**: node:fs, node:path, @orrama/core, fastify, zod, ../db.js, ../vaultStore.js, ../uploads.js, ../zip.js, ../pdfText.js
 
 ### `apps/server/src/routes/graph.ts`
 - **Exports**: graphFor, resolveRef, graphRoutes
-- **Imports**: fastify, @basalt/core, zod, ../vaultStore.js
+- **Imports**: fastify, @orrama/core, zod, ../vaultStore.js
 
 ### `apps/server/src/routes/home.ts`
 - **Exports**: homeRoutes
-- **Imports**: drizzle-orm, fastify, @basalt/core, ../calendarNotes.js, ../db.js, ../vaultStore.js, ./finance.js, ./ics.js
+- **Imports**: drizzle-orm, fastify, @orrama/core, ../calendarNotes.js, ../db.js, ../vaultStore.js, ./finance.js, ./ics.js
 
 ### `apps/server/src/routes/ics.ts`
 - **Exports**: TRUNCATED, dropFeedCache, IcsCalItem, icsEventsFor, icsRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/core, ../db.js, ../ics.js, ../secrets.js, ../safeFetch.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, ../db.js, ../ics.js, ../secrets.js, ../safeFetch.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/integrations.ts`
 - **Exports**: hashToken, integrationRoutes
@@ -147,7 +147,7 @@
 
 ### `apps/server/src/routes/mail.ts`
 - **Exports**: mailRoutes, stageDraft
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/schema, ../db.js, ../secrets.js, ../vaultStore.js, ../mail.js, ../safeFetch.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/schema, ../db.js, ../secrets.js, ../vaultStore.js, ../mail.js, ../safeFetch.js, ./auth.js
 
 ### `apps/server/src/routes/notesHome.ts`
 - **Exports**: isPinned, notesHomeRoutes
@@ -155,19 +155,19 @@
 
 ### `apps/server/src/routes/noticed.ts`
 - **Exports**: noticedRoutes
-- **Imports**: fastify, @basalt/core, ../vaultStore.js, ./graph.js
+- **Imports**: fastify, @orrama/core, ../vaultStore.js, ./graph.js
 
 ### `apps/server/src/routes/people.ts`
 - **Exports**: peopleRoutes
-- **Imports**: fastify, @basalt/core, ../vaultStore.js, ./graph.js
+- **Imports**: fastify, @orrama/core, ../vaultStore.js, ./graph.js
 
 ### `apps/server/src/routes/plan.ts`
 - **Exports**: EstimateCache, buildPlan, Proposal, planRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/core, @basalt/core, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/core, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
 
 ### `apps/server/src/routes/projects.ts`
 - **Exports**: DOMAINS, Domain, slugify, asDomain, projectNoteScaffold, linkTo, projectRoutes
-- **Imports**: node:fs, node:path, drizzle-orm, fastify, @basalt/core, ../db.js, ../board.js, ../docHtml.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
+- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
@@ -175,15 +175,15 @@
 
 ### `apps/server/src/routes/tasks.ts`
 - **Exports**: TASK_GONE, requireTask, applyTaskStatus, applyTaskDates, promoteNamedTask, taskRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @basalt/schema, zod, @basalt/core, ../db.js, ../vaultStore.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/schema, zod, @orrama/core, ../db.js, ../vaultStore.js
 
 ### `apps/server/src/routes/vault.ts`
 - **Exports**: vaultRoutes
-- **Imports**: fastify, @basalt/sync, @basalt/schema, @basalt/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js
+- **Imports**: fastify, @orrama/sync, @orrama/schema, @orrama/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js
 
 ### `apps/server/src/routes/ws.ts`
 - **Exports**: AUTH_TIMEOUT_MS, wsRoutes
-- **Imports**: fastify, ws, @basalt/core, ../db.js, ../sessions.js, ../vaultStore.js
+- **Imports**: fastify, ws, @orrama/core, ../db.js, ../sessions.js, ../vaultStore.js
 
 ### `apps/server/src/safeFetch.ts`
 - **Exports**: BlockedTargetError, isPublicAddress, SafeResponse, SafeRequest, assertPermittedHost, safeFetch, Outcome, outcomeOf
@@ -195,7 +195,7 @@
 
 ### `apps/server/src/seed.ts`
 - **Exports**: firstNote
-- **Imports**: node:crypto, node:fs, node:path, @node-rs/argon2, @basalt/core, ./atomicWrite.js, ./db.js, ./env.js, ./vaultStore.js
+- **Imports**: node:crypto, node:fs, node:path, @node-rs/argon2, @orrama/core, ./atomicWrite.js, ./db.js, ./env.js, ./vaultStore.js
 
 ### `apps/server/src/sessions.ts`
 - **Exports**: SESSION_DAYS, sessionLabel, openSession, sessionUser, revokeSession, revokeEverything, listSessions
@@ -207,7 +207,7 @@
 
 ### `apps/server/src/uploads.ts`
 - **Exports**: StoredUpload, numbered, storeUpload, contentDisposition, CONTROL_CHARS
-- **Imports**: node:fs, node:path, @basalt/core, ./atomicWrite.js
+- **Imports**: node:fs, node:path, @orrama/core, ./atomicWrite.js
 
 ### `apps/server/src/usernames.ts`
 - **Exports**: retireUsername, usernameRetired, RETIRED_USERNAME
@@ -215,11 +215,11 @@
 
 ### `apps/server/src/vaultStore.ts`
 - **Exports**: hash, HttpError, NoteChangedEvent, WriteGuard, isRootGuide, VaultStore
-- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @basalt/core, @basalt/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js, ./portableName.js
+- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @orrama/core, @orrama/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js, ./portableName.js
 
 ### `apps/server/src/webhooks.ts`
 - **Exports**: WEBHOOK_EVENTS, WebhookEvent, TaskCompletedEvent, signPayload, WEBHOOK_SECRET_PREFIX, sealWebhookSecret, sealPlainWebhookSecrets, deliver, initWebhooks
-- **Imports**: node:crypto, drizzle-orm, @basalt/core, ./db.js, ./safeFetch.js, ./secrets.js, ./vaultStore.js
+- **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./safeFetch.js, ./secrets.js, ./vaultStore.js
 
 ### `apps/server/src/zip.ts`
 - **Exports**: ZipEntry, TooLargeError, InflateCaps, DOCX_CAPS, XLSX_CAPS, readCentralDirectory, extract, assertInflatesWithin, readOfficeFile, officeRefusal
@@ -239,11 +239,11 @@
 
 ### `apps/web/src/DocViewer.tsx`
 - **Exports**: readerError, DocViewer
-- **Imports**: react, ./api.js, @basalt/schema/responses, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js
+- **Imports**: react, ./api.js, @orrama/schema/responses, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js
 
 ### `apps/web/src/Editor.tsx`
 - **Exports**: EditorProps, Editor
-- **Imports**: @codemirror/autocomplete, @codemirror/commands, @codemirror/lang-markdown, @codemirror/language-data, @codemirror/language, @codemirror/state, @codemirror/view, @lezer/highlight, @basalt/sync/merge, @basalt/sync/client, react, ./livePreview.js
+- **Imports**: @codemirror/autocomplete, @codemirror/commands, @codemirror/lang-markdown, @codemirror/language-data, @codemirror/language, @codemirror/state, @codemirror/view, @lezer/highlight, @orrama/sync/merge, @orrama/sync/client, react, ./livePreview.js
 
 ### `apps/web/src/FileTree.tsx`
 - **Exports**: sameTitleFilenames, filterNotes, FileTree
@@ -251,7 +251,7 @@
 
 ### `apps/web/src/Finance.tsx`
 - **Exports**: rowKeys, Money
-- **Imports**: @basalt/core/dates, @basalt/schema/responses, react, ./api.js, ./DocViewer.js, ./storage.js, ./ui/controls.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./money/Category.js, ./money/Documents.js, ./money/format.js, ./money/hooks.js, ./money/Ledger.js, ./money/links.js, ./money/Merchant.js, ./money/model.js, ./money/Overview.js, ./money/palette.js, ./money/Savings.js, ./money/Spending.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ./api.js, ./DocViewer.js, ./storage.js, ./ui/controls.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./money/Category.js, ./money/Documents.js, ./money/format.js, ./money/hooks.js, ./money/Ledger.js, ./money/links.js, ./money/Merchant.js, ./money/model.js, ./money/Overview.js, ./money/palette.js, ./money/Savings.js, ./money/Spending.js
 
 ### `apps/web/src/Gantt.tsx`
 - **Exports**: GanttProps, Gantt
@@ -267,15 +267,15 @@
 
 ### `apps/web/src/Mail.tsx`
 - **Exports**: Mail
-- **Imports**: react, @basalt/schema/responses, ./api.js, ./Confirm.js, ./storage.js, ./ui/controls.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/overlays.js, ./mail/Composer.js, ./mail/compose.js, ./mail/DraftCard.js, ./mail/MailList.js, ./mail/MessageBody.js, ./mail/people.js, ./mail/Reader.js, ./mail/tabs.js, ./mail/Waiting.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./Confirm.js, ./storage.js, ./ui/controls.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/overlays.js, ./mail/Composer.js, ./mail/compose.js, ./mail/DraftCard.js, ./mail/MailList.js, ./mail/MessageBody.js, ./mail/people.js, ./mail/Reader.js, ./mail/tabs.js, ./mail/Waiting.js
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
-- **Imports**: react, @basalt/core, @basalt/schema/responses, @basalt/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
+- **Imports**: react, @orrama/core, @orrama/schema/responses, @orrama/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @basalt/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @orrama/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js
 
 ### `apps/web/src/OverviewHead.tsx`
 - **Exports**: BoardShelf, SHELVES, boardShelf, shelfRows, BoardPerson, BoardProject, stepOrder, boardProject, nextDate, ProjectRow, ProjectSteps
@@ -283,19 +283,19 @@
 
 ### `apps/web/src/Planning.tsx`
 - **Exports**: Planning
-- **Imports**: react, @basalt/schema/responses, ./api.js, ./categories.js, ./calendarMath.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/keys.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, ./planning/Hours.js, ./planning/ItemPopover.js, ./planning/Lanes.js, ./planning/model.js, ./planning/Month.js, ./planning/PhoneWeek.js, ./planning/ToPlan.js, ./ui/orr/Orr.js, ./planning/title.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./categories.js, ./calendarMath.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/keys.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, ./planning/Hours.js, ./planning/ItemPopover.js, ./planning/Lanes.js, ./planning/model.js, ./planning/Month.js, ./planning/PhoneWeek.js, ./planning/ToPlan.js, ./ui/orr/Orr.js, ./planning/title.js
 
 ### `apps/web/src/Project.tsx`
 - **Exports**: default, Tab, LAST_TAB_KEY, tabHref, leftLabel, Project
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./ProjectOverview.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @basalt/schema/responses
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./ProjectOverview.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses
 
 ### `apps/web/src/ProjectOverview.tsx`
 - **Exports**: ProjectOverview, decisionOf
-- **Imports**: react, @basalt/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./entity/links.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @basalt/schema/responses
+- **Imports**: react, @orrama/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./entity/links.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses
 
 ### `apps/web/src/ProjectViews.tsx`
 - **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
-- **Imports**: react, @basalt/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./TaskCard.js, ./Project.js, @basalt/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
+- **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
 
 ### `apps/web/src/QuickCapture.tsx`
 - **Exports**: QuickCapture
@@ -303,7 +303,7 @@
 
 ### `apps/web/src/Settings.tsx`
 - **Exports**: default, SettingsProps, Settings
-- **Imports**: react, @basalt/schema/responses, ./api.js, ./palette.js, ./settings/Access.js, ./settings/Ai.js, ./settings/Appearance.js, ./settings/Connections.js, ./settings/Developer.js, ./settings/Device.js, ./settings/NotesSettings.js, ./settings/parts.js, ./settings/SignedIn.js, ./settings/You.js, ./ui/controls.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/router.js, ./ui/states.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./palette.js, ./settings/Access.js, ./settings/Ai.js, ./settings/Appearance.js, ./settings/Connections.js, ./settings/Developer.js, ./settings/Device.js, ./settings/NotesSettings.js, ./settings/parts.js, ./settings/SignedIn.js, ./settings/You.js, ./ui/controls.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/router.js, ./ui/states.js
 
 ### `apps/web/src/Setup.tsx`
 - **Exports**: Setup
@@ -311,11 +311,11 @@
 
 ### `apps/web/src/TaskCard.tsx`
 - **Exports**: PlannableTask, TaskCard
-- **Imports**: react, @basalt/schema/responses, ./api.js, ./calendarMath.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/overlays.js, react-dom
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./calendarMath.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/overlays.js, react-dom
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @basalt/core/dates, @basalt/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
+- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -323,7 +323,7 @@
 
 ### `apps/web/src/api.ts`
 - **Exports**: default, getToken, setToken, clearToken, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isFailedWrite, isAbort, unlessAborted, latestOnly, SESSION_ENDED, signOut, apiBlob, ApiError
-- **Imports**: @basalt/schema/responses, ./storage.js
+- **Imports**: @orrama/schema/responses, ./storage.js
 
 ### `apps/web/src/ask/Answer.tsx`
 - **Exports**: CiteRender, Markdown
@@ -353,11 +353,11 @@
 
 ### `apps/web/src/cards.tsx`
 - **Exports**: default, initials, ContactSheet, useColleagues
-- **Imports**: react, ./api.js, @basalt/schema/responses
+- **Imports**: react, ./api.js, @orrama/schema/responses
 
 ### `apps/web/src/categories.ts`
 - **Exports**: Category, CATEGORIES, SLEEP_STATES, CANCEL_STATES, DONE_STATES, isProjectActive, DOMAIN_COLOR, daysTo, relDay, isSessionLog, categoryOf, categoryColor, colorOf
-- **Imports**: ./api.js, @basalt/core/dates
+- **Imports**: ./api.js, @orrama/core/dates
 
 ### `apps/web/src/create/New.tsx`
 - **Exports**: New
@@ -384,7 +384,7 @@
 
 ### `apps/web/src/door/shape.ts`
 - **Exports**: shapeOf, vaultShape, FirstCounts, firstRunCounts, foundLine, foundDetail, countingLine
-- **Imports**: ../api.js, @basalt/schema/responses, ../categories.js, ./dots.js
+- **Imports**: ../api.js, @orrama/schema/responses, ../categories.js, ./dots.js
 
 ### `apps/web/src/door/voice.ts`
 - **Exports**: DoorAttempt, DoorError, waitOf, doorError, cancelled
@@ -392,7 +392,7 @@
 
 ### `apps/web/src/entity/ConversationPage.tsx`
 - **Exports**: dateOf, ConversationPage
-- **Imports**: @basalt/schema/responses, ../ui/Icon.js, ../ui/controls.js, ../ui/dates.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js, ../notes/read.js
+- **Imports**: @orrama/schema/responses, ../ui/Icon.js, ../ui/controls.js, ../ui/dates.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js, ../notes/read.js
 
 ### `apps/web/src/entity/Dates.tsx`
 - **Exports**: DateSlot, rangeLabel, DatesButton
@@ -400,7 +400,7 @@
 
 ### `apps/web/src/entity/DocumentPage.tsx`
 - **Exports**: DocumentPage
-- **Imports**: @basalt/schema/responses, ../api.js, ../DocViewer.js, ../notes/read.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/states.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js
+- **Imports**: @orrama/schema/responses, ../api.js, ../DocViewer.js, ../notes/read.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/states.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js
 
 ### `apps/web/src/entity/EntityHeader.tsx`
 - **Exports**: EntityHeader
@@ -408,7 +408,7 @@
 
 ### `apps/web/src/entity/EntityPage.tsx`
 - **Exports**: EntityRoute, titleFor, EntityPage
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../people/CompanyEdit.js, ../people/model.js, ../people/NewDialogs.js, ../orrery/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ./activity.js, ./ConversationPage.js, ./shared.js, ./DocumentPage.js, ./EntityHeader.js, ./known.js, ./links.js, ./model.js, ./title.js, ./parts.js, ./relations.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../people/CompanyEdit.js, ../people/model.js, ../people/NewDialogs.js, ../orrery/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ./activity.js, ./ConversationPage.js, ./shared.js, ./DocumentPage.js, ./EntityHeader.js, ./known.js, ./links.js, ./model.js, ./title.js, ./parts.js, ./relations.js
 
 ### `apps/web/src/entity/StatusMenu.tsx`
 - **Exports**: statusLook, StatusMenu
@@ -416,15 +416,15 @@
 
 ### `apps/web/src/entity/activity.tsx`
 - **Exports**: useActivitySources, Sources, default, ActivityModule
-- **Imports**: @basalt/schema/responses, ../api.js, ../ProjectViews.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/layout.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ./links.js, ./known.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../api.js, ../ProjectViews.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/layout.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ./links.js, ./known.js, ./model.js
 
 ### `apps/web/src/entity/dateInput.ts`
 - **Exports**: parseDateInput
-- **Imports**: @basalt/core/dates
+- **Imports**: @orrama/core/dates
 
 ### `apps/web/src/entity/known.ts`
 - **Exports**: KnownData, knownOf, useKnown, Load, useLoad, useNotesTick
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ws.js, ./links.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ws.js, ./links.js
 
 ### `apps/web/src/entity/links.ts`
 - **Exports**: slugOf, Kind, Known, NOTHING_KNOWN, kindOf, notePath, routeOf, bySlug, linkTo, anchor
@@ -435,15 +435,15 @@
 
 ### `apps/web/src/entity/parts.tsx`
 - **Exports**: useHref, useAreaColor, Mark, Named, FactItem, Facts, RelationsBlock, PathBlock, useNote, NoteBlock, Turns
-- **Imports**: react, @basalt/sync/client, ../api.js, ../categories.js, ../Editor.js, ../noteSync.js, ../notes/links.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ws.js, ./known.js, ./links.js, ./model.js
+- **Imports**: react, @orrama/sync/client, ../api.js, ../categories.js, ../Editor.js, ../noteSync.js, ../notes/links.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ws.js, ./known.js, ./links.js, ./model.js
 
 ### `apps/web/src/entity/relations.tsx`
 - **Exports**: Related, RelationsState, useRelations, roleWord, rolesOf, RelationItem, RelationRows, OrrWarnings
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/Icon.js, ../ui/layout.js, ../ui/orr/Orr.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/Icon.js, ../ui/layout.js, ../ui/orr/Orr.js
 
 ### `apps/web/src/entity/shared.tsx`
 - **Exports**: Missing, useOwnWarnings, WarningsBox, plainLinks, orreryRoute
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../noticed/fixes.js, ../noticed/model.js, ../orrery/model.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./known.js, ./links.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../noticed/fixes.js, ../noticed/model.js, ../orrery/model.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./known.js, ./links.js, ./model.js
 
 ### `apps/web/src/entity/status.ts`
 - **Exports**: StatusId, STATUS_IDS, STATUS_WORD, statusOf, Shelf, shelfOf, statusProblems
@@ -455,11 +455,11 @@
 
 ### `apps/web/src/find/Find.tsx`
 - **Exports**: FindProps, Find
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
 
 ### `apps/web/src/find/build.ts`
 - **Exports**: Lists, Setting, ActionDef, placeItems, settingItems, actionItems, entityItems, noteItems
-- **Imports**: @basalt/schema/responses, ../entity/status.js, ../entity/links.js, ../people/model.js, ../notes/read.js, ../ui/dates.js, ../ui/router.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../entity/status.js, ../entity/links.js, ../people/model.js, ../notes/read.js, ../ui/dates.js, ../ui/router.js, ./model.js
 
 ### `apps/web/src/find/model.ts`
 - **Exports**: FindType, TYPES, TYPE_WORD, Lead, Item, Group, fold, parseQuery, isFilterQuery, scoreOf, markOf, withFolders, groupsOf, flat, nextType, Recent, RECENT_MAX, remember
@@ -471,7 +471,7 @@
 
 ### `apps/web/src/livePreview.ts`
 - **Exports**: WikiLinkSpan, wikiLinks, dueWords, InlineMarks, inlineMarks, frontmatterRange, livePreview
-- **Imports**: @codemirror/state, @basalt/core/dates, @basalt/core, @codemirror/view
+- **Imports**: @codemirror/state, @orrama/core/dates, @orrama/core, @codemirror/view
 
 ### `apps/web/src/mail/Composer.tsx`
 - **Exports**: Composer
@@ -479,49 +479,49 @@
 
 ### `apps/web/src/mail/DraftCard.tsx`
 - **Exports**: draftedAt, DraftCard
-- **Imports**: @basalt/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/states.js, ./when.js
+- **Imports**: @orrama/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/states.js, ./when.js
 
 ### `apps/web/src/mail/MailList.tsx`
 - **Exports**: RowLook, MailList
-- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./DraftCard.js, ./tabs.js, ./when.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./DraftCard.js, ./tabs.js, ./when.js
 
 ### `apps/web/src/mail/MessageBody.tsx`
 - **Exports**: SANDBOX, imagesAllowed, setImagesAllowed, frameCsp, frameDoc, MessageBody
-- **Imports**: react, @basalt/schema/responses, ../storage.js, ./plainText.js
+- **Imports**: react, @orrama/schema/responses, ../storage.js, ./plainText.js
 
 ### `apps/web/src/mail/Reader.tsx`
 - **Exports**: Relation, Go, personRoute, companyRoute, Reader
-- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/controls.js, ../ui/dates.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ./MessageBody.js, ./people.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/controls.js, ../ui/dates.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ./MessageBody.js, ./people.js
 
 ### `apps/web/src/mail/Waiting.tsx`
 - **Exports**: Waiting
-- **Imports**: react, @basalt/schema/responses, ../ui/orr/Orr.js, ../ui/states.js
+- **Imports**: react, @orrama/schema/responses, ../ui/orr/Orr.js, ../ui/states.js
 
 ### `apps/web/src/mail/compose.ts`
 - **Exports**: Draft, Compose, composeOf, composeHref, emptyDraft, replyDraft, htmlText, forwardDraft, stagedDraft
-- **Imports**: @basalt/schema/responses, ../ui/dates.js
+- **Imports**: @orrama/schema/responses, ../ui/dates.js
 
 ### `apps/web/src/mail/people.ts`
 - **Exports**: Sender, addressOf, hostOf, matchSender, entitySlug, projectSlugs
-- **Imports**: @basalt/schema/responses
+- **Imports**: @orrama/schema/responses
 
 ### `apps/web/src/mail/plainText.tsx`
 - **Exports**: PlainPart, PlainLine, isImageOnly, plainLines, PlainText
 
 ### `apps/web/src/mail/tabs.ts`
 - **Exports**: MailTab, TAB_LABEL, TABS_SHOWN, TabInfo, inTab, mailTabs, fitTabs, splitTabs, validTab
-- **Imports**: @basalt/schema/responses
+- **Imports**: @orrama/schema/responses
 
 ### `apps/web/src/mail/when.ts`
 - **Exports**: listWhen
 - **Imports**: ../ui/dates.js
 
 ### `apps/web/src/main.tsx`
-- **Imports**: react, react-dom/client, @basalt/ui/fonts.css, @basalt/ui/tokens.css, @basalt/ui/vision.css, @basalt/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
+- **Imports**: react, react-dom/client, @orrama/ui/fonts.css, @orrama/ui/tokens.css, @orrama/ui/vision.css, @orrama/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
 
 ### `apps/web/src/money/Category.tsx`
 - **Exports**: pickMonth, CategoryPage
-- **Imports**: @basalt/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./hooks.js, ./links.js, ./model.js
+- **Imports**: @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./hooks.js, ./links.js, ./model.js
 
 ### `apps/web/src/money/Chart.tsx`
 - **Exports**: ColumnState, Column, Columns, Stack, StackedColumns
@@ -529,31 +529,31 @@
 
 ### `apps/web/src/money/Documents.tsx`
 - **Exports**: DocumentsPage
-- **Imports**: @basalt/core/dates, @basalt/schema/responses, ../ui/controls.js, ../ui/states.js, ./format.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, ../ui/controls.js, ../ui/states.js, ./format.js
 
 ### `apps/web/src/money/Ledger.tsx`
 - **Exports**: LEDGER_LABEL, LedgerPage
-- **Imports**: @basalt/core/dates, @basalt/schema/responses, ../ui/controls.js, ../ui/fields.js, ../ui/router.js, ../ui/states.js, ./format.js, ./hooks.js, ./links.js, ./model.js, ./Overview.js, ../storage.js, react
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, ../ui/controls.js, ../ui/fields.js, ../ui/router.js, ../ui/states.js, ./format.js, ./hooks.js, ./links.js, ./model.js, ./Overview.js, ../storage.js, react
 
 ### `apps/web/src/money/Merchant.tsx`
 - **Exports**: MerchantPage
-- **Imports**: @basalt/schema/responses, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js
+- **Imports**: @orrama/schema/responses, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js
 
 ### `apps/web/src/money/Overview.tsx`
 - **Exports**: shownMonth, Overview, Found, default
-- **Imports**: @basalt/core/dates, @basalt/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js
 
 ### `apps/web/src/money/Savings.tsx`
 - **Exports**: SavingsPage
-- **Imports**: @basalt/schema/responses, ./format.js, ./links.js
+- **Imports**: @orrama/schema/responses, ./format.js, ./links.js
 
 ### `apps/web/src/money/Spending.tsx`
 - **Exports**: SpendingPage, MonthPage
-- **Imports**: @basalt/core/spending, @basalt/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js, ./palette.js, ./hooks.js
+- **Imports**: @orrama/core/spending, @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js, ./palette.js, ./hooks.js
 
 ### `apps/web/src/money/format.ts`
 - **Exports**: eur, perCurrency, axisEur, monthName, monthShort, monthLong, monthWord, dayLabel, weekday, kb, plural, niceTicks, monthPace, projectedSpend, daysIn, chargeDays, StatementRead, statementFlash, notCounted, FINANCE_FILES_DIR
-- **Imports**: @basalt/core/subscriptions, @basalt/schema/responses, ../ui/dates.js
+- **Imports**: @orrama/core/subscriptions, @orrama/schema/responses, ../ui/dates.js
 
 ### `apps/web/src/money/hooks.ts`
 - **Exports**: Grain, useGrain, useMonthKeys
@@ -565,7 +565,7 @@
 
 ### `apps/web/src/money/model.ts`
 - **Exports**: CategoryRow, monthByCategory, Shop, shopsOf, cadenceOf, recurringRow, recurringKey, monthStep
-- **Imports**: @basalt/core/subscriptions, @basalt/schema/responses, ./palette.js
+- **Imports**: @orrama/core/subscriptions, @orrama/schema/responses, ./palette.js
 
 ### `apps/web/src/money/palette.ts`
 - **Exports**: UNCATEGORISED, COLOURED, OTHER_COLOUR, colouredCategories, paletteFor, iconFor
@@ -577,30 +577,30 @@
 
 ### `apps/web/src/noteSync.ts`
 - **Exports**: DRAFT_PREFIX, Draft, readDraft, dropDraft, restoredText, openNoteSync, retire, unsavedCount, flushAll, sendBeforeLeaving, failing, installLeaveGuard, resetNoteSyncs
-- **Imports**: @basalt/sync/client, @basalt/sync/merge, ./api.js, ./storage.js
+- **Imports**: @orrama/sync/client, @orrama/sync/merge, ./api.js, ./storage.js
 
 ### `apps/web/src/notes/links.ts`
 - **Exports**: LinkRef, TreeRef, noteForLink
 
 ### `apps/web/src/notes/parts.tsx`
 - **Exports**: follow, TreePaneProps, TreePane, HomeProps, NotesHome, NoteTop, SideProps, SidePanel, AreaChip
-- **Imports**: react, @basalt/schema/responses, ../categories.js, ../FileTree.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/controls.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ./read.js
+- **Imports**: react, @orrama/schema/responses, ../categories.js, ../FileTree.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/controls.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ./read.js
 
 ### `apps/web/src/notes/read.ts`
 - **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, isOrdinary, editedLabel, relationWords, snippet, folderName
-- **Imports**: @basalt/core, ../ui/dates.js
+- **Imports**: @orrama/core, ../ui/dates.js
 
 ### `apps/web/src/noticed/Noticed.tsx`
 - **Exports**: Noticed
-- **Imports**: @basalt/schema/responses, ../api.js, ../entity/known.js, ../entity/links.js, ../ui/controls.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./fixes.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../api.js, ../entity/known.js, ../entity/links.js, ../ui/controls.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/router.js, ../ui/states.js, ./fixes.js, ./model.js
 
 ### `apps/web/src/noticed/fixes.tsx`
 - **Exports**: projectNameFor, useFixes, Sentence, Fixes, NoticeRow
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../entity/StatusMenu.js, ../entity/links.js, ../people/NewDialogs.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/StatusMenu.js, ../entity/links.js, ../people/NewDialogs.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./model.js
 
 ### `apps/web/src/noticed/model.ts`
 - **Exports**: Warning, NoteRef, Part, Fix, Item, statusWord, itemsOf, firstOf, typeCount
-- **Imports**: @basalt/schema/responses
+- **Imports**: @orrama/schema/responses
 
 ### `apps/web/src/orrery/Glyph.tsx`
 - **Exports**: Glyph
@@ -612,7 +612,7 @@
 
 ### `apps/web/src/orrery/data.ts`
 - **Exports**: loadOrrery
-- **Imports**: @basalt/schema/responses, ../api.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../api.js, ./model.js
 
 ### `apps/web/src/orrery/engine.ts`
 - **Exports**: View, Blank, Snapshot, Intent, Target, Hooks, Box, WEB_BUDGET, forgetLayouts, EngineOptions, OrreryEngine, fmt, nearestInDirection
@@ -620,7 +620,7 @@
 
 ### `apps/web/src/orrery/fixture.ts`
 - **Exports**: Fixture, NOW, fixture
-- **Imports**: @basalt/schema/responses, ./model.js
+- **Imports**: @orrama/schema/responses, ./model.js
 
 ### `apps/web/src/orrery/layout.ts`
 - **Exports**: TAU, BAND, Band, clamp, hash, bandOf, packSector, KindLayout, layoutKind, StepsLayout, layoutSteps
@@ -628,7 +628,7 @@
 
 ### `apps/web/src/orrery/model.ts`
 - **Exports**: Kind, KIND_NAME, AREAS, Relation, GROUP_ORDER, ONode, Topic, Model, ProjectRow, SchemaRelations, slugOf, isReviewOrTemplate, statusWord, folderTopic, buildModel, otherEnd, groupOf, relationGroups, signature
-- **Imports**: @basalt/schema/responses, ../ui/controls.js
+- **Imports**: @orrama/schema/responses, ../ui/controls.js
 
 ### `apps/web/src/orrery/physics.ts`
 - **Exports**: PB, Field, settleTicks, settleKind
@@ -639,7 +639,7 @@
 
 ### `apps/web/src/people/CompanyEdit.tsx`
 - **Exports**: CompanyEdit
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/states.js, ./NewDialogs.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/states.js, ./NewDialogs.js
 
 ### `apps/web/src/people/NewDialogs.tsx`
 - **Exports**: SECTOR_SUGGESTIONS, failureOf, NewPerson, NewCompany
@@ -647,15 +647,15 @@
 
 ### `apps/web/src/people/People.tsx`
 - **Exports**: People, default
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
 
 ### `apps/web/src/people/model.ts`
 - **Exports**: Entry, Brief, linkText, slugOf, bySlug, companyFor, peopleAt, companiesWithoutNote, phraseOf, KeyRelation, keyRelation, letterOf, groupsOf, byName, byRecent, matches, sectorsIn, sameSector
-- **Imports**: @basalt/schema/responses
+- **Imports**: @orrama/schema/responses
 
 ### `apps/web/src/people/rows.tsx`
 - **Exports**: Name, whenLabel, RouteOf, PersonRow, CompanyRow, GhostRow
-- **Imports**: react, @basalt/schema/responses, ../ui/layout.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/dates.js, ../ui/router.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../ui/layout.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/dates.js, ../ui/router.js, ./model.js
 
 ### `apps/web/src/planning/Hours.tsx`
 - **Exports**: HOUR_PX, SNAP, TASK_MIME, DraggedStep, HoursProps, Hours
@@ -683,11 +683,11 @@
 
 ### `apps/web/src/planning/ToPlan.tsx`
 - **Exports**: ToPlanProps, ToPlanPanel, ToPlanSheet
-- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/overlays.js, ./model.js, ./Hours.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/overlays.js, ./model.js, ./Hours.js
 
 ### `apps/web/src/planning/model.ts`
 - **Exports**: Proposal, ItemKind, LaneId, Item, CALENDAR_LANE, DATED_LANE, money, hoursLabel, taskKey, buildItems, byDay, itemsOn, Lane, weekLanes, nextWeeks, bookedOn, DEFAULT_START, DEFAULT_END, windowFor, firstScroll, dueCounts, ToPlanCut, toPlanCuts, dueWords, proposalWords, nowAlong, weekDays
-- **Imports**: @basalt/schema/responses, ../categories.js, ../calendarMath.js
+- **Imports**: @orrama/schema/responses, ../categories.js, ../calendarMath.js
 
 ### `apps/web/src/planning/title.ts`
 - **Exports**: PlanningRoute, planningTitle, planningRoute
@@ -699,11 +699,11 @@
 
 ### `apps/web/src/settings/Access.tsx`
 - **Exports**: AccessSection
-- **Imports**: @basalt/schema/responses, ../ui/orr/Orr.js, ./parts.js
+- **Imports**: @orrama/schema/responses, ../ui/orr/Orr.js, ./parts.js
 
 ### `apps/web/src/settings/Ai.tsx`
 - **Exports**: AiSection
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/orr/Orr.js, ../ui/states.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/orr/Orr.js, ../ui/states.js, ./parts.js
 
 ### `apps/web/src/settings/Appearance.tsx`
 - **Exports**: ThemeChoice, AppearanceSection
@@ -711,11 +711,11 @@
 
 ### `apps/web/src/settings/Connections.tsx`
 - **Exports**: ConnectionsSection
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./parts.js
 
 ### `apps/web/src/settings/Developer.tsx`
 - **Exports**: DeveloperSection
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/dates.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/dates.js, ./parts.js
 
 ### `apps/web/src/settings/Device.tsx`
 - **Exports**: DeviceSection
@@ -723,7 +723,7 @@
 
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection
-- **Imports**: react, @basalt/schema/responses, ../api.js, ../categories.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js
 
 ### `apps/web/src/settings/SignedIn.tsx`
 - **Exports**: SignedInSection
@@ -742,7 +742,7 @@
 
 ### `apps/web/src/today/AddMoneyRow.tsx`
 - **Exports**: AddMoneyRow
-- **Imports**: react, @basalt/core/dates, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js
+- **Imports**: react, @orrama/core/dates, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js
 
 ### `apps/web/src/today/Timetable.tsx`
 - **Exports**: Link, Timetable
@@ -758,11 +758,11 @@
 
 ### `apps/web/src/today/model.ts`
 - **Exports**: DueTask, DueGroups, weekEnd, taskKey, dueGroups, boxState, daysLate, ComingRow, comingUp, projectsInMotion, PersonToday, peopleToday, relationLine, MoneyPace, moneyPace
-- **Imports**: @basalt/core/dates, @basalt/schema/responses, ../categories.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, ../categories.js
 
 ### `apps/web/src/today/modules.tsx`
 - **Exports**: Loaded, DueModule, MailData, MailModule, PeopleModule, ComingUpModule, ProjectsModule, monthWord, MoneyModule, paceSentence, NoticedData, NoticedModule
-- **Imports**: react, @basalt/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js, ../entity/links.js, ../noticed/model.js, ../ui/router.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js, ../entity/links.js, ../noticed/model.js, ../ui/router.js
 
 ### `apps/web/src/today/title.ts`
 - **Exports**: todayTitle, isoWeek
@@ -983,7 +983,7 @@
 
 ### `packages/sync/src/index.ts`
 - **Exports**: createNoteDoc, docContent, encodeStateB64, applyUpdateB64, docFromUpdates, diffSplice, SpliceMismatchError, updateDocContent, ManifestNote, ManifestEntry, computeManifest
-- **Imports**: yjs, @basalt/core
+- **Imports**: yjs, @orrama/core
 
 ### `packages/sync/src/merge.ts`
 - **Exports**: lineHunks, mergeText

@@ -15,7 +15,7 @@ import { navigate, routeHref, type ProjectTab } from "./ui/router.js";
 import { Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
-import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@basalt/schema/responses";
+import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
 export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
 
 /** The four tabs; Overview is the project's own address, the others sit under it. */

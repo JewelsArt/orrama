@@ -1,5 +1,5 @@
 import type { TreeNote } from "./api.js";
-import { daysTo as coreDaysTo, isoLocal } from "@basalt/core/dates";
+import { daysTo as coreDaysTo, isoLocal } from "@orrama/core/dates";
 
 /**
  * Semantic categories over the PARA vault, each with a colour. This one module

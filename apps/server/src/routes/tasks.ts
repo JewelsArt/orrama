@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, type SetTaskStatus } from "@basalt/schema";
+import { checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, type SetTaskStatus } from "@orrama/schema";
 import type { z } from "zod";
-import { locateTask, promoteTaskLine, setTaskDates, setTaskStatus, type AclUser, type ParsedTask, type TaskLineRef } from "@basalt/core";
+import { locateTask, promoteTaskLine, setTaskDates, setTaskStatus, type AclUser, type ParsedTask, type TaskLineRef } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 

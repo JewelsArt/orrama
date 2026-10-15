@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, apiBlob, ApiError, isAbort } from "./api.js";
-import type { Deck, Sheet } from "@basalt/schema/responses";
+import type { Deck, Sheet } from "@orrama/schema/responses";
 import { Button, Tabs } from "./ui/controls.js";
 import { Sheet as SheetLayer } from "./ui/overlays.js";
 import { Notice } from "./ui/states.js";

@@ -8,7 +8,7 @@
  * history.
  */
 import * as Y from "yjs";
-import { canRead, type AclUser, type AclNote, type FolderGrant } from "@basalt/core";
+import { canRead, type AclUser, type AclNote, type FolderGrant } from "@orrama/core";
 
 const TEXT_KEY = "content";
 
