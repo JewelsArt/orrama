@@ -1,14 +1,14 @@
-# Basalt — codebase guide
+# Orrama — codebase guide
 
 Jules's personal knowledge tool on plain Markdown files. The original product
 spec is `docs/spec.md` (its locked decisions still hold where the product kept
-them; it was written for a team product, and Basalt is now single-user — "One
+them; it was written for a team product, and Orrama is now single-user — "One
 user, one vault").
 
 ## Start here (read this first in a new session)
 
 - **The vault is `~/Obsidian Vault`** — the same folder Obsidian opens, not a
-  copy. Basalt reads and writes those files live. `apps/server/data/` holds the
+  copy. Orrama reads and writes those files live. `apps/server/data/` holds the
   **live database** (and `vault-old-copy/`, a pre-merge backup you can ignore):
   the index, plus everything that exists only there — accounts, credentials,
   comments, mail drafts, note history (see "Architecture"). **Never delete,
@@ -17,7 +17,7 @@ user, one vault").
 - **The app is already running.** A launchd agent
   (`~/Library/LaunchAgents/dev.basalt.server.plist`, KeepAlive) serves the API on
   **:4623** *and* the built web bundle from `apps/web/dist`. The desktop app is a
-  Tauri window that shows :4623 once it answers as Basalt. `pnpm --dir apps/web dev` (:4625) is for
+  Tauri window that shows :4623 once it answers as Orrama. `pnpm --dir apps/web dev` (:4625) is for
   iterating; the desktop app does not see it.
 - **After changing web code, run `pnpm ship`** — typecheck, tests, build, and
   restart the agent. Editing source alone changes nothing in the desktop app,
@@ -94,7 +94,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner when the event fires and again when a debounced delivery goes out (ACL-007) |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ws.ts` |
-| `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Basalt isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Basalt (`is_basalt`, `src/lib.rs`). Building needs a Rust toolchain |
+| `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Orrama isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Orrama (`is_orrama`, `src/lib.rs`). Building needs a Rust toolchain |
 
 ## Permission model (memorize this)
 
@@ -160,7 +160,7 @@ Conversations, Documents and the prompt on the right. **Timeline**,
   (`GET/PUT /api/projects/:slug/board`, rules in `apps/server/src/board.ts`):
   files only — notes stay off the board by Jules's choice; a card whose file is
   gone is dropped, a file with no card gets one below the rest; reading never
-  writes; saving needs edit. Links Orr proposes carry `basaltSuggested: true`
+  writes; saving needs edit. Links Orr proposes carry `orramaSuggested: true`
   and draw dashed until accepted: "N suggested links" asks about one at a time
   (Link, No), and Shift-click still accepts. Boxes are JSON Canvas groups, drawn
   uncoloured (their `color` stays in the file for Obsidian): add, rename, move
@@ -242,7 +242,7 @@ The vault is `~/Obsidian Vault` — the *same folder* Obsidian opens, not a copy
 `ORRAMA_VAULT_DIR` (see `env.ts`) points the server at it; the SQLite DB stays in
 `<dataDir>` because it is a cache of the files, not part of the notes. Both apps
 read and write the same Markdown: Obsidian saves whole files and the chokidar
-watcher re-indexes them; Basalt writes through `VaultStore.write`. Editing the
+watcher re-indexes them; Orrama writes through `VaultStore.write`. Editing the
 *same note* in both at once is the one thing to avoid — last writer wins on the
 overlapping region. A folder linked in from elsewhere (a symlink to a synced
 folder) is part of the vault: followed at boot, by the watcher and for writes,
@@ -268,13 +268,13 @@ when the front matter does not parse, is not a mapping (prose between two `---`
 rules, a bare list), carries the user's own non-text `id:`, or the file is not
 UTF-8. Such a note keeps the id its path already had (the notes table at boot,
 the index live), so task objects stay attached; it is not rename-safe outside
-Basalt. A file that is not UTF-8 is never written at all: `write()` answers 409.
+Orrama. A file that is not UTF-8 is never written at all: `write()` answers 409.
 That is what keeps renames link-safe (task objects key on the note id), and it
-means pointing Basalt at a fresh vault modifies every file in it once.
+means pointing Orrama at a fresh vault modifies every file in it once.
 `scripts/merge-vaults.mjs` is the one-off that folded Basalt's old copy into the
 Obsidian vault (newest-wins per file, carrying ids across).
 
-**Nothing else is written into the vault at boot.** Basalt used to create a
+**Nothing else is written into the vault at boot.** Orrama used to create a
 `.mcp.json` (a slot for an API token, in the folder Obsidian Sync, iCloud or git
 copies elsewhere) and a `CLAUDE.md` whenever they were missing. The MCP server is
 registered with `claude mcp add --scope user`, which keeps the token in
@@ -282,7 +282,7 @@ registered with `claude mcp add --scope user`, which keeps the token in
 file. `test/vault-untouched.test.ts` boots against a vault and compares every
 byte.
 
-**One id, one file.** A note copied outside Basalt (Obsidian's "Make a copy",
+**One id, one file.** A note copied outside Orrama (Obsidian's "Make a copy",
 Finder's Duplicate, `cp`, a sync conflict copy) carries the original's id. The
 file that already owns the id keeps it; the copy is given its own, stamped into
 its front matter and logged (`[vault] X 1.md: carries note id …`). Live, the
@@ -477,9 +477,29 @@ was deleted in Sep 2026 — unused, and a remote shell is the last thing a notes
 app needs to keep exposed. `node-pty` and the `@xterm/*` packages went with it.
 `git log` has the code if it is ever wanted back.
 
+## Still called Basalt, on purpose
+
+The app was Basalt until October 2026 (R13 renamed the code; `changes/R13.md`). These
+names were kept because something outside the repo, or already stored, depends on
+them. Do not "finish" the rename on any of them without a migration:
+
+- the launchd labels and plists (`dev.basalt.server`, `dev.basalt.vault-backup`), the
+  log folder `~/.basalt-run`, the database file `basalt.db`, the `~/basalt` checkout,
+  and the desktop app's identifier `dev.basalt.app` (its saved state and macOS
+  permissions belong to it);
+- what other programs read: the webhook headers `x-basalt-event`/`x-basalt-signature`
+  and user agent `basalt-webhook/1.0`, the ICS feed's UIDs (`…@basalt`: a new suffix
+  replaces every event in a subscribed calendar), the `bslt_` token prefix;
+- stored values: the avatar id `basalt` (users.avatar's default, shown as Orriginal);
+- the bridges: `migrateLegacyKeys` (browser keys `basalt-…` → `orrama-…`), the boot
+  script's fallback, `basaltSuggested` read in `board.ts`, and the `BASALT_*` refusal
+  (`renamedEnvProblems` in the server's `env.ts`, the MCP server and the web dev server);
+- history: `docs/audit/`, `CHANGELOG.md`, `docs/spec.md`, `scripts/merge-vaults.mjs`,
+  `apps/desktop/basalt-icon.svg` (the old artwork).
+
 ## One user, one vault
 
-Basalt started multi-tenant and is now Jules's assistant: the rail has no Admin
+Orrama started multi-tenant and is now Jules's assistant: the rail has no Admin
 tab, Planning has no team lanes or people picker, the Overview board has no
 "who's on what" panel and no owner column, and the account card says "your
 vault". The team machinery underneath (`teams`, `memberships`, folder grants,
@@ -663,7 +683,7 @@ parsed before it is known to be a valid auth.
   same-origin, but its browser still sends its own name as `Host`. So set
   `ORRAMA_PUBLIC_ORIGINS` (comma-separated, e.g.
   `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the launchd plist
-  for every name Basalt is reached by — a bare LAN or tailnet IP included.
+  for every name Orrama is reached by — a bare LAN or tailnet IP included.
   Touch ID trusts only those origins too; unset, the `Origin` must equal the
   address the request was sent to.
 - **A task's status is its checkbox**: `[ ]` todo, `[/]` in progress, `[b]`
@@ -857,14 +877,14 @@ parsed before it is known to be a valid auth.
   `orrama-draft:<noteId>` and offered back (three-way merged) when the note opens;
   `installLeaveGuard` (main.tsx) sends pending saves with `keepalive` on reload or close
   and asks first only when a save is already failing. A sync follows the note's path from
-  the server's answers (a rename outside Basalt) and stops saving when the note is gone.
+  the server's answers (a rename outside Orrama) and stops saving when the note is gone.
   Never save a note any other way.
 - **A failed write is never silent** (`apps/web/src/ui/writes.ts`, audit WEB-010): a
   one-click write goes through `attempt(what, run)` (a toast with the reason, and Retry when
   the server didn't answer), a form through `useWrite()` (the reason beside it, busy always
   ends, nothing typed is cleared), and a Confirm's `onConfirm` may return the write's promise
   (the dialog waits and says why it failed). `api()` remembers failed writes and
-  `installWriteNet` (main.tsx) says any nobody caught. ESLint's `basalt/async-handler-catches`
+  `installWriteNet` (main.tsx) says any nobody caught. ESLint's `orrama/async-handler-catches`
   refuses an async `on…=` handler that awaits outside a try/catch. The message is the page's,
   never Orr's: what didn't happen, then why ("The step wasn't ticked. The server didn't answer.").
 - **A pin is front matter**: `pinned: true` in the note, written through
@@ -965,7 +985,7 @@ address (`ui/router.ts`): go there with a link or `navigate()`, not with state.
 Keys are decided in `ui/keys.ts`; no keycaps on screen (the ? sheet and tooltips
 list them).
 
-**Why a Basalt graph looks sparser than the same vault in Obsidian**: Obsidian's
+**Why an Orrama graph looks sparser than the same vault in Obsidian**: Obsidian's
 graph draws *tags* as nodes by default (and attachments, and ghost nodes for
 unresolved links). On Jules's vault the note→note links number ~198 while a tag
 layer adds ~319 edges — most of the density is tags, not links. Links themselves are parsed from `[[wiki]]` *and* markdown
@@ -1105,7 +1125,7 @@ on a shipped commit, with an entry in `CHANGELOG.md`:
    and its `Cargo.lock` (`cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`
    rewrites it), and the MCP server's handshake in `apps/mcp/src/index.ts`.
    `test/release.test.ts` fails until they agree and the changelog has the entry.
-3. Commit, `pnpm ship`, then `git tag -a vX.Y.Z -m "Basalt X.Y.Z"` and push the
+3. Commit, `pnpm ship`, then `git tag -a vX.Y.Z -m "Orrama X.Y.Z"` and push the
    tag and `main`.
 
 Note anything users must do (a schema bump, signing in again) under

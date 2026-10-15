@@ -1,9 +1,9 @@
 # scripts
 
-## `dev.basalt.server.plist` — run the Basalt server at login
+## `dev.basalt.server.plist` — run the Orrama server at login
 
-The desktop app (`/Applications/Basalt.app`) is a native window that loads the
-Basalt server at `http://localhost:4623` (same-origin: the Fastify server serves
+The desktop app (`/Applications/Orrama.app`, `Basalt.app` until it is rebuilt) is a native window that loads the
+Orrama server at `http://localhost:4623` (same-origin: the Fastify server serves
 both the built web app and the API). So the app needs that server running.
 
 This LaunchAgent starts it at login and restarts it if it dies (`KeepAlive`).
@@ -23,7 +23,7 @@ pnpm --dir apps/web build                   # the server serves the built bundle
 cp scripts/dev.basalt.server.plist ~/Library/LaunchAgents/
 chmod 600 ~/Library/LaunchAgents/dev.basalt.server.plist   # it holds the secrets
 # Edit the copy: both REPLACE_ME (openssl rand -hex 32 each), ORRAMA_VAULT_DIR,
-# and ORRAMA_PUBLIC_ORIGINS (every address Basalt is reached at).
+# and ORRAMA_PUBLIC_ORIGINS (every address Orrama is reached at).
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.basalt.server.plist
 launchctl kickstart -k gui/$(id -u)/dev.basalt.server   # start it now
 curl -s http://127.0.0.1:4623/api/health                 # {"ok":true,…}

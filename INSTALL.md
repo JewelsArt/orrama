@@ -1,6 +1,6 @@
-# Installing Basalt
+# Installing Orrama
 
-Setting Basalt up on a fresh machine, start to finish. Every command here was run
+Setting Orrama up on a fresh machine, start to finish. Every command here was run
 against a clean `git clone` on macOS (Apple Silicon) and the timings are real.
 
 There is a shortcut at the top and the reasoning underneath it. If something breaks,
@@ -11,8 +11,8 @@ There is a shortcut at the top and the reasoning underneath it. If something bre
 ## Quickstart
 
 ```bash
-git clone https://github.com/JewelsArt/Basalt-backup.git basalt
-cd basalt
+git clone https://github.com/JewelsArt/Basalt-backup.git orrama
+cd orrama
 
 pnpm install                      # ~3s warm, ~1min on a cold pnpm store
 pnpm --dir apps/web build         # ~2s  — builds the UI the server serves
@@ -23,7 +23,7 @@ pnpm --dir apps/server start      # serves API + UI on http://127.0.0.1:4623
 
 Open <http://127.0.0.1:4623>. A fresh install shows **Create your account** —
 the first account founds the workspace and owns it. Nothing is sent anywhere;
-there is no Basalt account service.
+there is no Orrama account service.
 
 The server refuses to start without the two secrets. Save the values you
 generated wherever you start the server from (a launchd plist, a compose `.env`):
@@ -40,7 +40,7 @@ makes the stored mail password and AI key unreadable.
 |---|---|---|
 | **Node** | ≥ 22 | `node --version` |
 | **pnpm** | 11.9.0 | `npm i -g pnpm@11.9.0`. Other 11.x versions are fine |
-| **Rust** | **Only for the desktop app** | Not needed to run Basalt |
+| **Rust** | **Only for the desktop app** | Not needed to run Orrama |
 
 ### The Rust trap
 
@@ -49,7 +49,7 @@ package — including `apps/desktop`, which is a Tauri app and needs `cargo`. On
 machine without Rust, both fail. With Rust, `pnpm build` takes **1m51s**, most of it
 compiling a desktop binary and a `.dmg` you probably did not want yet.
 
-Basalt's server, web app and shared packages need none of that. Use the scoped
+Orrama's server, web app and shared packages need none of that. Use the scoped
 commands instead:
 
 ```bash
@@ -137,21 +137,21 @@ skip past with devtools.
 
 ---
 
-## Pointing Basalt at your own vault
+## Pointing Orrama at your own vault
 
-This is the setup most people want: Basalt reading the notes they already have.
+This is the setup most people want: Orrama reading the notes they already have.
 
 ```bash
 ORRAMA_VAULT_DIR="$HOME/Obsidian Vault" pnpm --dir apps/server start
 ```
 
-Basalt reads and writes **those files, live** — the same folder Obsidian opens. The
+Orrama reads and writes **those files, live** — the same folder Obsidian opens. The
 database stays in `ORRAMA_DATA_DIR` and never moves into your notes, because it is
 only a cache of them.
 
 Two things to know before you do this:
 
-- **Back your vault up first.** Basalt writes to these files. `git init` in the vault,
+- **Back your vault up first.** Orrama writes to these files. `git init` in the vault,
   or copy the folder somewhere, before pointing a new tool at years of notes.
 - **The index builds on first boot.** A large vault takes a moment to scan; the app is
   usable as soon as the server reports listening.
@@ -177,6 +177,12 @@ All optional. Set them in the environment before starting the server.
 | `ORRAMA_CORS_ORIGIN` | `false` | Allow specific cross-origin browsers |
 | `ORRAMA_ALLOW_DEV_SECRETS` | unset | `1` boots on placeholder secrets anyway |
 
+These were called `BASALT_*` before the rename to Orrama, and only the `ORRAMA_*` names
+are read now. An install set up before then must rename each one (same value) in the
+launchd plist, the shell, Docker's `.env` and the MCP server's config: the server, its
+scripts and the MCP server refuse to start while a `BASALT_` variable has no `ORRAMA_`
+twin, and say which.
+
 ### Security
 
 The two secrets ship with placeholder values that are published in this repo.
@@ -185,7 +191,7 @@ every session, so a known value lets anyone who reaches the port mint a
 workspace-owner session, and the secret key decrypts the stored mail password
 and AI key, so a copy of `basalt.db` decrypts both offline.
 
-**Basalt refuses to boot while either holds a placeholder.** Generate real ones:
+**Orrama refuses to boot while either holds a placeholder.** Generate real ones:
 
 ```bash
 export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)
@@ -260,21 +266,21 @@ database into the image.
 interface: the sign-in is a password and a 4-digit unlock, and a VPS's public
 address is the whole internet. See **Reaching it from elsewhere**.
 
-**Port conflict.** If you already run Basalt on the host (a launchd agent, say),
+**Port conflict.** If you already run Orrama on the host (a launchd agent, say),
 the container cannot take 4623. Change the host side of the mapping in
 `docker-compose.yml` (`127.0.0.1:4700:4623`), or stop the other one.
 
 ### Reaching it from elsewhere
 
 Put something in front that brings TLS and its own access control, and keep
-Basalt itself on loopback:
+Orrama itself on loopback:
 
 - **Tailscale** (simplest): `tailscale serve --bg 4623` gives
   `https://<machine>.<tailnet>.ts.net`, reachable only from your own devices.
 - **A reverse proxy** (Caddy, nginx) on a domain, with TLS and its own
-  authentication or an IP allow-list in front of Basalt.
+  authentication or an IP allow-list in front of Orrama.
 
-Then tell Basalt its new name, or it answers 421 to every request that arrives
+Then tell Orrama its new name, or it answers 421 to every request that arrives
 under it: `ORRAMA_PUBLIC_ORIGINS=https://<machine>.<tailnet>.ts.net` (compose
 passes it through; for launchd, the plist). Touch ID trusts only those origins.
 
@@ -283,7 +289,7 @@ passes it through; for launchd, the plist). Touch ID trusts only those origins.
 Needs Rust (`rustup`), then:
 
 ```bash
-pnpm --dir apps/desktop build     # ~1m51s, produces Basalt.app and a .dmg
+pnpm --dir apps/desktop build     # ~1m51s, produces Orrama.app and a .dmg
 ```
 
 Output lands in `apps/desktop/src-tauri/target/release/bundle/`. The app is an
@@ -305,12 +311,16 @@ Two things to keep:
   ORRAMA_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
   ```
 
-  writes `apps/server/data/exports/basalt-export-<date>-<time>/` with a restorable
+  writes `apps/server/data/exports/orrama-export-<date>-<time>/` with a restorable
   `basalt.db`, a readable `export.json` (no passwords, hashes or keys) and a
   README on how to restore. It is safe to run while the server is up. Keep the
   folder private; it will not write into the vault.
 
 ## Troubleshooting
+
+**`Refusing to start — Orrama reads only ORRAMA_* variables now`**
+A `BASALT_` variable from before the rename is still set. Rename it as the message says
+(see **Configuration**).
 
 **`cargo: command not found` / build hangs for minutes**
 You ran `pnpm build` or `pnpm dev` without Rust. Use the scoped commands from
@@ -331,12 +341,12 @@ password too? `pnpm --dir apps/server account` sets a new one.
 `apps/web/dist` is missing. Run `pnpm --dir apps/web build`.
 
 **`EADDRINUSE` on 4623**
-Something already holds the port — often a previous Basalt.
+Something already holds the port — often a previous Orrama.
 `lsof -nP -iTCP:4623 -sTCP:LISTEN -t` gives the PID. Use that exact command: a bare
 `lsof -ti :4623` also matches *client* sockets, and killing one of those has taken
 down an unrelated app before.
 
-**Notes do not appear after editing them outside Basalt**
+**Notes do not appear after editing them outside Orrama**
 The watcher indexes external edits. If the vault is on a network or cloud-synced
 volume the events may not fire; restart the server to force a re-index.
 
@@ -404,7 +414,7 @@ Rules that are not obvious from the scripts:
 - To isolate a test instance from an existing one, set `PORT` **and**
   `ORRAMA_DATA_DIR`. Do not let a test run inherit the default `./data`.
 - **Never delete `apps/server/data`** (or the `basalt.db` in it) on a machine where
-  Basalt is in use: it holds accounts, credentials, comments, drafts and history
+  Orrama is in use: it holds accounts, credentials, comments, drafts and history
   that exist nowhere else. `dev` and `seed` use `apps/server/data-dev`.
 - Verify by HTTP, not by reading the log: a successful boot line does not prove the
   static bundle registered.

@@ -1,5 +1,6 @@
 > **The original build spec**, as written in July 2026 (`basalt-prompt.md`, v1.0),
-> kept here so a clone, CI or an agent can read it. Basalt has since become a
+> kept here so a clone, CI or an agent can read it. The app was called Basalt
+> then and is Orrama now (renamed in October 2026); it has since become a
 > single-user tool (README, "Status"; CLAUDE.md, "One user, one vault"): the
 > team dashboard, invites and team UI described below were built and then
 > removed from the interface, while the permission model underneath still

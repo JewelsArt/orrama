@@ -1,15 +1,12 @@
-# ⬡ Basalt
+# Orrama
 
 **A personal knowledge and life OS built on plain Markdown files.**
 
 Notes are real `.md` files in real folders, linked `[[wiki-style]]`. On top of that
 same vault sit a dashboard, a calendar, project workspaces, contacts, mail and
 finance — every one of them a *view over the files*, not a separate database with
-its own truth. The vault opens fine in Obsidian; Basalt reads and writes the same
+its own truth. The vault opens fine in Obsidian; Orrama reads and writes the same
 folder live.
-
-> Obsidian is volcanic glass; basalt is its structural cousin — the rock that forms
-> interlocking columns. Individual columns, stronger together.
 
 ## What it does
 
@@ -82,7 +79,7 @@ A fresh install asks you to create an account — the first one founds the works
 and owns it. The server refuses to start on missing or placeholder secrets. To look
 around with a sample vault instead, `pnpm --dir apps/server seed` then
 `pnpm --dir apps/server dev` (:4627, its own `data-dev` folder). Full walkthrough,
-including how to point Basalt at an existing Obsidian vault:
+including how to point Orrama at an existing Obsidian vault:
 **[INSTALL.md](INSTALL.md)**.
 
 > `pnpm build` and `pnpm dev` fan out to `apps/desktop`, which is a Tauri app and
@@ -104,7 +101,7 @@ secrets. Builds on arm64 and x64, so a Raspberry Pi works.
 
 ## Permissions
 
-Basalt has a full team permission model, and it is the most carefully tested part of
+Orrama has a full team permission model, and it is the most carefully tested part of
 the codebase — folder grants, two tag overlays (`#only/<team>` restricts,
 `#share/<team>` shares read-only), path-based personal vaults, and anti-lockout rules
 the server enforces on every write. Unreadable notes are filtered server-side and
@@ -112,7 +109,7 @@ never reach a client (partial checkout, not client-side hiding), and every surfa
 search, graph, backlinks, tasks, dashboard, AI retrieval — goes through the same
 `packages/core` function.
 
-In practice Basalt runs single-user today. The model is infrastructure that works,
+In practice Orrama runs single-user today. The model is infrastructure that works,
 not a feature with a finished onboarding flow around it.
 
 ## Status

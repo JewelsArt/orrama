@@ -1,26 +1,26 @@
 # @orrama/mcp
 
-Basalt MCP Server for Claude Code integration.
+Orrama MCP Server for Claude Code integration.
 
 ## Setup
 
 1. Build the server: `pnpm --dir apps/mcp build`
-2. Create an API token in Basalt under Settings → API tokens.
+2. Create an API token in Orrama under Settings → API tokens.
 3. Register the server with Claude Code at user scope, so the token is stored
    in `~/.claude.json`:
 
 ```bash
-claude mcp add basalt --scope user \
+claude mcp add orrama --scope user \
   --env ORRAMA_URL=http://localhost:4623 \
   --env ORRAMA_TOKEN=bslt_your_api_token_here \
-  -- node /absolute/path/to/basalt/apps/mcp/dist/index.js
+  -- node /absolute/path/to/orrama/apps/mcp/dist/index.js
 ```
 
 `ORRAMA_URL` is the address the server listens on (`PORT`, 4623 by default).
 
 Keep the token out of the vault. Do not put it in a `.mcp.json` in the vault
 root: that is the folder Obsidian Sync, iCloud or git copies elsewhere, and the
-token reads and edits every note you can, and reads your mail. Basalt no longer
+token reads and edits every note you can, and reads your mail. Orrama no longer
 creates a `.mcp.json` there; if an older version left one, it holds only the
 placeholder and can be deleted.
 
