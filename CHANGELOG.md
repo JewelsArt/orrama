@@ -276,6 +276,8 @@ one is in CLAUDE.md, "Releases".
   The old `BASALT_*` names are no longer read, and a `BASALT_` variable left
   without its `ORRAMA_` twin stops the server, its scripts, the MCP server and
   the web dev server with a message naming it.
+- AI estimates are kept per task, so ticking or editing one step no longer
+  re-estimates every step.
 
 ### Removed
 
@@ -612,6 +614,10 @@ one is in CLAUDE.md, "Releases".
   know it by its id.
 - A project's To-do bar ends where its list ends; an entity page's note keeps a
   readable line length on wide screens.
+- Planning, Today's task card and the project Timeline's card no longer wait
+  on the AI estimate: the plan opens at once with the quick estimate, and the
+  AI's numbers replace it quietly when they arrive (6 s → about 10 ms per load
+  on a 100-task vault).
 
 ### Security
 
@@ -724,7 +730,8 @@ one is in CLAUDE.md, "Releases".
   canvas, reads CSS or reads layout in a frame, and strokes links in two
   passes; it loads lazily, when you first go there. About 3 ms a frame while
   dragging at 10,000 files in WebKit.
-- Planning's AI estimate cache keeps at most 200 task lists.
+- Planning's AI estimates are cached per task (at most 2,000, for 6 hours),
+  and `GET /api/plan?refined=1` waits for the model's refinement.
 - The MCP server's tools live in `apps/mcp/src/tools.ts`, testable from the
   server's tests; a fake Chat-Completions provider
   (`test/helpers/fakeChat.ts`) stands in for a model. `BASALT_AI_TIMEOUT_MS`

@@ -470,6 +470,18 @@ for), `GET /api/plan/:teamSlug` (kept because the permission tests pin it — a
 non-member must get a 404) and the auto-scheduler, so the backlog, the estimate
 on a card and the proposal can never disagree about what a task costs.
 
+**The plan never waits for the model.** `GET /api/plan` answers with the
+model's estimate where it has one and the heuristic otherwise, marking those
+tasks `refining`; `EstimateRefiner` (routes/plan.ts) then asks the model about
+them after the response, one call at a time, up to 200 tasks a call. Estimates
+are cached per task on (model, text, priority, project), 6 h, at most 2,000; a
+failed call leaves its tasks to the heuristic for 10 minutes. `?refined=1` waits
+for that call and answers with the refined plan: Planning asks it once when the
+first answer says `refining` and swaps the plan in quietly, never while a
+pointer is down or a step is dragged. Do not put the model call back in front
+of the answer: it was 6 s on every load, because any tick missed a cache keyed
+on the whole list.
+
 ## Removed on purpose
 
 The **Terminal** (xterm in the rail, node-pty PTY over a WebSocket, owner-only)
