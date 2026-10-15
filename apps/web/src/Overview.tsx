@@ -54,7 +54,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
     try {
       if (!teamRef.current) {
         const teams = await api<Team[]>("GET", "/api/teams", undefined, { signal });
-        const saved = readKey("basalt-team");
+        const saved = readKey("orrama-team");
         teamRef.current = (teams.find((t) => t.slug === saved) ?? teams[0])?.slug ?? null;
       }
       if (!teamRef.current) return setFailed(true);

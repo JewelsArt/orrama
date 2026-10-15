@@ -5,7 +5,7 @@
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-const store = new Map<string, string>([["basalt-token", "t-abc"]]);
+const store = new Map<string, string>([["orrama-token", "t-abc"]]);
 vi.stubGlobal("localStorage", {
   getItem: (k: string) => store.get(k) ?? null,
   setItem: (k: string, v: string) => void store.set(k, v),
@@ -58,6 +58,6 @@ describe("signOut", () => {
     calls.length = 0;
     await mod.signOut();
     expect(calls).toEqual([{ url: "/api/auth/logout", method: "POST" }]);
-    expect(store.has("basalt-token")).toBe(false);
+    expect(store.has("orrama-token")).toBe(false);
   });
 });

@@ -185,7 +185,7 @@ describe("Add a step", () => {
 
 describe("a drag that didn't save (WEB-010)", () => {
   it("the Gantt bar goes back, a toast says why, and Retry sends the same dates", async () => {
-    localStorage.setItem("basalt-proj-gantt", "thesis");
+    localStorage.setItem("orrama-proj-gantt", "thesis");
     server.fail = (m, url) => m === "POST" && url === "/api/tasks/dates";
     const changed = vi.fn(async () => {});
     render(<Toaster />);

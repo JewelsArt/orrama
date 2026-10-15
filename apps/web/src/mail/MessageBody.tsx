@@ -19,7 +19,7 @@ import { PlainText } from "./plainText.js";
 /** No allow-scripts, ever: allow-same-origin is only safe without it. */
 export const SANDBOX = "allow-same-origin allow-popups allow-popups-to-escape-sandbox";
 
-const IMAGES_KEY = "basalt-mail-images";
+const IMAGES_KEY = "orrama-mail-images";
 /** Images load by default (what every mail client does); blocking is remembered. */
 export const imagesAllowed = () => readKey(IMAGES_KEY) !== "off";
 export const setImagesAllowed = (on: boolean) => writeKey(IMAGES_KEY, on ? "on" : "off");

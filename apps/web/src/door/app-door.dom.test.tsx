@@ -18,7 +18,7 @@ afterEach(() => {
 describe("the door in the app", () => {
   it("at the lock, digits are the passcode: they never move the address", async () => {
     signedOut();
-    localStorage.setItem("basalt-last-email", "ines@example.com");
+    localStorage.setItem("orrama-last-email", "ines@example.com");
     at("/today");
     render(<App />);
     expect((await screen.findByTestId("view")).dataset.view).toBe("lock");

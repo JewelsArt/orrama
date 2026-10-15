@@ -54,7 +54,7 @@ const COLUMNS: { weight: number; ids: ModuleId[] }[] = [
   { weight: 1, ids: ["coming", "projects", "money", "noticed"] },
 ];
 /** The modules switched off in Customise, on this device. */
-export const HIDDEN_KEY = "basalt-today-hidden";
+export const HIDDEN_KEY = "orrama-today-hidden";
 /** How long Orr jumps when a key deadline is met or a project finishes. */
 export const JUMP_MS = 2400;
 

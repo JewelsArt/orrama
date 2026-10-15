@@ -465,7 +465,7 @@ describe("the theme (§9)", () => {
 
   it("shows the theme this device showed last from the first render, before the account answers", () => {
     system(false);
-    localStorage.setItem("basalt-theme", "command");
+    localStorage.setItem("orrama-theme", "command");
     at("/today");
     render(<App />);
     expect(html.dataset.theme).toBe("dark");
@@ -480,7 +480,7 @@ describe("the theme (§9)", () => {
     render(<App />);
     await user.click(await screen.findByRole("button", { name: "theme match" }));
     expect(html.dataset.theme).toBe("dark");
-    expect(localStorage.getItem("basalt-theme-device")).toBe("match");
+    expect(localStorage.getItem("orrama-theme-device")).toBe("match");
     flip(false);
     expect(html.dataset.theme).toBe("light");
     flip(true);
@@ -489,7 +489,7 @@ describe("the theme (§9)", () => {
 
     await user.click(screen.getByRole("button", { name: "theme light" }));
     expect(html.dataset.theme).toBe("light");
-    expect(localStorage.getItem("basalt-theme-device")).toBeNull();
+    expect(localStorage.getItem("orrama-theme-device")).toBeNull();
     flip(false);
     flip(true);
     expect(html.dataset.theme).toBe("light"); // no longer following the system
@@ -527,7 +527,7 @@ describe("the theme (§9)", () => {
   it("on a device matching its system, the rail's button stops matching and takes the opposite of what shows (F3)", async () => {
     const user = userEvent.setup();
     const flip = system(true);
-    localStorage.setItem("basalt-theme-device", "match");
+    localStorage.setItem("orrama-theme-device", "match");
     serve({ "GET /api/me": { ...ME, appearance: { theme: "command", vision: "none", profiles: [] } } });
     at("/today");
     render(<App />);
@@ -537,8 +537,8 @@ describe("the theme (§9)", () => {
 
     await user.click(railTheme());
     expect(html.dataset.theme).toBe("light");
-    expect(localStorage.getItem("basalt-theme-device")).toBeNull();
-    expect(localStorage.getItem("basalt-theme")).toBe("light");
+    expect(localStorage.getItem("orrama-theme-device")).toBeNull();
+    expect(localStorage.getItem("orrama-theme")).toBe("light");
     flip(false);
     flip(true);
     expect(html.dataset.theme).toBe("light"); // no longer following the system
@@ -554,7 +554,7 @@ describe("the theme (§9)", () => {
     await user.click(await screen.findByRole("button", { name: "theme dark" }));
     expect(html.dataset.theme).toBe("dark");
     await waitFor(() => expect(sent.map((b) => b.appearance?.theme)).toContain("command"));
-    expect(localStorage.getItem("basalt-theme")).toBe("command");
+    expect(localStorage.getItem("orrama-theme")).toBe("command");
   });
 });
 

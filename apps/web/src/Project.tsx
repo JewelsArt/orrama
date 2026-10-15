@@ -23,7 +23,7 @@ export type Tab = "overview" | ProjectTab;
 const TABS: Tab[] = ["overview", "timeline", "documents", "todo"];
 const TAB_LABEL: Record<Tab, string> = { overview: "Overview", timeline: "Timeline", documents: "Documents", todo: "To-do" };
 /** The tab used last: the board's links open a project on it (the address stays the truth). */
-export const LAST_TAB_KEY = "basalt-proj-view";
+export const LAST_TAB_KEY = "orrama-proj-view";
 
 export const tabHref = (slug: string, tab: Tab) => routeHref({ kind: "project", slug, ...(tab === "overview" ? {} : { tab }) });
 

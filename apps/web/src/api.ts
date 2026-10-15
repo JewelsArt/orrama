@@ -19,7 +19,7 @@ export type {
 import type { Me } from "@orrama/schema/responses";
 import { readKey, removeKey, writeKey } from "./storage.js";
 
-const TOKEN_KEY = "basalt-token";
+const TOKEN_KEY = "orrama-token";
 
 /**
  * The session token, read on first use rather than when this module loads: a module-level read
@@ -44,7 +44,7 @@ export function clearToken() {
  * whether launch shows the quick-unlock screen or the full sign-in form, and it
  * pre-fills the field. Never a credential.
  */
-const LAST_EMAIL_KEY = "basalt-last-email";
+const LAST_EMAIL_KEY = "orrama-last-email";
 export const lastEmail = () => readKey(LAST_EMAIL_KEY) ?? "";
 export const rememberEmail = (email: string) => writeKey(LAST_EMAIL_KEY, email);
 

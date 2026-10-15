@@ -316,7 +316,7 @@ describe("Mail's tabs", () => {
     // The tab you picked comes into the row; the one it displaced goes into More.
     expect(within(tabs).getByRole("tab", { selected: true }).textContent).toBe("Forums1");
     expect(within(tabs).getAllByRole("tab").map((t) => t.textContent)).toEqual(["All", "Primary", "Promotions", "Forums1"]);
-    expect(localStorage.getItem("basalt-mail-tab")).toBe("forums");
+    expect(localStorage.getItem("orrama-mail-tab")).toBe("forums");
   });
 });
 

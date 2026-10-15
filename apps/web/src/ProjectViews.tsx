@@ -167,7 +167,7 @@ const mondayOf = (iso: string) => {
   return n - ((new Date(n * DAY).getUTCDay() + 6) % 7);
 };
 /** Which projects have the Gantt open under their Timeline (the old board kept a JSON list of names under basalt-gantt). */
-const GANTT_KEY = "basalt-proj-gantt";
+const GANTT_KEY = "orrama-proj-gantt";
 
 export function ProjectTimeline({ w, lane, onChanged, onOpenNote }: { w: ProjectWorkspace; lane?: string; onChanged: () => Promise<void>; onOpenNote: (id: string) => void }) {
   const tasks = w.tasks as ProjectTask[];

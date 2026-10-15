@@ -139,7 +139,7 @@ readable `export.json` with every secret left out, and a README — to
 A row on the Projects board opens `Project.tsx`, the project page, at
 `/projects/<slug>`; its tabs are addresses too (`…/timeline`, `…/documents`,
 `…/todo`), and App keys the page by project, so a tab switch keeps what it
-loaded. The board's links open the tab used last (`basalt-proj-view`). The
+loaded. The board's links open the tab used last (`orrama-proj-view`). The
 header is the entity page's (`entity/EntityHeader`): the progress ring, status
 as a menu, dates as text, the days left, the area, the steps, Add a step and a ⋯
 menu. **Overview** (`ProjectOverview.tsx`) is one scroll: the note in the live
@@ -151,7 +151,7 @@ Conversations, Documents and the prompt on the right. **Timeline**,
   colour, its section named under it, `#deadline` cards solid red. Dragging a
   card to another week moves `due:` (and `start:`) by whole weeks through `POST
   /api/tasks/dates`; a click opens the same `TaskCard` Planning uses. The Gantt
-  (`Gantt.tsx`) opens under it, remembered per project (`basalt-proj-gantt`).
+  (`Gantt.tsx`) opens under it, remembered per project (`orrama-proj-gantt`).
 - *To-do* — steps grouped by the project note's own `##` sections. The server
   sends each task's `section` (nearest `##` above it, or the note title for a
   step in another project note), so reordering the note regroups the list.
@@ -405,7 +405,7 @@ each grouping says what it adds up to (a month's shops must sum to the server's
 total, or the page shows the year's instead). "Looks recurring" adds a line
 through `POST /api/finance/subscriptions`, named as the bank names it and dated
 from its last charge; "It's not recurring" is remembered on the device
-(`basalt-money-not-recurring`).
+(`orrama-money-not-recurring`).
 
 ## The Planning tab
 
@@ -435,13 +435,13 @@ the month. A step runs in its note's life area (the tree's `category`); events i
 Calendar lane; key deadlines, milestones, money and all-day events in the dated row. Only
 an overdue step is red apart from the key deadline's fill. To plan is a button that opens a
 sheet in Lanes and Month and a panel beside the hours you drag from (Jules, 11 Oct). Lanes
-or Hours is per device (`basalt-plan-view`).
+or Hours is per device (`orrama-plan-view`).
 
 **The hour window follows the content.** The day opens on 07:00–23:00 and
 `windowFor` widens it around anything outside — a 06:30 block moves the top of
 the grid, it never falls off it. The label in the hour grid's corner is the
 toggle: it says which hours you are looking at, and clicking it forces the full
-24h (`localStorage`, `basalt-plan-fullday`). Do not "fix" this back to a fixed
+24h (`localStorage`, `orrama-plan-fullday`). Do not "fix" this back to a fixed
 0–24 grid: two thirds of it is a picture of when nothing happens. The grid opens
 half an hour above the first timed item in view, else on 08:00.
 
@@ -521,7 +521,7 @@ document: a document's scrollHeight is never less than its frame, so measuring
 it (plus a margin) grew the frame at every re-measure and it could never
 shrink. Images load by default like any mail client; Block images (the
 message's ··· menu) flips the CSP to `img-src data:` and the preference sticks
-(`basalt-mail-images`). Inject as little CSS as possible: `img`/`table` get
+(`orrama-mail-images`). Inject as little CSS as possible: `img`/`table` get
 `max-width:100%`, and nothing else — a universal `max-width` forces email tables
 into a stacked mobile layout (it quadrupled one message's height). The text
 fallback drops image-only lines and labels links by host, keeping the full URL
@@ -557,7 +557,7 @@ a 500.
 Ask Orr (`AskPanel.tsx`) sends the note the page is about as `contextNoteId`
 (`ask/targets.ts`) and draws each tool call as a sentence (`ask/working.ts`): a new agent
 tool gets a case there, or it reads "Used <name>". Earlier questions live on the device
-(`basalt-ask-history`, the open one in sessionStorage `basalt-ask-open`), slimmed to
+(`orrama-ask-history`, the open one in sessionStorage `orrama-ask-open`), slimmed to
 names, ids and counts: note text, excerpts and mail bodies are never copied into the
 browser.
 
@@ -821,12 +821,15 @@ parsed before it is known to be a valid auth.
   own origin (the CSP allows no inline script), puts the stored theme and
   colour-vision mode on `<html>` before anything paints; `ui/theme.ts` holds the
   same rule and a test runs the file against it. The account keeps light or
-  dark; "Match this device" is a per-device key, `basalt-theme-device`. The
+  dark; "Match this device" is a per-device key, `orrama-theme-device`. The
   rail's light ↔ dark button (`ThemeButton`, `ui/shell/Shell.tsx`) calls App's
   `changeTheme("light" | "dark")`, which also stops Match this device.
 - **Storage**: read and write through `apps/web/src/storage.ts`. The browser can
   refuse storage (the getter throws), and `guardStorage()` in `main.tsx` gives
-  the older direct callers an in-memory one.
+  the older direct callers an in-memory one. Every key is `orrama-…`; until the
+  rename (R13) they were `basalt-…`, and `migrateLegacyKeys()` (first thing in
+  `main.tsx`) moves any left over, so nobody is signed out. A new key is
+  `orrama-<area>-<what>`.
 - **The suite runs on macOS, Linux and Windows** (CI: Ubuntu and macOS on push,
   `windows.yml` by hand; audit OPS-003). A test that needs POSIX permission bits,
   symlinks or signal handlers says so through `test/helpers/platform.ts`
@@ -851,7 +854,7 @@ parsed before it is known to be a valid auth.
   and retries on its own (2 s doubling to 30 s) unless the server refused it
   (403/409/413); `retire()` of a sync whose save is failing keeps it alive and retrying,
   and opening the note again picks that sync up; the unsaved buffer is mirrored to
-  `basalt-draft:<noteId>` and offered back (three-way merged) when the note opens;
+  `orrama-draft:<noteId>` and offered back (three-way merged) when the note opens;
   `installLeaveGuard` (main.tsx) sends pending saves with `keepalive` on reload or close
   and asks first only when a save is already failing. A sync follows the note's path from
   the server's answers (a rename outside Basalt) and stops saving when the note is gone.
@@ -1070,7 +1073,7 @@ of events, key deadlines, project dates), Projects, Money (this month against a 
 month), Orr noticed (the first problem Orr noticed lists, said as the page says it). Every request is in `Today.tsx` so the contract test
 sees it; the rules are pure in `today/model.ts`. Nothing is invented: without an ontology
 note there are no relation lines and Orr noticed says so. Customise hides modules per device
-(`basalt-today-hidden`). A task row's checkbox and its link sit side by side, never nested.
+(`orrama-today-hidden`). A task row's checkbox and its link sit side by side, never nested.
 The timetable's blocks (`/api/home`'s agenda, and "Booked") are the blocks in the
 requester's own calendar notes (`calendar:` names them), on tasks they can read — not tasks
 assigned to them.

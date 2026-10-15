@@ -235,9 +235,9 @@ export function App() {
   const themeShown = resolveTheme(theme, matchDevice, systemDark);
   // Colour-vision mode. Orthogonal to the theme: it swaps the palette, not the
   // ground, so every combination of the two is a real, tested surface.
-  const [vision, setVision] = useState(() => readKey("basalt-vision") ?? "none");
+  const [vision, setVision] = useState(() => readKey("orrama-vision") ?? "none");
   const [profiles, setProfiles] = useState<VisionProfile[]>(() => {
-    const saved = readJson<unknown>("basalt-vision-profiles", []);
+    const saved = readJson<unknown>("orrama-vision-profiles", []);
     return Array.isArray(saved) ? (saved as VisionProfile[]) : [];
   });
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -260,7 +260,7 @@ export function App() {
   useEffect(() => (matchDevice ? writeKey(DEVICE_KEY, "match") : removeKey(DEVICE_KEY)), [matchDevice]);
 
   useEffect(() => {
-    writeKey("basalt-vision-profiles", JSON.stringify(profiles));
+    writeKey("orrama-vision-profiles", JSON.stringify(profiles));
   }, [profiles]);
 
   /* Built-in modes are a CSS attribute; a hand-built one cannot be, because its
@@ -275,7 +275,7 @@ export function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.vision = vision;
-    writeKey("basalt-vision", vision);
+    writeKey("orrama-vision", vision);
     for (const name of PROFILE_VAR_NAMES) root.style.removeProperty(name);
 
     const profile = isCustom(vision) ? profiles.find((p) => p.id === customId(vision)) : undefined;

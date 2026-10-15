@@ -8,7 +8,7 @@
  */
 import { readJson, writeKey } from "../storage.js";
 
-export const HISTORY_KEY = "basalt-ask-history";
+export const HISTORY_KEY = "orrama-ask-history";
 export const HISTORY_MAX = 20;
 
 /** A message as the AI SDK has it; only what the panel reads is relied on. */

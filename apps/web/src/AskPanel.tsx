@@ -36,7 +36,7 @@ import { navigate, routeHref, useRoute, type Route } from "./ui/router.js";
 import { EmptyState, Notice } from "./ui/states.js";
 
 /** The conversation the panel had open, so closing and opening it again (or a reload) finds it. */
-const OPEN_KEY = "basalt-ask-open";
+const OPEN_KEY = "orrama-ask-open";
 
 const isPhone = () => typeof matchMedia === "function" && matchMedia("(max-width: 760px)").matches;
 

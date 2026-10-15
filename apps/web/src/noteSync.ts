@@ -11,7 +11,7 @@ import { readJson, removeKey, writeKey } from "./storage.js";
  * - the sync retries a failed save on its own (packages/sync/src/client.ts);
  * - closing a note whose save is failing keeps its sync alive here, still retrying, and opening
  *   the note again picks that same sync up, buffer and all;
- * - the buffer is copied to storage (`basalt-draft:<noteId>`) while it is unsaved, so a page
+ * - the buffer is copied to storage (`orrama-draft:<noteId>`) while it is unsaved, so a page
  *   that dies anyway offers the text back the next time the note opens;
  * - leaving the page (reload, ⌘R, Update ready, closing the window) sends what is pending with
  *   `keepalive`, and asks first when a save is already failing.
@@ -22,7 +22,7 @@ const live = new Map<string, NoteSync>();
 /** Of those, the ones whose note was closed while unsaved: they keep retrying until stored. */
 const retired = new Set<NoteSync>();
 
-export const DRAFT_PREFIX = "basalt-draft:";
+export const DRAFT_PREFIX = "orrama-draft:";
 
 /** What a note held when the page last saw it unsaved, and what it was based on. */
 export interface Draft {

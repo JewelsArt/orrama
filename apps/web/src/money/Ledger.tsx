@@ -25,7 +25,7 @@ import { useState } from "react";
 export const LEDGER_LABEL = { subscriptions: "Commitments", income: "Income" } as const;
 
 /** Remembered so the switch does not reset every time the page is opened. */
-const OVERLAY_KEY = "basalt-fin-overlay";
+const OVERLAY_KEY = "orrama-fin-overlay";
 
 export function LedgerPage({
   kind,

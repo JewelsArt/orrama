@@ -39,8 +39,8 @@ import { planningRoute, type PlanningRoute } from "./planning/title.js";
 type Scale = PlanningRoute["scale"];
 type WeekView = "lanes" | "hours";
 
-const VIEW_KEY = "basalt-plan-view";
-const FULLDAY_KEY = "basalt-plan-fullday";
+const VIEW_KEY = "orrama-plan-view";
+const FULLDAY_KEY = "orrama-plan-fullday";
 
 /** The phone (the shell's own breakpoint). */
 function useNarrow(): boolean {

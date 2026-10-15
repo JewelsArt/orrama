@@ -30,7 +30,7 @@ import { Reader, type Relation } from "./mail/Reader.js";
 import { mailTabs, validTab, type MailTab } from "./mail/tabs.js";
 import { Waiting } from "./mail/Waiting.js";
 
-const TAB_KEY = "basalt-mail-tab";
+const TAB_KEY = "orrama-mail-tab";
 const SETTINGS: Route = { kind: "settings", section: "connections" };
 
 interface People {

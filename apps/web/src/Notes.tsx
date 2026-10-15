@@ -24,7 +24,7 @@ import { navigate, routeHref } from "./ui/router.js";
 import { usePageTitle } from "./entity/title.js";
 
 /** The note open when you left Notes, which /notes opens on next time (structure.md §2.3). */
-export const LAST_NOTE_KEY = "basalt-notes-last";
+export const LAST_NOTE_KEY = "orrama-notes-last";
 /** A note's address is its vault path without ".md". */
 export const addressOf = (path: string) => path.replace(/\.md$/i, "");
 

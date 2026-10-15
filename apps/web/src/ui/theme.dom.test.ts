@@ -59,9 +59,21 @@ describe("the first frame (WEB-019)", () => {
 
   it("and the colour-vision mode", () => {
     system(false);
-    localStorage.setItem("basalt-vision", "deuteranopia");
+    localStorage.setItem("orrama-vision", "deuteranopia");
     boot();
     expect(document.documentElement.dataset.vision).toBe("deuteranopia");
+  });
+
+  it("on the first load after the rename, before main.tsx moves the keys, reads the basalt- ones (R13)", () => {
+    system(false);
+    localStorage.clear();
+    localStorage.setItem("basalt-theme", "command");
+    localStorage.setItem("basalt-vision", "protanopia");
+    expect(boot()).toBe("dark");
+    expect(document.documentElement.dataset.vision).toBe("protanopia");
+    localStorage.setItem(THEME_KEY, "light"); // the new name, once there, wins
+    expect(boot()).toBe("light");
+    localStorage.clear();
   });
 
   it("paints light when storage refuses", () => {

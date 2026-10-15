@@ -79,7 +79,7 @@ describe("saving, on the Notes screen (WEB-002)", () => {
   });
 
   it("typing a closed page never saved is offered back, and Restore saves it", async () => {
-    localStorage.setItem("basalt-draft:a", JSON.stringify({ content: "alpha\nlost line\n", base: "alpha\n", at: Date.now() - 60_000 }));
+    localStorage.setItem("orrama-draft:a", JSON.stringify({ content: "alpha\nlost line\n", base: "alpha\n", at: Date.now() - 60_000 }));
     render(<Notes me={me} noteId="a" />);
     await settle();
     expect(screen.getByText(/wasn't saved\./)).toBeTruthy();
@@ -87,14 +87,14 @@ describe("saving, on the Notes screen (WEB-002)", () => {
     await settle(700);
     expect(server.files.get("a.md")).toBe("alpha\nlost line\n");
     expect((screen.getByLabelText("editor a") as HTMLTextAreaElement).value).toBe("alpha\nlost line\n");
-    expect(localStorage.getItem("basalt-draft:a")).toBeNull();
+    expect(localStorage.getItem("orrama-draft:a")).toBeNull();
   });
 
   it("a draft the note already holds is dropped without asking", async () => {
-    localStorage.setItem("basalt-draft:a", JSON.stringify({ content: "alpha\n", base: "", at: Date.now() }));
+    localStorage.setItem("orrama-draft:a", JSON.stringify({ content: "alpha\n", base: "", at: Date.now() }));
     render(<Notes me={me} noteId="a" />);
     await settle();
     expect(screen.queryByText(/wasn't saved\./)).toBeNull();
-    expect(localStorage.getItem("basalt-draft:a")).toBeNull();
+    expect(localStorage.getItem("orrama-draft:a")).toBeNull();
   });
 });

@@ -102,3 +102,39 @@ export function guardStorage(win: Window = globalThis as unknown as Window): boo
     return true;
   }
 }
+
+/**
+ * The keys were `basalt-…` until the rename to Orrama (R13): the session token, the theme, every
+ * remembered tab, unsaved drafts (`basalt-draft:<id>`). Run first thing in main.tsx, before any
+ * screen reads a key, this moves each one to its `orrama-…` name, so the first load of the
+ * renamed app keeps you signed in and keeps everything this browser remembered. A move, not a
+ * copy: nothing is left under the old name to come back later (a draft discarded under the new
+ * name must stay discarded). If the new name already holds a value it wins, and the old one is
+ * dropped. A key that cannot be written stays under its old name and is tried again next load.
+ */
+export function migrateLegacyKeys(): number {
+  let moved = 0;
+  try {
+    const s = store();
+    if (!s) return 0;
+    const old: string[] = [];
+    for (let i = 0; i < s.length; i++) {
+      const key = s.key(i);
+      if (key?.startsWith("basalt-")) old.push(key);
+    }
+    for (const key of old) {
+      try {
+        const value = s.getItem(key);
+        const renamed = `orrama-${key.slice("basalt-".length)}`;
+        if (value !== null && s.getItem(renamed) === null) s.setItem(renamed, value);
+        s.removeItem(key);
+        moved++;
+      } catch {
+        // Full: this one stays where it is, and is tried again on the next load.
+      }
+    }
+  } catch {
+    // Storage refused outright: there is nothing to move.
+  }
+  return moved;
+}

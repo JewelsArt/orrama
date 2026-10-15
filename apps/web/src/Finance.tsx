@@ -41,7 +41,7 @@ export { iconFor, paletteFor } from "./money/palette.js";
 
 type Tab = "overview" | "spending" | "subscriptions" | "income" | "savings" | "documents";
 /** "It's not recurring", remembered on this device. */
-const NOT_RECURRING_KEY = "basalt-money-not-recurring";
+const NOT_RECURRING_KEY = "orrama-money-not-recurring";
 
 /* ---- requests ------------------------------------------------------------------------------ */
 

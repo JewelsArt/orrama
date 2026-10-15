@@ -6,7 +6,7 @@ import { anyLayerOpen } from "../ui/overlays.js";
 import { monthStep } from "./model.js";
 
 export type Grain = "month" | "year";
-const GRAIN_KEY = "basalt-fin-grain";
+const GRAIN_KEY = "orrama-fin-grain";
 
 /** Month or Year, remembered on this device; the default works when storage does not. */
 export function useGrain(): [Grain, (g: Grain) => void] {

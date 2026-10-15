@@ -90,8 +90,8 @@ describe("sign-in", () => {
     type("Password", "basalt-demo");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith(ME));
-    expect(localStorage.getItem("basalt-token")).toBe("t-1");
-    expect(localStorage.getItem("basalt-last-email")).toBe("ines@example.com");
+    expect(localStorage.getItem("orrama-token")).toBe("t-1");
+    expect(localStorage.getItem("orrama-last-email")).toBe("ines@example.com");
   });
 
   it("with motion, the gathered vault shows for two seconds and no longer", async () => {
@@ -113,7 +113,7 @@ describe("sign-in", () => {
 });
 
 describe("lock", () => {
-  beforeEach(() => localStorage.setItem("basalt-last-email", "ines@example.com"));
+  beforeEach(() => localStorage.setItem("orrama-last-email", "ines@example.com"));
 
   it("shows the time and no name", async () => {
     serve({ "POST /api/auth/unlock/options": { passcode: true, webauthn: false } });
@@ -243,7 +243,7 @@ describe("first run", () => {
     expect((await screen.findByText("I found 3 notes.")).textContent).toBeTruthy();
     expect(screen.getByText("1 person, 1 project and 1 link between them.")).toBeTruthy();
     expect(sent("POST /api/auth/register")[0]!.body).toEqual({ email: "Ines.V@example.com", username: "ines.v", displayName: "Ines", password: "long-enough" });
-    expect(localStorage.getItem("basalt-token")).toBe("t-1");
+    expect(localStorage.getItem("orrama-token")).toBe("t-1");
     act(() => fireEvent.click(screen.getByRole("button", { name: "Show me how they relate" })));
     expect(window.location.pathname).toBe("/orrery");
     expect(onDone).toHaveBeenCalledWith(ME);

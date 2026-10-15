@@ -17,9 +17,9 @@ export type Shown = "light" | "dark";
 export type ThemeChoice = Shown | "match";
 
 /** The account's theme, cached on this device for the first frame. */
-export const THEME_KEY = "basalt-theme";
+export const THEME_KEY = "orrama-theme";
 /** "match" on a device that follows its system. */
-export const DEVICE_KEY = "basalt-theme-device";
+export const DEVICE_KEY = "orrama-theme-device";
 
 const DARK = "(prefers-color-scheme: dark)";
 

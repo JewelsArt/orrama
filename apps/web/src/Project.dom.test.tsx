@@ -195,7 +195,7 @@ describe("tabs are addresses", () => {
       fireEvent.click(tabs[1]!);
     });
     expect(location.pathname).toBe("/projects/thesis/timeline");
-    expect(localStorage.getItem("basalt-proj-view")).toBe("todo");
+    expect(localStorage.getItem("orrama-proj-view")).toBe("todo");
   });
 });
 

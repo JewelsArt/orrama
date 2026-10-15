@@ -32,12 +32,15 @@ import "./styles/shell.css";
 // The design system last: its classes are its own, and it wins any tie with an older rule.
 import "./ui/ui.css";
 import { App } from "./App.js";
-import { guardStorage } from "./storage.js";
+import { guardStorage, migrateLegacyKeys } from "./storage.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { installReloadKey } from "./ui/reloadKey.js";
 import { installLeaveGuard } from "./noteSync.js";
 import { installWriteNet } from "./ui/writes.js";
 
+// Before anything reads a key: what this browser kept under the old basalt-… names moves to
+// orrama-…, the session token included, so the rename signs no one out (R13).
+migrateLegacyKeys();
 // Before anything renders: a browser that refuses storage gets an in-memory one, so screens
 // that still call localStorage directly keep working (WEB-025).
 guardStorage();

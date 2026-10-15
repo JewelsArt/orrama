@@ -74,7 +74,7 @@ export function filterNotes(notes: TreeNote[], query: string, limit = 60): TreeN
   return notes.filter((n) => n.title.toLowerCase().includes(q) || n.path.toLowerCase().includes(q)).slice(0, limit);
 }
 
-const CLOSED_KEY = "basalt-tree-closed";
+const CLOSED_KEY = "orrama-tree-closed";
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 
 /**

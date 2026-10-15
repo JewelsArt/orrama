@@ -306,7 +306,7 @@ describe("drag and drop", () => {
   });
 
   it("in Hours, a step dropped from To plan is booked where it lands; a double-click makes an event", async () => {
-    localStorage.setItem("basalt-plan-view", "hours");
+    localStorage.setItem("orrama-plan-view", "hours");
     await open();
     const cols = document.querySelector<HTMLElement>(".plan-hg-cols")!;
     cols.getBoundingClientRect = () => ({ left: 0, top: 0, width: 700, height: 1000, right: 700, bottom: 1000, x: 0, y: 0, toJSON() {} }) as DOMRect;
@@ -335,7 +335,7 @@ describe("drag and drop", () => {
 
 describe("a write that didn't save (WEB-010)", () => {
   it("a new event that didn't save keeps its popover and its title, says why, and goes on the next try", async () => {
-    localStorage.setItem("basalt-plan-view", "hours");
+    localStorage.setItem("orrama-plan-view", "hours");
     const { Toaster } = await import("./ui/overlays.js");
     render(<Toaster />);
     await open();

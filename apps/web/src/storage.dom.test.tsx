@@ -24,23 +24,23 @@ describe("storage.ts", () => {
   it("reads and writes through a getter that throws, keeping values in memory", async () => {
     refuseStorage();
     const { readKey, writeKey, removeKey, readJson } = await import("./storage.js");
-    expect(readKey("basalt-theme")).toBeNull();
-    writeKey("basalt-theme", "dark");
-    expect(readKey("basalt-theme")).toBe("dark");
-    writeKey("basalt-list", "[1,2]");
-    expect(readJson("basalt-list", [])).toEqual([1, 2]);
-    removeKey("basalt-theme");
-    expect(readKey("basalt-theme")).toBeNull();
+    expect(readKey("orrama-theme")).toBeNull();
+    writeKey("orrama-theme", "dark");
+    expect(readKey("orrama-theme")).toBe("dark");
+    writeKey("orrama-list", "[1,2]");
+    expect(readJson("orrama-list", [])).toEqual([1, 2]);
+    removeKey("orrama-theme");
+    expect(readKey("orrama-theme")).toBeNull();
   });
 
   it("never reads back a stale value when a write is refused", async () => {
-    localStorage.setItem("basalt-theme", "light");
+    localStorage.setItem("orrama-theme", "light");
     const { readKey, writeKey } = await import("./storage.js");
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("full", "QuotaExceededError");
     });
-    writeKey("basalt-theme", "dark");
-    expect(readKey("basalt-theme")).toBe("dark");
+    writeKey("orrama-theme", "dark");
+    expect(readKey("orrama-theme")).toBe("dark");
     vi.restoreAllMocks();
   });
 
