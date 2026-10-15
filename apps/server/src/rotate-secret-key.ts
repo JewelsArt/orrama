@@ -1,7 +1,7 @@
 /**
- * Re-encrypt every stored credential under a new BASALT_SECRET_KEY.
+ * Re-encrypt every stored credential under a new ORRAMA_SECRET_KEY.
  *
- * `secrets.ts` derives its AES key from BASALT_SECRET_KEY, so changing that
+ * `secrets.ts` derives its AES key from ORRAMA_SECRET_KEY, so changing that
  * variable does not invalidate the stored ciphertext — it makes it
  * UNDECRYPTABLE. The mail password and the AI key would still be sitting in
  * the database, unreadable, and the failure surfaces as a mail connection that
@@ -9,8 +9,8 @@
  *
  * So rotation is a migration, and this is it. Run it with the server stopped:
  *
- *   BASALT_OLD_SECRET_KEY=<the old one> \
- *   BASALT_SECRET_KEY=<the new one> \
+ *   ORRAMA_OLD_SECRET_KEY=<the old one> \
+ *   ORRAMA_SECRET_KEY=<the new one> \
  *   pnpm --dir apps/server rotate-secret-key --apply
  *
  * Without `--apply` it reports what it would do and changes nothing, which is
@@ -84,7 +84,7 @@ export function rotateSecrets(db: Database.Database, oldKey: string, newKey: str
       } catch {
         throw new RotateError(
           `FAILED to decrypt ${table}.${column} (${row.rid}) with the old key. Nothing written.\n` +
-            "Either BASALT_OLD_SECRET_KEY is wrong, or this row was already rotated.",
+            "Either ORRAMA_OLD_SECRET_KEY is wrong, or this row was already rotated.",
         );
       }
     }
@@ -100,12 +100,12 @@ export function rotateSecrets(db: Database.Database, oldKey: string, newKey: str
 }
 
 function main(): void {
-  const oldKey = process.env.BASALT_OLD_SECRET_KEY;
-  const newKey = process.env.BASALT_SECRET_KEY;
+  const oldKey = process.env.ORRAMA_OLD_SECRET_KEY;
+  const newKey = process.env.ORRAMA_SECRET_KEY;
   const apply = process.argv.includes("--apply");
 
   if (!oldKey || !newKey) {
-    console.error("Set BASALT_OLD_SECRET_KEY and BASALT_SECRET_KEY. Nothing done.");
+    console.error("Set ORRAMA_OLD_SECRET_KEY and ORRAMA_SECRET_KEY. Nothing done.");
     process.exit(1);
   }
   if (oldKey === newKey) {
@@ -132,7 +132,7 @@ function main(): void {
     console.log(`\n${done.length} credential(s) read back cleanly under the old key. Re-run with --apply.`);
     return;
   }
-  console.log(`\nRotated ${done.length} credential(s). Set BASALT_SECRET_KEY to the new value wherever the server runs.`);
+  console.log(`\nRotated ${done.length} credential(s). Set ORRAMA_SECRET_KEY to the new value wherever the server runs.`);
 }
 
 if (isEntry(import.meta.url, process.argv[1])) main();

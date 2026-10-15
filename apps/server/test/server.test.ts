@@ -8,17 +8,17 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
-// falls through to BASALT_VAULT_DIR from the surrounding shell - which INSTALL.md
+// falls through to ORRAMA_VAULT_DIR from the surrounding shell - which INSTALL.md
 // tells people to export - and the suite writes its demo notes into the real
 // Obsidian vault, then id-stamps every note it finds there. Same location the
 // default computes; stated explicitly so the environment cannot redirect it.
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
@@ -54,7 +54,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("auth", () => {
@@ -172,7 +172,7 @@ describe("tasks: file is the source of truth", () => {
     expect(after.json.content.split("\n")[line]).toContain("- [x] schedule next sync");
     // and the actual file on disk changed
     const onDisk = fs.readFileSync(
-      path.join(process.env.BASALT_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md"),
+      path.join(process.env.ORRAMA_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md"),
       "utf8",
     );
     expect(onDisk).toContain("- [x] schedule next sync");
@@ -235,7 +235,7 @@ describe("tasks: file is the source of truth", () => {
   it("status dropdown: every status is the checkbox — [/] in progress, [b] blocked, [x] done", async () => {
     const jules = await api("GET", "/api/vault/tree", "jules");
     const shared = jules.json.find((n: { path: string }) => n.path === "Shared/Meeting Notes 2026-07-01.md");
-    const notePath = path.join(process.env.BASALT_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md");
+    const notePath = path.join(process.env.ORRAMA_DATA_DIR!, "vault", "Shared/Meeting Notes 2026-07-01.md");
     const before = await api("GET", `/api/vault/note/${shared.id}`, "jules");
     const line = before.json.content.split("\n").findIndex((l: string) => l.includes("schedule next sync"));
     const text = before.json.content.split("\n")[line]!;
@@ -856,7 +856,7 @@ describe("history (§10)", () => {
 
 describe("mcp, watcher", () => {
   it("watcher rebase: external edits update the index and Y.Doc", async () => {
-    const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
+    const p = path.join(process.env.ORRAMA_DATA_DIR!, "vault", "Welcome.md");
     const before = fs.readFileSync(p, "utf8");
     fs.writeFileSync(p, before + "\nwatcher test line\n");
 
@@ -879,7 +879,7 @@ describe("mcp, watcher", () => {
    * corrected a number in Obsidian, and the dashboard never noticed."
    */
   it("indexes an external edit that lands immediately after the app's own write", async () => {
-    const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
+    const p = path.join(process.env.ORRAMA_DATA_DIR!, "vault", "Welcome.md");
     const welcomeId = (await api("GET", "/api/vault/tree", "jules")).json.find(
       (n: { path: string }) => n.path === "Welcome.md",
     ).id;
@@ -898,7 +898,7 @@ describe("mcp, watcher", () => {
   });
 
   it("does not re-index its own write when nothing else touched the file", async () => {
-    const p = path.join(process.env.BASALT_DATA_DIR!, "vault", "Welcome.md");
+    const p = path.join(process.env.ORRAMA_DATA_DIR!, "vault", "Welcome.md");
     await api("PUT", "/api/vault/note", "jules", { path: "Welcome.md", content: "# Welcome\n\nquiet write\n" });
     const settled = fs.readFileSync(p, "utf8");
     await new Promise((r) => setTimeout(r, 900));
@@ -918,7 +918,7 @@ describe("mcp, watcher", () => {
  * live here.
  */
 describe("vault path canonicalisation (§5)", () => {
-  const vaultRoot = () => path.join(process.env.BASALT_DATA_DIR!, "vault");
+  const vaultRoot = () => path.join(process.env.ORRAMA_DATA_DIR!, "vault");
   const mara = () => store.aclUser(db.select().from(tables.users).where(eq(tables.users.username, "mara")).get()!.id);
 
   it("does not let a personal-vault prefix launder a write into another team's folder", () => {
@@ -946,7 +946,7 @@ describe("vault path canonicalisation (§5)", () => {
     const jules = store.aclUser(db.select().from(tables.users).where(eq(tables.users.username, "jules")).get()!.id);
     expect(jules.isOwner).toBe(true);
     expect(() => store.write(jules, "../vault-evil/planted.md", "# planted\n")).toThrow(/invalid path/);
-    expect(fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "vault-evil"))).toBe(false);
+    expect(fs.existsSync(path.join(process.env.ORRAMA_DATA_DIR!, "vault-evil"))).toBe(false);
     expect(() => store.write(jules, "/etc/basalt-planted.md", "# planted\n")).toThrow(/invalid path/);
   });
 
@@ -987,7 +987,7 @@ describe("the startup secret guard", () => {
     try {
       // The assertion runs INSIDE the stubbed environment. Restoring it first
       // and asserting after passes every "throws" case for the wrong reason
-      // and fails the opt-out case, because BASALT_ALLOW_DEV_SECRETS is read
+      // and fails the opt-out case, because ORRAMA_ALLOW_DEV_SECRETS is read
       // live in the default parameter while env.secretKey was captured at
       // import. Found exactly that way.
       assert(await import("../src/env.js"));
@@ -999,37 +999,37 @@ describe("the startup secret guard", () => {
 
   it("refuses placeholder secrets with NODE_ENV unset, which is how it shipped", async () => {
     await withEnv({
-      BASALT_JWT_SECRET: undefined,
-      BASALT_SECRET_KEY: undefined,
-      BASALT_ALLOW_DEV_SECRETS: undefined,
+      ORRAMA_JWT_SECRET: undefined,
+      ORRAMA_SECRET_KEY: undefined,
+      ORRAMA_ALLOW_DEV_SECRETS: undefined,
       NODE_ENV: undefined,
     }, (fresh) => {
-      expect(() => fresh.assertProductionSecrets()).toThrow(/BASALT_JWT_SECRET and BASALT_SECRET_KEY/);
+      expect(() => fresh.assertProductionSecrets()).toThrow(/ORRAMA_JWT_SECRET and ORRAMA_SECRET_KEY/);
     });
   });
 
   it("still refuses when only one of the two is real", async () => {
     await withEnv({
-      BASALT_JWT_SECRET: "a-real-looking-jwt-secret",
-      BASALT_SECRET_KEY: undefined,
-      BASALT_ALLOW_DEV_SECRETS: undefined,
+      ORRAMA_JWT_SECRET: "a-real-looking-jwt-secret",
+      ORRAMA_SECRET_KEY: undefined,
+      ORRAMA_ALLOW_DEV_SECRETS: undefined,
       NODE_ENV: undefined,
     }, (fresh) => {
-      expect(() => fresh.assertProductionSecrets()).toThrow(/BASALT_SECRET_KEY/);
+      expect(() => fresh.assertProductionSecrets()).toThrow(/ORRAMA_SECRET_KEY/);
     });
   });
 
   it("names the rotation script, because changing the key orphans stored credentials", async () => {
-    await withEnv({ BASALT_SECRET_KEY: undefined, BASALT_ALLOW_DEV_SECRETS: undefined }, (fresh) => {
+    await withEnv({ ORRAMA_SECRET_KEY: undefined, ORRAMA_ALLOW_DEV_SECRETS: undefined }, (fresh) => {
       expect(() => fresh.assertProductionSecrets()).toThrow(/rotate-secret-key/);
     });
   });
 
   it("lets a throwaway install opt out, out loud", async () => {
     await withEnv({
-      BASALT_JWT_SECRET: undefined,
-      BASALT_SECRET_KEY: undefined,
-      BASALT_ALLOW_DEV_SECRETS: "1",
+      ORRAMA_JWT_SECRET: undefined,
+      ORRAMA_SECRET_KEY: undefined,
+      ORRAMA_ALLOW_DEV_SECRETS: "1",
     }, (fresh) => {
       expect(() => fresh.assertProductionSecrets()).not.toThrow();
     });
@@ -1037,9 +1037,9 @@ describe("the startup secret guard", () => {
 
   it("passes on real secrets", async () => {
     await withEnv({
-      BASALT_JWT_SECRET: "6f1c0b9a4d2e8f37a1b5c9d0e4f8a2b6",
-      BASALT_SECRET_KEY: "9e3a7c1f5b0d2846ea9c3f7b1d5084a2",
-      BASALT_ALLOW_DEV_SECRETS: undefined,
+      ORRAMA_JWT_SECRET: "6f1c0b9a4d2e8f37a1b5c9d0e4f8a2b6",
+      ORRAMA_SECRET_KEY: "9e3a7c1f5b0d2846ea9c3f7b1d5084a2",
+      ORRAMA_ALLOW_DEV_SECRETS: undefined,
     }, (fresh) => {
       expect(() => fresh.assertProductionSecrets()).not.toThrow();
     });
@@ -1122,7 +1122,7 @@ describe("project slug cannot escape the vault", () => {
   });
 
   it("refuses to list files for one, and writes nothing to disk", async () => {
-    const outside = path.resolve(process.env.BASALT_DATA_DIR!, "vault", "..", "escaped");
+    const outside = path.resolve(process.env.ORRAMA_DATA_DIR!, "vault", "..", "escaped");
     for (const slug of ESCAPES) {
       const r = await api("GET", `/api/projects/${encodeURIComponent(slug)}/files`, "jules");
       expect(r.status).not.toBe(200);

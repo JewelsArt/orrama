@@ -7,7 +7,7 @@
 import net from "node:net";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 const { sendMail } = await import("../src/mail.js");
 
 const received: string[] = [];

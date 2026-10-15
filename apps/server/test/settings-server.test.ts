@@ -8,10 +8,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-settings-server-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-settings-server-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -30,7 +30,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await built.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("GET /api/settings/server", () => {
@@ -38,7 +38,7 @@ describe("GET /api/settings/server", () => {
     const r = await get("jules");
     expect(r.statusCode).toBe(200);
     const body = r.json();
-    expect(body.notesFolder).toBe(homePath(path.resolve(process.env.BASALT_VAULT_DIR!)));
+    expect(body.notesFolder).toBe(homePath(path.resolve(process.env.ORRAMA_VAULT_DIR!)));
     expect(body.notes).toBe(built.store.index.all().length);
     expect(body.notes).toBeGreaterThan(0);
     expect(body.version).toBe(JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version);

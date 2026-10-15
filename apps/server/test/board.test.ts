@@ -8,12 +8,12 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultBoard, fileRef, normalizeBoard, placeMissing } from "../src/board.js";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-board-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-board-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const PROJ = path.join(VAULT, "04-Projects");
 const FILES = path.join(PROJ, "plan", "files");
 
@@ -45,7 +45,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("board rules", () => {

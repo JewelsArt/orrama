@@ -6,7 +6,7 @@
  * list proves nothing about the shape of its items, so the contract test
  * runs against this, not a bare seed.
  *
- * Import AFTER setting BASALT_DATA_DIR / BASALT_VAULT_DIR / BASALT_FETCH_ALLOW.
+ * Import AFTER setting ORRAMA_DATA_DIR / ORRAMA_VAULT_DIR / ORRAMA_FETCH_ALLOW.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -105,7 +105,7 @@ export function writeBrokenBoard(vault: string, slug: string): void {
   fs.writeFileSync(path.join(vault, "04-Projects", slug, "documents.canvas"), "{ not json");
 }
 
-/** A local calendar feed the server may fetch (BASALT_FETCH_ALLOW=127.0.0.1). */
+/** A local calendar feed the server may fetch (ORRAMA_FETCH_ALLOW=127.0.0.1). */
 export async function serveIcs(): Promise<{ url: string; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => {
     res.writeHead(200, { "content-type": "text/calendar" });

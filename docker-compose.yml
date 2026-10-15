@@ -1,6 +1,6 @@
 # One `docker compose up` for the whole self-host (spec §4).
 # Your notes live in ./data/vault as plain Markdown — back it up with rsync/git.
-# Export BASALT_JWT_SECRET and BASALT_SECRET_KEY first (INSTALL.md, Docker).
+# Export ORRAMA_JWT_SECRET and ORRAMA_SECRET_KEY first (INSTALL.md, Docker).
 services:
   basalt:
     build: .
@@ -14,9 +14,9 @@ services:
       - ./data:/data
     environment:
       # CHANGE THESE for any real deployment:
-      BASALT_JWT_SECRET: ${BASALT_JWT_SECRET:-change-me-please}
-      BASALT_SECRET_KEY: ${BASALT_SECRET_KEY:-change-me-32-bytes-of-entropy!!}
+      ORRAMA_JWT_SECRET: ${ORRAMA_JWT_SECRET:-change-me-please}
+      ORRAMA_SECRET_KEY: ${ORRAMA_SECRET_KEY:-change-me-32-bytes-of-entropy!!}
       # Every address the browser uses besides localhost, comma-separated:
       # https://basalt.example.ts.net,https://notes.example.com
-      BASALT_PUBLIC_ORIGINS: ${BASALT_PUBLIC_ORIGINS:-}
+      ORRAMA_PUBLIC_ORIGINS: ${ORRAMA_PUBLIC_ORIGINS:-}
     restart: unless-stopped

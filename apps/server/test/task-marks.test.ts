@@ -13,19 +13,19 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-marks-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-marks-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 
-const roadmap = path.join(process.env.BASALT_VAULT_DIR!, "Engineering/Atlas Roadmap.md");
+const roadmap = path.join(process.env.ORRAMA_VAULT_DIR!, "Engineering/Atlas Roadmap.md");
 const spike = () => fs.readFileSync(roadmap, "utf8").split("\n").find((l) => l.includes("partial checkout spike"))!;
 
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 describe("task status migration", () => {
   it("the seed is the old shape: an open box, an in-progress row", () => {

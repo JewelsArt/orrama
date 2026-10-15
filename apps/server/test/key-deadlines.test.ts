@@ -9,10 +9,10 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addDays, isoLocal } from "@orrama/core";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-keydl-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-keydl-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const today = isoLocal();
 const soon = addDays(today, 3);
@@ -30,8 +30,8 @@ let token = "";
 const get = async (url: string) => (await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } })).json();
 
 beforeAll(async () => {
-  fs.mkdirSync(path.join(process.env.BASALT_VAULT_DIR!, "04-Projects"), { recursive: true });
-  fs.writeFileSync(path.join(process.env.BASALT_VAULT_DIR!, "04-Projects", "block.md"), lines.join("\n"));
+  fs.mkdirSync(path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects"), { recursive: true });
+  fs.writeFileSync(path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects", "block.md"), lines.join("\n"));
   await import("../src/seed.js");
   app = (await buildServer()).app;
   token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
@@ -39,7 +39,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("key deadlines", () => {

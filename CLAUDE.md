@@ -25,11 +25,11 @@ user, one vault").
   Restart the agent the right way: `lsof -nP -iTCP:4623 -sTCP:LISTEN -t` (the
   bare `lsof -ti :4623` returns client sockets too — killing one of those once
   took down an unrelated app).
-- **The launchd agent carries the real secrets** (`BASALT_JWT_SECRET`,
-  `BASALT_SECRET_KEY`) in its plist, which is `chmod 600`. The server refuses to
+- **The launchd agent carries the real secrets** (`ORRAMA_JWT_SECRET`,
+  `ORRAMA_SECRET_KEY`) in its plist, which is `chmod 600`. The server refuses to
   boot on the shipped placeholders, or on a secret that is empty or under 32
   characters, regardless of `NODE_ENV`; `pnpm --dir apps/server dev` opts out
-  with `--dev`, which also moves it to its own data folder and port (Dev loop). Changing `BASALT_SECRET_KEY` orphans every
+  with `--dev`, which also moves it to its own data folder and port (Dev loop). Changing `ORRAMA_SECRET_KEY` orphans every
   stored credential (mail password, AI key, ChatGPT sign-in, webhook secrets,
   calendar feed URLs) — run `pnpm --dir apps/server rotate-secret-key` with the
   server stopped.
@@ -73,7 +73,7 @@ tables in `db.ts`. `pnpm --dir apps/server export`
 (`src/export.ts`) writes all of it out: a restorable `basalt.db` snapshot, a
 readable `export.json` with every secret left out, and a README — to
 `<data dir>/exports/` by default, never into the vault. Run it with the agent's
-`BASALT_VAULT_DIR` so the never-into-the-vault check knows the real vault.
+`ORRAMA_VAULT_DIR` so the never-into-the-vault check knows the real vault.
 
 ## Layout
 
@@ -239,7 +239,7 @@ A note joins a project through a `project/<slug>` tag in its **front matter**; a
 ## One shared vault with Obsidian
 
 The vault is `~/Obsidian Vault` — the *same folder* Obsidian opens, not a copy.
-`BASALT_VAULT_DIR` (see `env.ts`) points the server at it; the SQLite DB stays in
+`ORRAMA_VAULT_DIR` (see `env.ts`) points the server at it; the SQLite DB stays in
 `<dataDir>` because it is a cache of the files, not part of the notes. Both apps
 read and write the same Markdown: Obsidian saves whole files and the chokidar
 watcher re-indexes them; Basalt writes through `VaultStore.write`. Editing the
@@ -254,7 +254,7 @@ indexed.
 
 On this machine the server runs as a launchd agent
 (`~/Library/LaunchAgents/dev.basalt.server.plist`, `KeepAlive`), which is where
-`BASALT_VAULT_DIR` is set — changing the vault path means editing that plist and
+`ORRAMA_VAULT_DIR` is set — changing the vault path means editing that plist and
 `launchctl unload && load`, not just an export in a shell. The vault deliberately
 lives outside `~/Documents`: that folder is iCloud-synced (rewriting ~600 files
 would churn the sync, and evicted files download one at a time) and is a
@@ -627,9 +627,9 @@ parsed before it is known to be a valid auth.
   **Check policy changes in WebKit**, not only Chrome: a WKWebView snapshot
   (`scripts/webkit-snap.swift`) is what found it.
 - **The environment is validated at boot** (`envProblems` in `env.ts`, every
-  problem listed at once): ports and the numeric knobs (`BASALT_DOC_CACHE`,
-  `BASALT_PLAN_AI_TIMEOUT_MS`, `BASALT_AI_TIMEOUT_MS`,
-  `BASALT_WEBHOOK_DEBOUNCE_MS`) are whole numbers, origins are bare origins,
+  problem listed at once): ports and the numeric knobs (`ORRAMA_DOC_CACHE`,
+  `ORRAMA_PLAN_AI_TIMEOUT_MS`, `ORRAMA_AI_TIMEOUT_MS`,
+  `ORRAMA_WEBHOOK_DEBOUNCE_MS`) are whole numbers, origins are bare origins,
   data/vault paths are directories, and real secrets are ≥ 32 characters. A new
   variable gets a rule there.
 - **Outbound requests to user-typed URLs go through `safeFetch`** (calendar
@@ -639,7 +639,7 @@ parsed before it is known to be a valid auth.
   refused whole, redirects re-checked hop
   by hop (GET only), and callers report a coarse outcome — never the far end's
   status or error text. A private target that is really wanted (a NAS, a tailnet
-  host) is named in `BASALT_FETCH_ALLOW` (hosts or CIDRs). Anything new that
+  host) is named in `ORRAMA_FETCH_ALLOW` (hosts or CIDRs). Anything new that
   fetches a URL a user supplied uses it too. A connection `safeFetch` cannot
   make itself (IMAP/SMTP to a user-typed mail server) checks the host with
   `assertPermittedHost` first — same rule and allow-list, checked before
@@ -657,11 +657,11 @@ parsed before it is known to be a valid auth.
   worker if its cost can't be capped.
 - **The server answers only to its own names.** Every request — API, static
   files, the WebSocket upgrade — must carry a `Host` of `localhost`,
-  `127.0.0.1`, `[::1]` or a host in `BASALT_PUBLIC_ORIGINS` (any port), or it
+  `127.0.0.1`, `[::1]` or a host in `ORRAMA_PUBLIC_ORIGINS` (any port), or it
   gets a 421 before any route runs (`allowedHost`, `main.ts`). CORS cannot stop
   DNS rebinding: a page that re-points its own name at 127.0.0.1 is
   same-origin, but its browser still sends its own name as `Host`. So set
-  `BASALT_PUBLIC_ORIGINS` (comma-separated, e.g.
+  `ORRAMA_PUBLIC_ORIGINS` (comma-separated, e.g.
   `http://localhost:4623,https://<mac>.<tailnet>.ts.net`) in the launchd plist
   for every name Basalt is reached by — a bare LAN or tailnet IP included.
   Touch ID trusts only those origins too; unset, the `Origin` must equal the
@@ -757,7 +757,7 @@ parsed before it is known to be a valid auth.
   that file. URLs in it are already redacted (no query strings or secret paths).
 - **An Ask run stops with its request** (`routes/ai.ts`): the response closing early (the
   panel's Stop, closing the panel, leaving the page) aborts the run, so no later model call
-  or tool call happens; `BASALT_AI_TIMEOUT_MS` (120 s) bounds it. A run stopped mid-answer errors the SDK's stream, and
+  or tool call happens; `ORRAMA_AI_TIMEOUT_MS` (120 s) bounds it. A run stopped mid-answer errors the SDK's stream, and
   `pipeUIMessageStreamToResponse` rethrows that from a promise nobody awaits — Node ends
   the process on it — so the route pipes a stream that ends itself instead
   (`agent-abort-midstream.test.ts`). **Logged errors carry no bodies**: `errSerializer`
@@ -1125,16 +1125,16 @@ to 4627, and `seed` refuses a vault that already holds a note.
 pnpm install
 pnpm --dir apps/server seed   # demo into apps/server/data-dev: jules/erin/mara @basalt.dev, pw basalt-demo
 pnpm --dir apps/server dev    # :4627, apps/server/data-dev — never the live DB
-BASALT_API_PORT=4627 pnpm --dir apps/web dev   # :4625, proxies /api (ws included) to the dev server
+ORRAMA_API_PORT=4627 pnpm --dir apps/web dev   # :4625, proxies /api (ws included) to the dev server
 # /dev/ui on :4625 shows every component of the design system (dev server only)
 pnpm test                     # every package, in temp folders — permission tests are release-blocking
 ```
 
 To start the demo over, delete `apps/server/data-dev` (only that) and seed again.
 For a throwaway elsewhere, set both folders and a port:
-`BASALT_DATA_DIR=$(mktemp -d) BASALT_VAULT_DIR=… PORT=… pnpm --dir apps/server dev`.
-Never export the agent's `BASALT_VAULT_DIR` in a shell you run `seed` or `dev`
-from. `pnpm --dir apps/web dev` without `BASALT_API_PORT` proxies to the live
+`ORRAMA_DATA_DIR=$(mktemp -d) ORRAMA_VAULT_DIR=… PORT=… pnpm --dir apps/server dev`.
+Never export the agent's `ORRAMA_VAULT_DIR` in a shell you run `seed` or `dev`
+from. `pnpm --dir apps/web dev` without `ORRAMA_API_PORT` proxies to the live
 agent on :4623 — the real vault, so what you click writes to it.
 
 Ports 4623/4625/4627 are deliberate (4620/4621 are taken on this machine). When testing

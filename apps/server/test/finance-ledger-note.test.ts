@@ -12,12 +12,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-fin-ledger-note-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-fin-ledger-note-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const TABLE = "| Service | Amount | Every | Next |\n|---|---|---|---|";
 /** A note with a fixed id, so "the note made first" is known. */
 const write = (rel: string, id: string, tag: string, body: string, extra = "") => {
@@ -58,7 +58,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("the ledger note is one fixed note (ACL-011)", () => {

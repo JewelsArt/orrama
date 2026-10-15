@@ -15,13 +15,13 @@ import path from "node:path";
 import type { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-contract-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1"; // the local calendar feed below
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-contract-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1"; // the local calendar feed below
 
-const vault = process.env.BASALT_VAULT_DIR;
+const vault = process.env.ORRAMA_VAULT_DIR;
 const fx = await import("./contract-fixtures.js");
 const R = await import("@orrama/schema/responses");
 const { buildServer } = await import("../src/main.js");
@@ -85,7 +85,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await b.app.close();
   await ics.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 /** [the pattern the web app's source spells, the URL to call, its schema]. */

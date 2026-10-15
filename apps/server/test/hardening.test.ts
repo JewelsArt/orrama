@@ -10,10 +10,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hardening-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hardening-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { LoginLimiter, MAX_FAILS, WINDOW_MS } = await import("../src/loginLimit.js");
 const { buildServer } = await import("../src/main.js");
@@ -23,14 +23,14 @@ const login = (password: string, remoteAddress = "10.0.0.1") =>
   app.inject({ method: "POST", url: "/api/auth/login", remoteAddress, payload: { email: "erin@basalt.dev", password } });
 
 beforeAll(async () => {
-  fs.mkdirSync(process.env.BASALT_VAULT_DIR!, { recursive: true });
+  fs.mkdirSync(process.env.ORRAMA_VAULT_DIR!, { recursive: true });
   await import("../src/seed.js");
   app = (await buildServer()).app;
 });
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("LoginLimiter", () => {

@@ -135,7 +135,7 @@ describe("docker-compose.yml", () => {
   it("and the guide says how to reach it from elsewhere, safely", () => {
     const remote = read("INSTALL.md").split("### Reaching it from elsewhere")[1]!.split(/\n## /)[0]!;
     expect(remote).toMatch(/tailscale serve/);
-    expect(remote).toMatch(/BASALT_PUBLIC_ORIGINS=/);
-    expect(read("docker-compose.yml")).toMatch(/BASALT_PUBLIC_ORIGINS: \$\{BASALT_PUBLIC_ORIGINS:-\}/);
+    expect(remote).toMatch(/ORRAMA_PUBLIC_ORIGINS=/);
+    expect(read("docker-compose.yml")).toMatch(/ORRAMA_PUBLIC_ORIGINS: \$\{ORRAMA_PUBLIC_ORIGINS:-\}/);
   });
 });

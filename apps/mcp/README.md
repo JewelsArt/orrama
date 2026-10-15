@@ -11,12 +11,12 @@ Basalt MCP Server for Claude Code integration.
 
 ```bash
 claude mcp add basalt --scope user \
-  --env BASALT_URL=http://localhost:4623 \
-  --env BASALT_TOKEN=bslt_your_api_token_here \
+  --env ORRAMA_URL=http://localhost:4623 \
+  --env ORRAMA_TOKEN=bslt_your_api_token_here \
   -- node /absolute/path/to/basalt/apps/mcp/dist/index.js
 ```
 
-`BASALT_URL` is the address the server listens on (`PORT`, 4623 by default).
+`ORRAMA_URL` is the address the server listens on (`PORT`, 4623 by default).
 
 Keep the token out of the vault. Do not put it in a `.mcp.json` in the vault
 root: that is the folder Obsidian Sync, iCloud or git copies elsewhere, and the

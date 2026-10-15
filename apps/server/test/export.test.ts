@@ -10,19 +10,19 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POSIX_MODES } from "./helpers/platform.js";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-export-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-export-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { exportBasalt } = await import("../src/export.js");
 const { tables } = await import("../src/db.js");
 
-const DATA = process.env.BASALT_DATA_DIR;
-const VAULT = process.env.BASALT_VAULT_DIR;
+const DATA = process.env.ORRAMA_DATA_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const OUT = path.join(DATA, "out");
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let built: Built;
@@ -115,7 +115,7 @@ describe("basalt export", () => {
     fs.mkdirSync(restored);
     fs.copyFileSync(path.join(exported, "basalt.db"), path.join(restored, "basalt.db"));
     await built.app.close();
-    process.env.BASALT_DATA_DIR = restored;
+    process.env.ORRAMA_DATA_DIR = restored;
     const { env } = await import("../src/env.js");
     const before = env.dataDir;
     (env as { dataDir: string }).dataDir = restored;

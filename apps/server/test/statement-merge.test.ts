@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-merge-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-merge-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 
 const { loadTxns } = await import("../src/routes/finance.js");
 
@@ -24,7 +24,7 @@ const card = (at: string, what: string, amount: string, balance: string) =>
 
 /** A vault whose finance folder holds exactly these exports. */
 const vaultWith = (files: Record<string, string[]>) => {
-  const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "v-"));
+  const root = fs.mkdtempSync(path.join(process.env.ORRAMA_DATA_DIR!, "v-"));
   const dir = path.join(root, "02-Areas/finance/files");
   fs.mkdirSync(dir, { recursive: true });
   for (const [name, lines] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), lines.join("\n"));
@@ -32,7 +32,7 @@ const vaultWith = (files: Record<string, string[]>) => {
 };
 const spent = (rows: { amount: number }[]) => Math.round(rows.reduce((s, r) => s + (r.amount < 0 ? -r.amount : 0), 0) * 100) / 100;
 
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 describe("loadTxns", () => {
   it("counts two identical-looking purchases on the same day as two", async () => {

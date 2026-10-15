@@ -38,7 +38,7 @@ export function dropFeedCache(feedId?: string) {
 
 /**
  * The feed's text, through safeFetch: public addresses only (or ones named in
- * BASALT_FETCH_ALLOW), redirects re-checked, size capped while reading. The
+ * ORRAMA_FETCH_ALLOW), redirects re-checked, size capped while reading. The
  * error says what kind of failure it was, never what the far end answered.
  */
 async function fetchIcsText(url: string): Promise<string> {
@@ -46,7 +46,7 @@ async function fetchIcsText(url: string): Promise<string> {
   try {
     res = await safeFetch(url, { headers: { accept: "text/calendar, text/plain, */*" }, timeoutMs: FETCH_TIMEOUT_MS, maxBytes: MAX_FEED_BYTES });
   } catch (err) {
-    if (err instanceof BlockedTargetError) throw new Error("that address is on a private network (set BASALT_FETCH_ALLOW to allow it)");
+    if (err instanceof BlockedTargetError) throw new Error("that address is on a private network (set ORRAMA_FETCH_ALLOW to allow it)");
     throw new Error(err instanceof Error && err.message === "response too large" ? "feed too large" : "the feed could not be reached");
   }
   if (res.status < 200 || res.status >= 300) throw new Error("the feed refused the request");

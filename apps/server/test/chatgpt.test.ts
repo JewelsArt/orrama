@@ -12,13 +12,13 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-chatgpt-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-chatgpt-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 // The tailnet name is a host this server answers to, as in the real plist —
 // so the "not from this machine" refusal below is the route's, not the Host check's.
-process.env.BASALT_PUBLIC_ORIGINS = "http://localhost:4623,https://juless-macbook-pro.tail790a29.ts.net";
+process.env.ORRAMA_PUBLIC_ORIGINS = "http://localhost:4623,https://juless-macbook-pro.tail790a29.ts.net";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -117,7 +117,7 @@ afterAll(async () => {
   vi.unstubAllGlobals();
   chatgpt.setKeySetForTests(null);
   await built.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("starting sign-in", () => {

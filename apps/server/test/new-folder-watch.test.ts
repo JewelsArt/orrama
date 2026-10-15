@@ -20,12 +20,12 @@ import path from "node:path";
 import { syncBuiltinESMExports } from "node:module";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-new-folder-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-new-folder-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const vault = process.env.BASALT_VAULT_DIR;
+const vault = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(vault, { recursive: true });
 fs.writeFileSync(path.join(vault, "root.md"), "# root\n");
 
@@ -80,7 +80,7 @@ afterAll(async () => {
   closeDb(db);
   fs.watch = realWatch;
   syncBuiltinESMExports();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 it("a note written between chokidar's read of a new folder and its watch is indexed", async () => {

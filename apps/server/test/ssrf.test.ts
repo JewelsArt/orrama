@@ -10,11 +10,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-ssrf-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-delete process.env.BASALT_FETCH_ALLOW;
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-ssrf-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+delete process.env.ORRAMA_FETCH_ALLOW;
 
 const { BlockedTargetError, isPublicAddress, safeFetch } = await import("../src/safeFetch.js");
 
@@ -32,8 +32,8 @@ const server = http.createServer((req, res) => {
 beforeAll(() => new Promise<void>((r) => server.listen(0, "127.0.0.1", () => ((port = (server.address() as { port: number }).port), r()))));
 afterAll(() => {
   server.close();
-  delete process.env.BASALT_FETCH_ALLOW;
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  delete process.env.ORRAMA_FETCH_ALLOW;
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("isPublicAddress", () => {
@@ -84,13 +84,13 @@ describe("safeFetch", () => {
   });
 
   it("checks every redirect hop, not just the first URL", async () => {
-    process.env.BASALT_FETCH_ALLOW = "localhost"; // the first hop is allowed by name…
+    process.env.ORRAMA_FETCH_ALLOW = "localhost"; // the first hop is allowed by name…
     hits.length = 0;
     try {
       await expect(safeFetch(`http://localhost:${port}/redirect`, { timeoutMs: 2000, maxBytes: 1000 })).rejects.toBeInstanceOf(BlockedTargetError);
       expect(hits).toEqual(["/redirect"]); // …the hop to a bare private IP never happened
     } finally {
-      delete process.env.BASALT_FETCH_ALLOW;
+      delete process.env.ORRAMA_FETCH_ALLOW;
     }
   });
 });

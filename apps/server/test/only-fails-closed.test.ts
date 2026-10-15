@@ -12,12 +12,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-only-closed-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-only-closed-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const NOTES: Record<string, string> = {
   "Shared/Q3 Review.md": "---\ntitle: Q3 Review: Ops\ntags: [only/engineering]\n---\n# Q3\n\nzebracorn-q3 headcount cuts [[Target]]\n- [ ] zebracorn-q3 tell the team\n",
   "Shared/Handbook.md": "---\ntags: handbook, only/engineering\n---\n# Handbook\n\nzebracorn-hb [[Target]]\n- [ ] zebracorn-hb review\n",
@@ -46,7 +46,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const target = () => b.store.index.getByPath("Shared/Target.md")!.id;

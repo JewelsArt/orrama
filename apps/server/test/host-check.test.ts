@@ -3,26 +3,26 @@
  * name at 127.0.0.1 is same-origin with this server, so CORS never applies;
  * what it cannot change is the Host its browser sends. So every request,
  * unauthenticated auth routes and the live-sync socket included, must be
- * addressed to loopback or a host named in BASALT_PUBLIC_ORIGINS.
+ * addressed to loopback or a host named in ORRAMA_PUBLIC_ORIGINS.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-host-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_PUBLIC_ORIGINS = "http://localhost:4623,https://mac.tailnet-name.ts.net";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-host-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_PUBLIC_ORIGINS = "http://localhost:4623,https://mac.tailnet-name.ts.net";
 
 const { buildServer, allowedHost } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 const b = await buildServer();
 afterAll(async () => {
   await b.app.close();
-  delete process.env.BASALT_PUBLIC_ORIGINS;
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  delete process.env.ORRAMA_PUBLIC_ORIGINS;
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const as = (host: string, method: "GET" | "POST", url: string, payload?: object) =>
@@ -40,7 +40,7 @@ describe("Host allowlist", () => {
     expect((await as("evil.example", "GET", "/")).statusCode).toBe(421);
   });
 
-  it("answers loopback on any port, and the hosts in BASALT_PUBLIC_ORIGINS", async () => {
+  it("answers loopback on any port, and the hosts in ORRAMA_PUBLIC_ORIGINS", async () => {
     for (const host of ["localhost", "localhost:4625", "127.0.0.1:4623", "[::1]:4623", "LOCALHOST:4623", "mac.tailnet-name.ts.net", "mac.tailnet-name.ts.net:443"]) {
       expect((await as(host, "GET", "/api/auth/status")).statusCode, host).toBe(200);
     }

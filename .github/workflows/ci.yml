@@ -104,8 +104,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: compose up on a fresh ./data
         env:
-          BASALT_JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
-          BASALT_SECRET_KEY: ci-only-secret-key-0123456789abcdef012345678
+          ORRAMA_JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
+          ORRAMA_SECRET_KEY: ci-only-secret-key-0123456789abcdef012345678
         run: |
           rm -rf data
           docker compose up --build --detach

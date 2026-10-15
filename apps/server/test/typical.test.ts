@@ -13,14 +13,14 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-"));
-process.env.BASALT_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-vault-"));
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-"));
+process.env.ORRAMA_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-vault-"));
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR!;
+const VAULT = process.env.ORRAMA_VAULT_DIR!;
 const FIN = path.join(VAULT, "02-Areas/finance");
 
 const STATEMENT = [
@@ -67,7 +67,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
   fs.rmSync(VAULT, { recursive: true, force: true });
 });
 

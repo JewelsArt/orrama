@@ -11,12 +11,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-fin-cache-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-fin-cache-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const FILES = path.join(process.env.BASALT_VAULT_DIR, "02-Areas/finance/files");
+const FILES = path.join(process.env.ORRAMA_VAULT_DIR, "02-Areas/finance/files");
 const HEADER = "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance";
 const line = (date: string, what: string, amount: number, balance: number) =>
   `Card Payment,Current,${date} 10:00:00,${date} 10:00:00,${what},${amount.toFixed(2)},0.00,EUR,COMPLETED,${balance.toFixed(2)}`;
@@ -54,7 +54,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("the statement cache (FIN-015)", () => {
@@ -80,7 +80,7 @@ describe("the statement cache (FIN-015)", () => {
   });
 
   it("a different own-accounts list is never served the other list's rows", async () => {
-    const root = process.env.BASALT_VAULT_DIR!;
+    const root = process.env.ORRAMA_VAULT_DIR!;
     const plain = await loadStatements(root, []);
     const owned = await loadStatements(root, [{ account: "Groceries pot", matches: ["albert heijn"] }]);
     expect(plain.txns.every((r) => !r.own)).toBe(true);

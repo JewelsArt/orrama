@@ -14,10 +14,10 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-rebuild-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-rebuild-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -25,10 +25,10 @@ const { tables, createDb } = await import("../src/db.js");
 const { closeDb } = await import("./helpers/db.js");
 
 type Booted = Awaited<ReturnType<typeof buildServer>>;
-const dbFile = path.join(process.env.BASALT_DATA_DIR!, "basalt.db");
-const vault = process.env.BASALT_VAULT_DIR!;
+const dbFile = path.join(process.env.ORRAMA_DATA_DIR!, "basalt.db");
+const vault = process.env.ORRAMA_VAULT_DIR!;
 
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 async function session(b: Booted) {
   const tokens: Record<string, string> = {};
@@ -172,7 +172,7 @@ function wipeIndex() {
   const old = new Database(dbFile, { readonly: true });
   const keep = ["users", "teams", "memberships", "folder_grants", "workspace"].map((t) => ({ t, rows: old.prepare(`SELECT * FROM ${t}`).all() as Record<string, unknown>[] }));
   old.close();
-  for (const f of ["basalt.db", "basalt.db-wal", "basalt.db-shm"]) fs.rmSync(path.join(process.env.BASALT_DATA_DIR!, f), { force: true });
+  for (const f of ["basalt.db", "basalt.db-wal", "basalt.db-shm"]) fs.rmSync(path.join(process.env.ORRAMA_DATA_DIR!, f), { force: true });
   closeDb(createDb()); // bootstrap the schema
   const fresh = new Database(dbFile);
   for (const { t, rows } of keep) {

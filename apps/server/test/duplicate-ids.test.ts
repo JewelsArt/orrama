@@ -17,17 +17,17 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dup-ids-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dup-ids-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 const { docContent, docFromUpdates } = await import("@orrama/sync");
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const ORIG = "Engineering/Atlas Roadmap.md";
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let built: Built;
@@ -119,7 +119,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await built.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("a copy made while the server runs", () => {

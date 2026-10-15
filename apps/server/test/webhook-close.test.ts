@@ -10,17 +10,17 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hook-close-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
-process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "150";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hook-close-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
+process.env.ORRAMA_WEBHOOK_DEBOUNCE_MS = "150";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 it("a pending note.changed delivery is dropped when the app closes", async () => {
   const { app } = await buildServer();

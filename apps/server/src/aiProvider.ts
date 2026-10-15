@@ -33,13 +33,13 @@ export function aiConfig(db: Db): AiConfig | null {
   try {
     apiKey = decryptSecret(ws.aiKeyEncrypted);
   } catch {
-    // Sealed under another BASALT_SECRET_KEY (changed without the rotation
+    // Sealed under another ORRAMA_SECRET_KEY (changed without the rotation
     // script) or a damaged row. AI is off, as with no key, rather than every
     // caller failing: it took Planning and /api/ai/status down with a bare
     // 500 (audit AI-010). Said once per stored value, not on every page load.
     if (unreadableKeyWarned !== ws.aiKeyEncrypted) {
       unreadableKeyWarned = ws.aiKeyEncrypted;
-      console.error("[ai] the stored AI key cannot be decrypted (BASALT_SECRET_KEY changed?) - AI is off until it is entered again in Settings -> Orr & AI, or the old secret is rotated with `pnpm --dir apps/server rotate-secret-key`");
+      console.error("[ai] the stored AI key cannot be decrypted (ORRAMA_SECRET_KEY changed?) - AI is off until it is entered again in Settings -> Orr & AI, or the old secret is rotated with `pnpm --dir apps/server rotate-secret-key`");
     }
     return null;
   }
@@ -92,5 +92,5 @@ export async function resolveModel(c: AiConfig): Promise<LanguageModel> {
   // directly gives a Responses model (`POST /responses`), which those servers
   // answer with 404 (audit AI-004).
   const { createOpenAI } = await import("@ai-sdk/openai");
-  return createOpenAI({ apiKey: c.apiKey, baseURL: c.baseUrl || process.env.BASALT_OPENAI_BASE_URL }).chat(c.model);
+  return createOpenAI({ apiKey: c.apiKey, baseURL: c.baseUrl || process.env.ORRAMA_OPENAI_BASE_URL }).chat(c.model);
 }

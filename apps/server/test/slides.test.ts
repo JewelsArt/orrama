@@ -11,10 +11,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-slides-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-slides-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { readPptx, sniffImage, SLIDE_CAPS } = await import("../src/slides.js");
@@ -138,7 +138,7 @@ describe("GET /api/projects/:slug/files/:name/slides", () => {
     for (const who of ["jules", "erin", "mara"]) {
       tokens[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
     }
-    const atlas = path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/atlas/files");
+    const atlas = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
     fs.mkdirSync(atlas, { recursive: true });
     fs.writeFileSync(path.join(atlas, "supervision.pptx"), deck());
     fs.writeFileSync(path.join(atlas, "broken.pptx"), "not a zip at all");
@@ -149,14 +149,14 @@ describe("GET /api/projects/:slug/files/:name/slides", () => {
       headers: { authorization: `Bearer ${tokens["mara"]}` },
       payload: { path: "Personal/mara/Skunkworks.md", content: "---\ntitle: Skunkworks\ntags:\n  - project/skunkworks\n---\n# Skunkworks\n" },
     });
-    const skunk = path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/skunkworks/files");
+    const skunk = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/skunkworks/files");
     fs.mkdirSync(skunk, { recursive: true });
     fs.writeFileSync(path.join(skunk, "secret.pptx"), deck());
   });
 
   afterAll(async () => {
     await app.close();
-    fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+    fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
   });
 
   it("serves the deck as data", async () => {

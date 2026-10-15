@@ -11,20 +11,20 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-integr-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-integr-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
-// falls through to BASALT_VAULT_DIR from the surrounding shell - which INSTALL.md
+// falls through to ORRAMA_VAULT_DIR from the surrounding shell - which INSTALL.md
 // tells people to export - and the suite writes its demo notes into the real
 // Obsidian vault, then id-stamps every note it finds there. Same location the
 // default computes; stated explicitly so the environment cannot redirect it.
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 // The helper server below listens on 127.0.0.1; private targets need naming (safeFetch.ts).
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
-process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "40";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
+process.env.ORRAMA_WEBHOOK_DEBOUNCE_MS = "40";
 process.env.TZ = "Europe/Amsterdam";
 
 const { buildServer } = await import("../src/main.js");
@@ -87,7 +87,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
   helper.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("personal API tokens", () => {

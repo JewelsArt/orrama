@@ -33,12 +33,12 @@ describe("launchd template", () => {
     expect(program.slice(1)).toEqual(["--import", "tsx", "src/main.ts"]);
     expect(path.basename(program[0]!)).toBe("node");
     expect(workdir.endsWith("/apps/server")).toBe(true);
-    expect(Object.keys(vars).sort()).toEqual(["BASALT_JWT_SECRET", "BASALT_PUBLIC_ORIGINS", "BASALT_SECRET_KEY", "BASALT_VAULT_DIR", "PATH"]);
+    expect(Object.keys(vars).sort()).toEqual(["ORRAMA_JWT_SECRET", "ORRAMA_PUBLIC_ORIGINS", "ORRAMA_SECRET_KEY", "ORRAMA_VAULT_DIR", "PATH"]);
     // Placeholders the server refuses, so a forgotten one fails loudly.
-    expect(vars.BASALT_JWT_SECRET).toBe("REPLACE_ME");
-    expect(vars.BASALT_SECRET_KEY).toBe("REPLACE_ME");
-    expect(envProblems({ BASALT_JWT_SECRET: vars.BASALT_JWT_SECRET, BASALT_SECRET_KEY: vars.BASALT_SECRET_KEY })).toHaveLength(2);
-    expect(envProblems({ BASALT_PUBLIC_ORIGINS: vars.BASALT_PUBLIC_ORIGINS })).toEqual([]);
+    expect(vars.ORRAMA_JWT_SECRET).toBe("REPLACE_ME");
+    expect(vars.ORRAMA_SECRET_KEY).toBe("REPLACE_ME");
+    expect(envProblems({ ORRAMA_JWT_SECRET: vars.ORRAMA_JWT_SECRET, ORRAMA_SECRET_KEY: vars.ORRAMA_SECRET_KEY })).toHaveLength(2);
+    expect(envProblems({ ORRAMA_PUBLIC_ORIGINS: vars.ORRAMA_PUBLIC_ORIGINS })).toEqual([]);
   });
 
   it.skipIf(!SIGNAL_HANDLERS)("filled in, it boots on the vault it names and closes on SIGTERM (POSIX signals)", async () => {
@@ -51,10 +51,10 @@ describe("launchd template", () => {
     const env = {
       ...vars,
       PATH: process.env.PATH!,
-      BASALT_VAULT_DIR: vault,
-      BASALT_JWT_SECRET: "j".repeat(64),
-      BASALT_SECRET_KEY: "k".repeat(64),
-      BASALT_DATA_DIR: data,
+      ORRAMA_VAULT_DIR: vault,
+      ORRAMA_JWT_SECRET: "j".repeat(64),
+      ORRAMA_SECRET_KEY: "k".repeat(64),
+      ORRAMA_DATA_DIR: data,
       PORT: "0",
     };
     const child = spawn(process.execPath, program.slice(1), { cwd: path.join(root, "apps/server"), env, stdio: ["ignore", "pipe", "pipe"] });

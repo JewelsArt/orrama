@@ -30,8 +30,8 @@ const EXCERPT_CHARS = 2000;
 const READ_CHARS = 60_000;
 /** read_email sends at most this much of a message: one newsletter filled every later step's context. */
 const EMAIL_CHARS = 20_000;
-/** The longest an Ask run may take (BASALT_AI_TIMEOUT_MS, checked in env.ts). */
-const AI_TIMEOUT_MS = Number(process.env.BASALT_AI_TIMEOUT_MS ?? 120_000);
+/** The longest an Ask run may take (ORRAMA_AI_TIMEOUT_MS, checked in env.ts). */
+const AI_TIMEOUT_MS = Number(process.env.ORRAMA_AI_TIMEOUT_MS ?? 120_000);
 
 /** Replacing a note with text over a fifth (and 200 characters) shorter: the "rest unchanged…" rewrite. */
 const isShrink = (before: string, after: string) => after.length < before.length * 0.8 && before.length - after.length > 200;

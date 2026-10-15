@@ -19,7 +19,7 @@ vi.mock("../src/mail.js", async (importOriginal) => ({
 }));
 
 const DEADLINE_MS = 4000;
-process.env.BASALT_AI_TIMEOUT_MS = String(DEADLINE_MS);
+process.env.ORRAMA_AI_TIMEOUT_MS = String(DEADLINE_MS);
 const { bootAi } = await import("./helpers/aiServer.js");
 const { ask, toolOutputs } = await import("./helpers/fakeChat.js");
 const s = await bootAi("agent-abort");

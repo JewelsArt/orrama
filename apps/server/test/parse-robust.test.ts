@@ -9,12 +9,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-parse-robust-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-parse-robust-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(path.join(VAULT, "Shared"), { recursive: true });
 fs.writeFileSync(path.join(VAULT, "Shared/Budget.md"), "# Budget\n\n- [ ] pay rent due:2026-10-05\n\nSavings ![chart](growth%.png)\n");
 await import("../src/seed.js");
@@ -30,7 +30,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 it("is indexed at boot, with its tasks", async () => {

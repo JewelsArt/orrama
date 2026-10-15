@@ -10,15 +10,15 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-close-order-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-fs.mkdirSync(path.join(process.env.BASALT_VAULT_DIR, "Notes"), { recursive: true });
-fs.writeFileSync(path.join(process.env.BASALT_VAULT_DIR, "Notes", "a.md"), "# A\n");
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-close-order-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+fs.mkdirSync(path.join(process.env.ORRAMA_VAULT_DIR, "Notes"), { recursive: true });
+fs.writeFileSync(path.join(process.env.ORRAMA_VAULT_DIR, "Notes", "a.md"), "# A\n");
 
 const { buildServer } = await import("../src/main.js");
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 it("the vault store stops while the database is still open", async () => {
   const { app, db, store } = await buildServer();

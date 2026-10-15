@@ -23,7 +23,7 @@ export interface TaskCompletedEvent extends NoteChangedEvent {
 
 const DELIVER_TIMEOUT_MS = 5_000;
 // note.changed is chatty while someone types; coalesce per (hook, note).
-const DEBOUNCE_MS = Number(process.env.BASALT_WEBHOOK_DEBOUNCE_MS ?? 1500);
+const DEBOUNCE_MS = Number(process.env.ORRAMA_WEBHOOK_DEBOUNCE_MS ?? 1500);
 
 type HookRow = typeof tables.webhooks.$inferSelect;
 
@@ -36,7 +36,7 @@ export const WEBHOOK_SECRET_PREFIX = "whsec_";
 
 /**
  * The signing secret is stored like every other credential: encrypted with
- * BASALT_SECRET_KEY (secrets.ts). It was the one written in the clear, so a
+ * ORRAMA_SECRET_KEY (secrets.ts). It was the one written in the clear, so a
  * copy of basalt.db — a backup, the `export` snapshot — could forge signed
  * deliveries to every receiver (audit SEC-015). Decrypted only to sign.
  */
@@ -67,7 +67,7 @@ export async function deliver(db: Db, hook: HookRow, payload: Record<string, unk
   const body = JSON.stringify(payload);
   let status: number | null = null;
   try {
-    // safeFetch: public addresses only (or BASALT_FETCH_ALLOW), no redirects for a POST.
+    // safeFetch: public addresses only (or ORRAMA_FETCH_ALLOW), no redirects for a POST.
     const res = await safeFetch(hook.url, {
       method: "POST",
       headers: {

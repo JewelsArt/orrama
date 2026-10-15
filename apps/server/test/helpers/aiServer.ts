@@ -10,10 +10,10 @@ import { fakeChat, type Turn } from "./fakeChat.js";
 
 export async function bootAi(name: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `basalt-${name}-`));
-  process.env.BASALT_DATA_DIR = dir;
-  process.env.BASALT_VAULT_DIR = path.join(dir, "vault");
-  process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-  process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+  process.env.ORRAMA_DATA_DIR = dir;
+  process.env.ORRAMA_VAULT_DIR = path.join(dir, "vault");
+  process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+  process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
   await import("../../src/seed.js");
   const { buildServer } = await import("../../src/main.js");
   const { tables } = await import("../../src/db.js");

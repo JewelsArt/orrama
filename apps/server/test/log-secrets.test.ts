@@ -16,10 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
 import { POSIX_MODES } from "./helpers/platform.js";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-logs-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-logs-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { privateLogFiles, redactUrl } = await import("../src/logging.js");
@@ -46,7 +46,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("redactUrl", () => {
@@ -149,11 +149,11 @@ describe("/api/ws authenticates with its first frame", () => {
 
 describe("privateLogFiles", () => {
   it.skipIf(!POSIX_MODES)("makes a world-readable log file owner-only, and leaves non-files alone (POSIX modes)", () => {
-    const file = path.join(process.env.BASALT_DATA_DIR!, "server.log");
+    const file = path.join(process.env.ORRAMA_DATA_DIR!, "server.log");
     fs.writeFileSync(file, "");
     fs.chmodSync(file, 0o644);
     const fd = fs.openSync(file, "a");
-    const dirFd = fs.openSync(process.env.BASALT_DATA_DIR!, "r");
+    const dirFd = fs.openSync(process.env.ORRAMA_DATA_DIR!, "r");
     try {
       expect(privateLogFiles([fd, dirFd])).toEqual([fd]);
       expect(fs.statSync(file).mode & 0o777).toBe(0o600);

@@ -13,12 +13,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-watch-ready-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-watch-ready-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const vault = process.env.BASALT_VAULT_DIR;
+const vault = process.env.ORRAMA_VAULT_DIR;
 const folders = ["Deep", "Deep/er", "Deep/er/still", "Wide/a", "Wide/b", "Wide/c"];
 for (const f of folders) {
   fs.mkdirSync(path.join(vault, f), { recursive: true });
@@ -29,7 +29,7 @@ const { createDb } = await import("../src/db.js");
 const { closeDb } = await import("./helpers/db.js");
 const { VaultStore } = await import("../src/vaultStore.js");
 
-afterAll(() => fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true }));
+afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true }));
 
 const settled = async (p: Promise<void>) => Promise.race([p.then(() => "settled"), Promise.resolve().then(() => "pending")]);
 

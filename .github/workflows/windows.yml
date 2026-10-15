@@ -51,8 +51,8 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-          export BASALT_DATA_DIR="$RUNNER_TEMP/basalt-dev" BASALT_VAULT_DIR="$RUNNER_TEMP/basalt-dev/vault"
-          mkdir -p "$BASALT_VAULT_DIR"
+          export ORRAMA_DATA_DIR="$RUNNER_TEMP/basalt-dev" ORRAMA_VAULT_DIR="$RUNNER_TEMP/basalt-dev/vault"
+          mkdir -p "$ORRAMA_VAULT_DIR"
           pnpm --dir apps/server dev > "$RUNNER_TEMP/dev.log" 2>&1 &
           ok=0
           for i in $(seq 1 60); do

@@ -213,7 +213,7 @@ Restoring
      and delete basalt.db-wal and basalt.db-shm beside it if they exist.
   3. Start Basalt again. It re-reads the vault on boot.
   The encrypted values (mail password, AI key, feed URLs) only decrypt with
-  the same BASALT_SECRET_KEY this server was running with.
+  the same ORRAMA_SECRET_KEY this server was running with.
 
 Keep this folder private: basalt.db holds password hashes and encrypted secrets.
 `;

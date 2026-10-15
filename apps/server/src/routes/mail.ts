@@ -55,7 +55,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
       smtpPort: body.smtpPort ?? GMAIL_DEFAULTS.smtpPort,
     };
     // Same rules as any other user-typed address (safeFetch.ts): a private or
-    // loopback mail server must be named in BASALT_FETCH_ALLOW, and the reply
+    // loopback mail server must be named in ORRAMA_FETCH_ALLOW, and the reply
     // is coarse. It used to connect anywhere and hand back the socket error
     // ("connect ECONNREFUSED 10.0.0.5:993"), a port scanner for the server's
     // network (audit SEC-014). The detail goes to the log only.
@@ -63,7 +63,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
       for (const host of new Set([creds.imapHost, creds.smtpHost])) await assertPermittedHost(host);
     } catch (err) {
       req.log.warn({ err: err instanceof Error ? err.message : String(err) }, "mail account: server address refused");
-      throw new HttpError(400, "that mail server address is not allowed — a private one must be listed in BASALT_FETCH_ALLOW");
+      throw new HttpError(400, "that mail server address is not allowed — a private one must be listed in ORRAMA_FETCH_ALLOW");
     }
     try {
       await verifyConnection(creds);

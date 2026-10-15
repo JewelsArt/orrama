@@ -4,7 +4,7 @@
  * On the Mac Basalt runs on, `apps/server/data` is the live database and the
  * launchd agent holds :4623. `dev` defaulted to both, the guide said "delete
  * apps/server/data to reseed", and `seed` — guarded only by "no users yet" —
- * wrote its demo notes over whatever vault BASALT_VAULT_DIR named, with bare
+ * wrote its demo notes over whatever vault ORRAMA_VAULT_DIR named, with bare
  * writes, and added an owner whose password is published.
  */
 import { spawnSync } from "node:child_process";
@@ -23,7 +23,7 @@ afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 /** Run a server script the way `pnpm --dir apps/server <script>` does, cwd included. */
 function run(args: string[], env: Record<string, string>, cwd = server) {
   const clean = { ...process.env };
-  for (const k of ["BASALT_SEED_INTO_EXISTING_VAULT", "PORT", "BASALT_DATA_DIR", "BASALT_VAULT_DIR", "BASALT_ALLOW_DEV_SECRETS", "BASALT_JWT_SECRET", "BASALT_SECRET_KEY"]) delete clean[k];
+  for (const k of ["ORRAMA_SEED_INTO_EXISTING_VAULT", "PORT", "ORRAMA_DATA_DIR", "ORRAMA_VAULT_DIR", "ORRAMA_ALLOW_DEV_SECRETS", "ORRAMA_JWT_SECRET", "ORRAMA_SECRET_KEY"]) delete clean[k];
   const r = spawnSync(process.execPath, ["--import", tsx, ...args], { cwd, env: { ...clean, ...env }, encoding: "utf8", timeout: 60_000 });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -57,7 +57,7 @@ describe("dev loop", () => {
     // `start` (the launchd agent) is unchanged: ./data, :4623, real secrets required.
     expect(envOf([], cwd)).toMatchObject({ port: 4623, inCwd: "data", secrets: "refused" });
     // An explicit setting still wins in dev — the session scratch servers rely on it.
-    expect(envOf(["--dev"], cwd, { PORT: "4721", BASALT_DATA_DIR: path.join(cwd, "x") })).toMatchObject({ port: 4721, dataDir: path.join(cwd, "x") });
+    expect(envOf(["--dev"], cwd, { PORT: "4721", ORRAMA_DATA_DIR: path.join(cwd, "x") })).toMatchObject({ port: 4721, dataDir: path.join(cwd, "x") });
   }, 30_000);
 
   it("seed refuses a vault that already holds notes, and writes nothing", () => {
@@ -67,7 +67,7 @@ describe("dev loop", () => {
     const mine = path.join(vault, "Deep", "Welcome.md"); // a name the demo also uses, one folder down
     const welcome = path.join(vault, "Welcome.md");
     fs.writeFileSync(mine, "my own note\n");
-    const r = run(["src/seed.ts", "--dev"], { BASALT_DATA_DIR: data, BASALT_VAULT_DIR: vault });
+    const r = run(["src/seed.ts", "--dev"], { ORRAMA_DATA_DIR: data, ORRAMA_VAULT_DIR: vault });
     expect(r.code).not.toBe(0);
     expect(r.out).toMatch(/Refusing to seed: .* already holds notes/);
     expect(fs.readFileSync(mine, "utf8")).toBe("my own note\n");
@@ -80,11 +80,11 @@ describe("dev loop", () => {
     const vault = path.join(data, "vault");
     fs.mkdirSync(path.join(vault, ".obsidian"), { recursive: true }); // settings are not notes
     fs.writeFileSync(path.join(vault, ".obsidian", "app.json"), "{}");
-    const first = run(["src/seed.ts", "--dev"], { BASALT_DATA_DIR: data, BASALT_VAULT_DIR: vault });
+    const first = run(["src/seed.ts", "--dev"], { ORRAMA_DATA_DIR: data, ORRAMA_VAULT_DIR: vault });
     expect(first.code, first.out).toBe(0);
     expect(fs.existsSync(path.join(vault, "Welcome.md"))).toBe(true);
     fs.writeFileSync(path.join(vault, "Welcome.md"), "edited\n");
-    const again = run(["src/seed.ts", "--dev"], { BASALT_DATA_DIR: data, BASALT_VAULT_DIR: vault });
+    const again = run(["src/seed.ts", "--dev"], { ORRAMA_DATA_DIR: data, ORRAMA_VAULT_DIR: vault });
     expect(again.code, again.out).toBe(0);
     expect(again.out).toMatch(/already seeded/);
     expect(fs.readFileSync(path.join(vault, "Welcome.md"), "utf8")).toBe("edited\n");
@@ -96,8 +96,8 @@ describe("dev loop", () => {
   // data dir afterwards (EBUSY, audit OPS-003).
   it("seed closes its database when it returns", async () => {
     const data = fs.mkdtempSync(path.join(tmp, "data-"));
-    process.env.BASALT_DATA_DIR = data;
-    process.env.BASALT_VAULT_DIR = path.join(data, "vault");
+    process.env.ORRAMA_DATA_DIR = data;
+    process.env.ORRAMA_VAULT_DIR = path.join(data, "vault");
     await import("../src/seed.js");
     expect(fs.existsSync(path.join(data, "vault", "Welcome.md"))).toBe(true);
     expect(fs.existsSync(path.join(data, "basalt.db-wal"))).toBe(false);
@@ -108,7 +108,7 @@ describe("dev loop", () => {
     for (const c of launch.configurations) {
       expect(c.port, c.name).not.toBe(4623);
       if (c.runtimeArgs.includes("apps/server")) expect(c.runtimeArgs, c.name).toContain("dev");
-      if (c.runtimeArgs.includes("apps/web")) expect(c.runtimeArgs.join(" "), c.name).toMatch(/BASALT_API_PORT=(?!4623)\d+/);
+      if (c.runtimeArgs.includes("apps/web")) expect(c.runtimeArgs.join(" "), c.name).toMatch(/ORRAMA_API_PORT=(?!4623)\d+/);
     }
   });
 
@@ -126,7 +126,7 @@ describe("dev loop", () => {
       const cmds = block(read(f), heading);
       const start = cmds.indexOf("apps/server start");
       expect(start, f).toBeGreaterThan(0);
-      for (const v of ["BASALT_JWT_SECRET=$(openssl rand -hex 32)", "BASALT_SECRET_KEY=$(openssl rand -hex 32)"]) {
+      for (const v of ["ORRAMA_JWT_SECRET=$(openssl rand -hex 32)", "ORRAMA_SECRET_KEY=$(openssl rand -hex 32)"]) {
         expect(cmds.indexOf(v), `${f} ${heading}: ${v}`).toBeGreaterThan(-1);
         expect(cmds.indexOf(v), `${f} ${heading}: ${v}`).toBeLessThan(start);
       }

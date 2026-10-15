@@ -74,7 +74,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
           )}
           {how === "folder" && (
             <p className="set-help">
-              The folder is set where the server starts: <code>BASALT_VAULT_DIR</code> in its launch agent on the Mac. Change it
+              The folder is set where the server starts: <code>ORRAMA_VAULT_DIR</code> in its launch agent on the Mac. Change it
               there and restart the agent; the first read gives every note an id line.
             </p>
           )}

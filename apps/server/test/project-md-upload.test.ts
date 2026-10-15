@@ -12,17 +12,17 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-md-upload-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-md-upload-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
-const files = () => path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/atlas/files");
+const files = () => path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
 const upload = async (who: string, name: string, data: string | Buffer) => {
   const r = await b.app.inject({
     method: "POST",
@@ -41,7 +41,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("a .md uploaded into a project's files", () => {

@@ -86,7 +86,7 @@ describe("the server under launchd", () => {
     const child = spawn(process.execPath, ["--import", "tsx", path.resolve(import.meta.dirname, "../src/main.ts")], {
       cwd: path.resolve(import.meta.dirname, ".."),
       // os.homedir() reads USERPROFILE on Windows, HOME elsewhere.
-      env: { ...process.env, HOME: home, USERPROFILE: home, BASALT_DATA_DIR: path.join(tmp, "data"), BASALT_VAULT_DIR: path.join(tmp, "vault"), PORT: "0", HOST: "127.0.0.1", BASALT_ALLOW_DEV_SECRETS: "1" },
+      env: { ...process.env, HOME: home, USERPROFILE: home, ORRAMA_DATA_DIR: path.join(tmp, "data"), ORRAMA_VAULT_DIR: path.join(tmp, "vault"), PORT: "0", HOST: "127.0.0.1", ORRAMA_ALLOW_DEV_SECRETS: "1" },
       stdio: ["ignore", fd, fd],
     });
     fs.closeSync(fd);

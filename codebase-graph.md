@@ -46,7 +46,7 @@
 - **Imports**: node:fs, node:path, node:url
 
 ### `apps/server/src/env.ts`
-- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, env, assertProductionSecrets, envProblems, assertValidEnv, vaultDir, dbPath
+- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, env, assertProductionSecrets, envProblems, assertValidEnv, vaultDir, dbPath
 - **Imports**: node:fs, node:net, node:path
 
 ### `apps/server/src/export.ts`
@@ -864,11 +864,14 @@
 ### `apps/mcp/src/auth.ts`
 - **Exports**: authHeader
 
+### `apps/mcp/src/env.ts`
+- **Exports**: renamedEnvProblems
+
 ### `apps/mcp/src/graphQuery.ts`
 - **Exports**: GRAPH_TOOLS, GraphTool, isGraphTool, graphPath
 
 ### `apps/mcp/src/index.ts`
-- **Imports**: @modelcontextprotocol/sdk/server/index.js, @modelcontextprotocol/sdk/server/stdio.js, @modelcontextprotocol/sdk/types.js, ./auth.js, ./tools.js
+- **Imports**: @modelcontextprotocol/sdk/server/index.js, @modelcontextprotocol/sdk/server/stdio.js, @modelcontextprotocol/sdk/types.js, ./auth.js, ./env.js, ./tools.js
 
 ### `apps/mcp/src/tools.ts`
 - **Exports**: Api, ToolResult, TOOLS, callTool

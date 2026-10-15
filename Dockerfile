@@ -56,7 +56,7 @@ COPY docker-entrypoint.sh /usr/local/bin/basalt-entrypoint
 # the entrypoint re-owns a bind-mounted /data that dockerd made for root.
 RUN mkdir -p /data && chown node:node /data
 
-ENV BASALT_DATA_DIR=/data \
+ENV ORRAMA_DATA_DIR=/data \
     HOST=0.0.0.0 \
     PORT=4623 \
     NODE_ENV=production
@@ -66,7 +66,7 @@ EXPOSE 4623
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:4623/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 
-# The server refuses to boot while BASALT_JWT_SECRET or BASALT_SECRET_KEY is
+# The server refuses to boot while ORRAMA_JWT_SECRET or ORRAMA_SECRET_KEY is
 # missing, short or a placeholder, whatever NODE_ENV says (apps/server/src/
 # env.ts). That refusal is the feature: a forgeable JWT secret signs every
 # session and nothing about the running app looks wrong.

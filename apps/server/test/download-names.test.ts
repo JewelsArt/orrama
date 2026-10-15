@@ -13,12 +13,12 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WINDOWS } from "./helpers/platform.js";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-download-names-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-download-names-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-fs.mkdirSync(process.env.BASALT_VAULT_DIR, { recursive: true });
+fs.mkdirSync(process.env.ORRAMA_VAULT_DIR, { recursive: true });
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 
@@ -52,7 +52,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("serving a file under a name outside Latin-1", () => {
@@ -84,7 +84,7 @@ describe("serving a file under a name outside Latin-1", () => {
   });
 
   it("a file dropped into the folder from Finder is served too", async () => {
-    const dir = path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/acme/files");
+    const dir = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/acme/files");
     fs.writeFileSync(path.join(dir, "Notes \u2014 \u65e5\u672c.txt"), "x");
     const res = await req("GET", `/api/projects/acme/files/${encodeURIComponent("Notes \u2014 \u65e5\u672c.txt")}`);
     expect(res.status).toBe(200);
@@ -93,7 +93,7 @@ describe("serving a file under a name outside Latin-1", () => {
 
   it.skipIf(WINDOWS)('a file from Finder named with " and * is served under that name (Windows cannot hold the name at all)', async () => {
     const name = 'say "hi" (draft) 100%*.txt';
-    fs.writeFileSync(path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/acme/files", name), "x");
+    fs.writeFileSync(path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/acme/files", name), "x");
     const res = await req("GET", `/api/projects/acme/files/${encodeURIComponent(name)}`);
     expect(res.status).toBe(200);
     expect(nameIn(res.headers.get("content-disposition"))).toBe(name);
@@ -102,7 +102,7 @@ describe("serving a file under a name outside Latin-1", () => {
 });
 
 describe("names a Windows disk cannot hold are refused, on every platform (OPS-003)", () => {
-  const listing = (rel: string) => (fs.existsSync(path.join(process.env.BASALT_VAULT_DIR!, rel)) ? fs.readdirSync(path.join(process.env.BASALT_VAULT_DIR!, rel)).sort() : []);
+  const listing = (rel: string) => (fs.existsSync(path.join(process.env.ORRAMA_VAULT_DIR!, rel)) ? fs.readdirSync(path.join(process.env.ORRAMA_VAULT_DIR!, rel)).sort() : []);
   // On Windows each of these answered 500 (the write failed), wrote into a
   // hidden stream (`:`), or stored nothing under a device name and said 200.
   const BAD = ['say "hi".pdf', "a*b.pdf", "re: v2.pdf", "what?.pdf", "a<b>.pdf", "pipe|d.pdf", "NUL.pdf", "con.csv", "Com1.pdf", "lpt\u00b9.pdf", "nul .pdf"];

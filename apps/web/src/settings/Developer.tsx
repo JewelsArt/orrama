@@ -260,7 +260,7 @@ function Mcp() {
       {how && (
         <p className="set-help">
           Make a token above, then register the server at user scope, so the token stays in <code>~/.claude.json</code> and
-          out of your notes: <code>claude mcp add basalt --scope user --env BASALT_URL={origin} --env BASALT_TOKEN=bslt_… -- node …/apps/mcp/dist/index.js</code>
+          out of your notes: <code>claude mcp add basalt --scope user --env ORRAMA_URL={origin} --env ORRAMA_TOKEN=bslt_… -- node …/apps/mcp/dist/index.js</code>
         </p>
       )}
     </div>

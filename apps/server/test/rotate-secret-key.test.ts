@@ -11,10 +11,10 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const OLD = "old-secret-key-0123456789abcdef!!";
 const NEW = "new-secret-key-0123456789abcdef!!";
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-rotate-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = OLD;
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-rotate-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = OLD;
 
 const { createDb, tables } = await import("../src/db.js");
 const { env } = await import("../src/env.js");
@@ -26,7 +26,7 @@ const db = createDb();
 const raw = (db as unknown as { $client: import("better-sqlite3").Database }).$client;
 afterAll(() => {
   raw.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const creds = { clientId: "c", refreshToken: "rt-LONG-LIVED", accessToken: "at", expiresAt: 1, idToken: "id", email: "me@example.test", sub: "s" };

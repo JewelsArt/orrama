@@ -10,10 +10,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-office-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-office-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { assertInflatesWithin, DOCX_CAPS, TooLargeError, XLSX_CAPS } = await import("../src/zip.js");
@@ -87,8 +87,8 @@ describe("the document routes", () => {
   let app: Awaited<ReturnType<typeof buildServer>>["app"];
   let token = "";
   const get = (url: string) => app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
-  const project = () => path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/atlas/files");
-  const finance = () => path.join(process.env.BASALT_VAULT_DIR!, "02-Areas/finance/files");
+  const project = () => path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
+  const finance = () => path.join(process.env.ORRAMA_VAULT_DIR!, "02-Areas/finance/files");
   // Just over the XML cap: as XML of short paragraphs, the shape that cost mammoth the most.
   const overDocx = () => para("aaaaaaaaaaaaaaaaaaaa").repeat(Math.ceil((DOCX_CAPS.xmlBytes + 1024) / para("aaaaaaaaaaaaaaaaaaaa").length));
   const overSheet = () => {
@@ -113,7 +113,7 @@ describe("the document routes", () => {
 
   afterAll(async () => {
     await app.close();
-    fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+    fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
   });
 
   it("a .docx inside its caps converts; one that inflates past them is a 413; one that is not a zip a 422", { timeout: 30_000 }, async () => {

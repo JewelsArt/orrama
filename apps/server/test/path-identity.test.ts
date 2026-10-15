@@ -18,12 +18,12 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-path-identity-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-path-identity-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(VAULT, { recursive: true });
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -31,18 +31,18 @@ const { tables } = await import("../src/db.js");
 
 /** Whether this volume folds case — the watcher half only means anything where it does. */
 const CASE_INSENSITIVE = (() => {
-  const probe = path.join(process.env.BASALT_DATA_DIR!, "CaseProbe");
+  const probe = path.join(process.env.ORRAMA_DATA_DIR!, "CaseProbe");
   fs.writeFileSync(probe, "");
-  const folds = fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "caseprobe"));
+  const folds = fs.existsSync(path.join(process.env.ORRAMA_DATA_DIR!, "caseprobe"));
   fs.rmSync(probe);
   return folds;
 })();
 
 /** Whether this volume reads `ſ` (U+017F, long s) as `s`: APFS does; ext4 and, by the Windows run, NTFS do not. */
 const FOLDS_LONG_S = (() => {
-  const probe = path.join(process.env.BASALT_DATA_DIR!, "sprobe");
+  const probe = path.join(process.env.ORRAMA_DATA_DIR!, "sprobe");
   fs.writeFileSync(probe, "");
-  const folds = fs.existsSync(path.join(process.env.BASALT_DATA_DIR!, "\u017Fprobe"));
+  const folds = fs.existsSync(path.join(process.env.ORRAMA_DATA_DIR!, "\u017Fprobe"));
   fs.rmSync(probe);
   return folds;
 })();
@@ -79,7 +79,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("API writes resolve to the note on disk (ACL-001)", () => {

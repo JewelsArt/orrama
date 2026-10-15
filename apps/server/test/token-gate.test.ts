@@ -13,11 +13,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-token-gate-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-delete process.env.BASALT_FETCH_ALLOW;
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-token-gate-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+delete process.env.ORRAMA_FETCH_ALLOW;
 
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
@@ -25,7 +25,7 @@ const { aiConfig, completeText } = await import("../src/aiProvider.js");
 const b = await buildServer();
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 type Method = "GET" | "POST" | "DELETE";
@@ -171,7 +171,7 @@ describe("the mail account (SEC-014)", () => {
     try {
       const r = await connect(session, l.port);
       expect(r.status).toBe(400);
-      expect(r.json().error).toMatch(/BASALT_FETCH_ALLOW/);
+      expect(r.json().error).toMatch(/ORRAMA_FETCH_ALLOW/);
       expect(l.count()).toBe(0);
     } finally {
       l.close();
@@ -180,7 +180,7 @@ describe("the mail account (SEC-014)", () => {
 
   it("says only that sign-in failed, never what the far end said", async () => {
     const l = await listener();
-    process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
+    process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
     try {
       const r = await connect(session, l.port);
       expect(r.status).toBe(400);
@@ -190,7 +190,7 @@ describe("the mail account (SEC-014)", () => {
       expect(closed.json().error).toBe(r.json().error);
       expect(closed.body).not.toMatch(/ECONN|127\.0\.0\.1|:1\b/);
     } finally {
-      delete process.env.BASALT_FETCH_ALLOW;
+      delete process.env.ORRAMA_FETCH_ALLOW;
       l.close();
     }
   });

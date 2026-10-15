@@ -13,12 +13,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-create-only-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-create-only-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(VAULT, { recursive: true });
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -65,7 +65,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("creating a note (WEB-001)", () => {
@@ -134,7 +134,7 @@ describe("creating a project does not replace a project note in another case", (
 
 describe("the exclusive write", () => {
   it("refuses a file that is already there, leaving its bytes", () => {
-    const f = path.join(process.env.BASALT_DATA_DIR!, "exclusive.txt");
+    const f = path.join(process.env.ORRAMA_DATA_DIR!, "exclusive.txt");
     fs.writeFileSync(f, "mine");
     expect(() => writeFileAtomic(f, "theirs", { exclusive: true })).toThrow(/EEXIST/);
     expect(fs.readFileSync(f, "utf8")).toBe("mine");

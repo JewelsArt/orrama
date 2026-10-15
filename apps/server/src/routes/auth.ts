@@ -496,7 +496,7 @@ function safeAppearance(raw: string | null) {
  * `expectedOrigin`/`expectedRPID` — the value the check exists to verify, taken
  * from the party being checked (audit, high). Now:
  *
- *   - with `BASALT_PUBLIC_ORIGINS` set, the origin must be one of them;
+ *   - with `ORRAMA_PUBLIC_ORIGINS` set, the origin must be one of them;
  *   - unset, it must be the address the request was actually sent to (`Host`),
  *     which a page on another site cannot satisfy from a browser.
  *

@@ -75,7 +75,7 @@ export function chatgptCredentials(db: Db): ChatGptCredentials | null {
   try {
     return JSON.parse(decryptSecret(raw)) as ChatGptCredentials;
   } catch {
-    return null; // e.g. BASALT_SECRET_KEY rotated: sign in again
+    return null; // e.g. ORRAMA_SECRET_KEY rotated: sign in again
   }
 }
 

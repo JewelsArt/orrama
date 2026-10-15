@@ -47,7 +47,7 @@ describe("launching the server", () => {
     const data = fs.mkdtempSync(path.join(tmp, "data-"));
     const child = spawn(process.execPath, ["--import", "tsx", link], {
       cwd: path.resolve(import.meta.dirname, ".."),
-      env: { ...process.env, BASALT_DATA_DIR: data, BASALT_VAULT_DIR: path.join(data, "vault"), PORT: "0", HOST: "127.0.0.1", BASALT_ALLOW_DEV_SECRETS: "1" },
+      env: { ...process.env, ORRAMA_DATA_DIR: data, ORRAMA_VAULT_DIR: path.join(data, "vault"), PORT: "0", HOST: "127.0.0.1", ORRAMA_ALLOW_DEV_SECRETS: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";

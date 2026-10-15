@@ -4,7 +4,7 @@
  * A session was a bare 30-day JWT: nothing on the server knew it existed, so
  * "Sign out" only forgot it in one browser, and a token copied out of a log or
  * a lost laptop stayed good for a month — the only way to end it was rotating
- * BASALT_JWT_SECRET, which signed out every device at once.
+ * ORRAMA_JWT_SECRET, which signed out every device at once.
  *
  * Now every sign-in opens a row here and the token carries its id (`sid`).
  * Every request, and the live-sync socket, needs that row to exist and not be

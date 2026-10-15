@@ -13,12 +13,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-figures-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-figures-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const FIN = path.join(VAULT, "02-Areas/finance");
 const note = (title: string, tag: string, body: string) => `---\ntitle: ${title}\ntags:\n  - ${tag}\n---\n\n${body}\n`;
 
@@ -118,7 +118,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 /** Swap the finance folder's statements for these while `fn` runs. */
@@ -194,7 +194,7 @@ describe("what a month cost (FIN-001)", () => {
 describe("one pocket's balance (FIN-002)", () => {
   /** A vault folder holding one statement, for the functions that read files. */
   const rootWith = (csv: string) => {
-    const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "pockets-"));
+    const root = fs.mkdtempSync(path.join(process.env.ORRAMA_DATA_DIR!, "pockets-"));
     fs.mkdirSync(path.join(root, "02-Areas/finance/files"), { recursive: true });
     fs.writeFileSync(path.join(root, "02-Areas/finance/files/statement.csv"), csv);
     return root;
@@ -461,7 +461,7 @@ describe("ledger totals stay in their own currency (FIN-017)", () => {
 
   it("gives the savings plan only the statement's currency from the income note", async () => {
     // No balance column, no payslips: the plan falls back to the income note.
-    const root = fs.mkdtempSync(path.join(process.env.BASALT_DATA_DIR!, "ledger-"));
+    const root = fs.mkdtempSync(path.join(process.env.ORRAMA_DATA_DIR!, "ledger-"));
     fs.mkdirSync(path.join(root, "02-Areas/finance/files"), { recursive: true });
     const rows = ["Type,Completed Date,Description,Amount,Fee,Currency,State"];
     for (const m of ["2026-01", "2026-02", "2026-03"]) {

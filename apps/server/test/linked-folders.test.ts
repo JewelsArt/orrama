@@ -13,9 +13,9 @@ import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-linked-"));
-process.env.BASALT_DATA_DIR = ROOT;
-process.env.BASALT_VAULT_DIR = path.join(ROOT, "vault");
-const VAULT = process.env.BASALT_VAULT_DIR;
+process.env.ORRAMA_DATA_DIR = ROOT;
+process.env.ORRAMA_VAULT_DIR = path.join(ROOT, "vault");
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 const OUTSIDE = path.join(ROOT, "synced");
 
 fs.mkdirSync(path.join(VAULT, "Notes"), { recursive: true });

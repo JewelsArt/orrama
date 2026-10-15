@@ -22,7 +22,7 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  * answer is kept for AI_CACHE_MS per (model, task list): reopening the tab with
  * the same open tasks sends nothing.
  */
-const AI_TIMEOUT_MS = Number(process.env.BASALT_PLAN_AI_TIMEOUT_MS ?? 8000);
+const AI_TIMEOUT_MS = Number(process.env.ORRAMA_PLAN_AI_TIMEOUT_MS ?? 8000);
 const AI_CACHE_MS = 6 * 60 * 60 * 1000;
 
 /**

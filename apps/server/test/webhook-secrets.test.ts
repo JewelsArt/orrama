@@ -13,11 +13,11 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const OLD = "test-secret-key-0123456789abcdef";
 const NEW = "new-secret-key-0123456789abcdef!!";
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-webhook-secrets-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = OLD;
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1"; // the local receiver below
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-webhook-secrets-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = OLD;
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1"; // the local receiver below
 
 const { createDb, tables } = await import("../src/db.js");
 const { env } = await import("../src/env.js");
@@ -51,8 +51,8 @@ await new Promise<void>((r) => receiver.listen(0, "127.0.0.1", r));
 afterAll(async () => {
   receiver.close();
   await b.app.close();
-  delete process.env.BASALT_FETCH_ALLOW;
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  delete process.env.ORRAMA_FETCH_ALLOW;
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: "o@example.test", username: "owner", displayName: "O", password: "a-real-password" } });

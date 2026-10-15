@@ -15,19 +15,19 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-note-names-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-note-names-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(VAULT, { recursive: true });
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 
 /** Whether this volume can hold `?` and `:` in a name at all: APFS and ext4 can, NTFS cannot. */
 const HOLDS_WINDOWS_ILLEGAL = (() => {
-  const probe = path.join(process.env.BASALT_DATA_DIR!, "probe?:.md");
+  const probe = path.join(process.env.ORRAMA_DATA_DIR!, "probe?:.md");
   try {
     fs.writeFileSync(probe, "");
     fs.rmSync(probe);
@@ -57,7 +57,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const BAD: [string, RegExp][] = [

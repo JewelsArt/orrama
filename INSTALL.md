@@ -16,8 +16,8 @@ cd basalt
 
 pnpm install                      # ~3s warm, ~1min on a cold pnpm store
 pnpm --dir apps/web build         # ~2s  — builds the UI the server serves
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)   # keep both — see Security
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)   # keep both — see Security
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)
 pnpm --dir apps/server start      # serves API + UI on http://127.0.0.1:4623
 ```
 
@@ -27,7 +27,7 @@ there is no Basalt account service.
 
 The server refuses to start without the two secrets. Save the values you
 generated wherever you start the server from (a launchd plist, a compose `.env`):
-a new `BASALT_JWT_SECRET` signs everyone out, and a new `BASALT_SECRET_KEY`
+a new `ORRAMA_JWT_SECRET` signs everyone out, and a new `ORRAMA_SECRET_KEY`
 makes the stored mail password and AI key unreadable.
 
 > **Do not run `pnpm build`** unless you have a Rust toolchain — see the next section.
@@ -86,8 +86,8 @@ files at boot. Skip this and the server runs but every page is a 404.
 ### 3. Generate the secrets
 
 ```bash
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)
 ```
 
 The server refuses to boot without them (see **Security**). Keep the values: the
@@ -142,11 +142,11 @@ skip past with devtools.
 This is the setup most people want: Basalt reading the notes they already have.
 
 ```bash
-BASALT_VAULT_DIR="$HOME/Obsidian Vault" pnpm --dir apps/server start
+ORRAMA_VAULT_DIR="$HOME/Obsidian Vault" pnpm --dir apps/server start
 ```
 
 Basalt reads and writes **those files, live** — the same folder Obsidian opens. The
-database stays in `BASALT_DATA_DIR` and never moves into your notes, because it is
+database stays in `ORRAMA_DATA_DIR` and never moves into your notes, because it is
 only a cache of them.
 
 Two things to know before you do this:
@@ -170,12 +170,12 @@ All optional. Set them in the environment before starting the server.
 |---|---|---|
 | `PORT` | `4623` (`dev`: `4627`) | HTTP port |
 | `HOST` | `127.0.0.1` | Bind address. `0.0.0.0` exposes it on your network |
-| `BASALT_DATA_DIR` | `./data` (`dev`, `seed`: `./data-dev`) | Database and default vault location; relative to `apps/server` when run through `pnpm --dir apps/server` |
-| `BASALT_VAULT_DIR` | `<dataDir>/vault` | Point at an existing vault (above) |
-| `BASALT_JWT_SECRET` | dev placeholder | Signs session tokens — **must be set**, see Security |
-| `BASALT_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest — **must be set** |
-| `BASALT_CORS_ORIGIN` | `false` | Allow specific cross-origin browsers |
-| `BASALT_ALLOW_DEV_SECRETS` | unset | `1` boots on placeholder secrets anyway |
+| `ORRAMA_DATA_DIR` | `./data` (`dev`, `seed`: `./data-dev`) | Database and default vault location; relative to `apps/server` when run through `pnpm --dir apps/server` |
+| `ORRAMA_VAULT_DIR` | `<dataDir>/vault` | Point at an existing vault (above) |
+| `ORRAMA_JWT_SECRET` | dev placeholder | Signs session tokens — **must be set**, see Security |
+| `ORRAMA_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest — **must be set** |
+| `ORRAMA_CORS_ORIGIN` | `false` | Allow specific cross-origin browsers |
+| `ORRAMA_ALLOW_DEV_SECRETS` | unset | `1` boots on placeholder secrets anyway |
 
 ### Security
 
@@ -188,23 +188,23 @@ and AI key, so a copy of `basalt.db` decrypts both offline.
 **Basalt refuses to boot while either holds a placeholder.** Generate real ones:
 
 ```bash
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)
 ```
 
 The refusal does not depend on `NODE_ENV`. It used to, and that was worse than
 useless: an operator who forgets to set secrets is exactly the operator who
 forgets to set `NODE_ENV`, so the guard stayed silent on the installs that
 needed it. For a throwaway install nobody else can reach, opt out explicitly
-with `BASALT_ALLOW_DEV_SECRETS=1` — `pnpm --dir apps/server dev` already does,
+with `ORRAMA_ALLOW_DEV_SECRETS=1` — `pnpm --dir apps/server dev` already does,
 and keeps its own data folder and port for that reason.
 
-**Rotating `BASALT_SECRET_KEY` on a database that already holds credentials**
+**Rotating `ORRAMA_SECRET_KEY` on a database that already holds credentials**
 does not re-encrypt them; it makes them undecryptable, and the symptom is mail
 that quietly stops connecting. Migrate first, with the server stopped:
 
 ```bash
-BASALT_OLD_SECRET_KEY=<old> BASALT_SECRET_KEY=<new> pnpm --dir apps/server rotate-secret-key --apply
+ORRAMA_OLD_SECRET_KEY=<old> ORRAMA_SECRET_KEY=<new> pnpm --dir apps/server rotate-secret-key --apply
 ```
 
 Without `--apply` it reports what it would do and writes nothing, which is how
@@ -231,8 +231,8 @@ repo's `pnpm ship` does typecheck → test → build → restart in one step.
 ### Docker
 
 ```bash
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)
 docker compose up
 ```
 
@@ -275,7 +275,7 @@ Basalt itself on loopback:
   authentication or an IP allow-list in front of Basalt.
 
 Then tell Basalt its new name, or it answers 421 to every request that arrives
-under it: `BASALT_PUBLIC_ORIGINS=https://<machine>.<tailnet>.ts.net` (compose
+under it: `ORRAMA_PUBLIC_ORIGINS=https://<machine>.<tailnet>.ts.net` (compose
 passes it through; for launchd, the plist). Touch ID trusts only those origins.
 
 ### Desktop app
@@ -302,7 +302,7 @@ Two things to keep:
   project settings, AI settings, tokens, webhooks, history:
 
   ```bash
-  BASALT_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
+  ORRAMA_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
   ```
 
   writes `apps/server/data/exports/basalt-export-<date>-<time>/` with a restorable
@@ -341,12 +341,12 @@ The watcher indexes external edits. If the vault is on a network or cloud-synced
 volume the events may not fire; restart the server to force a re-index.
 
 **Exits immediately with "Refusing to start"**
-`BASALT_JWT_SECRET` or `BASALT_SECRET_KEY` is still a placeholder. That refusal
+`ORRAMA_JWT_SECRET` or `ORRAMA_SECRET_KEY` is still a placeholder. That refusal
 is deliberate and no longer depends on `NODE_ENV` — see **Security**. Export
-real values and bring it up again, or set `BASALT_ALLOW_DEV_SECRETS=1` if this
+real values and bring it up again, or set `ORRAMA_ALLOW_DEV_SECRETS=1` if this
 is a scratch install nobody else can reach.
 
-**Mail stopped connecting after changing `BASALT_SECRET_KEY`**
+**Mail stopped connecting after changing `ORRAMA_SECRET_KEY`**
 The stored password is still encrypted under the old key. Restore it, or run
 `rotate-secret-key` with both keys — see **Security**.
 
@@ -360,7 +360,7 @@ note's history, the only copy of text that was overwritten. Export first, with t
 server stopped:
 
 ```bash
-BASALT_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
+ORRAMA_VAULT_DIR=/path/to/your/vault pnpm --dir apps/server export
 rm apps/server/data/basalt.db apps/server/data/basalt.db-shm apps/server/data/basalt.db-wal
 ```
 
@@ -379,8 +379,8 @@ node --version                                  # require >= 22
 pnpm --version                                  # require 11.x; npm i -g pnpm@11.9.0
 pnpm install                                    # expect exit 0
 pnpm --dir apps/web build                       # expect apps/web/dist/index.html
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)  # hand both values to the human: the
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)  # next start needs the same ones
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)  # hand both values to the human: the
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)  # next start needs the same ones
 pnpm --dir apps/server start &                  # backgrounded; serves :4623
 curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:4623/     # expect 200
 curl -s http://127.0.0.1:4623/api/auth/status                     # {"needsSetup":true}
@@ -402,7 +402,7 @@ Rules that are not obvious from the scripts:
   registered at boot.
 - The server needs no build; it runs TypeScript via `tsx`.
 - To isolate a test instance from an existing one, set `PORT` **and**
-  `BASALT_DATA_DIR`. Do not let a test run inherit the default `./data`.
+  `ORRAMA_DATA_DIR`. Do not let a test run inherit the default `./data`.
 - **Never delete `apps/server/data`** (or the `basalt.db` in it) on a machine where
   Basalt is in use: it holds accounts, credentials, comments, drafts and history
   that exist nowhere else. `dev` and `seed` use `apps/server/data-dev`.

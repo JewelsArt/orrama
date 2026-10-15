@@ -9,11 +9,11 @@ import path from "node:path";
 import { asc, eq } from "drizzle-orm";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-doccache-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_DOC_CACHE = "2";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-doccache-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DOC_CACHE = "2";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -23,7 +23,7 @@ const { replay } = await import("../src/history.js");
 const b = await buildServer();
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("Y.Doc cache", () => {
@@ -38,7 +38,7 @@ describe("Y.Doc cache", () => {
     // Cache 1 was evicted long ago; edit it again and check file, index and log agree.
     const first = b.store.index.getByPath(paths[0]!)!;
     b.store.write(jules, first.path, `${first.content}third\n`);
-    const onDisk = fs.readFileSync(path.join(process.env.BASALT_VAULT_DIR!, first.path), "utf8");
+    const onDisk = fs.readFileSync(path.join(process.env.ORRAMA_VAULT_DIR!, first.path), "utf8");
     expect(onDisk).toMatch(/first\nsecond\nthird\n$/);
     const log = b.db.select().from(tables.ydocUpdates).where(eq(tables.ydocUpdates.noteId, first.id)).orderBy(asc(tables.ydocUpdates.id)).all();
     const texts: string[] = [];

@@ -16,13 +16,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-acl-s12-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-acl-s12-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 // Webhooks (ACL-007) deliver to a receiver on this machine, after a short debounce.
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1";
-process.env.BASALT_WEBHOOK_DEBOUNCE_MS = "150";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
+process.env.ORRAMA_WEBHOOK_DEBOUNCE_MS = "150";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
@@ -59,7 +59,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("ACL-002: tagging your own note never opens someone else's project", () => {
@@ -90,7 +90,7 @@ describe("ACL-002: tagging your own note never opens someone else's project", ()
     for (const [method, url] of files) expect((await api(method, url, "mara")).status, `${method} ${url}`).toBe(404);
     const up = await api("POST", "/api/projects/reorg/files", "mara", { name: "salaries.csv", dataBase64: Buffer.from("name,salary\nmara,999999\n").toString("base64") });
     expect(up.status).toBe(404);
-    expect(fs.readdirSync(path.join(process.env.BASALT_VAULT_DIR!, "04-Projects/reorg/files"))).toEqual(["salaries.csv"]);
+    expect(fs.readdirSync(path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/reorg/files"))).toEqual(["salaries.csv"]);
   });
 
   it("the board is a 404 to her, to read and to save", async () => {
@@ -144,7 +144,7 @@ describe("ACL-004: the team dashboard names only projects you can read", () => {
 });
 
 describe("ACL-005: saves, moves and links never confirm a note you cannot read", () => {
-  const vault = () => process.env.BASALT_VAULT_DIR!;
+  const vault = () => process.env.ORRAMA_VAULT_DIR!;
   const same = (a: { status: number; body: string }, b: { status: number; body: string }) => expect([a.status, a.body]).toEqual([b.status, b.body]);
   const probe = (notePath: string, extra: Record<string, unknown> = {}) => put("erin", notePath, "probe", extra);
 
@@ -270,7 +270,7 @@ describe("ACL-010: a removed or renamed account's username is never handed out a
     const again = await register("NINA", "inv-nina-2");
     expect(again.statusCode).toBe(409);
     expect(b.db.select().from(tables.users).all().some((u) => u.username === "nina")).toBe(false);
-    expect(fs.existsSync(path.join(process.env.BASALT_VAULT_DIR!, "Personal/nina/Inbox.md"))).toBe(true);
+    expect(fs.existsSync(path.join(process.env.ORRAMA_VAULT_DIR!, "Personal/nina/Inbox.md"))).toBe(true);
   });
 
   it("renaming an account retires its old name, and no rename takes a retired one", async () => {
@@ -302,12 +302,12 @@ describe("ACL-009: your events stay yours in the vault too", () => {
   });
 
   it("a row in a calendar note others can read moves out of it when it is next written", async () => {
-    const file = path.join(process.env.BASALT_VAULT_DIR!, "01-Me/Calendar/2026-12.md");
+    const file = path.join(process.env.ORRAMA_VAULT_DIR!, "01-Me/Calendar/2026-12.md");
     const julesUser = b.store.aclUser(b.db.select().from(tables.users).all().find((u) => u.username === "jules")!.id);
     b.store.write(julesUser, "01-Me/Calendar/2026-12.md", '---\ncalendar: jules\nmonth: "2026-12"\n---\n| Date | Start | End | What | Task | id |\n| --- | --- | --- | --- | --- | --- |\n| 2026-12-01 | 09:00 | 10:00 | Biopsy results |  | ev-acl009 |\n');
     expect((await api("PATCH", "/api/events/ev-acl009", "jules", { startMin: 600 })).status).toBe(200);
     expect(fs.readFileSync(file, "utf8")).not.toContain("Biopsy results");
-    expect(fs.readFileSync(path.join(process.env.BASALT_VAULT_DIR!, "Personal/jules/Calendar/2026-12.md"), "utf8")).toContain("| 2026-12-01 | 10:00 | 11:00 | Biopsy results |  | ev-acl009 |");
+    expect(fs.readFileSync(path.join(process.env.ORRAMA_VAULT_DIR!, "Personal/jules/Calendar/2026-12.md"), "utf8")).toContain("| 2026-12-01 | 10:00 | 11:00 | Biopsy results |  | ev-acl009 |");
   });
 });
 

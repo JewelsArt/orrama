@@ -13,12 +13,12 @@ import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-home-booked-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-home-booked-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(path.join(VAULT, "Shared"), { recursive: true });
 fs.writeFileSync(path.join(VAULT, "Shared/Work.md"), "# Work\n\n- [ ] alpha unassigned step\n- [ ] beta step @erin\n- [ ] gamma step @erin\n");
 await import("../src/seed.js");
@@ -51,7 +51,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 it("a block on a task with no @mention counts as booked and is on the agenda", async () => {

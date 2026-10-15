@@ -11,10 +11,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-payslip-pdf-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-payslip-pdf-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { PDF_LIMITS } = await import("../src/pdfText.js");
@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 it("an ordinary one-page PDF is read: its text reaches the payslip parser", async () => {
@@ -52,7 +52,7 @@ it("a PDF with more pages than a payslip is kept, not read", async () => {
   const many = pdf(Array(PDF_LIMITS.pages * 20).fill(textLine("p")));
   const r = await upload("bundle.pdf", many);
   expect(r).toMatchObject({ stored: true, filed: false, reason: `it has ${PDF_LIMITS.pages * 20} pages, more than a payslip` });
-  expect(fs.existsSync(path.join(process.env.BASALT_VAULT_DIR!, "02-Areas/finance/files", r.name))).toBe(true);
+  expect(fs.existsSync(path.join(process.env.ORRAMA_VAULT_DIR!, "02-Areas/finance/files", r.name))).toBe(true);
 });
 
 it("a read that runs past its time is stopped, and the upload answers", { timeout: 30_000 }, async () => {

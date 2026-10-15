@@ -9,7 +9,7 @@
  */
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_AI_TIMEOUT_MS = "4000";
+process.env.ORRAMA_AI_TIMEOUT_MS = "4000";
 const { bootAi } = await import("./helpers/aiServer.js");
 const { ask } = await import("./helpers/fakeChat.js");
 const s = await bootAi("agent-abort-midstream");

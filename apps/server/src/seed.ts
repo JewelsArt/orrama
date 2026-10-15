@@ -182,11 +182,11 @@ Cross-team sync. [[Atlas Roadmap]] on track; [[Acme Relaunch Brief]] copy due ne
 /**
  * The first note found under `root` (dot-folders such as .obsidian skipped), or
  * null. Seed only ever fills an empty vault: run with the agent's
- * BASALT_VAULT_DIR exported and an empty users table (a deleted database), it
+ * ORRAMA_VAULT_DIR exported and an empty users table (a deleted database), it
  * wrote 13 demo notes over the real vault, bare writes overwriting same-named
  * files, and put a published-password owner on the database (audit REG-013).
  * The test suites, which write fixtures and then seed, opt out with
- * BASALT_SEED_INTO_EXISTING_VAULT=1 (vitest.config.ts); a demo file never
+ * ORRAMA_SEED_INTO_EXISTING_VAULT=1 (vitest.config.ts); a demo file never
  * replaces one that is there.
  */
 export function firstNote(root: string): string | null {
@@ -227,12 +227,12 @@ async function seed(db: ReturnType<typeof createDb>) {
     return;
   }
   const root = vaultDir();
-  const existing = process.env.BASALT_SEED_INTO_EXISTING_VAULT === "1" ? null : firstNote(root);
+  const existing = process.env.ORRAMA_SEED_INTO_EXISTING_VAULT === "1" ? null : firstNote(root);
   if (existing) {
     throw new Error(
       `Refusing to seed: ${root} already holds notes (${path.relative(root, existing)}). ` +
         `Seed writes demo notes and a demo owner with a published password; point ` +
-        `BASALT_DATA_DIR and BASALT_VAULT_DIR at an empty scratch folder instead.`,
+        `ORRAMA_DATA_DIR and ORRAMA_VAULT_DIR at an empty scratch folder instead.`,
     );
   }
   if (db.select().from(tables.workspace).all().length === 0) {

@@ -14,10 +14,10 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-ws-frame-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-ws-frame-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer, WS_MAX_FRAME } = await import("../src/main.js");
 const b = await buildServer();
@@ -25,7 +25,7 @@ await b.app.listen({ port: 0, host: "127.0.0.1" });
 const url = `ws://127.0.0.1:${(b.app.server.address() as AddressInfo).port}/api/ws`;
 afterAll(async () => {
   await b.app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: "o@example.test", username: "owner", displayName: "O", password: "a-real-password" } });

@@ -22,8 +22,8 @@ mkdir -p ~/.basalt-run                      # launchd does not create the log fo
 pnpm --dir apps/web build                   # the server serves the built bundle
 cp scripts/dev.basalt.server.plist ~/Library/LaunchAgents/
 chmod 600 ~/Library/LaunchAgents/dev.basalt.server.plist   # it holds the secrets
-# Edit the copy: both REPLACE_ME (openssl rand -hex 32 each), BASALT_VAULT_DIR,
-# and BASALT_PUBLIC_ORIGINS (every address Basalt is reached at).
+# Edit the copy: both REPLACE_ME (openssl rand -hex 32 each), ORRAMA_VAULT_DIR,
+# and ORRAMA_PUBLIC_ORIGINS (every address Basalt is reached at).
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.basalt.server.plist
 launchctl kickstart -k gui/$(id -u)/dev.basalt.server   # start it now
 curl -s http://127.0.0.1:4623/api/health                 # {"ok":true,…}
@@ -31,7 +31,7 @@ curl -s http://127.0.0.1:4623/api/health                 # {"ok":true,…}
 
 **Keep the two secrets** in a password manager. They exist only in the installed
 plist; `pnpm --dir apps/server export` does not contain them, and a database
-restored under a different `BASALT_SECRET_KEY` cannot read its mail password,
+restored under a different `ORRAMA_SECRET_KEY` cannot read its mail password,
 AI key or ChatGPT sign-in.
 
 Check / stop:

@@ -73,8 +73,8 @@ TypeScript end to end, except a deliberately thin Rust shell.
 ```bash
 pnpm install
 pnpm --dir apps/web build       # the server serves a built bundle
-export BASALT_JWT_SECRET=$(openssl rand -hex 32)   # keep both: the next start
-export BASALT_SECRET_KEY=$(openssl rand -hex 32)   # needs the same values
+export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)   # keep both: the next start
+export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)   # needs the same values
 pnpm --dir apps/server start    # http://127.0.0.1:4623
 ```
 
@@ -98,8 +98,8 @@ pnpm test        # core, sync, server, web, mcp
 pnpm typecheck
 ```
 
-Self-hosting is `docker compose up`, with `BASALT_JWT_SECRET` and
-`BASALT_SECRET_KEY` exported first — the server refuses to boot on placeholder
+Self-hosting is `docker compose up`, with `ORRAMA_JWT_SECRET` and
+`ORRAMA_SECRET_KEY` exported first — the server refuses to boot on placeholder
 secrets. Builds on arm64 and x64, so a Raspberry Pi works.
 
 ## Permissions

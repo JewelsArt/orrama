@@ -19,7 +19,7 @@
  * - callers get a coarse outcome, not the upstream's status or error text.
  *
  * A private target that is really wanted (a calendar on the NAS, a host on the
- * tailnet, a test server) is named in BASALT_FETCH_ALLOW: hosts or CIDRs,
+ * tailnet, a test server) is named in ORRAMA_FETCH_ALLOW: hosts or CIDRs,
  * comma-separated. Nothing private is reachable without it.
  */
 import dns from "node:dns";
@@ -58,7 +58,7 @@ for (const [addr, prefix] of [
 function allowList(): { hosts: Set<string>; nets: net.BlockList } {
   const hosts = new Set<string>();
   const nets = new net.BlockList();
-  for (const raw of (process.env.BASALT_FETCH_ALLOW ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+  for (const raw of (process.env.ORRAMA_FETCH_ALLOW ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
     const [addr, prefix] = raw.split("/");
     const v = net.isIP(addr!);
     if (v) nets.addSubnet(addr!, prefix ? Number(prefix) : v === 4 ? 32 : 128, v === 4 ? "ipv4" : "ipv6");

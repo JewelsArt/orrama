@@ -18,13 +18,13 @@ import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-access-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_PLAN_AI_TIMEOUT_MS = "300";
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-access-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_PLAN_AI_TIMEOUT_MS = "300";
 
-const FIN = path.join(process.env.BASALT_VAULT_DIR, "02-Areas/finance");
+const FIN = path.join(process.env.ORRAMA_VAULT_DIR, "02-Areas/finance");
 const STATEMENT = [
   "Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance",
   "Card Payment,Current,2026-01-05 10:00:00,2026-01-05 10:00:00,ALBERT HEIJN,-100.00,0.00,EUR,COMPLETED,900.00",
@@ -76,7 +76,7 @@ beforeAll(async () => {
 afterAll(async () => {
   vi.unstubAllGlobals();
   await app.close();
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 describe("Finance files follow the folder ACL", () => {

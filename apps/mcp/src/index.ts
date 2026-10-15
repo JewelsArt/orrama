@@ -8,13 +8,20 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { authHeader } from "./auth.js";
+import { renamedEnvProblems } from "./env.js";
 import { callTool, TOOLS } from "./tools.js";
 
-const url = process.env.BASALT_URL || "http://localhost:4623";
-const token = process.env.BASALT_TOKEN;
+const renamed = renamedEnvProblems(process.env);
+if (renamed.length) {
+  console.error(`Refusing to start — Orrama reads only ORRAMA_* variables now:\n  - ${renamed.join("\n  - ")}`);
+  process.exit(1);
+}
+
+const url = process.env.ORRAMA_URL || "http://localhost:4623";
+const token = process.env.ORRAMA_TOKEN;
 
 if (!token) {
-  console.error("BASALT_TOKEN environment variable is required");
+  console.error("ORRAMA_TOKEN environment variable is required");
   process.exit(1);
 }
 

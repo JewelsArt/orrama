@@ -15,11 +15,11 @@ import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
 
-process.env.BASALT_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-plan-ics-"));
-process.env.BASALT_VAULT_DIR = path.join(process.env.BASALT_DATA_DIR, "vault");
-process.env.BASALT_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
-process.env.BASALT_SECRET_KEY = "test-secret-key-0123456789abcdef";
-process.env.BASALT_FETCH_ALLOW = "127.0.0.1"; // the local calendar feed below
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-plan-ics-"));
+process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
+process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
+process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
+process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1"; // the local calendar feed below
 
 /** The Monday after next, so the whole week is in the future whatever today is. */
 const monday = (() => {
@@ -55,7 +55,7 @@ const FEED = [
   "END:VCALENDAR",
 ].join("\r\n");
 
-const VAULT = process.env.BASALT_VAULT_DIR;
+const VAULT = process.env.ORRAMA_VAULT_DIR;
 fs.mkdirSync(path.join(VAULT, "Shared"), { recursive: true });
 fs.writeFileSync(
   path.join(VAULT, "Shared/Backlog.md"),
@@ -86,7 +86,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await b.app.close();
   await new Promise<void>((r) => feed.close(() => r()));
-  fs.rmSync(process.env.BASALT_DATA_DIR!, { recursive: true, force: true });
+  fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
 type Proposal = { date: string; startMin: number; durationMin: number };

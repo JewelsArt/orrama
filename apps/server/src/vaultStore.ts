@@ -172,7 +172,7 @@ export class VaultStore {
     private db: Db,
     opts: { docCacheSize?: number } = {},
   ) {
-    this.docCacheSize = Math.max(1, opts.docCacheSize ?? (Number(process.env.BASALT_DOC_CACHE) || 256));
+    this.docCacheSize = Math.max(1, opts.docCacheSize ?? (Number(process.env.ORRAMA_DOC_CACHE) || 256));
   }
 
   /** Keep a doc, evicting the least recently used past the cap. */

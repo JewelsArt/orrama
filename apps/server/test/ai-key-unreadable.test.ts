@@ -3,7 +3,7 @@
  * Planning down (audit AI-010).
  *
  * aiConfig() decrypted the key with no try, and buildPlan called it outside
- * its "AI is optional" block: after a BASALT_SECRET_KEY change without the
+ * its "AI is optional" block: after a ORRAMA_SECRET_KEY change without the
  * rotation script (or one damaged row), GET /api/plan, POST /api/plan/auto
  * and GET /api/ai/status were all a bare 500.
  */
@@ -18,7 +18,7 @@ const { tables } = await import("../src/db.js");
 describe("an undecryptable AI key", () => {
   it("planning answers from the heuristic, and status says AI is off", async () => {
     expect((await s.call("jules", "GET", "/api/ai/status")).json.configured).toBe(true);
-    // What a changed BASALT_SECRET_KEY does to the row: a key sealed under another secret.
+    // What a changed ORRAMA_SECRET_KEY does to the row: a key sealed under another secret.
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", crypto.randomBytes(32), iv);
     const enc = Buffer.concat([cipher.update("sk-test-0123456789", "utf8"), cipher.final()]);

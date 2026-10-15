@@ -23,7 +23,7 @@ const MIN_SECRET_LENGTH = 32;
 
 /**
  * `--dev` (the `dev` and `seed` scripts pass it): a scratch install. It may use
- * the dev secrets, and unless PORT / BASALT_DATA_DIR say otherwise it listens on
+ * the dev secrets, and unless PORT / ORRAMA_DATA_DIR say otherwise it listens on
  * DEV_PORT and keeps its database in `./data-dev`, never in `./data`.
  *
  * On the Mac Basalt runs on, `apps/server/data` IS the live database and the
@@ -37,21 +37,43 @@ export const devMode = (argv: readonly string[] = process.argv) => argv.includes
 export const DEV_PORT = 4627;
 const DEV = devMode();
 
+/**
+ * The settings variables were called BASALT_* until the rename to Orrama (R13), and only the
+ * ORRAMA_* names are read now. A BASALT_ variable without its ORRAMA_ twin is a switch-over
+ * left half done, and running on would mean defaults: a default vault folder is the wrong
+ * vault, a default secret key cannot decrypt the stored credentials. So every entry point
+ * (the server, seed, export, rotate-secret-key, account) refuses at import, naming each
+ * variable and never its value.
+ */
+export function renamedEnvProblems(e: NodeJS.ProcessEnv = process.env): string[] {
+  return Object.keys(e)
+    .filter((name) => name.startsWith("BASALT_") && e[`ORRAMA_${name.slice(7)}`] === undefined)
+    .sort()
+    .map((name) => `${name} is set but ORRAMA_${name.slice(7)} is not: set ORRAMA_${name.slice(7)} to the same value (BASALT_ names are no longer read)`);
+}
+
+export function assertNoRenamedEnv(e: NodeJS.ProcessEnv = process.env): void {
+  const problems = renamedEnvProblems(e);
+  if (problems.length) throw new Error(`Refusing to start — Orrama reads only ORRAMA_* variables now:\n  - ${problems.join("\n  - ")}`);
+}
+
+assertNoRenamedEnv();
+
 export const env = {
   port: Number(process.env.PORT ?? (DEV ? DEV_PORT : 4623)),
   host: process.env.HOST ?? "127.0.0.1",
   /** Server data root: vault files live in <dataDir>/vault, DB in <dataDir>/basalt.db */
-  dataDir: path.resolve(process.env.BASALT_DATA_DIR ?? (DEV ? "./data-dev" : "./data")),
+  dataDir: path.resolve(process.env.ORRAMA_DATA_DIR ?? (DEV ? "./data-dev" : "./data")),
   /**
-   * Where the Markdown lives. Defaults to <dataDir>/vault; set BASALT_VAULT_DIR
+   * Where the Markdown lives. Defaults to <dataDir>/vault; set ORRAMA_VAULT_DIR
    * to point Basalt at a vault you already keep elsewhere (an Obsidian vault,
    * say) so both apps read and write the same files. The DB stays in dataDir —
    * it is a cache of the files, and it has no business inside your notes.
    */
-  vaultDir: process.env.BASALT_VAULT_DIR ? path.resolve(process.env.BASALT_VAULT_DIR) : null,
-  jwtSecret: process.env.BASALT_JWT_SECRET ?? DEV_JWT_SECRET,
+  vaultDir: process.env.ORRAMA_VAULT_DIR ? path.resolve(process.env.ORRAMA_VAULT_DIR) : null,
+  jwtSecret: process.env.ORRAMA_JWT_SECRET ?? DEV_JWT_SECRET,
   /** Key used to encrypt the workspace AI key at rest (spec §9). */
-  secretKey: process.env.BASALT_SECRET_KEY ?? DEV_SECRET_KEY,
+  secretKey: process.env.ORRAMA_SECRET_KEY ?? DEV_SECRET_KEY,
   /**
    * Which origins a browser may call this server from. Defaults to FALSE — no
    * cross-origin requests at all.
@@ -66,17 +88,17 @@ export const env = {
    *
    * Nothing legitimate needed it. In production the server serves the web bundle
    * itself, and in dev vite proxies /api and /ics (ws included) through :4625 —
-   * both same-origin. Set BASALT_CORS_ORIGIN explicitly if a real cross-origin
+   * both same-origin. Set ORRAMA_CORS_ORIGIN explicitly if a real cross-origin
    * client ever exists.
    */
-  corsOrigin: process.env.BASALT_CORS_ORIGIN ?? false,
+  corsOrigin: process.env.ORRAMA_CORS_ORIGIN ?? false,
   /**
    * The exact origins Basalt is reached at (comma-separated), e.g.
    * `http://localhost:4623,https://mac.tailnet-name.ts.net`. Touch ID trusts
    * only these. Unset, it falls back to "the Origin must be the address the
    * request was sent to" — see `webauthnOrigin` in routes/auth.ts.
    */
-  publicOrigins: (process.env.BASALT_PUBLIC_ORIGINS ?? "")
+  publicOrigins: (process.env.ORRAMA_PUBLIC_ORIGINS ?? "")
     .split(",")
     .map((o) => o.trim().replace(/\/+$/, ""))
     .filter(Boolean),
@@ -98,35 +120,35 @@ export const env = {
  * vault set neither, so the guard returned immediately for months while the
  * server signed sessions with a string published on GitHub (audit B2).
  *
- * The default is now "refuse". Opting out takes `BASALT_ALLOW_DEV_SECRETS=1`
+ * The default is now "refuse". Opting out takes `ORRAMA_ALLOW_DEV_SECRETS=1`
  * or `--dev`, things you have to type and can grep for, unlike a variable whose
  * ABSENCE was the unsafe state.
  */
 export function assertProductionSecrets(
-  allowDevSecrets = process.env.BASALT_ALLOW_DEV_SECRETS === "1" || DEV,
+  allowDevSecrets = process.env.ORRAMA_ALLOW_DEV_SECRETS === "1" || DEV,
 ): void {
   if (allowDevSecrets) return;
   // Empty or short counts too, not only the known placeholders: `??` keeps
-  // an empty string, so `BASALT_SECRET_KEY=` (an empty <string/> in the
+  // an empty string, so `ORRAMA_SECRET_KEY=` (an empty <string/> in the
   // plist, an unset compose variable) booted and encrypted every stored
   // credential under sha256("") — a key anyone can compute (audit REG-002).
   const weak = (v: string) => PLACEHOLDER_SECRETS.has(v) || v.length < MIN_SECRET_LENGTH;
-  const bad = [weak(env.jwtSecret) ? "BASALT_JWT_SECRET" : null, weak(env.secretKey) ? "BASALT_SECRET_KEY" : null].filter(Boolean);
+  const bad = [weak(env.jwtSecret) ? "ORRAMA_JWT_SECRET" : null, weak(env.secretKey) ? "ORRAMA_SECRET_KEY" : null].filter(Boolean);
   if (bad.length === 0) return;
   throw new Error(
     `Refusing to start: ${bad.join(" and ")} ${bad.length > 1 ? "are" : "is"} empty, shorter than ${MIN_SECRET_LENGTH} characters, or a placeholder value. ` +
       `Generate real secrets (e.g. \`openssl rand -hex 32\`) and set them in the environment. ` +
-      `For a throwaway install you do not mind anyone reading, set BASALT_ALLOW_DEV_SECRETS=1 instead. ` +
-      `Rotating BASALT_SECRET_KEY on an existing database needs \`pnpm --dir apps/server rotate-secret-key\` ` +
+      `For a throwaway install you do not mind anyone reading, set ORRAMA_ALLOW_DEV_SECRETS=1 instead. ` +
+      `Rotating ORRAMA_SECRET_KEY on an existing database needs \`pnpm --dir apps/server rotate-secret-key\` ` +
       `first, or the stored mail and AI credentials become undecryptable.`,
   );
 }
 
 /**
  * Everything wrong with the environment, in one list. Nothing was validated:
- * `PORT=abc` became NaN, `BASALT_PLAN_AI_TIMEOUT_MS=8s` made every AI estimate
+ * `PORT=abc` became NaN, `ORRAMA_PLAN_AI_TIMEOUT_MS=8s` made every AI estimate
  * throw inside AbortSignal.timeout and quietly fall back to the heuristic, a
- * typo in BASALT_PUBLIC_ORIGINS just broke Touch ID, and BASALT_VAULT_DIR
+ * typo in ORRAMA_PUBLIC_ORIGINS just broke Touch ID, and ORRAMA_VAULT_DIR
  * pointing at a file failed deep inside the first vault scan.
  */
 export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
@@ -157,30 +179,30 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
 
   int("PORT", 0, 65535);
   if (e["HOST"] !== undefined && e["HOST"].trim() === "") out.push("HOST is set but empty");
-  dir("BASALT_DATA_DIR");
-  dir("BASALT_VAULT_DIR");
-  for (const o of (e["BASALT_PUBLIC_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) origin("BASALT_PUBLIC_ORIGINS", o);
-  if (e["BASALT_CORS_ORIGIN"]) origin("BASALT_CORS_ORIGIN", e["BASALT_CORS_ORIGIN"]);
-  if (e["BASALT_OPENAI_BASE_URL"] && !/^https?:\/\/[^/]/.test(e["BASALT_OPENAI_BASE_URL"])) out.push("BASALT_OPENAI_BASE_URL must be an http(s) URL");
-  for (const entry of (e["BASALT_FETCH_ALLOW"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
+  dir("ORRAMA_DATA_DIR");
+  dir("ORRAMA_VAULT_DIR");
+  for (const o of (e["ORRAMA_PUBLIC_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) origin("ORRAMA_PUBLIC_ORIGINS", o);
+  if (e["ORRAMA_CORS_ORIGIN"]) origin("ORRAMA_CORS_ORIGIN", e["ORRAMA_CORS_ORIGIN"]);
+  if (e["ORRAMA_OPENAI_BASE_URL"] && !/^https?:\/\/[^/]/.test(e["ORRAMA_OPENAI_BASE_URL"])) out.push("ORRAMA_OPENAI_BASE_URL must be an http(s) URL");
+  for (const entry of (e["ORRAMA_FETCH_ALLOW"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
     const [addr, prefix, extra] = entry.split("/");
     const v = net.isIP(addr!);
     const okCidr = v !== 0 && extra === undefined && (prefix === undefined || (/^\d+$/.test(prefix) && Number(prefix) <= (v === 4 ? 32 : 128)));
     const okHost = v === 0 && prefix === undefined && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(entry);
-    if (!okCidr && !okHost) out.push(`BASALT_FETCH_ALLOW: ${JSON.stringify(entry)} is not a hostname, an address or a CIDR`);
+    if (!okCidr && !okHost) out.push(`ORRAMA_FETCH_ALLOW: ${JSON.stringify(entry)} is not a hostname, an address or a CIDR`);
   }
-  int("BASALT_DOC_CACHE", 1);
-  int("BASALT_PLAN_AI_TIMEOUT_MS", 1);
-  int("BASALT_AI_TIMEOUT_MS", 1);
-  int("BASALT_WEBHOOK_DEBOUNCE_MS", 0);
-  const allow = e["BASALT_ALLOW_DEV_SECRETS"];
+  int("ORRAMA_DOC_CACHE", 1);
+  int("ORRAMA_PLAN_AI_TIMEOUT_MS", 1);
+  int("ORRAMA_AI_TIMEOUT_MS", 1);
+  int("ORRAMA_WEBHOOK_DEBOUNCE_MS", 0);
+  const allow = e["ORRAMA_ALLOW_DEV_SECRETS"];
   if (allow !== undefined && allow !== "" && allow !== "1" && allow !== "0") {
-    out.push(`BASALT_ALLOW_DEV_SECRETS=${JSON.stringify(allow)} means nothing — it is "1" or unset`);
+    out.push(`ORRAMA_ALLOW_DEV_SECRETS=${JSON.stringify(allow)} means nothing — it is "1" or unset`);
   }
   // A real secret is long; `openssl rand -hex 32` gives 64 characters. Set
   // but empty is the same mistake, not "unset" (REG-002).
   if (allow !== "1") {
-    for (const name of ["BASALT_JWT_SECRET", "BASALT_SECRET_KEY"]) {
+    for (const name of ["ORRAMA_JWT_SECRET", "ORRAMA_SECRET_KEY"]) {
       const v = e[name];
       if (v === "") out.push(`${name} is set but empty; use at least ${MIN_SECRET_LENGTH} characters (openssl rand -hex 32)`);
       else if (v !== undefined && !PLACEHOLDER_SECRETS.has(v) && v.length < MIN_SECRET_LENGTH) out.push(`${name} is ${v.length} characters; use at least ${MIN_SECRET_LENGTH} (openssl rand -hex 32)`);

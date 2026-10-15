@@ -68,7 +68,7 @@ const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /**
  * Is `host` (a Host header) a name this server answers to? Loopback, or a
- * host named in BASALT_PUBLIC_ORIGINS (the tailnet name); any port, because
+ * host named in ORRAMA_PUBLIC_ORIGINS (the tailnet name); any port, because
  * vite dev proxies from :4625 and the attacker below controls the name, not
  * the port.
  *
@@ -180,7 +180,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   // addressed to a name this server answers to (`allowedHost`).
   app.addHook("onRequest", async (req, reply) => {
     if (!allowedHost(req.headers.host, env.publicOrigins)) {
-      return reply.code(421).send({ error: "this server does not answer to that host name — add it to BASALT_PUBLIC_ORIGINS" });
+      return reply.code(421).send({ error: "this server does not answer to that host name — add it to ORRAMA_PUBLIC_ORIGINS" });
     }
   });
   // Fastify runs onClose hooks last-registered first, so the database's hook is

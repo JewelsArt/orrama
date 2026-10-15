@@ -18,7 +18,7 @@ it("pnpm seed exits on its own", async () => {
   const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const child = spawn(process.execPath, ["--import", "tsx", "src/seed.ts"], {
     cwd,
-    env: { ...process.env, BASALT_DATA_DIR: dataDir, BASALT_VAULT_DIR: path.join(dataDir, "vault") },
+    env: { ...process.env, ORRAMA_DATA_DIR: dataDir, ORRAMA_VAULT_DIR: path.join(dataDir, "vault") },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let out = "";

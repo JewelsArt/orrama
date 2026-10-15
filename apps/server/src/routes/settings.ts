@@ -23,7 +23,7 @@ export function homePath(p: string, home = os.homedir()): string {
 /**
  * What Settings → Notes says about this server (structure.md §3.2: "Notes folder · This
  * server · new endpoint"): the folder the notes are read from, how many it holds, and the
- * version. The folder is set in the launchd plist (`BASALT_VAULT_DIR`), so it is shown, not
+ * version. The folder is set in the launchd plist (`ORRAMA_VAULT_DIR`), so it is shown, not
  * changed here. Owners only: it names a path on the Mac.
  */
 export async function settingsRoutes(app: FastifyInstance, store: VaultStore) {

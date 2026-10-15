@@ -15,7 +15,7 @@
       "name": "basalt-web-colors",
       "runtimeExecutable": "env",
       "runtimeArgs": [
-        "BASALT_API_PORT=4627",
+        "ORRAMA_API_PORT=4627",
         "pnpm",
         "--dir",
         "apps/web",

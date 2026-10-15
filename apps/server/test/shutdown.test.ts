@@ -23,7 +23,7 @@ describe("shutdown", () => {
   it.skipIf(!SIGNAL_HANDLERS)("SIGTERM closes the app and the database, and exits 0 (POSIX signals)", async () => {
     const child = spawn(process.execPath, ["--import", "tsx", path.resolve(import.meta.dirname, "../src/main.ts")], {
       cwd: path.resolve(import.meta.dirname, ".."),
-      env: { ...process.env, BASALT_DATA_DIR: tmp, BASALT_VAULT_DIR: path.join(tmp, "vault"), PORT: "0", HOST: "127.0.0.1", BASALT_ALLOW_DEV_SECRETS: "1" },
+      env: { ...process.env, ORRAMA_DATA_DIR: tmp, ORRAMA_VAULT_DIR: path.join(tmp, "vault"), PORT: "0", HOST: "127.0.0.1", ORRAMA_ALLOW_DEV_SECRETS: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
@@ -53,7 +53,7 @@ describe("shutdown", () => {
     const dir = fs.mkdtempSync(path.join(tmp, "pnpm-"));
     const child = spawn("pnpm", ["--dir", "apps/server", "start"], {
       cwd: path.resolve(import.meta.dirname, "../../.."),
-      env: { ...process.env, BASALT_DATA_DIR: dir, BASALT_VAULT_DIR: path.join(dir, "vault"), PORT: "0", HOST: "127.0.0.1", BASALT_ALLOW_DEV_SECRETS: "1" },
+      env: { ...process.env, ORRAMA_DATA_DIR: dir, ORRAMA_VAULT_DIR: path.join(dir, "vault"), PORT: "0", HOST: "127.0.0.1", ORRAMA_ALLOW_DEV_SECRETS: "1" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let out = "";
