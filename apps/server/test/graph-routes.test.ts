@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-graph-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-graph-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -44,8 +44,8 @@ beforeAll(async () => {
   put("Shared/Notes.md", "---\ntype: claude-session\ndate: 2026-10-01\ndescription: Talked through the Acme launch\nabout: \"[[Acme]]\"\n---\n# Notes\n");
   await import("../src/seed.js");
   b = await buildServer();
-  for (const [who, email] of [["jules", "jules@basalt.dev"], ["erin", "erin@basalt.dev"]] as const) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "basalt-demo" } })).json().token;
+  for (const [who, email] of [["jules", "jules@orrama.dev"], ["erin", "erin@orrama.dev"]] as const) {
+    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "orrama-demo" } })).json().token;
   }
 }, 60_000);
 

@@ -8,7 +8,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-test-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
 // falls through to ORRAMA_VAULT_DIR from the surrounding shell - which INSTALL.md
 // tells people to export - and the suite writes its demo notes into the real
@@ -45,8 +45,8 @@ beforeAll(async () => {
   app = built.app;
   db = built.db;
   store = built.store;
-  for (const email of ["jules@basalt.dev", "erin@basalt.dev", "mara@basalt.dev"]) {
-    const r = await api("POST", "/api/auth/login", undefined, { email, password: "basalt-demo" });
+  for (const email of ["jules@orrama.dev", "erin@orrama.dev", "mara@orrama.dev"]) {
+    const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     expect(r.status).toBe(200);
     tokens[email.split("@")[0]!] = r.json.token;
   }
@@ -59,7 +59,7 @@ afterAll(async () => {
 
 describe("auth", () => {
   it("rejects bad credentials and unauthenticated requests", async () => {
-    expect((await api("POST", "/api/auth/login", undefined, { email: "erin@basalt.dev", password: "wrong!" })).status).toBe(401);
+    expect((await api("POST", "/api/auth/login", undefined, { email: "erin@orrama.dev", password: "wrong!" })).status).toBe(401);
     expect((await api("GET", "/api/vault/tree")).status).toBe(401);
   });
 
@@ -947,7 +947,7 @@ describe("vault path canonicalisation (§5)", () => {
     expect(jules.isOwner).toBe(true);
     expect(() => store.write(jules, "../vault-evil/planted.md", "# planted\n")).toThrow(/invalid path/);
     expect(fs.existsSync(path.join(process.env.ORRAMA_DATA_DIR!, "vault-evil"))).toBe(false);
-    expect(() => store.write(jules, "/etc/basalt-planted.md", "# planted\n")).toThrow(/invalid path/);
+    expect(() => store.write(jules, "/etc/orrama-planted.md", "# planted\n")).toThrow(/invalid path/);
   });
 
   it("still accepts a redundant but harmless path, normalised", () => {

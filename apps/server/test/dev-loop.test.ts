@@ -1,7 +1,7 @@
 /**
  * The dev loop cannot reach the live instance (audit REG-013, OPS-007).
  *
- * On the Mac Basalt runs on, `apps/server/data` is the live database and the
+ * On the Mac Orrama runs on, `apps/server/data` is the live database and the
  * launchd agent holds :4623. `dev` defaulted to both, the guide said "delete
  * apps/server/data to reseed", and `seed` — guarded only by "no users yet" —
  * wrote its demo notes over whatever vault ORRAMA_VAULT_DIR named, with bare
@@ -17,7 +17,7 @@ import { afterAll, describe, expect, it } from "vitest";
 const server = path.resolve(import.meta.dirname, "..");
 // By file, so a process started in a scratch folder still finds the loader.
 const tsx = pathToFileURL(path.join(server, "node_modules/tsx/dist/loader.mjs")).href;
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-devloop-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-devloop-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 /** Run a server script the way `pnpm --dir apps/server <script>` does, cwd included. */
@@ -117,7 +117,7 @@ describe("dev loop", () => {
     for (const f of ["README.md", "INSTALL.md", "CLAUDE.md"]) {
       const text = read(f);
       expect(text, f).not.toMatch(/disposable/i);
-      expect(text, f).not.toMatch(/delete (the )?apps\/server\/data(?!-dev)\b(?! \(or)| to reseed|rm -rf [^\n]*data\/basalt\.db/);
+      expect(text, f).not.toMatch(/delete (the )?apps\/server\/data(?!-dev)\b(?! \(or)| to reseed|rm -rf [^\n]*data\/orrama\.db/);
     }
     // "Running it" and "Quickstart": the secrets come before the start, or the
     // walkthrough ends at "Refusing to start" (OPS-007).

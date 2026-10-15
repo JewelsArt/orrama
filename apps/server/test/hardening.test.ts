@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hardening-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-hardening-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -20,7 +20,7 @@ const { buildServer } = await import("../src/main.js");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 
 const login = (password: string, remoteAddress = "10.0.0.1") =>
-  app.inject({ method: "POST", url: "/api/auth/login", remoteAddress, payload: { email: "erin@basalt.dev", password } });
+  app.inject({ method: "POST", url: "/api/auth/login", remoteAddress, payload: { email: "erin@orrama.dev", password } });
 
 beforeAll(async () => {
   fs.mkdirSync(process.env.ORRAMA_VAULT_DIR!, { recursive: true });
@@ -59,18 +59,18 @@ describe("LoginLimiter", () => {
 describe("POST /api/auth/login", () => {
   it("answers 429 after five wrong passwords — even to the right one", async () => {
     for (let i = 0; i < MAX_FAILS; i++) expect((await login("wrong")).statusCode).toBe(401);
-    const locked = await login("basalt-demo");
+    const locked = await login("orrama-demo");
     expect(locked.statusCode).toBe(429);
     expect(Number(locked.headers["retry-after"])).toBeGreaterThan(0);
     // Another address is not locked out by this one.
-    expect((await login("basalt-demo", "10.0.0.2")).statusCode).toBe(200);
+    expect((await login("orrama-demo", "10.0.0.2")).statusCode).toBe(200);
   });
 
   it("does not count failures a successful sign-in came after", async () => {
     for (let i = 0; i < MAX_FAILS - 1; i++) await login("wrong", "10.0.0.3");
-    expect((await login("basalt-demo", "10.0.0.3")).statusCode).toBe(200);
+    expect((await login("orrama-demo", "10.0.0.3")).statusCode).toBe(200);
     for (let i = 0; i < MAX_FAILS - 1; i++) await login("wrong", "10.0.0.3");
-    expect((await login("basalt-demo", "10.0.0.3")).statusCode).toBe(200);
+    expect((await login("orrama-demo", "10.0.0.3")).statusCode).toBe(200);
   });
 });
 
@@ -83,7 +83,7 @@ describe("security headers", () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).not.toMatch(/script-src[^;]*unsafe/);
     // Not 'none': the document reader shows PDFs as blob: frames, which INHERIT
-    // this policy, and with 'none' WebKit refused to let Basalt frame its own
+    // this policy, and with 'none' WebKit refused to let Orrama frame its own
     // PDFs — every PDF and payslip in the desktop app went blank (25-28 Sep).
     expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toContain("frame-src 'self' blob:");

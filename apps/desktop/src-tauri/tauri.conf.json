@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Basalt",
+  "productName": "Orrama",
   "version": "0.1.0",
   "identifier": "dev.basalt.app",
   "build": {
@@ -10,7 +10,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Basalt",
+        "title": "Orrama",
         "url": "index.html",
         "width": 1280,
         "height": 820,

@@ -2,7 +2,7 @@
 
    WHAT THIS IS. Dichromacy collapses the hue circle onto a line, so a palette
    picked for normal vision can put two categories on the same point of it —
-   Basalt's default set leaves its closest pair at ΔE 6.0 under deuteranopia,
+   Orrama's default set leaves its closest pair at ΔE 6.0 under deuteranopia,
    which is a legend you cannot read. Each mode below replaces the two colour
    families with a set chosen by maximising the SMALLEST pairwise distance after
    simulating that vision (Brettel/Viénot on linear RGB, distance in oklab).

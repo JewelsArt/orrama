@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, expect, it } from "vitest";
 
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-seed-exit-"));
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-seed-exit-"));
 afterAll(() => fs.rmSync(dataDir, { recursive: true, force: true }));
 
 it("pnpm seed exits on its own", async () => {

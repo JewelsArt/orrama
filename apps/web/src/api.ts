@@ -212,7 +212,7 @@ export function latestOnly(): () => AbortSignal {
 }
 
 /** Fired when the server stops accepting this browser's session. */
-export const SESSION_ENDED = "basalt:session-ended";
+export const SESSION_ENDED = "orrama:session-ended";
 
 
 /** Sign out on the server too — the token stops working everywhere it was copied. */

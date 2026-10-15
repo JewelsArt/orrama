@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-md-upload-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-md-upload-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -36,7 +36,7 @@ const upload = async (who: string, name: string, data: string | Buffer) => {
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
 });
 afterAll(async () => {

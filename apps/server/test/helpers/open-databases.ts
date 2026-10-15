@@ -8,21 +8,21 @@ import Database from "better-sqlite3";
 import { afterAll } from "vitest";
 
 type Db = Database.Database;
-const g = globalThis as { __basaltDbs?: Set<Db>; __basaltDbsHooked?: boolean };
-g.__basaltDbs = new Set();
-if (!g.__basaltDbsHooked) {
-  g.__basaltDbsHooked = true;
+const g = globalThis as { __orramaDbs?: Set<Db>; __orramaDbsHooked?: boolean };
+g.__orramaDbs = new Set();
+if (!g.__orramaDbsHooked) {
+  g.__orramaDbsHooked = true;
   const proto = Database.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
   for (const m of ["prepare", "pragma", "exec"]) {
     const orig = proto[m]!;
     proto[m] = function (this: Db, ...a: unknown[]) {
-      g.__basaltDbs?.add(this);
+      g.__orramaDbs?.add(this);
       return orig.apply(this, a);
     };
   }
 }
 
 afterAll(() => {
-  const left = [...(g.__basaltDbs ?? [])].filter((d) => d.open && !d.memory).map((d) => d.name);
+  const left = [...(g.__orramaDbs ?? [])].filter((d) => d.open && !d.memory).map((d) => d.name);
   if (left.length) throw new Error(`left a database open (Windows cannot delete it: EBUSY): ${left.join(", ")}`);
 });

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  The launchd agent that runs Basalt on the Mac. A TEMPLATE: install it as
+  The launchd agent that runs Orrama on the Mac. A TEMPLATE: install it as
   scripts/README.md says, and replace every REPLACE_ME first. The server refuses
   to start on REPLACE_ME (env.ts), so a forgotten secret is a refusal in
   ~/.basalt-run/server.log, not a server signing sessions with a known key.
@@ -29,10 +29,10 @@
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <!-- The Obsidian vault Basalt reads and writes. -->
+    <!-- The Obsidian vault Orrama reads and writes. -->
     <key>ORRAMA_VAULT_DIR</key>
     <string>/Users/jules/Obsidian Vault</string>
-    <!-- Every address Basalt is reached at (Host check, Touch ID). -->
+    <!-- Every address Orrama is reached at (Host check, Touch ID). -->
     <key>ORRAMA_PUBLIC_ORIGINS</key>
     <string>http://localhost:4623</string>
     <!-- openssl rand -hex 32, each. Keep a copy somewhere safe: a new

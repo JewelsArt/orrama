@@ -14,7 +14,7 @@ import Database from "better-sqlite3";
 import { afterAll, describe, expect, it } from "vitest";
 import { addColumns, createDb, SCHEMA_VERSION } from "../src/db.js";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-upgrade-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-upgrade-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 let n = 0;
 /** A database as an older build left it: made current, then `change`d and stamped `version`. */

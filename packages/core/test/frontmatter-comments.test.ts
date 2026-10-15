@@ -2,7 +2,7 @@
  * Rewriting front matter must keep what the user wrote around the keys it
  * touches. Every note gets `id:` stamped on first index, so re-serialising the
  * data (the old way) stripped every `# comment` from every note in the vault
- * the first time Basalt saw it.
+ * the first time Orrama saw it.
  */
 import { describe, expect, it } from "vitest";
 import { updateFrontmatter } from "../src/index.js";

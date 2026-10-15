@@ -14,7 +14,7 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-ws-frame-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-ws-frame-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";

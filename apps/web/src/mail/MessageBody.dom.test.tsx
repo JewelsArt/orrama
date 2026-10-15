@@ -13,7 +13,7 @@ const html: MailMessage = {
   uid: 103,
   from: "news@oostrunners.example",
   fromName: "Oost Runners",
-  to: "jules@basalt.dev",
+  to: "jules@orrama.dev",
   subject: "Taper week",
   date: null,
   text: "",

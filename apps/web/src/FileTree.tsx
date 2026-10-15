@@ -14,7 +14,7 @@ interface FolderNode {
 
 /**
  * Notes that share a title with another in the same folder, mapped to their
- * filename. A copy made outside Basalt keeps the original's `title:`, so
+ * filename. A copy made outside Orrama keeps the original's `title:`, so
  * without this the tree shows "Atlas Roadmap" twice and nothing tells them
  * apart; those rows also show the file they are.
  */

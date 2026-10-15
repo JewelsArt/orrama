@@ -1,7 +1,7 @@
 {
   "name": "@orrama/core",
   "version": "0.1.0",
-  "description": "Basalt vault engine: markdown parsing, link graph, tag index, task extraction, ACL. Runs identically on desktop, web, and server \u2014 one parser everywhere.",
+  "description": "Orrama vault engine: markdown parsing, link graph, tag index, task extraction, ACL. Runs identically on desktop, web, and server \u2014 one parser everywhere.",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./src/index.ts",

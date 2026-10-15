@@ -150,7 +150,7 @@ vi.mock("../Setup.js", () => ({ Setup: stub("setup") }));
 
 export const ME = {
   id: "u-1",
-  email: "jules@basalt.dev",
+  email: "jules@orrama.dev",
   username: "jules",
   displayName: "Jules",
   avatar: "victorr",

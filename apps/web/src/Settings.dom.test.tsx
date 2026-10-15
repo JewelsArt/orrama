@@ -14,7 +14,7 @@ import type { SettingsSection } from "./ui/router.js";
 
 const ME = {
   id: "u-1",
-  email: "jules@basalt.dev",
+  email: "jules@orrama.dev",
   username: "jules",
   displayName: "Jules",
   avatar: "victorr",

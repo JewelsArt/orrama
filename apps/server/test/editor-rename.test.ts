@@ -1,5 +1,5 @@
 /**
- * A note renamed outside Basalt while it is open in the editor (WEB-005). The editor's NoteSync
+ * A note renamed outside Orrama while it is open in the editor (WEB-005). The editor's NoteSync
  * used to keep the path it opened with and save there forever: rename the note in Obsidian,
  * type a word, and the PUT went to the old path, where the server — finding nothing — made a new
  * file holding the whole buffer. The old name came back with the newest text and the renamed
@@ -11,7 +11,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NoteSync, type SyncedNote } from "@orrama/sync/client";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-editor-rename-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-editor-rename-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -71,7 +71,7 @@ beforeAll(async () => {
   const built = await buildServer();
   app = built.app;
   store = built.store;
-  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } });
+  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
   token = r.json().token;
 });
 
@@ -80,7 +80,7 @@ afterAll(async () => {
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
-describe("a note renamed outside Basalt while open (WEB-005)", () => {
+describe("a note renamed outside Orrama while open (WEB-005)", () => {
   it("the next save lands in the renamed file, and the old name does not come back", async () => {
     const created = await call("PUT", "/api/vault/note", { path: "Engineering/Draft.md", content: "# Draft\n\nfirst line\n" });
     await sleep(700);

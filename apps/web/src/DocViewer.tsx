@@ -6,7 +6,7 @@ import { Sheet as SheetLayer } from "./ui/overlays.js";
 import { Notice } from "./ui/states.js";
 
 /**
- * Read a project document without leaving Basalt.
+ * Read a project document without leaving Orrama.
  *
  * PDFs go to the webview's own viewer through a blob URL (the file lives behind
  * a bearer token, so a plain src= would 401). DOCX and XLSX are parsed on the

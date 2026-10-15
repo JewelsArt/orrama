@@ -10,7 +10,7 @@ import type { Company, Contact, PeopleContext, ProjectRow } from "@orrama/schema
 import type { Me } from "../api.js";
 import { People } from "./People.js";
 
-const me = { id: "u1", username: "jules", email: "jules@basalt.dev", displayName: "Jules" } as unknown as Me;
+const me = { id: "u1", username: "jules", email: "jules@orrama.dev", displayName: "Jules" } as unknown as Me;
 
 const contact = (name: string, extra: Partial<Contact> = {}): Contact => ({
   id: `n-${name.toLowerCase().replace(/\W+/g, "")}`,

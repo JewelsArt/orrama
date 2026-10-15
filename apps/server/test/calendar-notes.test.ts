@@ -9,7 +9,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-calnotes-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-calnotes-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -82,7 +82,7 @@ describe("the index follows the notes", () => {
     fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
   });
 
-  it("an edit made outside Basalt (Obsidian) moves the calendar", async () => {
+  it("an edit made outside Orrama (Obsidian) moves the calendar", async () => {
     const file = path.join(vault, "01-Me/Calendar/2026-10.md");
     fs.writeFileSync(file, `---\ncalendar: jules\nmonth: "2026-10"\n---\n${TABLE}| 2026-10-02 | 09:00 | 10:00 | Dentist |  | ev-d1 |\n`);
     await until(() => eventsOf().includes("Dentist"));
@@ -115,7 +115,7 @@ describe("the index follows the notes", () => {
     fs.writeFileSync(file, `---\ncalendar: jules\nmonth: "2026-12"\n---\n${TABLE}| 2026-12-07 | 09:00 | 10:00 | Typed row |  |  |\n| 2026-12-08 | 09:00 | 10:00 | Another typed row |  |  |\n| 2026-12-09 | 09:00 | 10:00 | Moving on |  |  |\n`);
     await until(() => ["Typed row", "Another typed row", "Moving on"].every((t) => eventsOf().includes(t)));
     const idOf = (title: string) => b.db.select().from(tables.events).where(eq(tables.events.title, title)).get()!.id;
-    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
     const headers = { authorization: `Bearer ${token}` };
     const rowsIn = () => fs.readFileSync(file, "utf8").split("\n").filter((l) => l.startsWith("| 2026-12-"));
 
@@ -150,7 +150,7 @@ describe("the index follows the notes", () => {
   it("a note naming you outside a calendar folder does not reach your calendar", async () => {
     // erin can edit Engineering/; jules (an owner) can edit anything, so the
     // edit check alone would have let her put events on his calendar.
-    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "erin@basalt.dev", password: "basalt-demo" } })).json().token;
+    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "erin@orrama.dev", password: "orrama-demo" } })).json().token;
     const put = await b.app.inject({
       method: "PUT",
       url: "/api/vault/note",

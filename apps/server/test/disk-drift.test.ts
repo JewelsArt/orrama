@@ -3,7 +3,7 @@
  *
  * The watcher debounces 300ms, and every route that edits a note builds its new
  * text from the index. An Obsidian save followed inside that window by any
- * Basalt write — here a checkbox toggle — used to be overwritten with the stale
+ * Orrama write — here a checkbox toggle — used to be overwritten with the stale
  * text plus the toggle, and our own write then matched the watcher's pending
  * event, so nothing ever re-read the file. The edit was gone from disk, from the
  * index and from history.
@@ -17,7 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-drift-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-drift-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -57,7 +57,7 @@ beforeAll(async () => {
   const built = await buildServer();
   app = built.app;
   store = built.store;
-  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } });
+  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
   expect(r.statusCode).toBe(200);
   token = r.json().token;
 });
@@ -93,12 +93,12 @@ describe("a write while the disk is ahead of the index", () => {
     obsidianSave(abs, (s) => s.replace("line 30\n", "line 30 from Obsidian\n"));
     expect(store.index.get(id)!.content).toBe(opened); // inside the window
 
-    const typed = opened.replace("line 5\n", "line 5 typed in Basalt\n");
+    const typed = opened.replace("line 5\n", "line 5 typed in Orrama\n");
     const r = await api("PUT", "/api/vault/note", { path: "Engineering/Drift Editor.md", content: typed, baseHash: hash(opened) });
     expect(r.status).toBe(200);
 
     const disk = fs.readFileSync(abs, "utf8");
-    expect(disk).toContain("line 5 typed in Basalt\n");
+    expect(disk).toContain("line 5 typed in Orrama\n");
     expect(disk).toContain("line 30 from Obsidian\n");
   });
 

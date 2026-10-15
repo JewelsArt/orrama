@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "basalt-server",
+      "name": "orrama-server",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
         "--dir",
@@ -12,7 +12,7 @@
       "port": 4627
     },
     {
-      "name": "basalt-web-colors",
+      "name": "orrama-web-colors",
       "runtimeExecutable": "env",
       "runtimeArgs": [
         "ORRAMA_API_PORT=4627",

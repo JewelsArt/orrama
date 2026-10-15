@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-sessions-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-sessions-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -26,7 +26,7 @@ const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.1
 const PHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 const signIn = async (who = "jules", ua = MAC) =>
-  (await built.app.inject({ method: "POST", url: "/api/auth/login", headers: { "user-agent": ua }, payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token as string;
+  (await built.app.inject({ method: "POST", url: "/api/auth/login", headers: { "user-agent": ua }, payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token as string;
 const call = async (token: string, method: "GET" | "POST" | "DELETE", url: string) => {
   const r = await built.app.inject({ method, url, headers: { authorization: `Bearer ${token}` } });
   return { status: r.statusCode, body: (() => { try { return r.json(); } catch { return null; } })() };

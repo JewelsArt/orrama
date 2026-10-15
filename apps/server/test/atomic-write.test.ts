@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { canSymlink, POSIX_MODES } from "./helpers/platform.js";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-atomic-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-atomic-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -18,7 +18,7 @@ const { writeFileAtomic } = await import("../src/atomicWrite.js");
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-atomic-files-"));
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-atomic-files-"));
 const VAULT = process.env.ORRAMA_VAULT_DIR;
 afterAll(() => {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -77,7 +77,7 @@ describe("the vault is written atomically", () => {
 
   beforeAll(async () => {
     built = await buildServer();
-    token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+    token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
   });
   afterAll(async () => built.app.close());
 

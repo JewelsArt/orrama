@@ -11,7 +11,7 @@ export async function mcpClient(app: FastifyInstance, sessionToken: string) {
   const token: string = minted.json().token;
   const api = async (url: string, method = "GET", body?: unknown) => {
     const r = await app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${token}` }, ...(body !== undefined ? { payload: body as object } : {}) });
-    if (r.statusCode >= 400) throw new Error(`Basalt API error (${r.statusCode}): ${r.json().error ?? r.statusMessage}`);
+    if (r.statusCode >= 400) throw new Error(`Orrama API error (${r.statusCode}): ${r.json().error ?? r.statusMessage}`);
     return r.json();
   };
   const tool = async (name: string, args: Record<string, unknown> = {}) => {

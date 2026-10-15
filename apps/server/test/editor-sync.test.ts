@@ -13,7 +13,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NoteSync, type SyncedNote } from "@orrama/sync/client";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-editor-sync-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-editor-sync-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -102,7 +102,7 @@ beforeAll(async () => {
   const built = await buildServer();
   app = built.app;
   store = built.store;
-  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } });
+  const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
   token = r.json().token;
 });
 
@@ -116,13 +116,13 @@ describe("editor sync against the server", () => {
     const note = await create("Engineering/Sync Focused.md", lines(40));
     const { sync, applied, initial } = await open(note);
 
-    sync.edit(initial.replace("line 5\n", "line 5 typed in Basalt\n"));
+    sync.edit(initial.replace("line 5\n", "line 5 typed in Orrama\n"));
     await obsidianSave(note.abs, (s) => s.replace("line 30\n", "line 30 from Obsidian\n"));
     expect(store.index.get(note.id)!.content).toContain("line 30 from Obsidian"); // the server has it
     await sync.flush();
 
     const disk = fs.readFileSync(note.abs, "utf8");
-    expect(disk).toContain("line 5 typed in Basalt\n");
+    expect(disk).toContain("line 5 typed in Orrama\n");
     expect(disk).toContain("line 30 from Obsidian\n");
     expect(sync.content).toBe(disk); // …and the editor now shows it too
     expect(applied.at(-1)).toBe(disk);

@@ -11,7 +11,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { SIGNAL_HANDLERS } from "./helpers/platform.js";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-shutdown-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-shutdown-"));
 /** The WAL is removed when the last connection closes; give the close up to 5 s. */
 async function walGone(dir: string): Promise<boolean> {
   for (let i = 0; i < 100 && fs.existsSync(path.join(dir, "basalt.db-wal")); i++) await new Promise((r) => setTimeout(r, 50));

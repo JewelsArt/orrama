@@ -159,8 +159,8 @@ export function createDb(file = dbPath()) {
   if (onDisk > SCHEMA_VERSION) {
     sqlite.close();
     throw new Error(
-      `${file} was written by a newer Basalt (schema ${onDisk}; this build knows ${SCHEMA_VERSION}). ` +
-        "Running older code over it could drop what it does not know — update Basalt, or restore a backup.",
+      `${file} was written by a newer Orrama (schema ${onDisk}; this build knows ${SCHEMA_VERSION}). ` +
+        "Running older code over it could drop what it does not know — update Orrama, or restore a backup.",
     );
   }
   sqlite.exec(BOOTSTRAP);

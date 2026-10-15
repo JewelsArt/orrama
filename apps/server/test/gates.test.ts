@@ -14,7 +14,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-gates-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-gates-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
@@ -45,8 +45,8 @@ beforeAll(async () => {
   app = built.app;
   db = built.db;
   store = built.store;
-  for (const email of ["jules@basalt.dev", "erin@basalt.dev", "mara@basalt.dev"]) {
-    const r = await api("POST", "/api/auth/login", undefined, { email, password: "basalt-demo" });
+  for (const email of ["jules@orrama.dev", "erin@orrama.dev", "mara@orrama.dev"]) {
+    const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     expect(r.status).toBe(200);
     tokens[email.split("@")[0]!] = r.json.token;
   }

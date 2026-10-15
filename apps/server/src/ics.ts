@@ -612,7 +612,7 @@ export function buildIcs(calendarName: string, items: IcsExportItem[]): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Basalt//Basalt Calendar//EN",
+    "PRODID:-//Orrama//Orrama Calendar//EN",
     "CALSCALE:GREGORIAN",
     `X-WR-CALNAME:${escapeText(calendarName)}`,
   ];

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Basalt self-host image: the Fastify API and the built web app in one container.
+# Orrama self-host image: the Fastify API and the built web app in one container.
 #
 # Debian slim rather than Alpine, deliberately. better-sqlite3 installs via
 # `prebuild-install || node-gyp rebuild`: it fetches a prebuilt binary when one
@@ -49,7 +49,7 @@ WORKDIR /app
 # The server finds the web app at ../../web/dist from its own src (main.ts).
 COPY --from=build /out/apps/server apps/server
 COPY --from=build /app/apps/web/dist apps/web/dist
-COPY docker-entrypoint.sh /usr/local/bin/basalt-entrypoint
+COPY docker-entrypoint.sh /usr/local/bin/orrama-entrypoint
 
 # /app stays root's: the server process cannot rewrite its own code (tsx would
 # recompile a changed src/*.ts on the next start). Only /data is node's, and
@@ -77,5 +77,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # exited 1 with the WAL left behind. The entrypoint execs, so node takes its
 # place. Same command `pnpm start` runs, minus pnpm.
 WORKDIR /app/apps/server
-ENTRYPOINT ["basalt-entrypoint"]
+ENTRYPOINT ["orrama-entrypoint"]
 CMD ["node", "--import", "tsx", "src/main.ts"]

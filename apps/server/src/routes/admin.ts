@@ -157,7 +157,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.post("/api/admin/ai/chatgpt/start", auth, async (req) => {
     await requireOwner(req.userId);
     const local = (h: string) => /^(localhost|127\.0\.0\.1|\[::1\])$/.test(h);
-    if (!local(req.hostname)) throw new HttpError(400, "Sign in with ChatGPT from Basalt on the Mac it runs on — OpenAI returns to this computer.");
+    if (!local(req.hostname)) throw new HttpError(400, "Sign in with ChatGPT from Orrama on the Mac it runs on — OpenAI returns to this computer.");
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     let returnTo = `http://127.0.0.1:${env.port}`;
     try {
@@ -180,7 +180,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
       return reply
         .code(err instanceof HttpError ? err.statusCode : 500)
         .type("text/html; charset=utf-8")
-        .send(`<!doctype html><meta charset="utf-8"><title>Basalt</title><p>${esc}</p><p><a href="/">Back to Basalt</a></p>`);
+        .send(`<!doctype html><meta charset="utf-8"><title>Orrama</title><p>${esc}</p><p><a href="/">Back to Orrama</a></p>`);
     }
   });
 
@@ -196,7 +196,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     return { ok: true };
   });
 
-  /** BYO AI key (spec §9): stored encrypted at rest, never proxied through Basalt-the-company. */
+  /** BYO AI key (spec §9): stored encrypted at rest, never proxied through Orrama-the-company. */
   app.post("/api/admin/ai", auth, async (req) => {
     await requireOwner(req.userId);
     const body = aiConfigSchema.parse(req.body);

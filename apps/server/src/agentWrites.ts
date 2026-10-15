@@ -11,7 +11,7 @@
  * a shell. Prompt text cannot be relied on to stop that (CLAUDE.md, "The agent
  * can draft mail, never send it"), so it is refused in code: the in-app agent
  * and API tokens (the MCP server) may not write those files or change that
- * section. The user still edits all of it in Basalt or Obsidian. Settings → AI
+ * section. The user still edits all of it in Orrama or Obsidian. Settings → AI
  * instructions is the third channel; `/api/admin/*` is session-only already.
  */
 import { parseNote, projectSlugOf, readSection } from "@orrama/core";
@@ -31,7 +31,7 @@ const isProjectNote = (content: string) => parseNote(content).tags.some((t) => t
 export function untrustedWriter(who: string): WriteGuard {
   return ({ path, before, content }) => {
     if (isInstructionFile(path)) {
-      throw new HttpError(403, `${path} holds standing instructions for an agent, so ${who} may not write it. The user can edit it in Basalt or Obsidian.`);
+      throw new HttpError(403, `${path} holds standing instructions for an agent, so ${who} may not write it. The user can edit it in Orrama or Obsidian.`);
     }
     const project = isProjectNote(content) || (before !== null && isProjectNote(before.content));
     if (project && readSection(before?.content ?? "", "Prompt") !== readSection(content, "Prompt")) {

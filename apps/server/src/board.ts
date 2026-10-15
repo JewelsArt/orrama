@@ -5,7 +5,8 @@
  * the board lives in the database: delete the DB and the board comes back.
  *
  * Nodes are either a project FILE (a card) or a GROUP (a labelled box). Edges
- * link two cards; an edge Claude proposed carries `basaltSuggested: true` until
+ * link two cards; an edge Claude proposed carries `orramaSuggested: true` (`basaltSuggested`
+ * in a board saved before the rename) until
  * the user accepts it. Unknown fields from other tools are dropped on write.
  *
  * Everything here is pure, so the rules are testable without HTTP:
@@ -21,13 +22,13 @@ const MAX_NODES = 400;
 const MAX_EDGES = 800;
 const LIMIT = 20_000; // canvas coordinates, either direction
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
-/** JSON Canvas preset colours ("1"–"6"); Basalt maps them onto its ink hues. */
+/** JSON Canvas preset colours ("1"–"6"); Orrama maps them onto its ink hues. */
 const COLORS = new Set(["1", "2", "3", "4", "5", "6"]);
 
 export interface FileNode { id: string; type: "file"; file: string; x: number; y: number; width: number; height: number }
 export interface GroupNode { id: string; type: "group"; label: string; x: number; y: number; width: number; height: number; color?: string }
 export type BoardNode = FileNode | GroupNode;
-export interface BoardEdge { id: string; fromNode: string; toNode: string; label?: string; basaltSuggested?: true }
+export interface BoardEdge { id: string; fromNode: string; toNode: string; label?: string; orramaSuggested?: true }
 export interface Board { nodes: BoardNode[]; edges: BoardEdge[] }
 
 const num = (v: unknown, lo: number, hi: number, fallback: number): number =>
@@ -91,7 +92,9 @@ export function normalizeBoard(raw: unknown, slug: string, files: Set<string>): 
     pairs.add(pair);
     edgeIds.add(id);
     const label = text(e["label"], 60);
-    edges.push({ id, fromNode, toNode, ...(label ? { label } : {}), ...(e["basaltSuggested"] === true ? { basaltSuggested: true as const } : {}) });
+    // Written `basaltSuggested` before the rename (R13): read as the same mark, saved under the new name.
+    const suggested = e["orramaSuggested"] === true || e["basaltSuggested"] === true;
+    edges.push({ id, fromNode, toNode, ...(label ? { label } : {}), ...(suggested ? { orramaSuggested: true as const } : {}) });
   }
   return { nodes, edges };
 }

@@ -1,13 +1,13 @@
 /**
  * The MCP server's tools: what Claude is told about (TOOLS) and what each
- * call does (callTool), over Basalt's HTTP API. Apart from index.ts, which
+ * call does (callTool), over Orrama's HTTP API. Apart from index.ts, which
  * owns the stdio transport and the token, so the tools can be tested against
  * a real server without starting a process.
  */
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { graphPath, type GraphTool } from "./graphQuery.js";
 
-/** One Basalt API call: resolves with the JSON answer, throws McpError on an error status. */
+/** One Orrama API call: resolves with the JSON answer, throws McpError on an error status. */
 export type Api = (path: string, method?: string, body?: unknown) => Promise<any>;
 
 export interface ToolResult {
@@ -288,7 +288,7 @@ export const TOOLS = [
   },
   {
     name: "list_email",
-    description: "List recent messages in the user's connected email inbox. Returns sender, subject, date, read state and a uid to read the full message. Requires a mail account connected in Basalt (Settings -> Mail).",
+    description: "List recent messages in the user's connected email inbox. Returns sender, subject, date, read state and a uid to read the full message. Requires a mail account connected in Orrama (Settings -> Mail).",
     inputSchema: {
       type: "object",
       properties: {
@@ -309,7 +309,7 @@ export const TOOLS = [
   },
   {
     name: "draft_email",
-    description: "Prepare an email from the user's connected mailbox. The draft waits in Basalt for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email.",
+    description: "Prepare an email from the user's connected mailbox. The draft waits in Orrama for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email.",
     inputSchema: {
       type: "object",
       properties: {
@@ -488,7 +488,7 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     case "draft_email": {
       // Staging, not sending: /api/mail/send refuses API tokens outright.
       const res = await api(`/api/mail/drafts`, "POST", { to: args.to, subject: args.subject, body: args.body, inReplyTo: args.inReplyTo, references: args.references });
-      return { content: [{ type: "text", text: JSON.stringify({ ...res, status: "awaiting_confirmation", note: "The user must review and send this draft in Basalt." }, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ ...res, status: "awaiting_confirmation", note: "The user must review and send this draft in Orrama." }, null, 2) }] };
     }
 
     default:

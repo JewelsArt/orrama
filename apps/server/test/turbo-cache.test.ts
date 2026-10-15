@@ -18,7 +18,7 @@ import { afterAll, describe, expect, it } from "vitest";
 const root = path.resolve(import.meta.dirname, "../../..");
 // turbo's own launcher, run by node: .bin/turbo is a shell script Windows cannot exec.
 const turbo = path.join(root, "node_modules/turbo/bin/turbo");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-turbo-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-turbo-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 for (const f of execFileSync("git", ["ls-files", "-z", "-co", "--exclude-standard"], { cwd: root, encoding: "utf8" }).split("\0")) {

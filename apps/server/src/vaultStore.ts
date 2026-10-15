@@ -85,7 +85,7 @@ function isFolder(abs: string): boolean {
   }
 }
 
-const NOT_UTF8 = "is not UTF-8 text, so Basalt reads it but will not write to it. Save it as UTF-8 to edit it here.";
+const NOT_UTF8 = "is not UTF-8 text, so Orrama reads it but will not write to it. Save it as UTF-8 to edit it here.";
 
 /** One vault file as boot reads it, before anything is indexed. */
 interface BootFile {
@@ -280,7 +280,7 @@ export class VaultStore {
       // handleExternalChange, by comparing the bytes on disk with what we wrote.
       this.settleLater(event, relPath, absPath);
     });
-    // A note created and deleted in one breath — Basalt writes it, something
+    // A note created and deleted in one breath — Orrama writes it, something
     // outside removes it a moment later — can reach chokidar as one coalesced
     // fs event: by the time chokidar looks, the file is gone, so it reports
     // neither "add" nor "unlink", and the note stayed in the index. The raw
@@ -419,7 +419,7 @@ export class VaultStore {
       console.error(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath}, and cannot be given a new one: ${stamped.reason} — not indexed. Change or remove its id: line.`);
       return null;
     }
-    console.warn(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath} (a copy made outside Basalt?) — gave it its own id ${next}.`);
+    console.warn(`[vault] ${rel}: carries note id ${id}, which belongs to ${ownerPath} (a copy made outside Orrama?) — gave it its own id ${next}.`);
     return stamped.content;
   }
 
@@ -444,7 +444,7 @@ export class VaultStore {
    * The note the index holds under `id`, when it lives at another path and
    * its file is still there with that id — i.e. `rel` holding the same id is
    * a copy. When that file is gone or says otherwise, `rel` is the same note
-   * renamed outside Basalt (its unlink not processed yet), and keeps the id.
+   * renamed outside Orrama (its unlink not processed yet), and keeps the id.
    */
   private ownerElsewhere(id: string, rel: string): IndexedNote | undefined {
     const holder = this.index.get(id);
@@ -733,7 +733,7 @@ export class VaultStore {
     const note = this.index.get(noteId);
     if (log.length > 0) {
       doc = docFromUpdates(log.map((r) => r.update));
-      // Disk may have moved ahead of the log (edited outside Basalt) — reconcile.
+      // Disk may have moved ahead of the log (edited outside Orrama) — reconcile.
       if (note && docContent(doc) !== note.content) {
         const u = this.splice(noteId, doc, note.content);
         if (u) this.logUpdate(noteId, u, null);
@@ -769,7 +769,7 @@ export class VaultStore {
   /**
    * Bring a note's doc to `content` and record the change. Only a note with
    * no doc and no history starts a new doc. Starting one for a note that had
-   * history — a note renamed outside Basalt, or deleted and put back — logged
+   * history — a note renamed outside Orrama, or deleted and put back — logged
    * a second, independent doc under the same id, and every replay after that
    * held the whole note twice.
    */

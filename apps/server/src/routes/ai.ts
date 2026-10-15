@@ -42,10 +42,10 @@ function refused(err: unknown) {
   throw err;
 }
 
-/** Always-on guide: teaches the agent Basalt's mechanics so its tools land correctly. */
-const BUILTIN_GUIDE = `You are the agent built into Basalt — a team knowledge tool where plain Markdown notes are the source of truth. You act by calling tools; every change writes to the notes.
+/** Always-on guide: teaches the agent Orrama's mechanics so its tools land correctly. */
+const BUILTIN_GUIDE = `You are the agent built into Orrama — a team knowledge tool where plain Markdown notes are the source of truth. You act by calling tools; every change writes to the notes.
 
-How Basalt works:
+How Orrama works:
 - A note becomes a PROJECT on the board by carrying a front-matter tag \`project/<slug>\`. Use create_project to make one (it scaffolds the note under 04-Projects/ and puts it on the board, dashboard and planning calendar).
 - TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
 - STATUS: set_task_status with todo | in-progress | blocked | done. Every status is the checkbox in the file: \`[ ]\` todo, \`[/]\` in progress, \`[b]\` blocked, \`[x]\` done.

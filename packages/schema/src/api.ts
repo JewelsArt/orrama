@@ -46,7 +46,7 @@ export const visionProfileSchema = z.object({
   id: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
   name: z.string().min(1).max(60),
   colors: z.array(hexColor).length(7),
-  /** Basalt's own colour. Optional: profiles predate the slot. */
+  /** Orrama's own colour. Optional: profiles predate the slot. */
   brand: hexColor.optional(),
 });
 

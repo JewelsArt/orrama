@@ -2,7 +2,7 @@
  * CI guards what it claims (audit OPS-004).
  *
  * Actions were referenced by movable tags with the repository's default token
- * scope; macOS — the platform Basalt runs on — ran only after a push to main,
+ * scope; macOS — the platform Orrama runs on — ran only after a push to main,
  * never on sep-2026-redesign, the branch `pnpm ship` deploys from; and the
  * Docker image and the desktop crate were never built.
  */

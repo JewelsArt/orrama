@@ -1,5 +1,5 @@
 /**
- * `basalt export` (export.ts, audit B10): what lives only in the database —
+ * `orrama export` (export.ts, audit B10): what lives only in the database —
  * task descriptions and comments, AI settings, tokens, webhooks — comes out
  * in a snapshot that restores and a JSON a person can read, and no secret
  * reaches the JSON.
@@ -10,7 +10,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POSIX_MODES } from "./helpers/platform.js";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-export-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-export-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -18,7 +18,7 @@ process.env.ORRAMA_FETCH_ALLOW = "127.0.0.1";
 
 await import("../src/seed.js");
 const { buildServer } = await import("../src/main.js");
-const { exportBasalt } = await import("../src/export.js");
+const { exportOrrama } = await import("../src/export.js");
 const { tables } = await import("../src/db.js");
 
 const DATA = process.env.ORRAMA_DATA_DIR;
@@ -38,7 +38,7 @@ let exported = "";
 
 beforeAll(async () => {
   built = await buildServer();
-  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
 
   const roadmap = built.store.index.getByPath("Engineering/Atlas Roadmap.md")!;
   const { line, raw: text } = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!;
@@ -75,7 +75,7 @@ beforeAll(async () => {
   SECRETS.tokenHash = built.db.select().from(tables.apiTokens).all()[0]!.tokenHash;
 
   // While the server is running, as the CLI would be.
-  exported = (await exportBasalt({ into: OUT })).dir;
+  exported = (await exportOrrama({ into: OUT })).dir;
 });
 
 afterAll(async () => {
@@ -83,7 +83,7 @@ afterAll(async () => {
   fs.rmSync(DATA, { recursive: true, force: true });
 });
 
-describe("basalt export", () => {
+describe("orrama export", () => {
   it("writes a snapshot, a readable JSON and a README, owner-only", () => {
     expect(fs.readdirSync(exported).sort()).toEqual(["README.txt", "basalt.db", "export.json"]);
     if (POSIX_MODES) {
@@ -94,7 +94,7 @@ describe("basalt export", () => {
 
   it("the JSON holds what only the database had", () => {
     const data = JSON.parse(fs.readFileSync(path.join(exported, "export.json"), "utf8"));
-    expect(data.format).toBe("basalt-export");
+    expect(data.format).toBe("orrama-export");
     const task = data.tasks.find((t: { note: string; description: string }) => t.description.startsWith("Exported description"));
     expect(task.note).toBe("Engineering/Atlas Roadmap.md");
     expect(task.comments.map((c: { author: string; body: string }) => `${c.author}: ${c.body}`)).toEqual(["jules: Exported comment: ask Erin about pagination."]);
@@ -121,7 +121,7 @@ describe("basalt export", () => {
     (env as { dataDir: string }).dataDir = restored;
     try {
       built = await buildServer();
-      token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+      token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
       expect((await call("GET", `/api/tasks/${taskId}/comments`)).json.map((c: { body: string }) => c.body)).toEqual(["Exported comment: ask Erin about pagination."]);
       expect(built.db.select().from(tables.taskObjects).all().find((t) => t.id === taskId)?.description).toMatch(/^Exported description/);
       expect((await call("GET", "/api/admin/ai")).json).toMatchObject({ provider: "google", configured: true, instructions: "Exported instructions: be direct." });
@@ -131,7 +131,7 @@ describe("basalt export", () => {
   });
 
   it("refuses to write into the vault", async () => {
-    await expect(exportBasalt({ into: path.join(VAULT, "Backups") })).rejects.toThrow(/into the vault/);
+    await expect(exportOrrama({ into: path.join(VAULT, "Backups") })).rejects.toThrow(/into the vault/);
     expect(fs.existsSync(path.join(VAULT, "Backups"))).toBe(false);
   });
 });

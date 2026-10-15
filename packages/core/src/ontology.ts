@@ -197,7 +197,7 @@ tags:
 ---
 # Vault ontology
 
-What the notes in this vault are and how they connect. Basalt reads these tables
+What the notes in this vault are and how they connect. Orrama reads these tables
 (\`#vault-ontology\`); edit them here. A comma is "or", a \`+\` is "and"; the first
 type row that matches wins. A note can also say \`type: person\` itself.
 

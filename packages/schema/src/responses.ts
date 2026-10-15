@@ -438,7 +438,7 @@ export const boardEdgeSchema = o({
   toNode: z.string(),
   label: z.string().optional(),
   /** Proposed by Claude, drawn dashed until accepted. */
-  basaltSuggested: z.literal(true).optional(),
+  orramaSuggested: z.literal(true).optional(),
 });
 export const boardResponse = o({
   nodes: z.array(boardNodeSchema),

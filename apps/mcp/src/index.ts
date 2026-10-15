@@ -27,7 +27,7 @@ if (!token) {
 
 const server = new Server(
   {
-    name: "basalt-mcp",
+    name: "orrama-mcp",
     version: "0.1.0",
   },
   {
@@ -37,7 +37,7 @@ const server = new Server(
   }
 );
 
-async function fetchBasalt(path: string, method: string = "GET", body?: any) {
+async function fetchOrrama(path: string, method: string = "GET", body?: any) {
   const res = await fetch(`${url}${path}`, {
     method,
     headers: {
@@ -57,7 +57,7 @@ async function fetchBasalt(path: string, method: string = "GET", body?: any) {
     }
     throw new McpError(
       ErrorCode.InternalError,
-      `Basalt API error (${res.status}): ${msg}`
+      `Orrama API error (${res.status}): ${msg}`
     );
   }
   return res.json();
@@ -67,7 +67,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }))
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
-    return await callTool(request.params.name, request.params.arguments ?? {}, fetchBasalt);
+    return await callTool(request.params.name, request.params.arguments ?? {}, fetchOrrama);
   } catch (error: any) {
     if (error instanceof McpError) throw error;
     return {
@@ -80,7 +80,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function run() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("Basalt MCP server running on stdio");
+  console.error("Orrama MCP server running on stdio");
 }
 
 run().catch(console.error);

@@ -60,7 +60,7 @@ export function assetNotice(file: string): Notice | null {
 
 export function noticesText(notices: Notice[]): string {
   const head =
-    "Basalt's web app includes the following third-party software. Each is listed with its\n" +
+    "Orrama's web app includes the following third-party software. Each is listed with its\n" +
     "version and licence, followed by the licence text the package ships.\n";
   const body = [...notices]
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -73,7 +73,7 @@ export const NOTICES_FILE = "THIRD_PARTY_NOTICES.txt";
 export function licenseNotices(): Plugin {
   let root = process.cwd();
   return {
-    name: "basalt-license-notices",
+    name: "orrama-license-notices",
     apply: "build",
     configResolved(config) {
       root = config.root;

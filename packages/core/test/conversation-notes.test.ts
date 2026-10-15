@@ -13,7 +13,7 @@ const chat = (type: string) => `---
 id: n-chat
 title: Fix the watcher
 type: ${type}
-tags: [claude-session, basalt]
+tags: [claude-session, orrama]
 ---
 # Fix the watcher
 
@@ -29,7 +29,7 @@ describe("conversation notes", () => {
       expect(n.kind).toBe("conversation");
       expect(n.links).toEqual([]);
       expect(n.tasks).toEqual([]);
-      expect(n.tags.map((t) => t.tag)).toEqual(["claude-session", "basalt"]);
+      expect(n.tags.map((t) => t.tag)).toEqual(["claude-session", "orrama"]);
       expect(n.headings.map((h) => h.text)).toEqual(["Fix the watcher", "Outcome"]);
       expect(n.title).toBe("Fix the watcher");
     });

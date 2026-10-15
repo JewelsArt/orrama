@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-cats-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-cats-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -21,7 +21,7 @@ afterAll(async () => {
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 const tok: Record<string, string> = {};
-for (const who of ["jules", "mara"]) tok[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+for (const who of ["jules", "mara"]) tok[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
 const tree = async (who: string) =>
   new Map(((await app.inject({ method: "GET", url: "/api/vault/tree", headers: { authorization: `Bearer ${tok[who]}` } })).json() as { path: string; category: string }[]).map((n) => [n.path, n.category]));
 

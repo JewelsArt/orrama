@@ -9,7 +9,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { balanceSpan, loadTxns } from "../src/routes/finance.js";
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-stmts-"));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-stmts-"));
 const dir = path.join(root, "02-Areas/finance/files");
 fs.mkdirSync(dir, { recursive: true });
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));

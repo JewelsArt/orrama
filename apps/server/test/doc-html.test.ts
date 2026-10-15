@@ -2,7 +2,7 @@
  * A .docx rendered in the project reader must not be able to run code.
  *
  * mammoth copies a hyperlink's target straight into `<a href>`, and the reader
- * puts the HTML into Basalt's own page. A document linking to `javascript:…`
+ * puts the HTML into Orrama's own page. A document linking to `javascript:…`
  * ran with the session on one click (audit, high). The fixture
  * test/fixtures/links.docx is a real .docx with a `javascript:` link, a
  * mixed-case one, an https link and a mailto link.
@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dochtml-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-dochtml-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -85,7 +85,7 @@ describe("GET /api/projects/:slug/files/:name/html", () => {
   beforeAll(async () => {
     await import("../src/seed.js");
     app = (await buildServer()).app;
-    token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+    token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
     const dir = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(path.join(import.meta.dirname, "fixtures/links.docx"), path.join(dir, "links.docx"));

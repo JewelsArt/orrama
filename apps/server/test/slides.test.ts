@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-slides-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-slides-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -136,7 +136,7 @@ describe("GET /api/projects/:slug/files/:name/slides", () => {
     await import("../src/seed.js");
     app = (await buildServer()).app;
     for (const who of ["jules", "erin", "mara"]) {
-      tokens[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+      tokens[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
     }
     const atlas = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
     fs.mkdirSync(atlas, { recursive: true });

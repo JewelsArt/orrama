@@ -1,5 +1,5 @@
 /**
- * A copy made outside Basalt keeps the original's `title:`, so the file tree
+ * A copy made outside Orrama keeps the original's `title:`, so the file tree
  * listed "Atlas Roadmap" twice with nothing to tell them apart. Rows whose
  * title another note in the same folder shares also show their filename.
  */

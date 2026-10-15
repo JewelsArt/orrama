@@ -2,10 +2,10 @@
 # Your notes live in ./data/vault as plain Markdown — back it up with rsync/git.
 # Export ORRAMA_JWT_SECRET and ORRAMA_SECRET_KEY first (INSTALL.md, Docker).
 services:
-  basalt:
+  orrama:
     build: .
     ports:
-      # This machine only. Basalt's sign-in is a password and a 4-digit unlock;
+      # This machine only. Orrama's sign-in is a password and a 4-digit unlock;
       # put it on a network through something that adds TLS and its own access
       # control (Tailscale, a reverse proxy) — INSTALL.md, "Reaching it from
       # elsewhere" — not by publishing the port to every interface (SEC-012).
@@ -17,6 +17,6 @@ services:
       ORRAMA_JWT_SECRET: ${ORRAMA_JWT_SECRET:-change-me-please}
       ORRAMA_SECRET_KEY: ${ORRAMA_SECRET_KEY:-change-me-32-bytes-of-entropy!!}
       # Every address the browser uses besides localhost, comma-separated:
-      # https://basalt.example.ts.net,https://notes.example.com
+      # https://orrama.example.ts.net,https://notes.example.com
       ORRAMA_PUBLIC_ORIGINS: ${ORRAMA_PUBLIC_ORIGINS:-}
     restart: unless-stopped

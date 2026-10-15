@@ -15,7 +15,7 @@ import path from "node:path";
 import type { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-contract-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-contract-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -50,7 +50,7 @@ beforeAll(async () => {
   fx.writeBrokenBoard(vault, "acme");
   ics = await fx.serveIcs();
   b = await buildServer();
-  const login = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json();
+  const login = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json();
   token = login.token;
   const me = login.user.id as string;
 
@@ -60,7 +60,7 @@ beforeAll(async () => {
   await must("POST", "/api/events", { title: "Dentist", date: "2026-10-06", startMin: 540, durationMin: 60 });
   await must("POST", "/api/tasks/blocks", { noteId: t1!.noteId, line: t1!.line, text: t1!.raw, date: "2026-10-07", startMin: 600, durationMin: 60 });
   await must("POST", "/api/tokens", { label: "CLI" });
-  await must("POST", "/api/webhooks", { url: "https://hooks.example.com/basalt", events: ["note.changed"] });
+  await must("POST", "/api/webhooks", { url: "https://hooks.example.com/orrama", events: ["note.changed"] });
   await must("POST", "/api/me/ics-token");
   await must("POST", "/api/calendar/feeds", { label: "Work", url: ics.url });
   await must("PATCH", "/api/projects/atlas", { goals: "- Ship v1", prompt: "Be brief." });

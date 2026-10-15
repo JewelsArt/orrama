@@ -1,6 +1,6 @@
 /**
  * Never rewrite what was not parsed (audit root cause #3, session S01). Each
- * test here checks the BYTES a vault file holds after Basalt has touched it —
+ * test here checks the BYTES a vault file holds after Orrama has touched it —
  * a save, a boot, a watcher ingest — against what the user wrote.
  */
 import fs from "node:fs";
@@ -9,7 +9,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-vault-bytes-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-vault-bytes-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -37,7 +37,7 @@ const api = async (method: string, url: string, body?: unknown) => {
 };
 const boot = async () => {
   built = await buildServer();
-  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
 };
 
 const restart = async () => {
@@ -160,7 +160,7 @@ describe("a --- block that is not a mapping is never replaced by an id (STO-002)
 describe("a note that cannot be stamped keeps one id (STO-003)", () => {
   const rel = "Import/Q3 Review.md";
 
-  it("across a Basalt write, an Obsidian save and a restart, with its task's comment and description", async () => {
+  it("across an Orrama write, an Obsidian save and a restart, with its task's comment and description", async () => {
     const id = idAt(rel)!;
     expect(bytes(rel).equals(AT_BOOT[rel]!)).toBe(true);
     const obj = built.store.ensureTaskObject(id, "t-deck01");
@@ -168,7 +168,7 @@ describe("a note that cannot be stamped keeps one id (STO-003)", () => {
     built.db.insert(tables.taskComments).values({ id: "c-q3", taskId: obj.id, authorId: me, body: "ask Marc first", createdAt: Date.now() }).run();
     built.db.update(tables.taskObjects).set({ description: "the long description" }).where(eq(tables.taskObjects.id, obj.id)).run();
 
-    // 1. A Basalt write (a checkbox ticked from the Dashboard).
+    // 1. An Orrama write (a checkbox ticked from the Dashboard).
     const line = fs.readFileSync(abs(rel), "utf8").split("\n").findIndex((l) => l.includes("^t-deck01"));
     const text = fs.readFileSync(abs(rel), "utf8").split("\n")[line]!;
     expect((await api("POST", "/api/tasks/check", { noteId: id, line, text, checked: true })).status).toBe(200);
@@ -205,7 +205,7 @@ describe("a note that cannot be stamped keeps one id (STO-003)", () => {
     expect((await api("GET", `/api/vault/note/${made.json.id}`)).status).toBe(200);
   });
 
-  it("a numeric id: is left as the user wrote it, and the note keeps a Basalt id across boots", async () => {
+  it("a numeric id: is left as the user wrote it, and the note keeps an Orrama id across boots", async () => {
     const rel2 = "Import/Zettel.md";
     const id = idAt(rel2);
     expect(id).toMatch(/^n-/);

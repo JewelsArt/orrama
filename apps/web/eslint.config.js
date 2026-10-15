@@ -62,14 +62,14 @@ export default [
   {
     files: ["src/**/*.{ts,tsx}"],
     languageOptions: { parser: tsParser, parserOptions: { ecmaFeatures: { jsx: true } } },
-    plugins: { "react-hooks": reactHooks, basalt: { rules: { "async-handler-catches": asyncHandlerCatches } } },
+    plugins: { "react-hooks": reactHooks, orrama: { rules: { "async-handler-catches": asyncHandlerCatches } } },
     // A suppression for a rule that is not on, or one that no longer
     // suppresses anything, is an error too: every eslint-disable stays true.
     linterOptions: { reportUnusedDisableDirectives: "error" },
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "error",
-      "basalt/async-handler-catches": "error",
+      "orrama/async-handler-catches": "error",
     },
   },
 ];

@@ -99,12 +99,12 @@ describe("untouched YAML is untouched (STO-007)", () => {
   });
 
   it("replacing a carried id touches only its value", () => {
-    const before = "---\ntitle: Copy\nid: n-orig   # stamped by Basalt\ntags:\n- a\n---\nBody\n";
+    const before = "---\ntitle: Copy\nid: n-orig   # stamped by Orrama\ntags:\n- a\n---\nBody\n";
     expect(stampId(before, ID)).toEqual({ ok: true, content: before.replace("n-orig", ID) });
   });
 });
 
-describe("ids that are not Basalt's (STO-003)", () => {
+describe("ids that are not Orrama's (STO-003)", () => {
   it("a numeric id: is the user's field and is not overwritten", () => {
     const before = "---\nid: 202310021230\ntitle: Zettel\n---\n# Zettel\n";
     expect(stampId(before, ID).ok).toBe(false);

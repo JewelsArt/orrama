@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import type { WebSocket } from "ws";
 import { afterAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-gone-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-gone-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -26,7 +26,7 @@ afterAll(async () => {
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
-const login = async (who: string) => (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token as string;
+const login = async (who: string) => (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token as string;
 const save = async (token: string, n: number) =>
   (await app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: `Shared/Gone ${n}.md`, content: `# ${n}\n` } })).statusCode;
 

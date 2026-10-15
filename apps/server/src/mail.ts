@@ -2,7 +2,7 @@
  * Personal email without OAuth (spec: self-hosted, credential-first). The user
  * pastes a Gmail *app password* (2FA required) once; we read the inbox over IMAP
  * (imapflow) and send/reply over SMTP (nodemailer). Everything runs on the user's
- * own Basalt server, so mail credentials and message bodies never leave the machine.
+ * own Orrama server, so mail credentials and message bodies never leave the machine.
  *
  * Messages are never persisted — IMAP is the source of truth, fetched on demand,
  * exactly like the ICS feed layer. The only thing at rest is the app password,
@@ -169,7 +169,7 @@ export interface MailMessage {
 }
 
 /**
- * A message's raw source, as Basalt shows it; the envelope (the IMAP server's
+ * A message's raw source, as Orrama shows it; the envelope (the IMAP server's
  * own parse) names the sender. The source is whatever anyone sent: mailparser
  * runs nodemailer's address parser over every address header, which was
  * quadratic before nodemailer 10.0.6 — a 62 KB From held the server 3.5 s,

@@ -12,7 +12,7 @@ import { getTableConfig, SQLiteTable } from "drizzle-orm/sqlite-core";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDb, SCHEMA_VERSION, tables } from "../src/db.js";
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-schema-"));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-schema-"));
 // Every handle closed first: Windows cannot delete an open database (EBUSY, OPS-003).
 const opened: { close(): void }[] = [];
 afterAll(() => {
@@ -51,11 +51,11 @@ describe("schema", () => {
     expect(sqlite.pragma("user_version", { simple: true })).toBe(SCHEMA_VERSION);
   });
 
-  it("refuses a database written by a newer Basalt", () => {
+  it("refuses a database written by a newer Orrama", () => {
     const newer = path.join(dir, "newer.db");
     const d = new Database(newer);
     d.pragma(`user_version = ${SCHEMA_VERSION + 1}`);
     d.close();
-    expect(() => createDb(newer)).toThrow(/newer Basalt/);
+    expect(() => createDb(newer)).toThrow(/newer Orrama/);
   });
 });

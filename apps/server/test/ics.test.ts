@@ -414,7 +414,7 @@ describe("expandIcs on a long-lived or hostile feed", () => {
 
 describe("buildIcs", () => {
   it("round-trips through parse+expand to the same local slot", () => {
-    const ics = buildIcs("Basalt — Jules", [
+    const ics = buildIcs("Orrama — Jules", [
       { uid: "blk-1", title: "permission test suite; deep work", date: "2026-07-07", startMin: 600, durationMin: 120 },
     ]);
     expect(ics).toContain("BEGIN:VCALENDAR");
@@ -428,7 +428,7 @@ describe("buildIcs", () => {
 
 describe("buildIcs, long and awkward titles", () => {
   const title = "Réunion de soutenance 🎓 — chapitre 3; méthodes, résultats & discussion\r\nsecond line\rthird \\ line " + "é".repeat(60);
-  const ics = buildIcs("Basalt", [{ uid: "ev-1", title, date: "2026-10-05", startMin: 600, durationMin: 60 }]);
+  const ics = buildIcs("Orrama", [{ uid: "ev-1", title, date: "2026-10-05", startMin: 600, durationMin: 60 }]);
 
   it("folds every content line to at most 75 octets, and never splits a character", () => {
     const physical = ics.split("\r\n").slice(0, -1);

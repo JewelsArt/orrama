@@ -25,7 +25,7 @@ const freezeClock = (at: Date) => vi.useFakeTimers({ toFake: ["Date"], now: at }
 
 const ORIGINAL_TZ = process.env.TZ;
 process.env.TZ = "Europe/Amsterdam";
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dates-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-dates-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
@@ -55,7 +55,7 @@ beforeAll(async () => {
   const res = await app.inject({
     method: "POST",
     url: "/api/auth/login",
-    payload: { email: "jules@basalt.dev", password: "basalt-demo" },
+    payload: { email: "jules@orrama.dev", password: "orrama-demo" },
   });
   token = res.json().token;
 });

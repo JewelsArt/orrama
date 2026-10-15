@@ -8,7 +8,7 @@ export const DEV_SECRET_KEY = "dev-secret-key-32-bytes-change!!";
 /**
  * Placeholders that must never reach a real deployment. Includes the values
  * docker-compose.yml substitutes when the operator never exported their own —
- * `docker compose up` with no .env is the most likely way to run Basalt with
+ * `docker compose up` with no .env is the most likely way to run Orrama with
  * a forgeable JWT secret.
  */
 const PLACEHOLDER_SECRETS = new Set([
@@ -26,7 +26,7 @@ const MIN_SECRET_LENGTH = 32;
  * the dev secrets, and unless PORT / ORRAMA_DATA_DIR say otherwise it listens on
  * DEV_PORT and keeps its database in `./data-dev`, never in `./data`.
  *
- * On the Mac Basalt runs on, `apps/server/data` IS the live database and the
+ * On the Mac Orrama runs on, `apps/server/data` IS the live database and the
  * launchd agent holds 4623 (`start`, no flag). `dev` used to default to both,
  * and the guide said "delete apps/server/data to reseed" — the only copy of
  * accounts, credentials, comments, drafts and history (audit REG-013, OPS-007).
@@ -66,7 +66,7 @@ export const env = {
   dataDir: path.resolve(process.env.ORRAMA_DATA_DIR ?? (DEV ? "./data-dev" : "./data")),
   /**
    * Where the Markdown lives. Defaults to <dataDir>/vault; set ORRAMA_VAULT_DIR
-   * to point Basalt at a vault you already keep elsewhere (an Obsidian vault,
+   * to point Orrama at a vault you already keep elsewhere (an Obsidian vault,
    * say) so both apps read and write the same files. The DB stays in dataDir —
    * it is a cache of the files, and it has no business inside your notes.
    */
@@ -93,7 +93,7 @@ export const env = {
    */
   corsOrigin: process.env.ORRAMA_CORS_ORIGIN ?? false,
   /**
-   * The exact origins Basalt is reached at (comma-separated), e.g.
+   * The exact origins Orrama is reached at (comma-separated), e.g.
    * `http://localhost:4623,https://mac.tailnet-name.ts.net`. Touch ID trusts
    * only these. Unset, it falls back to "the Origin must be the address the
    * request was sent to" — see `webauthnOrigin` in routes/auth.ts.

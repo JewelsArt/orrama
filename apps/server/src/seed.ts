@@ -1,7 +1,7 @@
 /**
  * Seed a demo workspace (spec M4 "seed demo workspace"): two teams, three users,
  * a vault with links, tags, tasks, and both permission overlays exercised.
- * Users: jules (owner), erin (engineering), mara (marketing) — password "basalt-demo".
+ * Users: jules (owner), erin (engineering), mara (marketing) — password "orrama-demo".
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -17,7 +17,7 @@ const uid = (p: string) => `${p}-${crypto.randomUUID().slice(0, 8)}`;
 
 const FILES: Record<string, string> = {
   "Welcome.md": `---
-title: Welcome to Basalt
+title: Welcome to Orrama
 tags: [handbook]
 ---
 # Welcome 👋
@@ -236,7 +236,7 @@ async function seed(db: ReturnType<typeof createDb>) {
     );
   }
   if (db.select().from(tables.workspace).all().length === 0) {
-    db.insert(tables.workspace).values({ id: uid("w"), name: "Basalt Demo" }).run();
+    db.insert(tables.workspace).values({ id: uid("w"), name: "Orrama Demo" }).run();
   }
 
   for (const [rel, content] of Object.entries(FILES)) {
@@ -245,11 +245,11 @@ async function seed(db: ReturnType<typeof createDb>) {
     writeFileAtomic(abs, content, { exclusive: true });
   }
 
-  const pw = await argonHash("basalt-demo");
+  const pw = await argonHash("orrama-demo");
   const users = [
-    { id: uid("u"), email: "jules@basalt.dev", username: "jules", displayName: "Jules", passwordHash: pw, isOwner: true, createdAt: Date.now() },
-    { id: uid("u"), email: "erin@basalt.dev", username: "erin", displayName: "Erin", passwordHash: pw, isOwner: false, createdAt: Date.now() },
-    { id: uid("u"), email: "mara@basalt.dev", username: "mara", displayName: "Mara", passwordHash: pw, isOwner: false, createdAt: Date.now() },
+    { id: uid("u"), email: "jules@orrama.dev", username: "jules", displayName: "Jules", passwordHash: pw, isOwner: true, createdAt: Date.now() },
+    { id: uid("u"), email: "erin@orrama.dev", username: "erin", displayName: "Erin", passwordHash: pw, isOwner: false, createdAt: Date.now() },
+    { id: uid("u"), email: "mara@orrama.dev", username: "mara", displayName: "Mara", passwordHash: pw, isOwner: false, createdAt: Date.now() },
   ];
   for (const u of users) db.insert(tables.users).values(u).run();
   const [jules, erin, mara] = users;
@@ -308,7 +308,7 @@ async function seed(db: ReturnType<typeof createDb>) {
   // that re-read the server's writes and logged them against its own
   // seed-time doc — which corrupted the notes' Y.Doc history.
   await store.close();
-  console.log("seeded: jules/erin/mara @basalt.dev — password basalt-demo");
+  console.log("seeded: jules/erin/mara @orrama.dev — password orrama-demo");
 }
 
 await main();

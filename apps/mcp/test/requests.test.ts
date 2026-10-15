@@ -156,7 +156,7 @@ describe("edit_note never writes over text it was not shown (audit AI-001)", () 
   it("a path with no note is created, create-only", async () => {
     const { calls, api } = recorder((c) => {
       if (c.path === "/api/vault/tree") return tree;
-      if (c.method === "GET") throw new Error("Basalt API error (404): note not found");
+      if (c.method === "GET") throw new Error("Orrama API error (404): note not found");
       return { ok: true };
     });
     await callTool("edit_note", { idOrPath: "Notes/New.md", content: "# New\n" }, api);

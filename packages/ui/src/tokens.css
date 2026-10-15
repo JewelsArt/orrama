@@ -1,4 +1,4 @@
-/* Orrama design tokens. Evolved from packages/ui/src/tokens.css (Basalt), 8 October 2026.
+/* Orrama design tokens. Evolved from packages/ui/src/tokens.css (Orrama), 8 October 2026.
 
    Token-first, as before: components only ever use vars, so a theme is a token set and nothing
    else. The recipe stays too: every colour is taken from a real reference, then checked (WCAG
@@ -7,7 +7,7 @@
 
    What changed, and why:
      - The ground is warm paper by day and night blue after dark: the same horizon under two
-       lights. Basalt's violet-tinted white and blue slate go with the violet accent.
+       lights. Orrama's violet-tinted white and blue slate go with the violet accent.
      - One accent, Morpho ultramarine (#1967D4, from a photo of a Morpho menelaus wing, James
        St. John, CC BY 2.0), for links, focus and selection only.
      - 9 October, Jules: "Orr's orange it is". The main button wears Orr's gradient with dark text,
@@ -21,7 +21,7 @@
      - --text-faint (2.8-3.0:1, it failed AA) is gone; --ink-3 is 5.6:1 on paper, 6.4:1 at night.
      - One family, Figtree, with tabular figures for times and money. No UI mono.
      - Three radii instead of eighteen.
-     - 9 October, Jules: "boxes a bit more separated" made things easier to find in Basalt. Content
+     - 9 October, Jules: "boxes a bit more separated" made things easier to find in Orrama. Content
        now sits in white boxes (--surface, --card-line, --shadow-card) on a deeper paper ground.
        Category colours go only on boxes: on the ground they would measure 2.8-2.9:1.
 

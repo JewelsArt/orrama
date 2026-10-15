@@ -4,7 +4,7 @@
  * Inbound — subscribe to any ICS URL (Google Calendar's "secret address in
  * iCal format", Outlook, Apple, university timetables). Events render in the
  * Planning grid as a read-only layer, visible only to the feed's owner: an
- * external calendar is personal by default, unlike Basalt events.
+ * external calendar is personal by default, unlike Orrama events.
  *
  * Outbound — every user can mint a private feed URL of their own blocks +
  * events and subscribe to it from Google/Apple/phone. The token is the whole
@@ -255,6 +255,6 @@ export async function icsRoutes(app: FastifyInstance, db: Db, store: VaultStore)
 
     reply.header("content-type", "text/calendar; charset=utf-8");
     reply.header("cache-control", "private, max-age=300");
-    return buildIcs(`Basalt — ${user.displayName}`, items);
+    return buildIcs(`Orrama — ${user.displayName}`, items);
   });
 }

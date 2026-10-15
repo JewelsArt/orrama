@@ -13,8 +13,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-"));
-process.env.ORRAMA_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-typical-vault-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-typical-"));
+process.env.ORRAMA_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-typical-vault-"));
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 // The startup guard refuses placeholder secrets everywhere now, not just
 // under NODE_ENV=production, so the suite has to carry a real-shaped one too.
@@ -60,7 +60,7 @@ beforeAll(async () => {
   const res = await app.inject({
     method: "POST",
     url: "/api/auth/login",
-    payload: { email: "jules@basalt.dev", password: "basalt-demo" },
+    payload: { email: "jules@orrama.dev", password: "orrama-demo" },
   });
   token = res.json().token;
 });

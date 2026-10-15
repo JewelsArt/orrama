@@ -13,7 +13,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const OLD = "test-secret-key-0123456789abcdef";
 const NEW = "new-secret-key-0123456789abcdef!!";
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-webhook-secrets-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-webhook-secrets-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = OLD;

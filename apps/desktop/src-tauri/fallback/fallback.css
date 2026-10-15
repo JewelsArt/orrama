@@ -1,4 +1,4 @@
-/* The page the desktop window shows until Basalt's server answers (lib.rs).
+/* The page the desktop window shows until Orrama's server answers (lib.rs).
    Values copied from packages/ui/src/tokens.css (paper by day, night blue after
    dark: --ground, --surface, --card-line, --ink, --ink-2) — this page cannot
    load them from the server it is waiting for. System font: nothing loads from

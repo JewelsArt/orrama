@@ -1,5 +1,5 @@
 /**
- * Leak tests for the day Basalt has a second account (audit wave S12). Each one
+ * Leak tests for the day Orrama has a second account (audit wave S12). Each one
  * is the §5 permission model over real HTTP on the seeded workspace — jules
  * owns it, erin is in engineering, mara in marketing, and mara cannot read
  * `Engineering/` — and asserts one leak per test. Release-blocking, like the
@@ -16,7 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-acl-s12-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-acl-s12-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -52,7 +52,7 @@ const put = (who: string, notePath: string, content: string, extra: Record<strin
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin", "mara"]) {
-    const res = await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } });
+    const res = await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } });
     expect(res.statusCode).toBe(200);
     tokens[who] = res.json().token;
   }

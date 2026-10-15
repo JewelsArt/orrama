@@ -22,7 +22,7 @@ vi.mock("../noteSync.js", () => ({ openNoteSync: () => null, retire: () => {} })
 
 const ines = { id: "n-ines", name: "Ines Vermaat", path: "Contacts/Ines Vermaat.md", sector: "University", role: "Thesis supervisor", company: "[[Westerdok]]", email: "ines@westerdok.example", phone: "", linkedin: "", personal: false };
 const thijs = { ...ines, id: "n-thijs", name: "Thijs Brouwer", path: "Contacts/Thijs Brouwer.md", role: "Data lead", company: "[[Kade Social]]", email: "thijs@kadesocial.example", sector: "Other" };
-const jules = { ...ines, id: "n-jules", name: "Jules Demo", path: "Contacts/Jules Demo.md", role: "Student", company: "[[Kade Social]]", email: "jules@basalt.dev", sector: "Other" };
+const jules = { ...ines, id: "n-jules", name: "Jules Demo", path: "Contacts/Jules Demo.md", role: "Student", company: "[[Kade Social]]", email: "jules@orrama.dev", sector: "Other" };
 const pieter = { ...ines, id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", role: "Owner", company: "Bakker & Zn", email: "", sector: "Other" };
 const company = (id: string, name: string, extra = {}) => ({ id, name, path: `Contacts/Companies/${name}.md`, description: "", sector: "Marketing", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false, ...extra });
 const westerdok = company("n-westerdok", "Westerdok", { sector: "University" });
@@ -133,7 +133,7 @@ vi.mock("../api.js", async (orig) => {
 });
 
 const { EntityPage } = await import("./EntityPage.js");
-const me = { id: "u-1", username: "jules", email: "jules@basalt.dev", displayName: "Jules", isOwner: true } as never;
+const me = { id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true } as never;
 
 beforeEach(() => {
   server.calls = [];

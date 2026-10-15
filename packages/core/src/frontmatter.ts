@@ -304,7 +304,7 @@ export function stampId(content: string, id: string): IdStamp {
   if (fm.notMapping) return { ok: false, reason: "it opens with a --- block that is not a list of properties" };
   const own = fm.data["id"];
   if (own !== undefined && own !== null && typeof own !== "string") {
-    return { ok: false, reason: "its own id: is not text, and Basalt does not overwrite it" };
+    return { ok: false, reason: "its own id: is not text, and Orrama does not overwrite it" };
   }
   const out = updateFrontmatter(content, (d) => ("id" in d ? { ...d, id } : { id, ...d }));
   if (parseFrontmatter(out).data["id"] !== id || !oneLineEdit(content, out, "id" in fm.data ? null : `id: ${id}`)) {

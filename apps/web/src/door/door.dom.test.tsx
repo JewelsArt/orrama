@@ -87,7 +87,7 @@ describe("sign-in", () => {
     const onLogin = vi.fn();
     render(<Login onLogin={onLogin} />);
     type("Email", "Ines@Example.com");
-    type("Password", "basalt-demo");
+    type("Password", "orrama-demo");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith(ME));
     expect(localStorage.getItem("orrama-token")).toBe("t-1");
@@ -101,7 +101,7 @@ describe("sign-in", () => {
     const onLogin = vi.fn(() => (opened = performance.now()));
     render(<Login onLogin={onLogin} />);
     type("Email", "ines@example.com");
-    type("Password", "basalt-demo");
+    type("Password", "orrama-demo");
     const t0 = performance.now();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     expect((await screen.findByText("Your notes are all here.")).textContent).toBeTruthy();
@@ -157,10 +157,10 @@ describe("lock", () => {
     // The keypad is gone, and with it the way back to it.
     expect(screen.queryByRole("button", { name: "5" })).toBeNull();
     expect(screen.queryByText("Use your passcode instead")).toBeNull();
-    type("Password", "basalt-demo");
+    type("Password", "orrama-demo");
     fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
     await waitFor(() => expect(onUnlock).toHaveBeenCalledWith(ME));
-    expect(sent("POST /api/auth/login")[0]!.body).toEqual({ email: "ines@example.com", password: "basalt-demo" });
+    expect(sent("POST /api/auth/login")[0]!.body).toEqual({ email: "ines@example.com", password: "orrama-demo" });
   });
 
   it("says a wrong password on the lock as a password", async () => {

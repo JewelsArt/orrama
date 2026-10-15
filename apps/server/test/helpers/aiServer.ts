@@ -9,7 +9,7 @@ import path from "node:path";
 import { fakeChat, type Turn } from "./fakeChat.js";
 
 export async function bootAi(name: string) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `basalt-${name}-`));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `orrama-${name}-`));
   process.env.ORRAMA_DATA_DIR = dir;
   process.env.ORRAMA_VAULT_DIR = path.join(dir, "vault");
   process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
@@ -31,7 +31,7 @@ export async function bootAi(name: string) {
 
   const tokens: Record<string, string> = {};
   for (const who of ["jules", "erin", "mara"]) {
-    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
   const call = async (who: string, method: string, url: string, payload?: object) => {
     const auth = who.startsWith("bslt_") ? who : tokens[who];

@@ -12,7 +12,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-auth-test-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-auth-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
 // falls through to ORRAMA_VAULT_DIR from the surrounding shell - which INSTALL.md
 // tells people to export - and the suite writes its demo notes into the real

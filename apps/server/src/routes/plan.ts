@@ -141,7 +141,7 @@ type Team = { id: string; slug: string; name: string; color: string };
  *
  * Split out of the route because three surfaces need the same numbers — the
  * Planning backlog, the auto-scheduler below, and the team-scoped endpoint the
- * permission tests pin. `team` is optional: Basalt is one user with one vault,
+ * permission tests pin. `team` is optional: Orrama is one user with one vault,
  * so the tab asks for the whole plan and the team form survives for the ACL
  * tests that assert a non-member cannot read another team's work.
  */

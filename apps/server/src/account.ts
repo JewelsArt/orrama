@@ -3,8 +3,8 @@
  *
  *   pnpm --dir apps/server account
  *
- * Exists because the seeded demo accounts (jules/erin/mara @basalt.dev, password
- * "basalt-demo") are credentials committed to the repo. Anyone who ran `seed` to
+ * Exists because the seeded demo accounts (jules/erin/mara @orrama.dev, password
+ * "orrama-demo") are credentials committed to the repo. Anyone who ran `seed` to
  * get started needs a way to turn one into a real account without hand-editing
  * SQLite, and a way back in after forgetting a password.
  *

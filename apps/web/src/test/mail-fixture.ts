@@ -50,7 +50,7 @@ export const MESSAGES: Record<number, MailMessage> = {
     uid: 101,
     from: "i.vermaat@westerdok.example",
     fromName: "Ines Vermaat",
-    to: "jules@basalt.dev",
+    to: "jules@orrama.dev",
     subject: "Re: Research plan — section 3",
     date: "2026-10-08T08:01:00.000Z",
     text: "Thanks for the draft. Section 3 reads much better now.",
@@ -62,7 +62,7 @@ export const MESSAGES: Record<number, MailMessage> = {
     uid: 102,
     from: "camille@tulp.example",
     fromName: "Camille Dubois",
-    to: "jules@basalt.dev",
+    to: "jules@orrama.dev",
     subject: "October report: one question about BE reach",
     date: "2026-10-08T05:43:00.000Z",
     text: "One question about BE reach before Friday.",
@@ -74,7 +74,7 @@ export const MESSAGES: Record<number, MailMessage> = {
     uid: 103,
     from: "news@oostrunners.example",
     fromName: "Oost Runners",
-    to: "jules@basalt.dev",
+    to: "jules@orrama.dev",
     subject: "Taper week: this Wednesday's session",
     date: "2026-10-06T07:00:00.000Z",
     text: "",
@@ -127,12 +127,12 @@ export function stubMailbox(overrides: Record<string, () => Response> = {}) {
     const own = overrides[`${method} ${path}`];
     if (own) return own();
     if (method === "GET" && path === "/api/mail/account")
-      return json({ connected: true, email: "jules@basalt.dev", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null });
-    if (method === "GET" && path === "/api/mail/inbox") return json({ email: "jules@basalt.dev", messages: INBOX.map((m) => ({ ...m })) });
+      return json({ connected: true, email: "jules@orrama.dev", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null });
+    if (method === "GET" && path === "/api/mail/inbox") return json({ email: "jules@orrama.dev", messages: INBOX.map((m) => ({ ...m })) });
     if (method === "GET" && path === "/api/mail/drafts") return json(drafts);
     const msg = /^\/api\/mail\/message\/(\d+)$/.exec(path);
     if (method === "GET" && msg) return MESSAGES[Number(msg[1])] ? json(MESSAGES[Number(msg[1])]) : json({ error: "message not found" }, 404);
-    if (method === "POST" && path === "/api/mail/send") return json({ ok: true, messageId: "<sent@basalt.dev>" });
+    if (method === "POST" && path === "/api/mail/send") return json({ ok: true, messageId: "<sent@orrama.dev>" });
     const del = /^\/api\/mail\/drafts\/(.+)$/.exec(path);
     if (method === "DELETE" && del) {
       drafts = drafts.filter((d) => d.id !== del[1]);

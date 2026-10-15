@@ -13,7 +13,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Node = { id: string; label?: string };
-type Edge = { id: string; fromNode: string; toNode: string; basaltSuggested?: boolean; label?: string };
+type Edge = { id: string; fromNode: string; toNode: string; orramaSuggested?: boolean; label?: string };
 const server = vi.hoisted(() => ({
   puts: [] as { url: string; body: { nodes: Node[]; edges: Edge[] } }[],
   posts: [] as { url: string; body: Record<string, unknown> }[],
@@ -50,7 +50,7 @@ const SUGGESTED = {
     { id: "a", type: "file", file: `${files}Reach NL vs FR.png`, x: 0, y: 0, width: 222, height: 46 },
     { id: "b", type: "file", file: `${files}Hyndman 2021.pdf`, x: 400, y: 0, width: 222, height: 46 },
   ],
-  edges: [{ id: "e-1", fromNode: "a", toNode: "b", basaltSuggested: true, label: "Both use the same method" }],
+  edges: [{ id: "e-1", fromNode: "a", toNode: "b", orramaSuggested: true, label: "Both use the same method" }],
   canEdit: true,
 };
 const w = { slug: "thesis", noteId: "n-1", path: "04-Projects/thesis.md", files: [], canEdit: true, tasks: [] } as never;

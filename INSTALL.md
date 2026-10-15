@@ -121,8 +121,8 @@ pnpm --dir apps/server dev      # http://127.0.0.1:4627, dev secrets allowed
 
 `seed` and `dev` are a scratch install: they keep their database and vault in
 `apps/server/data-dev`, never in `apps/server/data`, and `dev` listens on 4627,
-not 4623. The demo accounts (`jules` / `erin` / `mara` `@basalt.dev`, password
-`basalt-demo`) have passwords printed in the source, so they are a way to look
+not 4623. The demo accounts (`jules` / `erin` / `mara` `@orrama.dev`, password
+`orrama-demo`) have passwords printed in the source, so they are a way to look
 around, not an account. `seed` refuses a vault that already holds notes.
 
 ### 5. Set up quick unlock (optional)

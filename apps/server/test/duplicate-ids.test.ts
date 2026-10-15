@@ -1,5 +1,5 @@
 /**
- * One note id, one file (audit item 11). A note copied outside Basalt carries
+ * One note id, one file (audit item 11). A note copied outside Orrama carries
  * the original's `id: n-…`, and the id keys everything: the index, the notes
  * table, task objects, calendar blocks, the Y.Doc history. Before this, a
  * live copy took all of it over — the tree lost the original, a task ticked
@@ -17,7 +17,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-dup-ids-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-dup-ids-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -53,7 +53,7 @@ const api = async (method: string, url: string, body?: unknown) => {
 };
 const boot = async () => {
   built = await buildServer();
-  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
 };
 const until = async (ok: () => boolean) => {
   for (let i = 0; i < 100 && !ok(); i++) await sleep(50);
@@ -166,7 +166,7 @@ describe("a copy written over another note", () => {
   });
 });
 
-describe("a new note written through Basalt with another note's id", () => {
+describe("a new note written through Orrama with another note's id", () => {
   it("is given its own", async () => {
     const PASTED = "Engineering/Pasted.md";
     const res = await api("PUT", "/api/vault/note", { path: PASTED, content: read(ORIG) });
@@ -211,7 +211,7 @@ describe("a copy made while the server is down", () => {
   });
 });
 
-describe("a note renamed outside Basalt keeps its id", () => {
+describe("a note renamed outside Orrama keeps its id", () => {
   // A rename is unlink(old) + add(new), and nothing promises the order.
   // Driven by hand with the watcher stopped, so each order really happens.
   const drive = (event: string, rel: string) =>

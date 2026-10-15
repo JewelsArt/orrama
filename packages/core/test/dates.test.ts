@@ -4,7 +4,7 @@
  * correct code agree on every input.
  *
  * Node re-reads `process.env.TZ` on assignment, so each block can stand in a
- * different place. Amsterdam is where Basalt actually runs; Auckland is the
+ * different place. Amsterdam is where Orrama actually runs; Auckland is the
  * other sign, where the UTC date is a day BEHIND for half the waking day.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";

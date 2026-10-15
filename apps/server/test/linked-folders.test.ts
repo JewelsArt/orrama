@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-linked-"));
+const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-linked-"));
 process.env.ORRAMA_DATA_DIR = ROOT;
 process.env.ORRAMA_VAULT_DIR = path.join(ROOT, "vault");
 const VAULT = process.env.ORRAMA_VAULT_DIR;

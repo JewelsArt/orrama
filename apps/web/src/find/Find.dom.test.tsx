@@ -40,7 +40,7 @@ vi.mock("../api.js", async (orig) => {
 });
 
 const { Find } = await import("./Find.js");
-const me = { id: "u-1", username: "jules", email: "jules@basalt.dev", displayName: "Jules", isOwner: true } as never;
+const me = { id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true } as never;
 
 let props: { onClose: ReturnType<typeof vi.fn>; onTheme: ReturnType<typeof vi.fn>; onCapture: ReturnType<typeof vi.fn>; onAsk: ReturnType<typeof vi.fn> };
 beforeEach(() => {

@@ -276,7 +276,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   });
 
   // ── WebAuthn (Touch ID) ──────────────────────────────────────────────────────
-  // A self-hosted Basalt is reached at localhost, 127.0.0.1 or a real domain, and
+  // A self-hosted Orrama is reached at localhost, 127.0.0.1 or a real domain, and
   // WebAuthn treats those as different relying parties: a credential enrolled on
   // one will not verify on another, which is the spec working correctly.
   const rp = (req: { headers: Record<string, unknown> }) => webauthnOrigin(req.headers, env.publicOrigins);
@@ -317,7 +317,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .all();
     const { rpID } = rp(req as never);
     const options = await generateRegistrationOptions({
-      rpName: "Basalt",
+      rpName: "Orrama",
       rpID,
       userID: new TextEncoder().encode(user.id),
       userName: user.email,

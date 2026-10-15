@@ -1,5 +1,5 @@
 /**
- * export.ts — everything Basalt holds that is not in the vault, in one folder.
+ * export.ts — everything Orrama holds that is not in the vault, in one folder.
  *
  *   pnpm --dir apps/server export [folder]
  *
@@ -8,7 +8,7 @@
  * descriptions and comments, assignees and planned dates, project overrides,
  * mail drafts, the AI settings and agent instructions, API tokens, webhooks,
  * calendar feeds, Touch ID devices, note history (audit B10: "there is no
- * export"). Writes `basalt-export-<time>/` holding:
+ * export"). Writes `orrama-export-<time>/` holding:
  *
  *   basalt.db     an exact snapshot (SQLite's online backup, safe while the
  *                 server runs) — restoring it brings all of the above back
@@ -47,7 +47,7 @@ export function webhookHint(url: string): string {
 }
 import { isEntry } from "./entry.js";
 
-export const EXPORT_FORMAT = { name: "basalt-export", version: 1 } as const;
+export const EXPORT_FORMAT = { name: "orrama-export", version: 1 } as const;
 
 /** Local time, as the person running it reads a clock: 20261001-1429. */
 const stamp = (d: Date) => {
@@ -64,7 +64,7 @@ export interface ExportResult {
   counts: Record<string, number>;
 }
 
-export async function exportBasalt(opts: { into?: string; db?: string; vault?: string; now?: Date } = {}): Promise<ExportResult> {
+export async function exportOrrama(opts: { into?: string; db?: string; vault?: string; now?: Date } = {}): Promise<ExportResult> {
   const source = opts.db ?? dbPath();
   if (!fs.existsSync(source)) throw new Error(`no database at ${source}`);
   const parent = path.resolve(opts.into ?? path.join(env.dataDir, "exports"));
@@ -72,7 +72,7 @@ export async function exportBasalt(opts: { into?: string; db?: string; vault?: s
   if (inside(parent, vault)) throw new Error(`refusing to export into the vault (${vault}): the snapshot holds hashes and encrypted secrets`);
 
   const now = opts.now ?? new Date();
-  const dir = path.join(parent, `basalt-export-${stamp(now)}`);
+  const dir = path.join(parent, `orrama-export-${stamp(now)}`);
   if (fs.existsSync(dir)) throw new Error(`${dir} already exists`);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
 
@@ -115,7 +115,7 @@ export async function exportBasalt(opts: { into?: string; db?: string; vault?: s
       format: EXPORT_FORMAT.name,
       formatVersion: EXPORT_FORMAT.version,
       exportedAt: now.toISOString(),
-      basaltVersion: readVersion(),
+      orramaVersion: readVersion(),
       schemaVersion: Number(sqlite.pragma("user_version", { simple: true })) || SCHEMA_VERSION,
       workspace: {
         name: ws?.name ?? null,
@@ -187,10 +187,10 @@ function readVersion(): string | null {
 }
 
 function readme(at: string, source: string, vault: string): string {
-  return `Basalt export — ${at}
+  return `Orrama export — ${at}
 
 What is here
-  basalt.db     An exact copy of Basalt's database at that moment: accounts,
+  basalt.db     An exact copy of Orrama's database at that moment: accounts,
                 team grants, task descriptions and comments, assignees and
                 planned dates, project settings, mail drafts, AI settings and
                 instructions, API tokens, webhooks, calendar feeds, Touch ID
@@ -208,10 +208,10 @@ What is not here
   written in the notes come back from the files themselves.
 
 Restoring
-  1. Stop Basalt (launchd: launchctl bootout gui/$(id -u)/dev.basalt.server).
+  1. Stop Orrama (launchd: launchctl bootout gui/$(id -u)/dev.basalt.server).
   2. Copy basalt.db over ${source}
      and delete basalt.db-wal and basalt.db-shm beside it if they exist.
-  3. Start Basalt again. It re-reads the vault on boot.
+  3. Start Orrama again. It re-reads the vault on boot.
   The encrypted values (mail password, AI key, feed URLs) only decrypt with
   the same ORRAMA_SECRET_KEY this server was running with.
 
@@ -221,7 +221,7 @@ Keep this folder private: basalt.db holds password hashes and encrypted secrets.
 
 if (isEntry(import.meta.url, process.argv[1])) {
   try {
-    const { dir, counts } = await exportBasalt({ into: process.argv[2] });
+    const { dir, counts } = await exportOrrama({ into: process.argv[2] });
     console.log(`Exported to ${dir}`);
     for (const [k, v] of Object.entries(counts)) console.log(`  ${k.padEnd(18)} ${v}`);
   } catch (err) {

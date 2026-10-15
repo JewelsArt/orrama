@@ -1,16 +1,16 @@
 /**
- * A note Basalt creates and something outside deletes a moment later leaves
+ * A note Orrama creates and something outside deletes a moment later leaves
  * the index. The create (our atomic rename) and the delete can reach chokidar
  * as one coalesced fs event; by the time chokidar looks the file is gone, so
  * it reported neither "add" nor "unlink" and the note stayed listed — seen
- * when a test deleted a calendar note right after Basalt wrote it.
+ * when a test deleted a calendar note right after Orrama wrote it.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-vanishing-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-vanishing-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -28,14 +28,14 @@ beforeAll(async () => {
   fs.mkdirSync(vault, { recursive: true });
   await import("../src/seed.js");
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
 });
 afterAll(async () => {
   await b.app.close();
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
-it("a note written by Basalt and deleted at once outside it leaves the index", async () => {
+it("a note written by Orrama and deleted at once outside it leaves the index", async () => {
   const rels = [0, 1, 2, 3, 4].map((i) => `Shared/Fleeting ${i}.md`);
   for (const rel of rels) {
     const put = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: rel, content: "# Fleeting\n" } });

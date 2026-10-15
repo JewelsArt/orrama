@@ -67,7 +67,7 @@ vi.mock("../api.js", async (orig) => {
 });
 
 const { Noticed } = await import("./Noticed.js");
-const me = { id: "u-1", username: "jules", email: "jules@basalt.dev", displayName: "Jules", isOwner: true } as never;
+const me = { id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true } as never;
 const writes = () => server.calls.filter((c) => c.method !== "GET");
 const list = () => screen.getByRole("list", { name: "What needs a look" });
 const item = (text: RegExp) => within(list()).getAllByRole("listitem").find((li) => text.test(li.textContent ?? ""))!;

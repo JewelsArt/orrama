@@ -103,7 +103,7 @@ const msg: MailMessage = {
   uid: 7,
   from: "i.vermaat@westerdok.example",
   fromName: "Ines Vermaat",
-  to: "jules@basalt.dev",
+  to: "jules@orrama.dev",
   subject: "Research plan",
   date: new Date(2026, 9, 8, 10, 1).toISOString(),
   text: "Two things before Friday.",

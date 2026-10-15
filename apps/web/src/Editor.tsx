@@ -144,7 +144,7 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
     });
     viewRef.current = view;
     const onLink = (e: Event) => onFollowLinkRef.current?.((e as CustomEvent<string>).detail);
-    view.dom.addEventListener("basalt-open-link", onLink);
+    view.dom.addEventListener("orrama-open-link", onLink);
 
     // Someone else's edit, merged by the sync into what you are typing. Applied
     // as the changed lines only, so the caret and selection map through it,
@@ -159,7 +159,7 @@ export function Editor({ noteId, content, readOnly, completions, onChange, onFol
     });
     return () => {
       detach?.();
-      view.dom.removeEventListener("basalt-open-link", onLink);
+      view.dom.removeEventListener("orrama-open-link", onLink);
       view.destroy();
     };
     // Recreate the editor per note (content prop is initial-only after that).

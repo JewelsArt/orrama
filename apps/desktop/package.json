@@ -1,7 +1,7 @@
 {
   "name": "@orrama/desktop",
   "version": "0.1.0",
-  "description": "Basalt desktop shell (Tauri 2): a native window on the local Basalt server.",
+  "description": "Orrama desktop shell (Tauri 2): a native window on the local Orrama server.",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {

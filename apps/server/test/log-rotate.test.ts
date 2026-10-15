@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { rotateLogIfLarge } from "../src/logging.js";
 import { POSIX_MODES } from "./helpers/platform.js";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-logrotate-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-logrotate-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 /**

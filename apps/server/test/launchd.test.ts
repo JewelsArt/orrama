@@ -17,7 +17,7 @@ import { envProblems } from "../src/env.js";
 import { SIGNAL_HANDLERS } from "./helpers/platform.js";
 
 const root = path.resolve(import.meta.dirname, "../../..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-launchd-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-launchd-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 const plist = fs.readFileSync(path.join(root, "scripts/dev.basalt.server.plist"), "utf8");

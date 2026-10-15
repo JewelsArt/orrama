@@ -70,7 +70,7 @@ jobs:
 
       - run: pnpm --dir apps/web build
 
-  # macOS is where Basalt actually runs day to day, and it is the only place the
+  # macOS is where Orrama actually runs day to day, and it is the only place the
   # darwin-arm64 native bindings (better-sqlite3, @node-rs/argon2) get exercised.
   # It costs 10x the minutes of a Linux runner on a private repo, so it runs on
   # pushes to the two branches that ship — sep-2026-redesign is the one

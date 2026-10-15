@@ -50,6 +50,6 @@ describe("third-party notices", () => {
 
   it("is part of the build", () => {
     const names = (config as { plugins: unknown[] }).plugins.flat().map((p) => (p as { name?: string })?.name);
-    expect(names).toContain("basalt-license-notices");
+    expect(names).toContain("orrama-license-notices");
   });
 });

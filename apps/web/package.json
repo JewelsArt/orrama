@@ -1,7 +1,7 @@
 {
   "name": "@orrama/web",
   "version": "0.1.0",
-  "description": "Basalt web client — the same workspace in the browser (spec §2).",
+  "description": "Orrama web client — the same workspace in the browser (spec §2).",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {

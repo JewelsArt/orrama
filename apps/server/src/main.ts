@@ -111,7 +111,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   const db = createDb();
   // Single-workspace server (spec §3): one company, one vault, one container.
   if (db.select().from(tables.workspace).all().length === 0) {
-    db.insert(tables.workspace).values({ id: `w-${crypto.randomUUID().slice(0, 8)}`, name: "Basalt Workspace" }).run();
+    db.insert(tables.workspace).values({ id: `w-${crypto.randomUUID().slice(0, 8)}`, name: "Orrama Workspace" }).run();
   }
   const store = new VaultStore(db);
   store.load();
@@ -151,9 +151,9 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
    *   policy (the two intersect), so "Show images" needs remote images here.
    * - blob: the document reader shows PDFs and images from object URLs.
    * - frame-ancestors 'self', not 'none': a blob: document INHERITS this
-   *   policy, so with 'none' the PDF refused to be framed by Basalt itself and
+   *   policy, so with 'none' the PDF refused to be framed by Orrama itself and
    *   every PDF and payslip in the desktop app (WebKit) went blank from 25 Sep.
-   *   'self' still stops any other site framing Basalt. Found by bisecting the
+   *   'self' still stops any other site framing Orrama. Found by bisecting the
    *   policy in a WKWebView; Chrome showed nothing wrong.
    * - connect 'self' covers the same-origin WebSocket.
    * Not on /api: JSON is never rendered as a document, so a CSP there does nothing.

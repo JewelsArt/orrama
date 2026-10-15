@@ -43,7 +43,7 @@ describe("reading", () => {
   });
 
   it("get_dashboard for a team the token's owner is not in is an error, not an empty board", async () => {
-    await expect(mcp.tool("get_dashboard", { teamSlug: "no-such-team" })).rejects.toThrow(/Basalt API error \(40[34]\)/);
+    await expect(mcp.tool("get_dashboard", { teamSlug: "no-such-team" })).rejects.toThrow(/Orrama API error \(40[34]\)/);
   });
 
   it("get_contacts lists the workspace's people", async () => {
@@ -90,7 +90,7 @@ describe("tasks", () => {
 
   it("a task named by text that matches nothing is refused, and the note is unchanged", async () => {
     const before = file("Shared/Errands.md");
-    await expect(mcp.tool("check_task", { noteId: errands.id, text: "paint the shed", checked: true })).rejects.toThrow(/Basalt API error \(409\)/);
+    await expect(mcp.tool("check_task", { noteId: errands.id, text: "paint the shed", checked: true })).rejects.toThrow(/Orrama API error \(409\)/);
     expect(file("Shared/Errands.md")).toBe(before);
   });
 });

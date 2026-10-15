@@ -63,10 +63,10 @@ describe("personal data", () => {
     expect(hits).toEqual([]);
   });
 
-  it("the guides name no account: only the demo's @basalt.dev and example domains", () => {
+  it("the guides name no account: only the demo's @orrama.dev and example domains", () => {
     for (const f of ["CLAUDE.md", "README.md", "INSTALL.md"]) {
       const addresses = [...text(f).matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z]{2,})+/g)].map((m) => m[0]);
-      expect(addresses.filter((a) => !/@(basalt\.dev|example\.(com|org|net))$/i.test(a)), f).toEqual([]);
+      expect(addresses.filter((a) => !/@(orrama\.dev|example\.(com|org|net))$/i.test(a)), f).toEqual([]);
     }
   });
 

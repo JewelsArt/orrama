@@ -8,7 +8,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultBoard, fileRef, normalizeBoard, placeMissing } from "../src/board.js";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-board-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-board-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -39,7 +39,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   app = (await buildServer()).app;
   for (const who of ["jules", "erin"]) {
-    token[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    token[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
 });
 
@@ -66,14 +66,22 @@ describe("board rules", () => {
     const b = normalizeBoard({
       nodes: [card("a", "guide.pdf"), card("b", "draft.docx"), { id: "g", type: "group", label: "Box", x: 0, y: 0, width: 400, height: 200 }],
       edges: [
-        { id: "e1", fromNode: "a", toNode: "b", label: "rules for", basaltSuggested: true },
+        { id: "e1", fromNode: "a", toNode: "b", label: "rules for", orramaSuggested: true },
         { id: "e2", fromNode: "b", toNode: "a" }, // same pair, other way
         { id: "e3", fromNode: "a", toNode: "g" },
         { id: "e4", fromNode: "a", toNode: "a" },
         { id: "e5", fromNode: "a", toNode: "zzz" },
       ],
     }, "plan", files);
-    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", label: "rules for", basaltSuggested: true }]);
+    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", label: "rules for", orramaSuggested: true }]);
+  });
+
+  it("reads a link saved as basaltSuggested before the rename as suggested, and saves it under the new name (R13)", () => {
+    const b = normalizeBoard({
+      nodes: [card("a", "guide.pdf"), card("b", "draft.docx")],
+      edges: [{ id: "e1", fromNode: "a", toNode: "b", basaltSuggested: true }],
+    }, "plan", files);
+    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", orramaSuggested: true }]);
   });
 
   it("gives every new file a card below the board, and a new project one box", () => {

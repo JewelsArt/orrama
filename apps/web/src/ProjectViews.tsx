@@ -166,7 +166,7 @@ const mondayOf = (iso: string) => {
   const n = dayNum(iso);
   return n - ((new Date(n * DAY).getUTCDay() + 6) % 7);
 };
-/** Which projects have the Gantt open under their Timeline (the old board kept a JSON list of names under basalt-gantt). */
+/** Which projects have the Gantt open under their Timeline: their slugs, one per line. */
 const GANTT_KEY = "orrama-proj-gantt";
 
 export function ProjectTimeline({ w, lane, onChanged, onOpenNote }: { w: ProjectWorkspace; lane?: string; onChanged: () => Promise<void>; onOpenNote: (id: string) => void }) {
@@ -747,7 +747,7 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
     setRenaming(g.id);
   };
 
-  const suggestions = board.edges.filter((e) => e.basaltSuggested);
+  const suggestions = board.edges.filter((e) => e.orramaSuggested);
   const q = query.trim().toLowerCase();
 
   // Connectors run between the facing edges of two cards, never centre to centre.
@@ -775,7 +775,7 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
   const lit = (e: BoardEdge) => !!focus && (e.fromNode === focus || e.toNode === focus);
   const edgeClick = (ev: React.MouseEvent, e: BoardEdge) => {
     if (!editable) return;
-    if (e.basaltSuggested) {
+    if (e.orramaSuggested) {
       if (ev.shiftKey) accept(e.id);
       else setTip(e.id);
     } else drop(e.id);
@@ -784,7 +784,7 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
     const n = board.nodes.find((x) => x.id === id);
     return n?.type === "file" ? nameOf(n).replace(/\.[^.]+$/, "") : "";
   };
-  const tipEdge = tip ? board.edges.find((e) => e.id === tip && e.basaltSuggested) : undefined;
+  const tipEdge = tip ? board.edges.find((e) => e.id === tip && e.orramaSuggested) : undefined;
   const tipAt = tipEdge ? route(tipEdge).at(0.5) : null;
 
   return (
@@ -843,12 +843,12 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
               {board.edges.map((e) => {
                 const r = route(e);
                 return (
-                  <g key={e.id} className={`pj-edge${e.basaltSuggested ? " sugg" : ""}${lit(e) ? " lit" : ""}${focus && !lit(e) ? " faded" : ""}`} onClick={(ev) => edgeClick(ev, e)}>
+                  <g key={e.id} className={`pj-edge${e.orramaSuggested ? " sugg" : ""}${lit(e) ? " lit" : ""}${focus && !lit(e) ? " faded" : ""}`} onClick={(ev) => edgeClick(ev, e)}>
                     <path className="hit" d={r.d} />
                     <path className="line" d={r.d} />
                     <circle cx={r.a.x} cy={r.a.y} r={3} />
                     <circle cx={r.b.x} cy={r.b.y} r={3} />
-                    <title>{`${e.label ?? "Linked"}${e.basaltSuggested ? " (suggested by Orr)" : ""}${editable ? (e.basaltSuggested ? ". Click to decide." : ". Click to remove.") : ""}`}</title>
+                    <title>{`${e.label ?? "Linked"}${e.orramaSuggested ? " (suggested by Orr)" : ""}${editable ? (e.orramaSuggested ? ". Click to decide." : ". Click to remove.") : ""}`}</title>
                   </g>
                 );
               })}
@@ -919,7 +919,7 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
             })}
             <svg className="pj-labels" width={width} height={height} aria-hidden="true">
               {board.edges.map((e) => {
-                if (!e.label || !lit(e) || e.basaltSuggested) return null;
+                if (!e.label || !lit(e) || e.orramaSuggested) return null;
                 const m = route(e).at(e.fromNode === focus ? 0.72 : 0.28);
                 return (
                   <text key={e.id} x={m.x} y={m.y - 7} textAnchor="middle">

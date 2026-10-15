@@ -74,11 +74,11 @@ describe("works with", () => {
 
 describe("you, and how you know them", () => {
   const contacts = [
-    { id: "a", name: "Jules Demo", email: "JULES@basalt.dev" },
+    { id: "a", name: "Jules Demo", email: "JULES@orrama.dev" },
     { id: "b", name: "Jules", email: "" },
   ];
   it("you are the person note with your address, else your name", () => {
-    expect(youOf(contacts, { email: "jules@basalt.dev", displayName: "Jules" })?.id).toBe("a");
+    expect(youOf(contacts, { email: "jules@orrama.dev", displayName: "Jules" })?.id).toBe("a");
     expect(youOf(contacts, { email: "other@x.dev", displayName: "Jules" })?.id).toBe("b");
     expect(youOf(contacts, { email: "other@x.dev", displayName: "Nobody" })).toBeUndefined();
   });

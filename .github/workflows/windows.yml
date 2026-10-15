@@ -2,7 +2,7 @@
 #
 # The backup is audited on Windows, where the server suite used to fail 43 of 60
 # files on POSIX assumptions (audit OPS-003). Not on every push: a Windows
-# runner costs twice a Linux one on a private repo, and Basalt runs on macOS.
+# runner costs twice a Linux one on a private repo, and Orrama runs on macOS.
 # Run it before a release, or after touching paths, files or processes.
 name: Windows
 
@@ -51,7 +51,7 @@ jobs:
         if: success() || failure()
         shell: bash
         run: |
-          export ORRAMA_DATA_DIR="$RUNNER_TEMP/basalt-dev" ORRAMA_VAULT_DIR="$RUNNER_TEMP/basalt-dev/vault"
+          export ORRAMA_DATA_DIR="$RUNNER_TEMP/orrama-dev" ORRAMA_VAULT_DIR="$RUNNER_TEMP/orrama-dev/vault"
           mkdir -p "$ORRAMA_VAULT_DIR"
           pnpm --dir apps/server dev > "$RUNNER_TEMP/dev.log" 2>&1 &
           ok=0

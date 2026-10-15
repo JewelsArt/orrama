@@ -1,13 +1,13 @@
 /**
  * Sign in with ChatGPT: the agent runs on the owner's ChatGPT plan (Plus or
  * Pro) instead of an API key. OpenAI offers this to open-source and personal
- * apps that run locally — which Basalt is: the server on this Mac makes every
+ * apps that run locally — which Orrama is: the server on this Mac makes every
  * call (developers.openai.com/siwc, "ChatGPT plan usage for open-source and
  * locally hosted apps"). Usage comes out of the plan's weekly allowance; the
  * owner caps it per app in ChatGPT's settings.
  *
  * Implemented from the documented protocol, not OpenAI's DevKit (that code is
- * under a noncommercial licence; Basalt is Apache-2.0):
+ * under a noncommercial licence; Orrama is Apache-2.0):
  *
  *   1. start   — a PKCE authorization-code request to auth.openai.com, with
  *                `client_id=dynamic_agent_client` the first time (OpenAI
@@ -43,8 +43,8 @@ export const SIWC = {
   resource: "https://api.openai.com/v1",
   scope: "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
   dynamicClient: "dynamic_agent_client",
-  appName: "Basalt",
-  /** Where a user caps or checks what Basalt uses of their plan. */
+  appName: "Orrama",
+  /** Where a user caps or checks what Orrama uses of their plan. */
   manageUsage: "https://chatgpt.com/#settings",
 } as const;
 
@@ -83,7 +83,7 @@ function saveCredentials(db: Db, c: ChatGptCredentials): void {
   writeMeta(db, CREDS, encryptSecret(JSON.stringify(c)));
 }
 
-/** A stable id for this Basalt install, as the protocol asks: `urn:uuid:…`. */
+/** A stable id for this Orrama install, as the protocol asks: `urn:uuid:…`. */
 export function hostId(db: Db): string {
   const found = readMeta(db, HOST);
   if (found) return found;

@@ -1,5 +1,5 @@
 /**
- * One note id, one file (audit item 11). A note copied outside Basalt —
+ * One note id, one file (audit item 11). A note copied outside Orrama —
  * Obsidian's "Make a copy", a Finder duplicate, `cp`, a sync conflict copy —
  * carries the original's `id: n-…`, and everything is keyed by that id: the
  * index, the notes table, task objects, calendar blocks, the Y.Doc history.
@@ -31,7 +31,7 @@ export interface IdCandidate {
  * Which of several files carrying one id keeps it, deterministically:
  *
  * 1. the file at the path the notes table already has for the id — the one
- *    Basalt knew as this note;
+ *    Orrama knew as this note;
  * 2. else the one created first. A copy is born after its original, while
  *    mtime says little: the original is the file that keeps being edited, so
  *    a stale copy is often the one with the OLDER mtime. Skipped when any

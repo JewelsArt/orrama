@@ -264,7 +264,7 @@
 .vised-slot:hover {
   background: var(--panel);
 }
-/* Basalt's own colour is not one of the seven; the rule says so. */
+/* Orrama's own colour is not one of the seven; the rule says so. */
 .vised-sep {
   height: 1px;
   margin: 8px 6px 4px;

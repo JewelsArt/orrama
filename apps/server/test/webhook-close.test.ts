@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-hook-close-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-hook-close-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -24,7 +24,7 @@ afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force:
 
 it("a pending note.changed delivery is dropped when the app closes", async () => {
   const { app } = await buildServer();
-  const token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  const token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
   const auth = { authorization: `Bearer ${token}` };
   const hook = await app.inject({ method: "POST", url: "/api/webhooks", headers: auth, payload: { url: "http://127.0.0.1:9/hook", events: ["note.changed"] } });
   expect(hook.statusCode).toBe(200);

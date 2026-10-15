@@ -4,7 +4,7 @@
  * mammoth builds its own markup from the document, but it copies some VALUES
  * straight across — above all a hyperlink's target. A .docx whose link points
  * at `javascript:…` came out as a working `<a href="javascript:…">`, and the
- * reader renders into Basalt's own page, where one click runs with the
+ * reader renders into Orrama's own page, where one click runs with the
  * session (audit, high). The old defence was three regexes for <script> and
  * quoted on* handlers; neither is where the danger was.
  *

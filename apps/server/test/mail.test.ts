@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-mail-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-mail-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
 // falls through to ORRAMA_VAULT_DIR from the surrounding shell - which INSTALL.md
 // tells people to export - and the suite writes its demo notes into the real
@@ -46,8 +46,8 @@ beforeAll(async () => {
   const built = await buildServer();
   app = built.app;
   db = built.db;
-  for (const email of ["jules@basalt.dev", "erin@basalt.dev"]) {
-    const r = await api("POST", "/api/auth/login", undefined, { email, password: "basalt-demo" });
+  for (const email of ["jules@orrama.dev", "erin@orrama.dev"]) {
+    const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     const who = email.split("@")[0]!;
     tokens[who] = r.json().token;
     ids[who] = (await api("GET", "/api/me", tokens[who])).json().id;

@@ -1,5 +1,5 @@
 /**
- * Obsidian-style live preview for the Basalt editor. The source of truth is the
+ * Obsidian-style live preview for the Orrama editor. The source of truth is the
  * raw Markdown; this layer only decorates it. Rules:
  *  - the line your cursor is on always shows its plain source (no surprises)
  *  - frontmatter collapses to a quiet "properties" row
@@ -549,7 +549,7 @@ export function livePreview(opts: Options): Extension {
       const link = (e.target as HTMLElement).closest(".cm-wikilink");
       if (!link) return false;
       const target = link.getAttribute("data-target") ?? link.textContent ?? "";
-      view.dom.dispatchEvent(new CustomEvent("basalt-open-link", { bubbles: true, detail: target }));
+      view.dom.dispatchEvent(new CustomEvent("orrama-open-link", { bubbles: true, detail: target }));
       return true;
     },
   });

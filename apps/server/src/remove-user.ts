@@ -3,8 +3,8 @@
  *
  *   pnpm --dir apps/server remove-user
  *
- * Written for the demo accounts. `seed` creates jules/erin/mara @basalt.dev with
- * the password "basalt-demo", which is printed in this repo; anyone who seeded to
+ * Written for the demo accounts. `seed` creates jules/erin/mara @orrama.dev with
+ * the password "orrama-demo", which is printed in this repo; anyone who seeded to
  * look around and then kept the install is running with public credentials on
  * their own notes. Deleting the row by hand is not enough - fifteen columns
  * across the schema hold a user id, and a bare DELETE leaves every one dangling.

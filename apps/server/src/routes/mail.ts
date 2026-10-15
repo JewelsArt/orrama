@@ -1,5 +1,5 @@
 /**
- * In-app email (spec: see & reply without leaving Basalt; app password, no OAuth).
+ * In-app email (spec: see & reply without leaving Orrama; app password, no OAuth).
  *
  * One mail account per user, keyed on user_id — the credentials are the caller's
  * own, so every endpoint is implicitly self-scoped: you can only ever read or send
@@ -133,7 +133,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
    * keyboard. API tokens (MCP clients, scripts) and the in-app agent stage a
    * draft instead; see stageDraft and the module doc on mail_drafts.
    */
-  const sendAuth = { preHandler: [app.authenticate], config: sessionOnly("API tokens cannot send mail directly — POST /api/mail/drafts and confirm it in Basalt") };
+  const sendAuth = { preHandler: [app.authenticate], config: sessionOnly("API tokens cannot send mail directly — POST /api/mail/drafts and confirm it in Orrama") };
   app.post("/api/mail/send", sendAuth, async (req) => {
     const row = requireAccount(req.userId);
     const body = mailSendSchema.parse(req.body);

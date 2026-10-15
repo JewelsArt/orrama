@@ -161,7 +161,7 @@ function monthNote(username: string, month: string): string {
     "---",
     `# Calendar · ${MONTHS[Number(m) - 1]} ${y}`,
     "",
-    "Time blocks and events from Basalt's Planning tab. Edit a row to move it, delete it to remove it; a row with a Task link is time booked on that task.",
+    "Time blocks and events from Orrama's Planning tab. Edit a row to move it, delete it to remove it; a row with a Task link is time booked on that task.",
     "",
     HEADER,
     SEPARATOR,

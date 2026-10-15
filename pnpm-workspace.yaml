@@ -10,7 +10,7 @@ allowBuilds:
   esbuild: true
   better-sqlite3: true
 
-# Advisories reviewed and judged unreachable in Basalt (audit OPS-002). The
+# Advisories reviewed and judged unreachable in Orrama (audit OPS-002). The
 # gate is `pnpm audit --prod --audit-level=high`: it fails on any high or
 # critical advisory in a production dependency that is not listed here. A new
 # entry needs its reason, and goes when the package is bumped past the fix.
@@ -29,7 +29,7 @@ auditConfig:
     # caller's buffer. exceljs calls v4 with no buffer.
     - GHSA-w5hq-g745-h8pq
     # sprintf-js 1.0 (via mammoth > argparse): unbounded precision. argparse is
-    # mammoth's command-line parser; the library path Basalt calls never loads it.
+    # mammoth's command-line parser; the library path Orrama calls never loads it.
     - GHSA-hp3w-g68c-fv3c
     # vitest 3, @vitest/mocker, tinypool 1: development only, tests run on this
     # Mac and in CI, nothing ships. The fixes are the vitest 4 major, its own

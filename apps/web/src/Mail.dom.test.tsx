@@ -13,7 +13,7 @@ import { Toaster } from "./ui/overlays.js";
 import type { Company, Contact } from "@orrama/schema/responses";
 import { INBOX, json, stubMailbox } from "./test/mail-fixture.js";
 
-const me = { id: "u1", email: "jules@basalt.dev", displayName: "Jules" } as unknown as Me;
+const me = { id: "u1", email: "jules@orrama.dev", displayName: "Jules" } as unknown as Me;
 
 beforeEach(() => history.replaceState(null, "", "/mail"));
 
@@ -269,7 +269,7 @@ describe("Mail at its addresses", () => {
 describe("Mail when something is missing", () => {
   it("a mailbox that doesn't answer says so in words, keeps Settings a click away, and retries", async () => {
     let fail = true;
-    const { sent } = stubMailbox({ "GET /api/mail/inbox": () => (fail ? json({ error: "could not read inbox: AUTHENTICATIONFAILED Invalid credentials (Failure)" }, 502) : json({ email: "jules@basalt.dev", messages: [] })) });
+    const { sent } = stubMailbox({ "GET /api/mail/inbox": () => (fail ? json({ error: "could not read inbox: AUTHENTICATIONFAILED Invalid credentials (Failure)" }, 502) : json({ email: "jules@orrama.dev", messages: [] })) });
     const user = userEvent.setup();
     render(<Mail me={me} />);
     const notice = await screen.findByRole("alert");
@@ -304,7 +304,7 @@ describe("Mail's tabs", () => {
   it("All first; tabs that don't fit go into More; the choice is remembered", async () => {
     const cats = ["primary", "promotions", "social", "updates", "forums"] as const;
     const inbox = cats.map((category, i) => ({ ...INBOX[0]!, uid: 200 + i, subject: `In ${category}`, category, seen: category !== "forums" }));
-    stubMailbox({ "GET /api/mail/inbox": () => json({ email: "jules@basalt.dev", messages: inbox }) });
+    stubMailbox({ "GET /api/mail/inbox": () => json({ email: "jules@orrama.dev", messages: inbox }) });
     const user = userEvent.setup();
     render(<Mail me={me} />);
     const tabs = await screen.findByRole("tablist", { name: "Categories" });

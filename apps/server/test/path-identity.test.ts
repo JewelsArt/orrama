@@ -2,7 +2,7 @@
  * One path identity: the spelling on disk (audit STO-012, ACL-001, REG-006).
  *
  * APFS and NTFS are case-insensitive (and APFS normalisation-insensitive), so
- * `Shared/eng secret.md` and `Shared/Eng Secret.md` are one file. Basalt
+ * `Shared/eng secret.md` and `Shared/Eng Secret.md` are one file. Orrama
  * compared them as strings: an API write to the other spelling was judged as
  * the creation of a fresh, untagged note — past `#only/` and subfolder grants
  * — and renamed over the real file; a case-only rename in Obsidian made the
@@ -18,7 +18,7 @@ import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-path-identity-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-path-identity-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -69,7 +69,7 @@ const indexPaths = (prefix: string) =>
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "mara"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
   const warn = console.warn;
   console.warn = (...a: unknown[]) => {
@@ -220,7 +220,7 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
   });
 });
 
-describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Basalt (STO-012)", () => {
+describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", () => {
   const settle = async () => {
     await sleep(1500);
   };

@@ -61,7 +61,7 @@ export function VisionEditor({
   // A profile saved before this slot existed keeps the card it already had.
   const brand = draft.brand ?? heroFallback;
 
-  /* One row, rendered twice over: the seven categories and, below them, Basalt's
+  /* One row, rendered twice over: the seven categories and, below them, Orrama's
      own colour. Same control, different readout — a category's number is "can
      text in this hue be read", the brand's is "can the white on the balance card
      be read", because that card is the one place the colour IS the surface. */

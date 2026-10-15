@@ -1,6 +1,6 @@
 /**
  * A note whose markdown link holds a stray `%` is a note like any other: it is
- * indexed at boot, its tasks are on /api/tasks, and Basalt can save it (audit
+ * indexed at boot, its tasks are on /api/tasks, and Orrama can save it (audit
  * COR-002 — parseNote threw URIError, the note was skipped at boot and every
  * save answered 500). The parser half is packages/core/test/parse-robust.test.ts.
  */
@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-parse-robust-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-parse-robust-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -26,7 +26,7 @@ const auth = () => ({ authorization: `Bearer ${token}` });
 
 beforeAll(async () => {
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@basalt.dev", password: "basalt-demo" } })).json().token;
+  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
 });
 afterAll(async () => {
   await b.app.close();
@@ -39,7 +39,7 @@ it("is indexed at boot, with its tasks", async () => {
   expect(tasks.map((t) => t.text)).toContain("pay rent");
 });
 
-it("saves when it gains such a link in Basalt", async () => {
+it("saves when it gains such a link in Orrama", async () => {
   const res = await b.app.inject({
     method: "PUT",
     url: "/api/vault/note",

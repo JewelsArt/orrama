@@ -159,13 +159,13 @@ export const PALETTE_SLOTS = [
 ] as const;
 
 /**
- * Basalt's own colour: the logo, the accent, and the big gradient card on the
+ * Orrama's own colour: the logo, the accent, and the big gradient card on the
  * Finance page, which is the one surface in the app that is a colour rather than
  * a colour on something. Kept out of PALETTE_SLOTS because it is not a category
  * — it never appears in a legend beside the seven, and it should not be dragged
  * into their separation check.
  */
-export const BRAND_SLOT = { label: "Basalt", hint: "logo, links, balance card" } as const;
+export const BRAND_SLOT = { label: "Orrama", hint: "logo, links, balance card" } as const;
 
 export interface VisionProfile {
   id: string;
@@ -185,7 +185,7 @@ const HERO_LIFT = 0.111;
 const DEEP_STEP = { light: -0.059, dark: 0.067 };
 const ACCENT_ALPHA = { light: { soft: 10, dim: 14 }, dark: { soft: 14, dim: 18 } };
 
-/** Everything Basalt's own colour drives, from the one hex someone picked. */
+/** Everything Orrama's own colour drives, from the one hex someone picked. */
 function brandVars(brand: string, surface: string, mode: "light" | "dark"): Record<string, string> {
   const [L, C, h] = toLch(brand);
   const accent = deriveInk(brand, surface, mode);

@@ -34,7 +34,7 @@ user, one vault").
   calendar feed URLs) — run `pnpm --dir apps/server rotate-secret-key` with the
   server stopped.
 - **Log in as** the owner's own account (single user; the team model underneath
-  still exists but has no UI — ask Jules if you need it). The seeded `jules@basalt.dev` / `basalt-demo`
+  still exists but has no UI — ask Jules if you need it). The seeded `jules@orrama.dev` / `orrama-demo`
   account is what `pnpm --dir apps/server seed` creates and what the tests use —
   it is NOT the account on the running database, and trying it there is a
   rejected login, not a broken server.
@@ -1126,7 +1126,7 @@ to 4627, and `seed` refuses a vault that already holds a note.
 
 ```sh
 pnpm install
-pnpm --dir apps/server seed   # demo into apps/server/data-dev: jules/erin/mara @basalt.dev, pw basalt-demo
+pnpm --dir apps/server seed   # demo into apps/server/data-dev: jules/erin/mara @orrama.dev, pw orrama-demo
 pnpm --dir apps/server dev    # :4627, apps/server/data-dev — never the live DB
 ORRAMA_API_PORT=4627 pnpm --dir apps/web dev   # :4625, proxies /api (ws included) to the dev server
 # /dev/ui on :4625 shows every component of the design system (dev server only)

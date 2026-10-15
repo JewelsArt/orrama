@@ -12,7 +12,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-chatgpt-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-chatgpt-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -107,7 +107,7 @@ beforeAll(async () => {
   chatgpt.setKeySetForTests(createLocalJWKSet({ keys: [{ ...((await exportJWK(publicKey)) as JWK), kid: "k1", alg: "RS256" }] }));
   built = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
   // Gemini configured first: connecting ChatGPT must not lose its key.
   expect((await call("jules", "POST", "/api/admin/ai", { payload: { provider: "google", model: "gemini-2.5-flash", apiKey: GEMINI_KEY } })).status).toBe(200);
@@ -128,7 +128,7 @@ describe("starting sign-in", () => {
     const q = Object.fromEntries(a.searchParams);
     expect(q).toMatchObject({
       client_id: "dynamic_agent_client",
-      agent_name_hint: "Basalt",
+      agent_name_hint: "Orrama",
       response_type: "code",
       scope: "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
       resource: "https://api.openai.com/v1",

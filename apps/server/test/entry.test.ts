@@ -12,7 +12,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { isEntry } from "../src/entry.js";
 import { canSymlink } from "./helpers/platform.js";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-entry-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-entry-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 describe("isEntry", () => {
@@ -42,7 +42,7 @@ describe("isEntry", () => {
 describe("launching the server", () => {
   it.skipIf(!canSymlink(os.tmpdir()))("under a name that is not main.ts, it still listens instead of exiting (needs a symlink: skipped where they need admin)", async () => {
     // What a compiled build (dist/main.js) looks like to the old guard, without a build step.
-    const link = path.join(tmp, "basalt-server.ts");
+    const link = path.join(tmp, "orrama-server.ts");
     fs.symlinkSync(path.resolve(import.meta.dirname, "../src/main.ts"), link);
     const data = fs.mkdtempSync(path.join(tmp, "data-"));
     const child = spawn(process.execPath, ["--import", "tsx", link], {

@@ -14,7 +14,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-plan-scope-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-plan-scope-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -41,7 +41,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   app = (await buildServer()).app;
   for (const who of ["jules", "erin"]) {
-    const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } });
+    const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } });
     tokens[who] = r.json().token;
   }
   const put = (p: string, content: string) => call("jules", "PUT", "/api/vault/note", { path: p, content });

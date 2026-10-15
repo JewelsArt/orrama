@@ -2,7 +2,7 @@
   "name": "orrama",
   "private": true,
   "version": "0.1.0",
-  "description": "Basalt \u2014 a personal knowledge and life OS on plain Markdown files, read and written live alongside Obsidian.",
+  "description": "Orrama \u2014 a personal knowledge and life OS on plain Markdown files, read and written live alongside Obsidian.",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.9.0",
   "engines": {

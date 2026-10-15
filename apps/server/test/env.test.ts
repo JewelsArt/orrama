@@ -10,7 +10,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { assertValidEnv, envProblems } from "../src/env.js";
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-env-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-env-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 const good = {
   ORRAMA_JWT_SECRET: "a".repeat(64),

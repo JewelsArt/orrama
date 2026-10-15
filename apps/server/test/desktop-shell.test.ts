@@ -5,9 +5,9 @@
  *
  * Its only window loaded http://localhost:4623 directly, so the CSP Tauri
  * injects, the bundled web build and the dev URL applied to nothing, and
- * whatever held port 4623 was shown as Basalt. Now the window opens on a
+ * whatever held port 4623 was shown as Orrama. Now the window opens on a
  * bundled page and moves to the server only when /api/health answers the way
- * Basalt does (`is_basalt` in lib.rs, unit-tested by `cargo test`).
+ * Orrama does (`is_orrama` in lib.rs, unit-tested by `cargo test`).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -35,7 +35,7 @@ describe("desktop shell", () => {
     expect(win!.url).toBe("index.html"); // a page Tauri serves, not an external URL
     expect(Object.keys(conf.build)).toEqual(["frontendDist"]); // no dev URL or web build that nothing shows
     const dist = path.join(shell, conf.build.frontendDist!);
-    expect(fs.readFileSync(path.join(dist, "index.html"), "utf8")).toMatch(/Basalt isn.t running/);
+    expect(fs.readFileSync(path.join(dist, "index.html"), "utf8")).toMatch(/Orrama isn.t running/);
     // The bundled page loads nothing from anywhere else, and runs no script.
     const csp = conf.app.security.csp;
     expect(csp).toMatch(/default-src 'self'/);
@@ -43,11 +43,11 @@ describe("desktop shell", () => {
     expect(fs.readdirSync(dist).filter((f) => f.endsWith(".js"))).toEqual([]);
   });
 
-  it("moves to the server only once it answers as Basalt", () => {
+  it("moves to the server only once it answers as Orrama", () => {
     const src = rust();
-    expect(src).toMatch(/if basalt_answers\(\) \{\s*let _ = window\.navigate\(server\);/);
+    expect(src).toMatch(/if orrama_answers\(\) \{\s*let _ = window\.navigate\(server\);/);
     expect(src).toMatch(/const SERVER: &str = "http:\/\/localhost:4623";/);
-    expect(src).toMatch(/fn is_basalt\(response: &str\) -> bool/);
+    expect(src).toMatch(/fn is_orrama\(response: &str\) -> bool/);
     expect(src).toMatch(/#\[test\]\s*fn refuses_anything_else/);
   });
 });

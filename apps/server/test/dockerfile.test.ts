@@ -18,7 +18,7 @@ import { afterAll, describe, expect, it } from "vitest";
 const root = path.resolve(import.meta.dirname, "../../..");
 const read = (f: string) => fs.readFileSync(path.join(root, f), "utf8");
 const lines = (f: string) => read(f).split(/\r?\n/);
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-docker-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-docker-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 describe("Dockerfile", () => {
@@ -39,7 +39,7 @@ describe("Dockerfile", () => {
     expect(runtime).toMatch(/chown node:node \/data$/m);
     expect(runtime).not.toMatch(/chown[^\n]*\/app/);
     expect(runtime).not.toMatch(/^USER /m); // the entrypoint drops to node
-    expect(runtime).toMatch(/^ENTRYPOINT \["basalt-entrypoint"\]$/m);
+    expect(runtime).toMatch(/^ENTRYPOINT \["orrama-entrypoint"\]$/m);
     expect(runtime).toMatch(/^HEALTHCHECK /m);
     expect(runtime).not.toMatch(/corepack|pnpm install/);
     expect(read("Dockerfile")).toMatch(/corepack prepare pnpm@11\.9\.0 /);
@@ -104,7 +104,7 @@ describe(".dockerignore", () => {
       "data/basalt.db",
       "data/basalt.db-wal",
       "data/vault/Secret.md",
-      "data/exports/basalt-export-1/export.json",
+      "data/exports/orrama-export-1/export.json",
       "apps/server/data/basalt.db",
       "apps/server/data-dev/vault/Welcome.md",
       "apps/server/x.db",

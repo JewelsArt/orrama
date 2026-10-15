@@ -13,7 +13,7 @@ import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-home-booked-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-home-booked-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -38,7 +38,7 @@ const today = isoLocal(new Date());
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@basalt.dev`, password: "basalt-demo" } })).json().token;
+    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
   }
   const work = b.store.index.getByPath("Shared/Work.md")!.id;
   const book = async (who: string, text: string, startMin: number) => {

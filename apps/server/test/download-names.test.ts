@@ -13,7 +13,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WINDOWS } from "./helpers/platform.js";
 
-process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "basalt-download-names-"));
+process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-download-names-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
@@ -48,7 +48,7 @@ beforeAll(async () => {
   await b.app.listen({ port: 0, host: "127.0.0.1" });
   const addr = b.app.server.address();
   base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
-  token = ((await (await req("POST", "/api/auth/login", { email: "jules@basalt.dev", password: "basalt-demo" })).json()) as { token: string }).token;
+  token = ((await (await req("POST", "/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" })).json()) as { token: string }).token;
 });
 afterAll(async () => {
   await b.app.close();

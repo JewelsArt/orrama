@@ -1,6 +1,6 @@
 /**
  * What a test may assume about the platform (audit OPS-003). The suite runs on
- * macOS (where Basalt lives), Linux (CI, Docker) and Windows (where the backup
+ * macOS (where Orrama lives), Linux (CI, Docker) and Windows (where the backup
  * is audited). These name the POSIX-only behaviours, so a test skips exactly
  * the part Windows cannot do, and says why.
  */
