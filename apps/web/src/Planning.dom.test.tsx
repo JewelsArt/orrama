@@ -18,7 +18,16 @@ const server = vi.hoisted(() => ({
   /** A write to a matching address fails as a server that isn't there would (WEB-010). */
   writeFail: null as RegExp | null,
   proposals: [] as unknown[],
+  /** The first plan says `refining`; `?refined=1` answers when `refined` settles (P1). */
+  refining: false,
+  refined: null as Promise<PlanTask[]> | null,
+  gets: [] as string[],
 }));
+
+const planOf = (tasks: PlanTask[], refining: boolean) => ({
+  team: null, source: refining ? "heuristic" : "ai", refining, hoursPerDay: 6, generatedAt: 0,
+  assignees: [{ assignee: "jules", totalHours: 0, tasks }], atRisk: 0, totalHours: 0,
+});
 
 vi.mock("./api.js", async (orig) => {
   const real = await orig<typeof import("./api.js")>();
@@ -26,8 +35,10 @@ vi.mock("./api.js", async (orig) => {
     ...real,
     api: async (method: string, url: string, body?: unknown) => {
       if (method === "GET") {
+        server.gets.push(url);
         if (server.fail) throw new Error("down");
-        if (url === "/api/plan") return { team: null, source: "heuristic", hoursPerDay: 6, generatedAt: 0, assignees: [{ assignee: "jules", totalHours: 0, tasks: server.tasks }], atRisk: 0, totalHours: 0 };
+        if (url === "/api/plan") return { ...planOf(server.tasks, server.refining), source: "heuristic" };
+        if (url === "/api/plan?refined=1") return planOf(await server.refined!, false);
         if (url.startsWith("/api/events")) return server.events;
         if (url.startsWith("/api/calendar/markers")) return server.markers;
         if (url === "/api/calendar/feeds") return server.feeds;
@@ -100,6 +111,9 @@ beforeEach(() => {
   server.writeFail = null;
   server.feeds = [];
   server.proposals = [];
+  server.refining = false;
+  server.refined = null;
+  server.gets = [];
   server.tasks = [
     task({ text: "Refine research question", line: 5, blockId: "t-aaa111", due: "2026-10-08", blocks: [{ id: "blk-1", date: "2026-10-05", startMin: 600, durationMin: 120 }], scheduledHours: 2, estimateHours: 4, remainingHours: 2 }),
     task({ text: "Ask Thijs to sign the data agreement", line: 6, due: "2026-10-05", remainingHours: 0.5, estimateHours: 0.5 }),
@@ -418,5 +432,51 @@ describe("the phone", () => {
     } finally {
       window.matchMedia = mm;
     }
+  });
+});
+
+describe("the estimates arrive after the page (P1)", () => {
+  /** The refined answer, held until the test lets it go. */
+  const later = () => {
+    let release!: (tasks: PlanTask[]) => void;
+    server.refining = true;
+    server.refined = new Promise((ok) => (release = ok));
+    return release;
+  };
+  const refinedTasks = () => server.tasks.map((t) => (t.text === "Build the October slides" ? { ...t, estimateHours: 3, remainingHours: 3 } : t));
+  const slidesHours = () =>
+    within(screen.getByRole("complementary", { name: "To plan" })).getByText("Build the October slides").closest(".tk")!.querySelector(".r")!.textContent;
+
+  it("shows the heuristic plan at once, then the refined one", async () => {
+    localStorage.setItem("orrama-plan-view", "hours");
+    const release = later();
+    await open();
+    expect(slidesHours()).toBe("2h");
+    expect(document.querySelector(".plan-est")?.textContent).toContain("heuristic until AI refines them");
+    release(refinedTasks());
+    await act(async () => {});
+    expect(slidesHours()).toBe("3h");
+    expect(document.querySelector(".plan-est")?.textContent).toContain("refined by AI");
+  });
+
+  it("a drag in progress is not redrawn under it: the refined plan waits for the drop", async () => {
+    localStorage.setItem("orrama-plan-view", "hours");
+    const release = later();
+    await open();
+    const step = within(screen.getByRole("complementary", { name: "To plan" })).getByText("Build the October slides").closest<HTMLElement>(".tk")!;
+    fireEvent.dragStart(step, { dataTransfer: dt() });
+    release(refinedTasks());
+    await act(async () => {});
+    expect(slidesHours()).toBe("2h");
+    fireEvent.dragEnd(step);
+    await act(async () => {});
+    expect(slidesHours()).toBe("3h");
+  });
+
+  it("a plan that isn't refining (no AI key) asks for nothing more", async () => {
+    localStorage.setItem("orrama-plan-view", "hours");
+    await open();
+    expect(document.querySelector(".plan-est")?.textContent).toContain("Estimates are heuristic;");
+    expect(server.gets.filter((u) => u.startsWith("/api/plan"))).toEqual(["/api/plan"]);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CalEvent, DayMarker, Feed, PlanData, PlanTask, TreeNote } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { CATEGORIES, categoryColor } from "./categories.js";
@@ -107,6 +107,53 @@ export function Planning({
   const [failed, setFailed] = useState(false);
   const [nextLoad] = useState(latestOnly);
 
+  /* The plan answers at once with the heuristic where the model hasn't estimated a step yet
+   * (`refining`); `?refined=1` waits for the model, and its answer replaces the plan quietly.
+   * Never while a pointer is down or a step is being dragged: it waits for the drop. */
+  const held = useRef<PlanData | null>(null);
+  const pressing = useRef({ pointer: false, drag: false });
+  const showRefined = useCallback((p: PlanData) => {
+    if (pressing.current.pointer || pressing.current.drag) held.current = p;
+    else setPlan(p);
+  }, []);
+  useEffect(() => {
+    const set = (k: "pointer" | "drag", on: boolean) => () => {
+      pressing.current[k] = on;
+      if (on || pressing.current.pointer || pressing.current.drag || !held.current) return;
+      setPlan(held.current);
+      held.current = null;
+    };
+    const on: [string, () => void][] = [
+      ["pointerdown", set("pointer", true)],
+      ["pointerup", set("pointer", false)],
+      ["pointercancel", set("pointer", false)],
+      ["dragstart", set("drag", true)],
+      ["dragend", set("drag", false)],
+      ["drop", set("drag", false)],
+    ];
+    for (const [type, fn] of on) window.addEventListener(type, fn, true);
+    return () => {
+      for (const [type, fn] of on) window.removeEventListener(type, fn, true);
+    };
+  }, []);
+
+  /** Ask for the refined plan. A newer load aborts it through the same signal, so a late
+   *  answer never wins; one that fails leaves the estimates already on screen. */
+  const refine = useCallback(
+    async (signal: AbortSignal) => {
+      try {
+        for (let tries = 0, refining = true; refining && tries < 3; tries++) {
+          const p = await api<PlanData>("GET", "/api/plan?refined=1", undefined, { signal });
+          showRefined(p);
+          refining = p.refining;
+        }
+      } catch {
+        // aborted by a newer load, or the server didn't answer: the heuristic stays
+      }
+    },
+    [showRefined],
+  );
+
   const load = useCallback(async () => {
     const signal = nextLoad();
     try {
@@ -117,17 +164,19 @@ export function Planning({
         api<TreeNote[]>("GET", "/api/vault/tree", undefined, { signal }),
         api<Feed[]>("GET", "/api/calendar/feeds", undefined, { signal }),
       ]);
+      held.current = null;
       setPlan(p);
       setEvents(e);
       setMarkers(m);
       setAreas(new Map(tree.map((n) => [n.id, n.category])));
       setFeeds(f);
       setFailed(false);
+      if (p.refining) void refine(signal);
     } catch (err) {
       if (isAbort(err)) return;
       setFailed(true);
     }
-  }, [range, nextLoad]);
+  }, [range, nextLoad, refine]);
 
   useEffect(() => {
     void load();
@@ -413,7 +462,7 @@ export function Planning({
   );
   const estimateNote = plan && (
     <p className="hint plan-est">
-      Estimates are {plan.source === "ai" ? "refined by AI" : "heuristic"}; a day holds {plan.hoursPerDay}h of focused work.
+      Estimates are {plan.refining ? "heuristic until AI refines them" : plan.source === "ai" ? "refined by AI" : "heuristic"}; a day holds {plan.hoursPerDay}h of focused work.
     </p>
   );
   const monthEmpty = scale === "month" && plan && inSpan(isoDay(first), isoDay(new Date(first.getFullYear(), first.getMonth() + 1, 0, 12))).length === 0;
