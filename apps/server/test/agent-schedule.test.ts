@@ -25,7 +25,8 @@ const calendarNote = (month: string) => {
   return fs.existsSync(abs) ? fs.readFileSync(abs, "utf8") : "";
 };
 const planBlocks = async (text: string) => {
-  const plan = (await s.call("jules", "GET", "/api/plan")).json;
+  // ?refined=1: the estimate call it starts is over before the next test queues its turns.
+  const plan = (await s.call("jules", "GET", "/api/plan?refined=1")).json;
   const task = plan.assignees.flatMap((a: any) => a.tasks).find((t: any) => t.text === text);
   return task?.blocks ?? [];
 };

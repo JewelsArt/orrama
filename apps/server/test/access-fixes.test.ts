@@ -189,15 +189,22 @@ describe("Planning's AI estimates", () => {
     const plan = await call("jules", "GET", "/api/plan");
     expect(plan.status).toBe(200);
     expect(plan.body.source).toBe("heuristic");
+    // The plan no longer waits for the model (P1); the refined plan waits for it, and gives up.
+    const refined = await call("jules", "GET", "/api/plan?refined=1");
+    expect(refined.body.source).toBe("heuristic");
+    expect(refined.body.refining).toBe(false);
     expect(Date.now() - started).toBeLessThan(5000);
   });
 
   it("ask once for the same open tasks, not on every page load", async () => {
+    // Another model: the hung one above left its tasks to the heuristic for a while.
+    expect((await call("jules", "POST", "/api/admin/ai", { provider: "anthropic", model: "test-model-2", apiKey: "sk-test-0123456789" })).status).toBe(200);
     const fetchMock = vi.fn(async (url: string, init: { body: string }) => providerReply(String(url), init.body));
     vi.stubGlobal("fetch", fetchMock);
-    const first = await call("jules", "GET", "/api/plan");
     await call("jules", "GET", "/api/plan");
-    expect(first.body.source).toBe("ai");
+    const refined = await call("jules", "GET", "/api/plan?refined=1");
+    await call("jules", "GET", "/api/plan");
+    expect(refined.body.source).toBe("ai");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -206,7 +213,7 @@ describe("Planning's AI estimates", () => {
     expect((await call("jules", "POST", "/api/admin/ai", { provider: "google", model: "gemini-2.5-flash", apiKey: "g-test-0123456789" })).status).toBe(200);
     const google = vi.fn(async (url: string, init: { body: string }) => providerReply(String(url), init.body));
     vi.stubGlobal("fetch", google);
-    const plan = await call("jules", "GET", "/api/plan");
+    const plan = await call("jules", "GET", "/api/plan?refined=1");
     expect(plan.body.source).toBe("ai");
     expect(google).toHaveBeenCalledTimes(1);
     expect(String(google.mock.calls[0]![0])).toContain("generativelanguage.googleapis.com");
@@ -216,7 +223,7 @@ describe("Planning's AI estimates", () => {
     expect((await call("jules", "POST", "/api/admin/ai", { provider: "openai-compatible", model: "local-model", apiKey: "sk-local-0123456789", baseUrl: "https://llm.example.test/v1" })).status).toBe(200);
     const local = vi.fn(async () => new Response("{}", { status: 500 }));
     vi.stubGlobal("fetch", local);
-    const planLocal = await call("jules", "GET", "/api/plan");
+    const planLocal = await call("jules", "GET", "/api/plan?refined=1");
     expect(planLocal.status).toBe(200); // a failing provider still plans, heuristically
     expect(planLocal.body.source).toBe("heuristic");
     expect(local.mock.calls.length).toBeGreaterThan(0);

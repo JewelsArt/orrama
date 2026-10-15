@@ -17,22 +17,29 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
 /**
  * The AI estimate call used to run on every Planning page load, with every open
  * task's text and no timeout — on a server with no request timeout, so one hung
- * TLS connection hung the page (audit, high). Now it gives up after
- * AI_TIMEOUT_MS and falls back to the heuristic like any other failure, and the
- * answer is kept for AI_CACHE_MS per (model, task list): reopening the tab with
- * the same open tasks sends nothing.
+ * TLS connection hung the page (audit, high). It then got a timeout and a cache
+ * keyed on the whole task listing, and still sat in front of the answer: every
+ * tick or rename missed the cache, so nearly every load waited the full call
+ * (6 s on average on Jules's vault, 15 Oct). Now the plan answers at once with
+ * the heuristic for any task the cache doesn't know, the model is asked about
+ * those tasks after the response, one batch at a time, and each estimate is kept
+ * per task: changing one task re-estimates that task only.
  */
 const AI_TIMEOUT_MS = Number(process.env.ORRAMA_PLAN_AI_TIMEOUT_MS ?? 8000);
 const AI_CACHE_MS = 6 * 60 * 60 * 1000;
+/** A task whose estimate failed (timeout, provider error, an answer that isn't a list) is
+ *  left to the heuristic and asked about again after this, not on every load. */
+const AI_RETRY_MS = 10 * 60 * 1000;
+/** Tasks per call: the real vault has had 100 to 173 open tasks, so one call in practice. */
+const AI_BATCH = 200;
 
 /**
- * Estimates per listing, bounded in time AND size. Keyed on the whole task
- * listing, so every tick or rename is a new key; expired entries were skipped
- * but never deleted, and the map grew for the agent's whole uptime (audit
- * AI-014). An entry found expired is removed, and past `max` the oldest goes.
+ * Estimates per task, bounded in time AND size. Expired entries used to be
+ * skipped but never deleted, and the map grew for the agent's whole uptime
+ * (audit AI-014). An entry found expired is removed, and past `max` the oldest goes.
  */
 export class EstimateCache {
-  private entries = new Map<string, { at: number; hours: number[] }>();
+  private entries = new Map<string, { at: number; hours: number }>();
   constructor(
     private readonly ttlMs: number,
     private readonly max: number,
@@ -40,14 +47,14 @@ export class EstimateCache {
   get size(): number {
     return this.entries.size;
   }
-  get(key: string, now = Date.now()): number[] | undefined {
+  get(key: string, now = Date.now()): number | undefined {
     const hit = this.entries.get(key);
     if (!hit) return undefined;
     if (now - hit.at < this.ttlMs) return hit.hours;
     this.entries.delete(key);
     return undefined;
   }
-  set(key: string, hours: number[], now = Date.now()): void {
+  set(key: string, hours: number, now = Date.now()): void {
     // Map order is insertion order: re-inserting keeps the oldest first.
     this.entries.delete(key);
     this.entries.set(key, { at: now, hours });
@@ -57,31 +64,107 @@ export class EstimateCache {
     }
   }
 }
-const aiCache = new EstimateCache(AI_CACHE_MS, 200);
 
-/**
- * Focused-hour estimates for a numbered task listing: cached, bounded in time,
- * and asked of whichever provider the workspace is configured for.
- */
-async function estimatesFor(c: AiConfig, listing: string): Promise<number[]> {
-  const key = crypto.createHash("sha256").update(`${c.provider}\n${c.baseUrl ?? ""}\n${c.model}\n${listing}`).digest("hex");
-  const hit = aiCache.get(key);
-  if (hit) return hit;
+/** What the model is told about one task, and so what its estimate depends on. */
+const taskLine = (t: VaultTask) => `[${t.priority ? "p" + t.priority : "p?"}] ${t.text} (project: ${t.project})`;
+
+/** Which model is asked: an estimate from one model is not another's. */
+const modelId = (c: AiConfig) => `${c.provider}\n${c.baseUrl ?? ""}\n${c.model}`;
+
+/** A task's estimate is kept under (model, its own text, priority and project). */
+const estimateKey = (c: AiConfig, t: VaultTask) => crypto.createHash("sha256").update(`${modelId(c)}\n${taskLine(t)}`).digest("hex");
+
+/** Focused-hour estimates for a numbered listing, from whichever provider the workspace uses. */
+async function askEstimates(c: AiConfig, lines: string[]): Promise<number[]> {
   const text = await completeText(c, {
     system:
       "You estimate software/knowledge-work tasks. Reply with ONLY a JSON array of numbers: focused hours per task, same order as given. Be realistic, 0.5–16 range.",
-    prompt: listing,
-    maxOutputTokens: 1000,
+    prompt: lines.map((l, i) => `${i}. ${l}`).join("\n"),
+    // A number and a comma is a few tokens; room for the whole batch.
+    maxOutputTokens: Math.max(1000, lines.length * 8),
     // The abort signal bounds the call either way; the SDK's default two
     // retries (≈6s of back-off on a 500) would only spend it, and pay twice.
     maxRetries: 0,
     abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
   });
   const hours = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1)) as number[];
-  if (!Array.isArray(hours)) throw new Error("estimates: not an array");
-  aiCache.set(key, hours);
+  if (!Array.isArray(hours) || hours.length !== lines.length) throw new Error("estimates: not one number per task");
   return hours;
 }
+
+/**
+ * Asks the model about tasks after the plan has answered: one call at a time,
+ * each for a batch of the tasks it hasn't estimated. What it answers goes into
+ * `cache`; a task whose call failed waits AI_RETRY_MS in `failed` and keeps the
+ * heuristic meanwhile, so a broken provider costs one call per task per window,
+ * not one per page load.
+ */
+export class EstimateRefiner {
+  private queue = new Map<string, { c: AiConfig; line: string; fallback: number }>();
+  private asking = new Set<string>();
+  private running: Promise<void> | null = null;
+  readonly failed = new EstimateCache(AI_RETRY_MS, 2000);
+  constructor(
+    readonly cache: EstimateCache,
+    private readonly ask: (c: AiConfig, lines: string[]) => Promise<number[]>,
+  ) {}
+
+  /** The model's estimate for this task, if it has one. */
+  known(key: string): number | undefined {
+    return this.cache.get(key);
+  }
+
+  /** Queue a task the cache doesn't know. True when it is (now) waiting on the model. */
+  want(key: string, c: AiConfig, line: string, fallback: number): boolean {
+    if (this.asking.has(key) || this.queue.has(key)) return true;
+    if (this.failed.get(key) !== undefined) return false;
+    this.queue.set(key, { c, line, fallback });
+    return true;
+  }
+
+  /** Start asking, unless a call is already out: never two at once. */
+  start(): void {
+    if (this.running || this.queue.size === 0) return;
+    this.running = this.drain().finally(() => {
+      this.running = null;
+    });
+  }
+
+  /** Resolves once nothing is queued or being asked. */
+  async settled(): Promise<void> {
+    while (this.running) await this.running;
+  }
+
+  private async drain(): Promise<void> {
+    while (this.queue.size > 0) {
+      // One batch per model: the first queued task's, up to AI_BATCH of them.
+      const first = this.queue.values().next().value!;
+      const id = modelId(first.c);
+      const batch: [string, { line: string; fallback: number }][] = [];
+      for (const [key, q] of this.queue) {
+        if (batch.length >= AI_BATCH) break;
+        if (modelId(q.c) !== id) continue;
+        batch.push([key, q]);
+        this.queue.delete(key);
+        this.asking.add(key);
+      }
+      try {
+        const hours = await this.ask(first.c, batch.map(([, q]) => q.line));
+        batch.forEach(([key, q], i) => {
+          const h = Number(hours[i]);
+          // An answer out of range keeps the heuristic, as the model's answer for that task.
+          this.cache.set(key, Number.isFinite(h) && h > 0 && h <= 40 ? Math.round(h * 2) / 2 : q.fallback);
+        });
+      } catch {
+        // planning must never break without AI: these keep the heuristic for now
+        for (const [key] of batch) this.failed.set(key, 1);
+      } finally {
+        for (const [key] of batch) this.asking.delete(key);
+      }
+    }
+  }
+}
+export const refiner = new EstimateRefiner(new EstimateCache(AI_CACHE_MS, 2000), askEstimates);
 
 interface PlannedTask {
   noteId: string;
@@ -99,6 +182,8 @@ interface PlannedTask {
   due: string | null;
   priority: number | null;
   estimateHours: number;
+  /** The heuristic for now: the model is being asked about this task. */
+  refining: boolean;
   /** Working-day the task is expected to finish, given the queue before it. */
   expectedFinish: string;
   atRisk: boolean;
@@ -163,29 +248,26 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
       return note !== undefined && canEdit(user, note, grants);
     };
 
-    // Estimates: heuristic first, AI refinement when configured.
+    // Estimates: the model's where it has answered, the heuristic meanwhile. The
+    // model is asked about the rest after this answer is sent, never before it.
     const estimates = new Map<string, number>();
-    for (const t of open) estimates.set(`${t.noteId}:${t.line}`, heuristicEstimate(t));
-
+    const refining = new Set<string>();
     const ai = aiConfig(db);
-    let source: "heuristic" | "ai" = "heuristic";
-    if (ai && open.length > 0) {
-      try {
-        const listing = open
-          .map((t, i) => `${i}. [${t.priority ? "p" + t.priority : "p?"}] ${t.text} (project: ${t.project})`)
-          .join("\n");
-        const hours = await estimatesFor(ai, listing);
-        if (hours.length === open.length) {
-          open.forEach((t, i) => {
-            const h = Number(hours[i]);
-            if (Number.isFinite(h) && h > 0 && h <= 40) estimates.set(`${t.noteId}:${t.line}`, Math.round(h * 2) / 2);
-          });
-          source = "ai";
-        }
-      } catch {
-        // fall back silently to heuristics — planning must never break without AI
-      }
+    let fromModel = 0;
+    for (const t of open) {
+      const at = `${t.noteId}:${t.line}`;
+      const heuristic = heuristicEstimate(t);
+      estimates.set(at, heuristic);
+      if (!ai) continue;
+      const key = estimateKey(ai, t);
+      const known = refiner.known(key);
+      if (known !== undefined) {
+        estimates.set(at, known);
+        fromModel++;
+      } else if (refiner.want(key, ai, taskLine(t), heuristic)) refining.add(at);
     }
+    refiner.start();
+    const source: "heuristic" | "ai" = open.length > 0 && fromModel === open.length ? "ai" : "heuristic";
 
     const objects = db.select().from(tables.taskObjects).all();
     const objByKey = new Map(objects.map((o) => [`${o.noteId}:${o.blockId}`, o]));
@@ -236,6 +318,7 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
         due: t.due ?? null,
         priority: t.priority ?? null,
         estimateHours: est,
+        refining: refining.has(`${t.noteId}:${t.line}`),
         expectedFinish: finishDay,
         atRisk: t.due !== undefined && t.due !== null && finishDay > t.due,
         blockId: t.blockId ?? null,
@@ -262,6 +345,8 @@ export async function buildPlan(db: Db, store: VaultStore, user: AclUser, team: 
     return {
       team: team ? { slug: team.slug, name: team.name, color: team.color } : null,
       source,
+      /** Some estimates are the heuristic until the model answers: ask again with ?refined=1. */
+      refining: refining.size > 0,
       hoursPerDay: HOURS_PER_DAY,
       generatedAt: now,
       assignees: [...byAssignee.values()].sort((a, b) => b.totalHours - a.totalHours),
@@ -320,8 +405,20 @@ export interface Proposal {
 export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
 
-  /** The whole vault's plan — what the Planning tab asks for. */
-  app.get("/api/plan", auth, async (req) => buildPlan(db, store, store.aclUser(req.userId), null));
+  /**
+   * The whole vault's plan — what the Planning tab asks for. It answers at once;
+   * `?refined=1` first waits for the estimates being asked of the model (one
+   * call, bounded by AI_TIMEOUT_MS), which is how a page picks up the refined
+   * plan after a first answer that said `refining`.
+   */
+  app.get<{ Querystring: { refined?: string } }>("/api/plan", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    const plan = await buildPlan(db, store, user, null);
+    if (req.query.refined !== "1" || !plan.refining) return plan;
+    // Building it queued what the model hasn't estimated; wait for that, then build again.
+    await Promise.race([refiner.settled(), new Promise((r) => setTimeout(r, 2 * AI_TIMEOUT_MS).unref())]);
+    return buildPlan(db, store, user, null);
+  });
 
   app.get<{ Params: { teamSlug: string } }>("/api/plan/:teamSlug", auth, async (req) => {
     const user = store.aclUser(req.userId);

@@ -247,6 +247,8 @@ export const planTaskSchema = o({
   due: nstr,
   priority: nnum,
   estimateHours: z.number(),
+  /** The heuristic for now: the model is being asked about this task. */
+  refining: z.boolean(),
   expectedFinish: z.string(),
   atRisk: z.boolean(),
   blockId: nstr,
@@ -259,7 +261,10 @@ export const planTaskSchema = o({
 
 export const planResponse = o({
   team: o({ slug: z.string(), name: z.string(), color: z.string() }).nullable(),
+  /** "ai" once the model has answered for every open task. */
   source: z.enum(["heuristic", "ai"]),
+  /** Some estimates are the heuristic until the model answers: `GET /api/plan?refined=1` waits for them. */
+  refining: z.boolean(),
   hoursPerDay: z.number(),
   generatedAt: z.number(),
   assignees: z.array(o({ assignee: z.string(), totalHours: z.number(), tasks: z.array(planTaskSchema) })),

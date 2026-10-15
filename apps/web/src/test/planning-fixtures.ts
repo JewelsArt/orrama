@@ -11,6 +11,7 @@ export const task = (o: Partial<PlanTask> & { text: string }): PlanTask => ({
   due: null,
   priority: null,
   estimateHours: 2,
+  refining: false,
   expectedFinish: "2026-10-09",
   atRisk: false,
   blockId: null,
