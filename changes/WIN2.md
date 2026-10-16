@@ -15,15 +15,19 @@
   to index a file it had just written. With every package's tests running at once, macOS
   delivered that event more than 25 s late, during the next test. The file is now on disk
   before boot, so the first index holds it. The test is about the write, not the watcher, and
-  other tests cover the watcher (the last commit)
+  other tests cover the watcher (commit fc372ac)
+- Same file, "a case-only rename outside Orrama (STO-012)": after that fix, a third verify run
+  failed there instead. The fixed 1.5 s settle saw a just-written note not yet indexed. Each step
+  now waits up to 25 s for the index to show the expected spelling, then 1.5 s more before the
+  "never rewritten, no restamp" checks (the last commit)
 
-All four are test-only. No app code changed.
+All six are test-only. No app code changed.
 
 ## Changelog lines (user-facing, for [Unreleased] → Internal)
 - The test suite is green on Windows again after the rename. A test that starts the server
   waits for it to exit before deleting its folder, and tests that start processes through tsx
   have timeouts that fit them.
-- Two flaky web tests on macOS fixed. DOM tests unmount the page before they un-stub fetch, so
+- Two flaky web tests and two flaky server tests (path-identity) on macOS fixed. DOM tests unmount the page before they un-stub fetch, so
   a late request can't reach the real network. The toast test waits for the toast.
 
 ## CLAUDE.md changes to apply (exact text, and where)
@@ -44,7 +48,7 @@ All four are test-only. No app code changed.
   can't be reproduced on a Mac, so the entry-test fix is checked by its assertion and by
   reasoning only, until that run.
 - **Latent races of the toast kind, in tests CI has not failed yet.** A scratch run of the DOM
-  suite with React's scheduler slowed found 12 more tests that read synchronously what an effect
+  suite with React's scheduler slowed found 13 more tests that read synchronously what an effect
   renders. They pass at normal speed. The setup: a setup file loaded before dom-setup.ts that
   sets `globalThis.setImmediate = (fn, ...a) => setTimeout(fn, 30, ...a)` and
   `globalThis.MessageChannel = undefined`, in a config with environment happy-dom. The tests:

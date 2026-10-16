@@ -220,15 +220,21 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
   });
 });
 
-describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", () => {
-  const settle = async () => {
+// Up to 25 s a step: with every package's tests running at once, macOS can deliver a file
+// event that late (a fixed 1.5 s failed there).
+describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", { timeout: 120_000 }, () => {
+  /** Wait for the watcher to show `done`, then 1.5 s more for anything it would do after it
+   *  (a restamp, a rewrite, the old spelling coming back). */
+  const settle = async (done: () => boolean) => {
+    for (let t = 0; t < 250 && !done(); t++) await sleep(100);
     await sleep(1500);
   };
+  const only = (prefix: string, ...paths: string[]) => () => indexPaths(prefix).join("|") === paths.join("|");
 
   it("leaves one index entry under the new spelling, with its id, and never rewrites the file", async () => {
     fs.mkdirSync(abs("Notes"), { recursive: true });
     fs.writeFileSync(abs("Notes/Meeting notes.md"), "# Meeting\n\n- [ ] follow up\n");
-    await settle();
+    await settle(only("Notes/", "Notes/Meeting notes.md"));
     const id = b.store.index.getByPath("Notes/Meeting notes.md")?.id;
     expect(id).toMatch(/^n-/);
     const stamped = read("Notes/Meeting notes.md");
@@ -236,7 +242,7 @@ describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", 
 
     fs.renameSync(abs("Notes/Meeting notes.md"), abs("Notes/Meeting Notes.md"));
     const mtime = fs.statSync(abs("Notes/Meeting Notes.md")).mtimeMs;
-    await settle();
+    await settle(only("Notes/", "Notes/Meeting Notes.md"));
     expect(fs.readdirSync(abs("Notes"))).toEqual(["Meeting Notes.md"]);
     expect(indexPaths("Notes/")).toEqual(["Notes/Meeting Notes.md"]);
     expect(b.store.index.getByPath("Notes/Meeting Notes.md")?.id).toBe(id);
@@ -246,7 +252,7 @@ describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", 
 
     // …and back.
     fs.renameSync(abs("Notes/Meeting Notes.md"), abs("Notes/Meeting notes.md"));
-    await settle();
+    await settle(only("Notes/", "Notes/Meeting notes.md"));
     expect(fs.readdirSync(abs("Notes"))).toEqual(["Meeting notes.md"]);
     expect(indexPaths("Notes/")).toEqual(["Notes/Meeting notes.md"]);
     expect(b.store.index.getByPath("Notes/Meeting notes.md")?.id).toBe(id);
@@ -271,13 +277,13 @@ describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", 
     fs.mkdirSync(abs("Box"), { recursive: true });
     fs.writeFileSync(abs("Box/One.md"), "one\n");
     fs.writeFileSync(abs("Box/Two.md"), "two\n");
-    await settle();
+    await settle(only("Box/", "Box/One.md", "Box/Two.md"));
     const ids = ["Box/One.md", "Box/Two.md"].map((p) => b.store.index.getByPath(p)?.id);
     const bytes = ["Box/One.md", "Box/Two.md"].map(read);
     restamps.length = 0;
 
     fs.renameSync(abs("Box"), abs("box"));
-    await settle();
+    await settle(only("Box/", "box/One.md", "box/Two.md"));
     expect(indexPaths("Box/")).toEqual(["box/One.md", "box/Two.md"]);
     expect(["box/One.md", "box/Two.md"].map((p) => b.store.index.getByPath(p)?.id)).toEqual(ids);
     expect(["box/One.md", "box/Two.md"].map(read)).toEqual(bytes);
@@ -287,7 +293,7 @@ describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", 
 
   it("a real copy is still a copy: it gets its own id", async () => {
     fs.copyFileSync(abs("Notes/Meeting notes.md"), abs("Notes/Meeting notes copy.md"));
-    await settle();
+    await settle(() => restamps.length > 0 && !!b.store.index.getByPath("Notes/Meeting notes copy.md"));
     const orig = b.store.index.getByPath("Notes/Meeting notes.md")!;
     const copy = b.store.index.getByPath("Notes/Meeting notes copy.md")!;
     expect(copy.id).not.toBe(orig.id);
