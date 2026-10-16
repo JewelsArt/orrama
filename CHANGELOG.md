@@ -120,6 +120,9 @@ one is in CLAUDE.md, "Releases".
   (`/projects?shelf=done`), next to the area filter's.
 - A light ↔ dark button at the foot of the rail, above Find. On the phone, the
   theme stays in Settings.
+- Every build writes `THIRD_PARTY_NOTICES_SERVER.txt` next to the web app's
+  notices: every package the server and the MCP server run on, with its licence
+  text.
 
 ### Changed
 
@@ -278,6 +281,11 @@ one is in CLAUDE.md, "Releases".
   the web dev server with a message naming it.
 - AI estimates are kept per task, so ticking or editing one step no longer
   re-estimates every step.
+- Orrama is no longer open source. It is proprietary (copyright Jules Timothy
+  Sekelj, all rights reserved) and used under the free Personal licence or the
+  Company licence (`docs/licence/`). The Apache 2.0 licence no longer applies.
+- Live sync signs in when it connects, from the session cookie, and only from
+  Orrama's own pages.
 
 ### Removed
 
@@ -699,6 +707,10 @@ one is in CLAUDE.md, "Releases".
   can read — `Personal/<you>/Calendar/` when another account could read
   `01-Me/` (ACL-009).
 - Search result order no longer depends on notes you cannot read (ACL-008).
+- Your sign-in is now kept in a secure cookie the page itself can't read,
+  instead of in the browser's storage (WEB-013). Nothing to do: the first time
+  the app opens after the update, it moves your existing sign-in over by
+  itself. A write sent with that cookie from another site is refused.
 
 ### Internal
 
@@ -774,6 +786,14 @@ one is in CLAUDE.md, "Releases".
 - The vault store schedules nothing once it starts closing, and re-loading it
   closes the watcher it replaces (no more "The database connection is not
   open" after a test run).
+- The test suite is green on Windows again after the rename. A test that
+  starts the server waits for it to exit before deleting its folder, and tests
+  that start processes through tsx have timeouts that fit them.
+- Two flaky web tests and two flaky server tests (path-identity) on macOS
+  fixed. DOM tests unmount the page before they un-stub fetch, so a late
+  request can't reach the real network; the toast test waits for the toast.
+- A licence guard: a test fails on any production dependency whose licence is
+  not on the permissive allowlist (no copyleft).
 
 ### Upgrading
 
@@ -798,6 +818,9 @@ one is in CLAUDE.md, "Releases".
 - Optional: the installed `~/Library/LaunchAgents/dev.basalt.server.plist` may
   run node directly as the template in `scripts/` does (pnpm passes SIGTERM on
   macOS too, so nothing breaks if it stays).
+- The next release stops accepting a session token sent as `Bearer` and drops
+  `/api/auth/exchange`. A browser, window or phone not opened once on this
+  release will have to sign in again then.
 
 ## [0.1.0] — 2026-10-01
 

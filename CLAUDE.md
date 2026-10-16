@@ -566,8 +566,11 @@ Settings → Orr & AI (owners) picks it: a key for Anthropic, Gemini or an
 OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan**
 — Sign in with ChatGPT, so a Plus or Pro plan pays instead of a key
 (`apps/server/src/chatgpt.ts`, from OpenAI's documented protocol; their DevKit
-is noncommercial-licensed, so none of its code is used). OpenAI offers this to
-open-source and locally run apps. Its rules shape the code:
+is noncommercial-licensed, so none of its code is used). OpenAI offers ChatGPT
+plan usage to open-source projects, personal projects that run locally and
+selected private apps. Orrama is proprietary, so it covers Jules's own copy and
+nobody else's until OpenAI accepts Orrama's application (sent by Jules, 16 Oct
+2026); other people paste a key. Its rules shape the code:
 
 - The redirect is fixed to `http://127.0.0.1:<port>/callback`, a root route,
   so sign-in starts from a browser on this Mac; from anywhere else
@@ -579,8 +582,10 @@ open-source and locally run apps. Its rules shape the code:
 - Every ChatGPT-plan request is streamed with `store: false` and carries no
   token cap (`callOptions`/`completeText` in `aiProvider.ts`); one-shot calls
   go through `completeText`, which keeps the other providers non-streaming.
-- Tool calling is not in OpenAI's docs for this flow; the Ask agent's tools are
-  sent and it is unverified until a real account signs in.
+- OpenAI's preview limitations (developers.openai.com/siwc) list function and
+  custom tools as supported, and `temperature`, `top_p`, `user`, `metadata` and
+  `truncation` as refused. The Ask agent's tools are sent, still unverified
+  until a real account signs in.
 
 The OpenAI-compatible provider speaks Chat Completions (`createOpenAI(…).chat`), the API
 every compatible server implements; only the ChatGPT plan uses the Responses API. A stored
@@ -641,9 +646,14 @@ retrying; Notes refetches the open note (the sync merges the text into what is
 being typed) and reloads the tree once, 500 ms after the last event; Today
 reloads debounced (the live inbox is not asked again on a note change). Presence
 = `{type:"editing", noteId}` pings, rebroadcast only to users who can read that
-note. Frames from a client are capped at 16 KiB (`WS_MAX_FRAME`, `main.ts`): a
-client only sends its auth frame and presence pings, and the first frame is
-parsed before it is known to be a valid auth.
+note. The socket signs in on the upgrade, before it opens, from the session
+cookie and an `Origin` of our own (`signInSocket`, routes/ws.ts): refused, the
+handshake gets 401/403/421 and no socket is made, so the client never sends a
+credential. A browser sees a refused handshake only as a 1006 close, so `ws.ts`
+asks `GET /api/me` once when a socket closes before it opened: a 401 there
+signs out (`api.ts`), anything else is retried. Frames from a client are capped
+at 16 KiB (`WS_MAX_FRAME`, `main.ts`): a client only sends presence pings, and
+an auth frame from an app older than the cookie is ignored.
 
 ## Conventions & gotchas
 
@@ -802,13 +812,31 @@ parsed before it is known to be a valid auth.
   into a closed database (OPS-003). The store schedules nothing once `close()`
   starts (`closing`), and `load()` closes the watcher it replaces: a leaked
   watcher went on reporting into a closed database (F4).
-- **A session is a row, not just a signature** (`apps/server/src/sessions.ts`).
-  Every sign-in opens a `sessions` row and the JWT carries its `sid`; the
-  auth hook and the live-sync socket refuse a token whose row is gone or
-  revoked. Sign-out (`POST /api/auth/logout`) revokes on the server, Settings
-  → Signed in revokes the others, and a revoked session's socket is closed at
-  once. Anything new that issues a session token goes through `signIn` in
-  `routes/auth.ts`. A token without a `sid` is refused.
+- **A session is a row, not just a signature** (`apps/server/src/sessions.ts`),
+  **and the browser never holds it** (WEB-013). Every sign-in opens a `sessions`
+  row and sets the session cookie — HttpOnly, SameSite=Strict, Path=/,
+  30 days, Secure when the page came over https (never on http://localhost,
+  where WebKit refuses it) — holding a JWT that names the row (`sid`). The
+  cookie is `orrama_session_<port>` (`SESSION_COOKIE`, the port the server
+  listens on): browsers keep cookies per host name, not per port, so with one
+  name every Orrama on `localhost` shared it and signed the others out. No
+  response body carries a session (sign-in answers `signInResponse`, `{ user }`).
+  The auth hook and the live-sync socket refuse a session whose row is gone or
+  revoked. A write the cookie carries (anything but GET/HEAD/OPTIONS) needs an
+  `Origin` that is one of `ORRAMA_PUBLIC_ORIGINS` or the address it was sent to
+  (`fromOwnSite`, `routes/auth.ts`), else 403: with SameSite=Strict and the Host
+  allow-list, that is the CSRF answer, so a new state-changing route needs
+  nothing more — but it must not be a GET. Sign-out (`POST /api/auth/logout`)
+  revokes on the server and clears the cookie, Settings → Signed in revokes the
+  others, and a revoked session's socket is closed at once. Anything new that
+  issues a session goes through `signIn` in `routes/auth.ts`. A token without a
+  `sid` is refused. In the web app every request goes through `sessionFetch`
+  (`api.ts`), same-origin; the page only keeps whether it counts itself signed
+  in (`sessionStarted`/`sessionOver`). For this release only, a session token
+  sent as `Bearer` is still accepted and `POST /api/auth/exchange` trades one
+  (kept in `orrama-token` by the app before the cookie) for the cookie once
+  (`adoptStoredSession` at boot); both go in the next stage. Server tests sign
+  in with `test/helpers/session.ts` (`sessionOf`, `signedIn`, `liveSocket`).
 - **Settings asks before anything it can't undo.** Removing, disconnecting,
   revoking, rotating or signing out goes through `Confirm` with the consequence
   in its body, and the trigger is labelled with what it does
@@ -826,7 +854,8 @@ parsed before it is known to be a valid auth.
   them; a new credential route opts in and gets a row there. A password change
   and Settings → Sign out everywhere end every session, token and Touch ID
   device and clear the passcode and feed link (`revokeEverything`,
-  `sessions.ts`).
+  `sessions.ts`). An API token is the only credential sent as
+  `Authorization: Bearer`; a session is the cookie (see **A session is a row**).
 - **Attempts are counted before they are checked.** Five wrong passwords from
   one address inside 15 minutes → 429 until the oldest ages out, even for the
   right password (`loginLimit.ts`, in memory). `LoginLimiter.attempt` checks and
@@ -843,7 +872,9 @@ parsed before it is known to be a valid auth.
   projects and contacts for the gather's slices, and `useEnter` opens the app
   `HOLD_MS` (2 s, Jules's call) after the server's yes, at once with reduced
   motion. Errors go through `door/voice.ts`: the server's words are never
-  shown, only its status and the wait it names. The shell's keys (App.tsx)
+  shown, only its status and the wait it names. A way in answers `{ user }`;
+  `useEnter` and Setup call `sessionStarted()`, and the session itself is the
+  cookie the server set. The shell's keys (App.tsx)
   stand down while signed out, so the lock's digits are only a passcode.
 - **Addresses** (`apps/web/src/ui/router.ts`): every place and thing has a URL
   (structure.md §1.2), `parseRoute`/`routeHref` round-trip it, and the server
@@ -861,8 +892,9 @@ parsed before it is known to be a valid auth.
   refuse storage (the getter throws), and `guardStorage()` in `main.tsx` gives
   the older direct callers an in-memory one. Every key is `orrama-…`; until the
   rename (R13) they were `basalt-…`, and `migrateLegacyKeys()` (first thing in
-  `main.tsx`) moves any left over, so nobody is signed out. A new key is
-  `orrama-<area>-<what>`.
+  `main.tsx`) moves any left over. Never a credential: the session is an
+  HttpOnly cookie (WEB-013); the token the app kept before it is traded once at
+  boot and deleted (`adoptStoredSession`). A new key is `orrama-<area>-<what>`.
 - **The suite runs on macOS, Linux and Windows** (CI: Ubuntu and macOS on push,
   `windows.yml` by hand; audit OPS-003). A test that needs POSIX permission bits,
   symlinks or signal handlers says so through `test/helpers/platform.ts`
@@ -871,7 +903,10 @@ parsed before it is known to be a valid auth.
   every database handle before deleting its folder (`closeDb`,
   `test/helpers/db.ts`; `store.close()` does not close the database): the setup
   file `test/helpers/open-databases.ts` fails a server test file that leaves one
-  open, on every platform. A volume's behaviour (case folding, ſ) is probed in a
+  open, on every platform. A test that starts a process kills it and awaits its
+  `exit` before the folder goes (Windows keeps a dying process's files open),
+  and one that starts processes through tsx gets a timeout that fits them (a
+  Windows runner takes 2–3 times as long as a Mac). A volume's behaviour (case folding, ſ) is probed in a
   temp folder, never assumed from the platform; `import()` takes a
   `pathToFileURL(...)`, never a bare path. Package scripts never set
   variables as `VAR=1 cmd` (cmd.exe cannot); `.gitattributes` keeps every
@@ -881,7 +916,11 @@ parsed before it is known to be a valid auth.
   mounts the whole App with its screens stubbed, for shell, address, key and
   overlay tests. happy-dom follows a link clicked through a child element even
   when the click was prevented (a browser does not): in a DOM test, click the
-  link itself.
+  link itself. dom-setup's `cleanup()` runs after each file's own afterEach, so
+  a file that un-stubs fetch or another global there calls `cleanup()` first
+  (`src/test/dom-hooks.test.ts`). What an effect puts on screen (a toast, a
+  request's answer) is found with `findBy…`, never read at once after the view
+  appears.
 - **Typing is never lost** (`apps/web/src/noteSync.ts`, `packages/sync/src/client.ts`):
   every editor saves through a NoteSync from `openNoteSync`. A failed save keeps its reason
   and retries on its own (2 s doubling to 30 s) unless the server refused it
@@ -1149,6 +1188,31 @@ Note anything users must do (a schema bump, signing in again) under
 `auditConfig.ignoreGhsas` in pnpm-workspace.yaml with its reason, and comes out
 when the package is bumped past the fix. Pick a fixing release at least a week
 old when one exists (`--config.minimum-release-age`).
+
+## Licence
+
+Orrama is proprietary: copyright © 2026 Jules Timothy Sekelj, all rights
+reserved, not open source (since 16 October 2026). `LICENSE` is the notice, and
+people use the app under the free **Personal licence**
+(`docs/licence/PERSONAL.md`, one person's own use) or the **Company licence**
+(`docs/licence/COMPANY.md`, a named company and its Users, self-hosted, with a
+pilot clause; a draft until a lawyer has read it). Every `package.json` is
+`"license": "UNLICENSED"` and `"private": true`. Nothing written in the repo
+may call Orrama open source.
+
+**Never add a copyleft dependency** (GPL, AGPL, LGPL, SSPL, MPL, EUPL and the
+like, unless dual-licensed with an allowed licence). `apps/web/src/licenses.test.ts`
+walks every workspace package's production dependencies (`productionPackages`,
+`apps/web/licenses.ts`) and fails on any licence outside `ALLOWED_LICENCES`
+(MIT, ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, 0BSD, MIT-0, Zlib,
+Unlicense, Python-2.0, CC0-1.0, or a dual licence with one of them). A package
+whose `package.json` states no readable licence is checked by hand and added to
+`ALLOWED_BY_NAME` by name and version, with the reason. Today that means
+`duck@0.1.12` ("BSD", whose file is 2-clause) and `buffers@0.1.1` (no licence
+stated, reached through exceljs). Every web build writes the third-party
+notices: `dist/THIRD_PARTY_NOTICES.txt` for the bundle and
+`dist/THIRD_PARTY_NOTICES_SERVER.txt` for the server's and the MCP server's
+`node_modules`.
 
 ## Dev loop
 
