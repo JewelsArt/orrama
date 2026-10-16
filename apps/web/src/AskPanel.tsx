@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { api, getToken } from "./api.js";
+import { api, sessionFetch } from "./api.js";
 import { Markdown } from "./ask/Answer.js";
 import { HISTORY_MAX, readHistory, saveConversation, type Conversation } from "./ask/history.js";
 import { citedNote, contextNoteOf, EMPTY_VAULT, noteRoute, targetRoute, titleOf, type Vault } from "./ask/targets.js";
@@ -245,7 +245,8 @@ function Chat({
     () =>
       new DefaultChatTransport({
         api: "/api/ai/ask",
-        headers: () => ({ Authorization: `Bearer ${getToken()}` }),
+        // Signed in like every other request, so an ended session signs the app out here too.
+        fetch: (input, init) => sessionFetch(String(input), init),
         body: () => (context.current ? { contextNoteId: context.current } : {}),
       }),
     [],

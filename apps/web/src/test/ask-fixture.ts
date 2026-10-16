@@ -23,8 +23,11 @@ export const TREE = [
 ];
 export const PROJECTS = [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: "academic", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: null, nextDue: null, overdue: 0 }];
 
-/** Install the fake server. `configured: false` is Orr without a model; `treeAfter` holds the tree back. */
-export function serveAsk({ configured = true, treeAfter }: { configured?: boolean; treeAfter?: Promise<void> } = {}) {
+/**
+ * Install the fake server. `configured: false` is Orr without a model; `treeAfter` holds the tree
+ * back; `askStatus` answers the question with that status instead of a stream (401: the session ended).
+ */
+export function serveAsk({ configured = true, treeAfter, askStatus }: { configured?: boolean; treeAfter?: Promise<void>; askStatus?: number } = {}) {
   const calls: AskCall[] = [];
   const enc = new TextEncoder();
   vi.stubGlobal("fetch", async (url: string, init: RequestInit = {}) => {
@@ -36,6 +39,7 @@ export function serveAsk({ configured = true, treeAfter }: { configured?: boolea
       return Response.json(TREE);
     }
     if (method === "GET" && path === "/api/projects") return Response.json(PROJECTS);
+    if (method === "POST" && path === "/api/ai/ask" && askStatus) return Response.json({ error: "this session has ended — sign in again" }, { status: askStatus });
     if (method === "POST" && path === "/api/ai/ask") {
       let ctl!: ReadableStreamDefaultController<Uint8Array>;
       const stream = new ReadableStream<Uint8Array>({ start: (c) => void (ctl = c) });

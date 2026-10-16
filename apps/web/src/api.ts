@@ -165,21 +165,14 @@ const failedWrites = new WeakSet<object>();
 export const isFailedWrite = (e: unknown): boolean => typeof e === "object" && e !== null && failedWrites.has(e);
 
 async function request<T>(method: string, url: string, body: unknown, signal: AbortSignal | undefined): Promise<T> {
-  const token = getToken();
-  const res = await fetch(url, {
+  const res = await sessionFetch(url, {
     method,
     signal,
-    headers: {
-      ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
+    headers: body !== undefined ? { "content-type": "application/json" } : {},
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    // A session ended elsewhere (signed out from another device, revoked in
-    // Settings): back to the sign-in screen instead of a page of failures.
-    if (res.status === 401 && token && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
     throw new ApiError(res.status, data.error ?? res.statusText);
   }
   const data = (await res.json()) as T;
@@ -214,6 +207,23 @@ export function latestOnly(): () => AbortSignal {
 /** Fired when the server stops accepting this browser's session. */
 export const SESSION_ENDED = "orrama:session-ended";
 
+/**
+ * Every request the app makes with its session goes out here: api(), Ask Orr's stream, the save
+ * sent as the page closes, documents. The one place that knows how a request is signed in, and
+ * the one that hears a 401: a session ended elsewhere (signed out from another device, revoked in
+ * Settings) goes back to the sign-in screen instead of a page of failures. Ask Orr used to sign
+ * its own requests and missed that, so an ended session showed as an error in the panel (WEB-013).
+ */
+export async function sessionFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers = new Headers(init.headers);
+  if (token) headers.set("authorization", `Bearer ${token}`);
+  const res = await fetch(url, { ...init, headers });
+  // /api/auth/ answers 401 for a wrong password or passcode: that is not an ended session.
+  if (res.status === 401 && token && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
+  return res;
+}
+
 
 /** Sign out on the server too — the token stops working everywhere it was copied. */
 export async function signOut(): Promise<void> {
@@ -228,8 +238,7 @@ export async function signOut(): Promise<void> {
 /** Same auth as api(), but for bytes: project documents are behind the bearer
  *  token, so a plain <a href> would 401. */
 export async function apiBlob(url: string, opts: { signal?: AbortSignal } = {}): Promise<Blob> {
-  const token = getToken();
-  const res = await fetch(url, { signal: opts.signal, headers: token ? { authorization: `Bearer ${token}` } : {} });
+  const res = await sessionFetch(url, { signal: opts.signal });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   const blob = await res.blob();
   if (opts.signal?.aborted) throw abortError();

@@ -1,6 +1,6 @@
 import { NoteSync, type NoteSyncHooks, type SaveBody } from "@orrama/sync/client";
 import { mergeText } from "@orrama/sync/merge";
-import { api, getToken, type NoteDetail } from "./api.js";
+import { api, sessionFetch, type NoteDetail } from "./api.js";
 import { readJson, removeKey, writeKey } from "./storage.js";
 
 /**
@@ -166,12 +166,11 @@ export function sendBeforeLeaving(send: (body: SaveBody) => void = keepaliveSave
 }
 
 function keepaliveSave(body: SaveBody): void {
-  const token = getToken();
   try {
-    void fetch("/api/vault/note", {
+    void sessionFetch("/api/vault/note", {
       method: "PUT",
       keepalive: true,
-      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     }).catch(() => {});
   } catch {

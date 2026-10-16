@@ -12,7 +12,7 @@ const server = vi.hoisted(() => ({
 }));
 
 vi.mock("./api.js", () => ({
-  getToken: () => "t",
+  sessionFetch: (url: string, init: RequestInit) => fetch(url, init),
   api: async (method: string, url: string, body?: { path: string; content: string }) => {
     if (server.down) throw new TypeError("Failed to fetch");
     if (method === "PUT" && body) {
