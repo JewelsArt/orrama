@@ -13,7 +13,8 @@ import { isEntry } from "../src/entry.js";
 import { canSymlink } from "./helpers/platform.js";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-entry-"));
-afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
+// Windows lets go of a dead process's files a moment after it exits: retry, as rimraf does.
+afterAll(() => fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
 
 describe("isEntry", () => {
   const main = path.join(tmp, "main.ts");
@@ -53,18 +54,21 @@ describe("launching the server", () => {
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (out += d));
+    const exited = new Promise<void>((resolve) => child.on("exit", () => resolve()));
+    let poll: NodeJS.Timeout | undefined;
+    let t: NodeJS.Timeout | undefined;
     const result = await new Promise<string>((resolve) => {
-      const t = setTimeout(() => resolve("timeout"), 20_000);
-      child.on("exit", (code) => (clearTimeout(t), resolve(`exited ${code}`)));
-      const poll = setInterval(() => {
-        if (/Server listening/.test(out)) {
-          clearInterval(poll);
-          clearTimeout(t);
-          resolve("listening");
-        }
+      t = setTimeout(() => resolve("timeout"), 20_000);
+      child.on("exit", (code) => resolve(`exited ${code}`));
+      poll = setInterval(() => {
+        if (/Server listening/.test(out)) resolve("listening");
       }, 50);
-    });
+    }).finally(() => (clearInterval(poll), clearTimeout(t)));
+    // Wait until it is gone: on Windows a process that still holds basalt.db makes the file's
+    // afterAll fail to delete the folder (EBUSY), and the kill only asks for the end.
     child.kill("SIGKILL");
+    await exited;
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
     expect(result, out.slice(-500)).toBe("listening");
   }, 30_000);
 });
