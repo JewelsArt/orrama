@@ -18,10 +18,10 @@
  * identity understates income by exactly that much: a €600 standing transfer
  * to savings reported €1,400 of income against a real €2,000 (audit). Payslips are a
  * poor proxy for it — they cover one employer, and everything else that lands
- * (student finance, transfers, a second job) is invisible to them. On Jules's
- * own file the payslip median said €500 a month while the balance was climbing
- * €300 on top of €1,000 of spending, so the payslip-based version reported a
- * €500 deficit for an account that was visibly growing. Payslips and the income
+ * (student finance, transfers, a second job) is invisible to them. On one real
+ * file the payslip median said about €500 a month while the balance was climbing
+ * about €300 on top of about €1,000 of spending, so the payslip-based version
+ * reported a deficit for an account that was visibly growing. Payslips and the income
  * note are kept as fallbacks for when there is no balance to slope.
  *
  * `trimmable` is the honest half, and it is measured between TWO REAL MONTHS.
