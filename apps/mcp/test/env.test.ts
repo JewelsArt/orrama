@@ -30,5 +30,5 @@ describe("the MCP server on a half-done switch", () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/BASALT_TOKEN is set but ORRAMA_TOKEN is not/);
     expect(r.stderr).not.toContain("secretvalue");
-  });
+  }, 30_000); // a process through tsx: the default 5 s is too short on a Windows runner
 });

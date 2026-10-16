@@ -61,6 +61,8 @@ describe("environment", () => {
     expect(envProblems({ ORRAMA_JWT_SECRET: "short", ORRAMA_ALLOW_DEV_SECRETS: "1" })).toEqual([]);
   });
 
+  // The first import of main.ts loads the whole server through tsx: 1.5 s on a Mac, more than
+  // the default 5 s on a Windows runner.
   it("the server itself refuses to boot on it", async () => {
     process.env.ORRAMA_DATA_DIR = path.join(tmp, "data");
     process.env.ORRAMA_VAULT_DIR = path.join(tmp, "vault");
@@ -73,7 +75,7 @@ describe("environment", () => {
     } finally {
       delete process.env.ORRAMA_PLAN_AI_TIMEOUT_MS;
     }
-  });
+  }, 30_000);
 });
 
 /**

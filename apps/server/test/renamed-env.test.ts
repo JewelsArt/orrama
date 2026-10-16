@@ -25,7 +25,7 @@ function run(script: string, env: Record<string, string>) {
     cwd: tmp,
     env: { ...clean, PORT: "0", ...env },
     encoding: "utf8",
-    timeout: 60_000,
+    timeout: 20_000,
   });
   return { code: r.status, out: `${r.stdout}${r.stderr}` };
 }
@@ -42,6 +42,7 @@ describe("renamed settings variables", () => {
     expect(renamedEnvProblems({ ORRAMA_DATA_DIR: "/d" })).toEqual([]);
   });
 
+  // Five processes through tsx, one after another: about 3 s on a Mac, 7 s on a Windows runner.
   it("the server and every script refuse to start on a half-done switch", () => {
     const vault = path.join(tmp, "vault");
     fs.mkdirSync(vault, { recursive: true });
@@ -56,5 +57,5 @@ describe("renamed settings variables", () => {
     // Nothing was written before the refusal.
     expect(fs.existsSync(path.join(tmp, "data"))).toBe(false);
     expect(fs.readdirSync(vault)).toEqual([]);
-  });
+  }, 120_000);
 });
