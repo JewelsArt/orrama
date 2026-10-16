@@ -1,13 +1,22 @@
 /**
  * Sign in with ChatGPT: the agent runs on the owner's ChatGPT plan (Plus or
- * Pro) instead of an API key. OpenAI offers this to open-source and personal
- * apps that run locally — which Orrama is: the server on this Mac makes every
- * call (developers.openai.com/siwc, "ChatGPT plan usage for open-source and
- * locally hosted apps"). Usage comes out of the plan's weekly allowance; the
- * owner caps it per app in ChatGPT's settings.
+ * Pro) instead of an API key. The server on this computer makes every call.
+ * Usage comes out of the plan's weekly allowance; the owner caps it per app in
+ * ChatGPT's settings.
+ *
+ * Who may use it (16 October 2026): OpenAI offers ChatGPT plan usage to
+ * open-source projects, personal projects that run locally, and selected
+ * private apps (developers.openai.com/siwc, and the cookbook's "Sign in with
+ * ChatGPT"); a paid or proprietary app needs OpenAI's OK first, through the
+ * interest form (openai.com/form/sign-in-with-chatgpt-interest/). Orrama is
+ * proprietary, so this covers Jules's own copy, a personal project on his own
+ * Mac, and nobody else's until OpenAI accepts Orrama's application. Until
+ * then other people use a key; hiding this option from them is stage 2's
+ * first run.
  *
  * Implemented from the documented protocol, not OpenAI's DevKit (that code is
- * under a noncommercial licence; Orrama is Apache-2.0):
+ * under a noncommercial licence, and Orrama is proprietary, so none of it is
+ * used):
  *
  *   1. start   — a PKCE authorization-code request to auth.openai.com, with
  *                `client_id=dynamic_agent_client` the first time (OpenAI
