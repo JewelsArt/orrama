@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-hook-close-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -24,8 +25,8 @@ afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force:
 
 it("a pending note.changed delivery is dropped when the app closes", async () => {
   const { app } = await buildServer();
-  const token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
-  const auth = { authorization: `Bearer ${token}` };
+  const token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
+  const auth = signedIn(token);
   const hook = await app.inject({ method: "POST", url: "/api/webhooks", headers: auth, payload: { url: "http://127.0.0.1:9/hook", events: ["note.changed"] } });
   expect(hook.statusCode).toBe(200);
   const saved = await app.inject({ method: "PUT", url: "/api/vault/note", headers: auth, payload: { path: "Engineering/Hooked.md", content: "# hooked\n" } });

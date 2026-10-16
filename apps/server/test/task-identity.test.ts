@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-task-identity-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -27,7 +28,7 @@ const api = async (method: string, url: string, body?: unknown) => {
   const res = await built.app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${token}` },
+    headers: signedIn(token),
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
@@ -43,7 +44,7 @@ const taskOf = (id: string, text: string) => built.store.index.get(id)!.tasks.fi
 
 beforeAll(async () => {
   built = await buildServer();
-  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await built.app.close();

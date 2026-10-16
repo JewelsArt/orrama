@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defaultBoard, fileRef, normalizeBoard, placeMissing } from "../src/board.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-board-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -21,7 +22,7 @@ const { buildServer } = await import("../src/main.js");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 const token: Record<string, string> = {};
 const call = async (who: string, method: string, url: string, payload?: unknown) => {
-  const res = await app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${token[who]}` }, ...(payload !== undefined ? { payload: payload as Record<string, unknown> } : {}) });
+  const res = await app.inject({ method: method as "GET", url, headers: signedIn(token[who]), ...(payload !== undefined ? { payload: payload as Record<string, unknown> } : {}) });
   return { status: res.statusCode, body: res.json() };
 };
 
@@ -39,7 +40,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   app = (await buildServer()).app;
   for (const who of ["jules", "erin"]) {
-    token[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    token[who] = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 

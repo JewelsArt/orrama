@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-mail-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
@@ -35,10 +36,10 @@ const api = async (method: string, url: string, auth?: string, body?: unknown) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: auth ? { authorization: `Bearer ${auth}` } : {},
+    headers: auth ? signedIn(auth) : {},
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: res.json.bind(res), body: res.body };
+  return { status: res.statusCode, json: res.json.bind(res), body: res.body, cookies: res.cookies };
 };
 
 beforeAll(async () => {
@@ -49,7 +50,7 @@ beforeAll(async () => {
   for (const email of ["jules@orrama.dev", "erin@orrama.dev"]) {
     const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     const who = email.split("@")[0]!;
-    tokens[who] = r.json().token;
+    tokens[who] = sessionOf(r);
     ids[who] = (await api("GET", "/api/me", tokens[who])).json().id;
   }
 });

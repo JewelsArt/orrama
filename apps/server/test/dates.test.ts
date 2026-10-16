@@ -15,6 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 /**
  * Only `Date` is faked. Faking the timers too deadlocks Fastify's own
@@ -43,7 +44,7 @@ const api = async (method: string, url: string, body?: unknown) => {
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${token}` },
+    headers: signedIn(token),
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   return { status: res.statusCode, json: res.json() };
@@ -57,7 +58,7 @@ beforeAll(async () => {
     url: "/api/auth/login",
     payload: { email: "jules@orrama.dev", password: "orrama-demo" },
   });
-  token = res.json().token;
+  token = sessionOf(res);
 });
 
 afterAll(async () => {

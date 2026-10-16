@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-cat-redos-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -32,7 +33,7 @@ let b: Awaited<ReturnType<typeof buildServer>>;
 let token = "";
 beforeAll(async () => {
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await b.app.close();
@@ -41,7 +42,7 @@ afterAll(async () => {
 
 it("the tree answers promptly, and the rules still categorise", async () => {
   const t = performance.now();
-  const res = await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: { authorization: `Bearer ${token}` } });
+  const res = await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: signedIn(token) });
   expect(performance.now() - t).toBeLessThan(3000);
   expect(res.statusCode).toBe(200);
   const cat = new Map((res.json() as { path: string; category: string }[]).map((n) => [n.path, n.category]));

@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-noticed-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -25,7 +26,7 @@ const put = (rel: string, content: string) => {
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
 const warnings = async (who: string) => {
-  const r = await b.app.inject({ method: "GET", url: "/api/graph/warnings", headers: { authorization: `Bearer ${tokens[who]}` } });
+  const r = await b.app.inject({ method: "GET", url: "/api/graph/warnings", headers: signedIn(tokens[who]) });
   if (r.statusCode !== 200) throw new Error(`${r.statusCode} ${r.body}`);
   return graphWarningsResponse.parse(r.json());
 };
@@ -45,7 +46,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   b = await buildServer();
   for (const [who, email] of [["jules", "jules@orrama.dev"], ["erin", "erin@orrama.dev"]] as const) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "orrama-demo" } }));
   }
 }, 60_000);
 

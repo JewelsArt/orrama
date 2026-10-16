@@ -13,6 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-rules-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -72,7 +73,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   app = (await buildServer()).app;
   const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
-  token = r.json().token;
+  token = sessionOf(r);
 });
 
 afterAll(async () => {
@@ -110,7 +111,7 @@ describe("savingsCategories", () => {
 
 describe("GET /api/finance and /api/home", () => {
   it("put the visits in Bouldering and only the membership in committed", async () => {
-    const fin = (await app.inject({ method: "GET", url: "/api/finance", headers: { authorization: `Bearer ${token}` } })).json();
+    const fin = (await app.inject({ method: "GET", url: "/api/finance", headers: signedIn(token) })).json();
     const bouldering = fin.spending.categories.forecast.find((f: { category: string }) => f.category === "Bouldering");
     expect(bouldering.typical).toBe(77.5); // median of 55, 85, 70, 100 — visits included
     expect(fin.spending.categories.forecast.some((f: { category: string }) => f.category === "Other")).toBe(false);
@@ -121,7 +122,7 @@ describe("GET /api/finance and /api/home", () => {
 
     // The Dashboard builds its own plan from the same data; it must quote the
     // same target, or the two screens disagree about what to save.
-    const home = (await app.inject({ method: "GET", url: "/api/home", headers: { authorization: `Bearer ${token}` } })).json();
+    const home = (await app.inject({ method: "GET", url: "/api/home", headers: signedIn(token) })).json();
     const target = JSON.stringify(home).match(/"savings":\{"target":(-?[\d.]+)/)?.[1];
     expect(target).toBeDefined();
     expect(Number(target)).toBe(fin.savings.target);

@@ -9,6 +9,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-ssrf-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -101,10 +102,10 @@ describe("through the API", () => {
   beforeAll(async () => {
     await import("../src/seed.js");
     app = (await (await import("../src/main.js")).buildServer()).app;
-    token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+    token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
   });
   afterAll(async () => app.close());
-  const call = (method: "POST", url: string, payload?: object) => app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload } : {}) });
+  const call = (method: "POST", url: string, payload?: object) => app.inject({ method, url, headers: signedIn(token), ...(payload ? { payload } : {}) });
 
   it("a feed on the server's network is refused, and the reply says nothing about what is there", async () => {
     hits.length = 0;

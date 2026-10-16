@@ -10,6 +10,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-integr-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
@@ -37,10 +38,10 @@ const api = async (method: string, url: string, auth?: string, body?: unknown) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: auth ? { authorization: `Bearer ${auth}` } : {},
+    headers: auth ? signedIn(auth) : {},
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: res.json.bind(res), body: res.body };
+  return { status: res.statusCode, json: res.json.bind(res), body: res.body, cookies: res.cookies };
 };
 
 /** Tiny local HTTP server: serves an ICS body and records webhook deliveries. */
@@ -65,7 +66,7 @@ beforeAll(async () => {
   app = built.app;
   for (const email of ["jules@orrama.dev", "erin@orrama.dev", "mara@orrama.dev"]) {
     const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
-    tokens[email.split("@")[0]!] = r.json().token;
+    tokens[email.split("@")[0]!] = sessionOf(r);
   }
   helper = http.createServer((req, res) => {
     if (req.method === "GET") {

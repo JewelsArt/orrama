@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-project-note-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -21,13 +22,13 @@ const { projectNoteFor } = await import("../src/routes/projects.js");
 let b: Awaited<ReturnType<typeof buildServer>>;
 let token = "";
 const call = (method: string, url: string, payload?: object) =>
-  b.app.inject({ method: method as "POST", url, headers: { authorization: `Bearer ${token}` }, payload });
+  b.app.inject({ method: method as "POST", url, headers: signedIn(token), payload });
 
 beforeAll(async () => {
   fs.mkdirSync(process.env.ORRAMA_VAULT_DIR!, { recursive: true });
   await import("../src/seed.js");
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await b.app.close();

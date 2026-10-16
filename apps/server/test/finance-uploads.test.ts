@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-fin-uploads-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -23,14 +24,14 @@ const upload = async (name: string, data: Buffer | string) => {
   const res = await app.inject({
     method: "POST",
     url: "/api/finance/payslip",
-    headers: { authorization: `Bearer ${token}` },
+    headers: signedIn(token),
     payload: { name, dataBase64: Buffer.from(data).toString("base64") },
   });
   expect(res.statusCode).toBe(200);
   return res.json();
 };
 const finance = async () =>
-  (await app.inject({ method: "GET", url: "/api/finance", headers: { authorization: `Bearer ${token}` } })).json();
+  (await app.inject({ method: "GET", url: "/api/finance", headers: signedIn(token) })).json();
 
 const HEADER = ["Type", "Product", "Started Date", "Completed Date", "Description", "Amount", "Fee", "Currency", "State", "Balance"];
 /** Five Revolut rows in one month, as cells. */
@@ -46,7 +47,7 @@ beforeAll(async () => {
   fs.mkdirSync(process.env.ORRAMA_VAULT_DIR!, { recursive: true });
   await import("../src/seed.js");
   app = (await buildServer()).app;
-  token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await app.close();

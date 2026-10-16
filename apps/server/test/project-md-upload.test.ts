@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-md-upload-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -27,7 +28,7 @@ const upload = async (who: string, name: string, data: string | Buffer) => {
   const r = await b.app.inject({
     method: "POST",
     url: "/api/projects/atlas/files",
-    headers: { authorization: `Bearer ${tokens[who]}` },
+    headers: signedIn(tokens[who]),
     payload: { name, dataBase64: Buffer.from(data).toString("base64") },
   });
   return { status: r.statusCode, body: r.json() };
@@ -36,7 +37,7 @@ const upload = async (who: string, name: string, data: string | Buffer) => {
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 afterAll(async () => {

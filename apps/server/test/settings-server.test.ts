@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-settings-server-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -20,12 +21,12 @@ const { homePath } = await import("../src/routes/settings.js");
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let built: Built;
 const tokens: Record<string, string> = {};
-const get = (who: string) => built.app.inject({ method: "GET", url: "/api/settings/server", headers: { authorization: `Bearer ${tokens[who]}` } });
+const get = (who: string) => built.app.inject({ method: "GET", url: "/api/settings/server", headers: signedIn(tokens[who]) });
 
 beforeAll(async () => {
   built = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 afterAll(async () => {

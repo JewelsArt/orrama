@@ -10,6 +10,7 @@ import path from "node:path";
 import { asc, eq } from "drizzle-orm";
 import * as Y from "yjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-history-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -25,7 +26,7 @@ const DAY = 86_400_000;
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
 const get = async (who: string, url: string) => {
-  const r = await b.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${tokens[who]}` } });
+  const r = await b.app.inject({ method: "GET", url, headers: signedIn(tokens[who]) });
   return { status: r.statusCode, json: r.statusCode === 200 ? r.json() : null };
 };
 
@@ -49,7 +50,7 @@ const logOf = (noteId: string) => b.db.select().from(tables.ydocUpdates).where(e
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin", "mara"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 afterAll(async () => {

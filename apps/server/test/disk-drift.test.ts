@@ -16,6 +16,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-drift-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -35,7 +36,7 @@ const api = async (method: string, url: string, body?: unknown) => {
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${token}` },
+    headers: signedIn(token),
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
@@ -59,7 +60,7 @@ beforeAll(async () => {
   store = built.store;
   const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
   expect(r.statusCode).toBe(200);
-  token = r.json().token;
+  token = sessionOf(r);
 });
 
 afterAll(async () => {

@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NoteSync, type SyncedNote } from "@orrama/sync/client";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-editor-rename-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -29,7 +30,7 @@ const send = async (method: string, url: string, body?: unknown) => {
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${token}` },
+    headers: signedIn(token),
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   return { status: res.statusCode, body: res.json() };
@@ -72,7 +73,7 @@ beforeAll(async () => {
   app = built.app;
   store = built.store;
   const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
-  token = r.json().token;
+  token = sessionOf(r);
 });
 
 afterAll(async () => {

@@ -15,6 +15,7 @@ import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
 import { POSIX_MODES } from "./helpers/platform.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-logs-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -41,7 +42,7 @@ beforeAll(async () => {
   app = (await buildServer({ logStream })).app;
   await app.ready();
   const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
-  token = r.json().token;
+  token = sessionOf(r);
 });
 
 afterAll(async () => {
@@ -61,7 +62,7 @@ describe("redactUrl", () => {
 
 describe("the real app's request log", () => {
   it("records the requests, and none of the secrets in their URLs", async () => {
-    const auth = { authorization: `Bearer ${token}` };
+    const auth = signedIn(token);
     await app.inject({ method: "GET", url: "/api/vault/search?q=SECRET-SEARCH-TERM", headers: auth });
     await app.inject({ method: "GET", url: "/ics/SECRET-FEED-TOKEN.ics" });
     await app.inject({ method: "GET", url: `/api/ws?token=${token}` });
@@ -102,7 +103,7 @@ describe("/api/ws authenticates with its first frame", () => {
     await app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${token}` },
+      headers: signedIn(token),
       payload: { path: "Engineering/Live.md", content: "# live\n" },
     });
     expect(await s.waitFor("note-changed")).toBe(true);
@@ -127,7 +128,7 @@ describe("/api/ws authenticates with its first frame", () => {
     await app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${token}` },
+      headers: signedIn(token),
       payload: { path: "Engineering/Unseen.md", content: "# unseen\n" },
     });
     expect(await s.waitFor("note-changed", 500)).toBe(false);

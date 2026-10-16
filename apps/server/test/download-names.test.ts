@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { WINDOWS } from "./helpers/platform.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-download-names-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,7 +29,7 @@ let token = "";
 const req = (method: string, url: string, body?: unknown) =>
   fetch(base + url, {
     method,
-    headers: { authorization: `Bearer ${token}`, ...(body ? { "content-type": "application/json" } : {}) },
+    headers: { ...signedIn(token, base), ...(body ? { "content-type": "application/json" } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
@@ -48,7 +49,7 @@ beforeAll(async () => {
   await b.app.listen({ port: 0, host: "127.0.0.1" });
   const addr = b.app.server.address();
   base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
-  token = ((await (await req("POST", "/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" })).json()) as { token: string }).token;
+  token = sessionOf(await req("POST", "/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" }));
 });
 afterAll(async () => {
   await b.app.close();

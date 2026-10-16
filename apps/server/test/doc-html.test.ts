@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-dochtml-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -85,7 +86,7 @@ describe("GET /api/projects/:slug/files/:name/html", () => {
   beforeAll(async () => {
     await import("../src/seed.js");
     app = (await buildServer()).app;
-    token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+    token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
     const dir = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(path.join(import.meta.dirname, "fixtures/links.docx"), path.join(dir, "links.docx"));
@@ -97,7 +98,7 @@ describe("GET /api/projects/:slug/files/:name/html", () => {
   });
 
   it("serves a real .docx with its script links gone and its real links intact", async () => {
-    const r = await app.inject({ method: "GET", url: "/api/projects/atlas/files/links.docx/html", headers: { authorization: `Bearer ${token}` } });
+    const r = await app.inject({ method: "GET", url: "/api/projects/atlas/files/links.docx/html", headers: signedIn(token) });
     expect(r.statusCode).toBe(200);
     const { html } = r.json() as { html: string };
     expect(html).toContain("link rId1"); // the document was converted, not refused

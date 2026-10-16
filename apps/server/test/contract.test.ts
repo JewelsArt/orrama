@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import type { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-contract-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -33,7 +34,7 @@ let ics: Awaited<ReturnType<typeof fx.serveIcs>>;
 let token = "";
 let noteId = "";
 const call = async (method: string, url: string, payload?: unknown) => {
-  const r = await b.app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${token}` }, payload: payload as object });
+  const r = await b.app.inject({ method: method as "GET", url, headers: signedIn(token), payload: payload as object });
   return { status: r.statusCode, body: r.body ? (JSON.parse(r.body) as unknown) : null };
 };
 const must = async (method: string, url: string, payload?: unknown) => {

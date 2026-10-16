@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-create-only-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -30,7 +31,7 @@ const tokens: Record<string, string> = {};
 const abs = (rel: string) => path.join(VAULT, rel);
 const read = (rel: string) => fs.readFileSync(abs(rel), "utf8");
 const call = async (who: string, method: string, url: string, payload?: Record<string, unknown>) => {
-  const res = await b.app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${tokens[who]}` }, ...(payload ? { payload } : {}) });
+  const res = await b.app.inject({ method: method as "GET", url, headers: signedIn(tokens[who]), ...(payload ? { payload } : {}) });
   return { status: res.statusCode, body: (() => { try { return res.json(); } catch { return null; } })() };
 };
 const b64 = (s: string | Buffer) => Buffer.from(s).toString("base64");
@@ -60,7 +61,7 @@ function textPdf(text: string): Buffer {
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "mara"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 afterAll(async () => {

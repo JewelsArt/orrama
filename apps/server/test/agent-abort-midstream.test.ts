@@ -8,6 +8,7 @@
  * handled, and Node ends the process on one: the whole server went down with the panel.
  */
 import { afterAll, describe, expect, it } from "vitest";
+import { signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_AI_TIMEOUT_MS = "4000";
 const { bootAi } = await import("./helpers/aiServer.js");
@@ -32,7 +33,7 @@ describe("stopping an Ask run mid-answer", () => {
       const res = await fetch(`http://127.0.0.1:${port}/api/ai/ask`, {
         method: "POST",
         signal: stop.signal,
-        headers: { authorization: `Bearer ${s.tokens.jules}`, "content-type": "application/json" },
+        headers: { ...signedIn(s.tokens.jules, `http://127.0.0.1:${port}`), "content-type": "application/json" },
         body: JSON.stringify(ask("summarise everything")),
       });
       const reader = res.body!.getReader();

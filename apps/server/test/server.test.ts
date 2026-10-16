@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
@@ -32,10 +33,10 @@ const api = async (method: string, url: string, user?: string, body?: unknown) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: user ? { authorization: `Bearer ${tokens[user]}` } : {},
+    headers: user ? signedIn(tokens[user]) : {},
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: res.json() };
+  return { status: res.statusCode, json: res.json(), session: sessionOf(res) };
 };
 
 beforeAll(async () => {
@@ -48,7 +49,7 @@ beforeAll(async () => {
   for (const email of ["jules@orrama.dev", "erin@orrama.dev", "mara@orrama.dev"]) {
     const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     expect(r.status).toBe(200);
-    tokens[email.split("@")[0]!] = r.json.token;
+    tokens[email.split("@")[0]!] = r.session;
   }
 });
 
@@ -706,7 +707,7 @@ describe("graph + plan + profile", () => {
       const dl = await app.inject({
         method: "GET",
         url: `/api/projects/${slug}/files/brief.pdf`,
-        headers: { authorization: `Bearer ${tokens.jules}` },
+        headers: signedIn(tokens.jules),
       });
       expect(dl.statusCode).toBe(200);
       expect(dl.body).toContain("hello thesis");
@@ -720,7 +721,7 @@ describe("graph + plan + profile", () => {
       const html = await app.inject({
         method: "GET",
         url: `/api/projects/${slug}/files/x.html`,
-        headers: { authorization: `Bearer ${tokens.jules}` },
+        headers: signedIn(tokens.jules),
       });
       expect(html.headers["content-disposition"]).toContain("attachment");
 
@@ -1154,7 +1155,7 @@ describe("project slug cannot escape the vault", () => {
       `/api/projects/${encodeURIComponent(escape)}`,
       `/api/projects/${encodeURIComponent(escape)}/files`,
     ]) {
-      const res = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${tokens["jules"]}` } });
+      const res = await app.inject({ method: "GET", url, headers: signedIn(tokens["jules"]) });
       expect(res.statusCode).not.toBe(200);
     }
 

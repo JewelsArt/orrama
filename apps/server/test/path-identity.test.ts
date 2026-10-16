@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-path-identity-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -58,7 +59,7 @@ const restamps: string[] = [];
 const NFD = "Shared/Re\u0301sume\u0301.md";
 
 const put = async (who: string, body: Record<string, unknown>) => {
-  const res = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${tokens[who]}` }, payload: body });
+  const res = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(tokens[who]), payload: body });
   return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
 };
 const indexPaths = (prefix: string) =>
@@ -75,7 +76,7 @@ beforeAll(async () => {
   fs.writeFileSync(abs(NFD), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
   b = await buildServer();
   for (const who of ["jules", "mara"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
   const warn = console.warn;
   console.warn = (...a: unknown[]) => {
@@ -199,7 +200,7 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     const res = await b.app.inject({
       method: "POST",
       url: "/api/vault/move",
-      headers: { authorization: `Bearer ${tokens.jules}` },
+      headers: signedIn(tokens.jules),
       payload: { fromPath: "Shared/Brand New Idea.md", toPath: "Shared/brand new idea.md" },
     });
     expect(res.statusCode).toBe(200);
@@ -212,7 +213,7 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
     const res = await b.app.inject({
       method: "POST",
       url: "/api/vault/move",
-      headers: { authorization: `Bearer ${tokens.jules}` },
+      headers: signedIn(tokens.jules),
       payload: { fromPath: "Shared/brand new idea.md", toPath: "shared/eng secret.md" },
     });
     expect(res.statusCode).toBe(409);

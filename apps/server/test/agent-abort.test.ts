@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { signedIn } from "./helpers/session.js";
 
 // The mailbox, faked: one very long message (no IMAP server in a test).
 vi.mock("../src/mail.js", async (importOriginal) => ({
@@ -43,7 +44,7 @@ describe("stopping an Ask run", () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/ai/ask`, {
       method: "POST",
       signal: stop.signal,
-      headers: { authorization: `Bearer ${s.tokens.jules}`, "content-type": "application/json" },
+      headers: { ...signedIn(s.tokens.jules, `http://127.0.0.1:${port}`), "content-type": "application/json" },
       body: JSON.stringify(ask("tidy my notes")),
     });
     const reader = res.body!.getReader();

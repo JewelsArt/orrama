@@ -10,6 +10,7 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 const OLD = "test-secret-key-0123456789abcdef";
 const NEW = "new-secret-key-0123456789abcdef!!";
@@ -56,9 +57,9 @@ afterAll(async () => {
 });
 
 const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: "o@example.test", username: "owner", displayName: "O", password: "a-real-password" } });
-const session = reg.json().token as string;
+const session = sessionOf(reg) as string;
 const call = (method: "POST" | "GET", url: string, payload?: object) =>
-  b.app.inject({ method, url, headers: { authorization: `Bearer ${session}` }, ...(payload ? { payload } : {}) });
+  b.app.inject({ method, url, headers: signedIn(session), ...(payload ? { payload } : {}) });
 const stored = (id: string) => b.db.select().from(tables.webhooks).where(eq(tables.webhooks.id, id)).get()!.secret;
 const signs = (secret: string, body: string) => `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
 

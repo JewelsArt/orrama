@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 const argon = vi.hoisted(() => ({ hash: 0, verify: 0 }));
 vi.mock("@node-rs/argon2", async (importOriginal) => {
@@ -42,13 +43,13 @@ const EMAIL = "owner@example.test";
 const PASSWORD = "a-real-password";
 const PASSCODE = "7391";
 const post = (url: string, payload: object, remoteAddress = "127.0.0.1", token?: string) =>
-  b.app.inject({ method: "POST", url, payload, remoteAddress, headers: token ? { authorization: `Bearer ${token}` } : {} });
+  b.app.inject({ method: "POST", url, payload, remoteAddress, headers: token ? signedIn(token) : {} });
 const statuses = (rs: { statusCode: number }[]) =>
   rs.reduce<Record<number, number>>((acc, r) => ((acc[r.statusCode] = (acc[r.statusCode] ?? 0) + 1), acc), {});
 const owner = () => b.db.select().from(tables.users).where(eq(tables.users.email, EMAIL)).get()!;
 
 const reg = await post("/api/auth/register", { email: EMAIL, username: "owner", displayName: "Owner", password: PASSWORD });
-const session = reg.json().token as string;
+const session = sessionOf(reg) as string;
 expect((await post("/api/auth/passcode", { passcode: PASSCODE }, "127.0.0.1", session)).statusCode).toBe(200);
 
 beforeEach(() => {

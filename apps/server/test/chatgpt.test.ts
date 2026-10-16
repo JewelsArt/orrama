@@ -11,6 +11,7 @@ import path from "node:path";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-chatgpt-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -91,7 +92,7 @@ const fakeFetch = async (input: string | URL | Request, init?: RequestInit): Pro
 };
 
 const call = async (who: string, method: "GET" | "POST", url: string, opts: { payload?: object; headers?: Record<string, string> } = {}) => {
-  const r = await built.app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who]}`, ...opts.headers }, ...(opts.payload ? { payload: opts.payload } : {}) });
+  const r = await built.app.inject({ method, url, headers: { ...signedIn(tokens[who]), ...opts.headers }, ...(opts.payload ? { payload: opts.payload } : {}) });
   return { status: r.statusCode, body: r.body, headers: r.headers, json: (() => { try { return r.json(); } catch { return null; } })() };
 };
 const start = async () => new URL((await call("jules", "POST", "/api/admin/ai/chatgpt/start", { headers: { origin: "http://localhost:4623" } })).json.url as string);
@@ -107,7 +108,7 @@ beforeAll(async () => {
   chatgpt.setKeySetForTests(createLocalJWKSet({ keys: [{ ...((await exportJWK(publicKey)) as JWK), kid: "k1", alg: "RS256" }] }));
   built = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
   // Gemini configured first: connecting ChatGPT must not lose its key.
   expect((await call("jules", "POST", "/api/admin/ai", { payload: { provider: "google", model: "gemini-2.5-flash", apiKey: GEMINI_KEY } })).status).toBe(200);
@@ -143,7 +144,7 @@ describe("starting sign-in", () => {
 
   it("is for the owner, from this machine", async () => {
     expect((await call("erin", "POST", "/api/admin/ai/chatgpt/start")).status).toBe(403);
-    const phone = await built.app.inject({ method: "POST", url: "/api/admin/ai/chatgpt/start", headers: { authorization: `Bearer ${tokens.jules}`, host: "juless-macbook-pro.tail790a29.ts.net" } });
+    const phone = await built.app.inject({ method: "POST", url: "/api/admin/ai/chatgpt/start", headers: { ...signedIn(tokens.jules, "https://juless-macbook-pro.tail790a29.ts.net"), host: "juless-macbook-pro.tail790a29.ts.net" } });
     expect(phone.statusCode).toBe(400);
   });
 });

@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-calnotes-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -115,8 +116,8 @@ describe("the index follows the notes", () => {
     fs.writeFileSync(file, `---\ncalendar: jules\nmonth: "2026-12"\n---\n${TABLE}| 2026-12-07 | 09:00 | 10:00 | Typed row |  |  |\n| 2026-12-08 | 09:00 | 10:00 | Another typed row |  |  |\n| 2026-12-09 | 09:00 | 10:00 | Moving on |  |  |\n`);
     await until(() => ["Typed row", "Another typed row", "Moving on"].every((t) => eventsOf().includes(t)));
     const idOf = (title: string) => b.db.select().from(tables.events).where(eq(tables.events.title, title)).get()!.id;
-    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
-    const headers = { authorization: `Bearer ${token}` };
+    const token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
+    const headers = signedIn(token);
     const rowsIn = () => fs.readFileSync(file, "utf8").split("\n").filter((l) => l.startsWith("| 2026-12-"));
 
     // Each acts on a row with no id in the file: the route must derive the
@@ -150,11 +151,11 @@ describe("the index follows the notes", () => {
   it("a note naming you outside a calendar folder does not reach your calendar", async () => {
     // erin can edit Engineering/; jules (an owner) can edit anything, so the
     // edit check alone would have let her put events on his calendar.
-    const token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "erin@orrama.dev", password: "orrama-demo" } })).json().token;
+    const token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "erin@orrama.dev", password: "orrama-demo" } }));
     const put = await b.app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${token}` },
+      headers: signedIn(token),
       payload: { path: "Engineering/not a calendar.md", content: `---\ncalendar: jules\nmonth: "2026-10"\n---\n${TABLE}| 2026-10-03 | 09:00 | 17:00 | Planted by erin |  | ev-planted |\n` },
     });
     expect(put.statusCode).toBe(200);

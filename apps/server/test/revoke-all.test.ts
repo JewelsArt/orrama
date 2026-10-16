@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { hash as argonHash } from "@node-rs/argon2";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-revoke-all-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,10 +29,10 @@ afterAll(async () => {
 const EMAIL = "owner@example.test";
 const PASSWORD = "a-real-password";
 const req = async (method: "GET" | "POST" | "DELETE", url: string, auth?: string, payload?: object) => {
-  const r = await b.app.inject({ method, url, headers: auth ? { authorization: `Bearer ${auth}` } : {}, ...(payload ? { payload } : {}) });
-  return { status: r.statusCode, json: () => r.json() };
+  const r = await b.app.inject({ method, url, headers: auth ? signedIn(auth) : {}, ...(payload ? { payload } : {}) });
+  return { status: r.statusCode, json: () => r.json(), session: sessionOf(r) };
 };
-const login = async (password = PASSWORD) => (await req("POST", "/api/auth/login", undefined, { email: EMAIL, password })).json().token as string;
+const login = async (password = PASSWORD) => (await req("POST", "/api/auth/login", undefined, { email: EMAIL, password })).session;
 const user = () => b.db.select().from(tables.users).where(eq(tables.users.email, EMAIL)).get()!;
 
 await req("POST", "/api/auth/register", undefined, { email: EMAIL, username: "owner", displayName: "Owner", password: PASSWORD });
@@ -87,7 +88,7 @@ describe("a password change (account.ts)", () => {
   });
 
   it("leaves them alone when only the name changes", async () => {
-    const s = (await req("POST", "/api/auth/login", undefined, { email: EMAIL, password: "a-new-password" })).json().token as string;
+    const s = (await req("POST", "/api/auth/login", undefined, { email: EMAIL, password: "a-new-password" })).session;
     const u = user();
     expect(applyAccountChange(b.db, u.id, { email: u.email, username: u.username, displayName: "Renamed", passwordHash: null })).toBeNull();
     expect((await req("GET", "/api/me", s)).json().displayName).toBe("Renamed");

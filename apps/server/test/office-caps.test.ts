@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-office-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -86,7 +87,7 @@ const row = (r: number, cells: (string | number)[]) =>
 describe("the document routes", () => {
   let app: Awaited<ReturnType<typeof buildServer>>["app"];
   let token = "";
-  const get = (url: string) => app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
+  const get = (url: string) => app.inject({ method: "GET", url, headers: signedIn(token) });
   const project = () => path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
   const finance = () => path.join(process.env.ORRAMA_VAULT_DIR!, "02-Areas/finance/files");
   // Just over the XML cap: as XML of short paragraphs, the shape that cost mammoth the most.
@@ -99,7 +100,7 @@ describe("the document routes", () => {
   beforeAll(async () => {
     await import("../src/seed.js");
     app = (await buildServer()).app;
-    token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+    token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
     fs.mkdirSync(project(), { recursive: true });
     fs.mkdirSync(finance(), { recursive: true });
     fs.writeFileSync(path.join(project(), "fine.docx"), docx(para("Chapter one")));

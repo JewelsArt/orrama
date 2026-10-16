@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-reads-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -22,8 +23,8 @@ afterAll(async () => {
   await app.close();
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
-const token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "mara@orrama.dev", password: "orrama-demo" } })).json().token;
-const get = (url: string) => app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
+const token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "mara@orrama.dev", password: "orrama-demo" } }));
+const get = (url: string) => app.inject({ method: "GET", url, headers: signedIn(token) });
 
 describe("vault reads", () => {
   it("opening a note with many links reads the grants once, and still hides what it should", async () => {
@@ -32,7 +33,7 @@ describe("vault reads", () => {
     const put = await app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${token}` },
+      headers: signedIn(token),
       payload: { path: "Shared/Many links.md", content: `# Many links\n\n${links}\n- [[Incident Runbook]]\n` },
     });
     expect(put.statusCode).toBe(200);
@@ -60,7 +61,7 @@ describe("vault reads", () => {
 
     // …and a new version gets a new hash: the one the save itself reported.
     const before = r.json().find((n: { path: string }) => n.path === "Shared/Many links.md");
-    const saved = await app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: "Shared/Many links.md", content: "# Many links\n\nrewritten\n" } });
+    const saved = await app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(token), payload: { path: "Shared/Many links.md", content: "# Many links\n\nrewritten\n" } });
     const after = (await get("/api/vault/tree")).json().find((n: { path: string }) => n.path === "Shared/Many links.md");
     expect(after.hash).not.toBe(before.hash);
     expect(after.hash).toBe(saved.json().hash);

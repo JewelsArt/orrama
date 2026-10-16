@@ -16,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-project-identity-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -55,7 +56,7 @@ const { tables } = await import("../src/db.js");
 let b: Awaited<ReturnType<typeof buildServer>>;
 let token = "";
 const get = async (url: string) => {
-  const res = await b.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
+  const res = await b.app.inject({ method: "GET", url, headers: signedIn(token) });
   return { status: res.statusCode, json: res.json() };
 };
 type Row = { slug: string; key: string; name: string; total: number; done: number };
@@ -67,7 +68,7 @@ const board = async () =>
 
 beforeAll(async () => {
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await b.app.close();

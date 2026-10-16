@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-home-booked-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -27,7 +28,7 @@ const { buildServer } = await import("../src/main.js");
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
 const call = async (who: string, method: "GET" | "POST", url: string, payload?: Record<string, unknown>) => {
-  const res = await b.app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who]}` }, ...(payload ? { payload } : {}) });
+  const res = await b.app.inject({ method, url, headers: signedIn(tokens[who]), ...(payload ? { payload } : {}) });
   return { status: res.statusCode, body: res.json() };
 };
 type Home = { stats: { weekHours: number }; agenda: { kind: string; title: string; date: string; startMin: number | null }[] };
@@ -38,7 +39,7 @@ const today = isoLocal(new Date());
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
   const work = b.store.index.getByPath("Shared/Work.md")!.id;
   const book = async (who: string, text: string, startMin: number) => {
@@ -71,7 +72,7 @@ it("a block on a task whose note you can no longer read is not shown", async () 
   const put = await b.app.inject({
     method: "PUT",
     url: "/api/vault/note",
-    headers: { authorization: `Bearer ${tokens["jules"]}` },
+    headers: signedIn(tokens["jules"]),
     payload: { path: work.path, content: `${work.content}\n#only/marketing\n` },
   });
   expect(put.statusCode).toBe(200);

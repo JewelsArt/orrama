@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-sector-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,9 +29,9 @@ const body = (text: string) => text.replace(/^---\n[\s\S]*?\n---\n/, "");
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
 const patch = async (who: string, id: string, payload: unknown) =>
-  b.app.inject({ method: "PATCH", url: `/api/contacts/${id}`, payload: payload as object, headers: { authorization: `Bearer ${tokens[who]}` } });
+  b.app.inject({ method: "PATCH", url: `/api/contacts/${id}`, payload: payload as object, headers: signedIn(tokens[who]) });
 const idOf = async (who: string, name: string) =>
-  (await b.app.inject({ method: "GET", url: "/api/contacts", headers: { authorization: `Bearer ${tokens[who]}` } })).json().find((c: { name: string }) => c.name === name)?.id as string;
+  (await b.app.inject({ method: "GET", url: "/api/contacts", headers: signedIn(tokens[who]) })).json().find((c: { name: string }) => c.name === name)?.id as string;
 
 // Written in Obsidian: an inline #contact, a rule, and a body line that begins "sector:".
 const YARA = "# Yara Haddad #contact\n\nMet at the alumni evening.\n\n---\n\n## Notes\n\nsector: moved to banking last spring\n";
@@ -45,7 +46,7 @@ beforeAll(async () => {
   await import("../src/seed.js");
   b = await buildServer();
   for (const [who, email] of [["jules", "jules@orrama.dev"], ["erin", "erin@orrama.dev"]] as const) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password: "orrama-demo" } }));
   }
 }, 60_000);
 
@@ -71,7 +72,7 @@ describe("PATCH /api/contacts/:id (WEB-022)", () => {
     const after = read("Contacts/Noor El Amrani.md");
     expect(parseNote(after).frontmatter["sector"]).toBe("Leadership");
     expect(body(after)).toBe(body(before));
-    const list = (await b.app.inject({ method: "GET", url: "/api/contacts", headers: { authorization: `Bearer ${tokens.jules}` } })).json();
+    const list = (await b.app.inject({ method: "GET", url: "/api/contacts", headers: signedIn(tokens.jules) })).json();
     expect(list.find((c: { name: string }) => c.name === "Noor El Amrani").sector).toBe("Leadership");
   });
 
@@ -86,7 +87,7 @@ describe("PATCH /api/contacts/:id (WEB-022)", () => {
     const yara = await idOf("jules", "Yara Haddad");
     expect((await patch("jules", yara, { sector: "" })).statusCode).toBe(400);
     expect((await patch("jules", yara, { sector: "Finance\ntags: [x]" })).statusCode).toBe(400);
-    const tree = (await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: { authorization: `Bearer ${tokens.jules}` } })).json() as { id: string; path: string }[];
+    const tree = (await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: signedIn(tokens.jules) })).json() as { id: string; path: string }[];
     const other = tree.find((n) => n.path === "Shared/Not a contact.md")!.id;
     const untouched = read("Shared/Not a contact.md");
     expect((await patch("jules", other, { sector: "Finance" })).statusCode).toBe(400);

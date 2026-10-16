@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-vanishing-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,7 +29,7 @@ beforeAll(async () => {
   fs.mkdirSync(vault, { recursive: true });
   await import("../src/seed.js");
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await b.app.close();
@@ -38,7 +39,7 @@ afterAll(async () => {
 it("a note written by Orrama and deleted at once outside it leaves the index", async () => {
   const rels = [0, 1, 2, 3, 4].map((i) => `Shared/Fleeting ${i}.md`);
   for (const rel of rels) {
-    const put = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: rel, content: "# Fleeting\n" } });
+    const put = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(token), payload: { path: rel, content: "# Fleeting\n" } });
     expect(put.statusCode).toBe(200);
     expect(b.store.index.getByPath(rel)).toBeDefined();
     fs.rmSync(path.join(vault, rel)); // in the same breath
@@ -46,13 +47,13 @@ it("a note written by Orrama and deleted at once outside it leaves the index", a
   }
   await until(() => rels.every((rel) => !b.store.index.getByPath(rel)));
   expect(rels.filter((rel) => b.store.index.getByPath(rel))).toEqual([]);
-  const tree = (await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: { authorization: `Bearer ${token}` } })).json() as { path: string }[];
+  const tree = (await b.app.inject({ method: "GET", url: "/api/vault/tree", headers: signedIn(token) })).json() as { path: string }[];
   expect(tree.filter((n) => n.path.startsWith("Shared/Fleeting"))).toEqual([]);
 }, 20_000);
 
 it("an add or change that settles after the file is gone counts as its unlink", async () => {
   const rel = "Shared/Gone before settling.md";
-  await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: rel, content: "# Gone\n" } });
+  await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(token), payload: { path: rel, content: "# Gone\n" } });
   await sleep(500); // let the write's own events settle first
   const id = b.store.index.getByPath(rel)!.id;
   const removed: string[] = [];

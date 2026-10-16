@@ -12,6 +12,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-token-gate-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -30,13 +31,13 @@ afterAll(async () => {
 
 type Method = "GET" | "POST" | "DELETE";
 const call = async (method: Method, url: string, auth: string, payload?: object) => {
-  const r = await b.app.inject({ method, url, headers: { authorization: `Bearer ${auth}` }, ...(payload ? { payload } : {}) });
+  const r = await b.app.inject({ method, url, headers: signedIn(auth), ...(payload ? { payload } : {}) });
   return { status: r.statusCode, body: r.body, json: () => r.json() };
 };
 
 const EMAIL = "owner@example.test";
 const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: EMAIL, username: "owner", displayName: "Owner", password: "a-real-password" } });
-const session = reg.json().token as string;
+const session = sessionOf(reg) as string;
 const token = (await call("POST", "/api/tokens", session, { label: "mcp" })).json().token as string;
 expect(token).toMatch(/^bslt_/);
 

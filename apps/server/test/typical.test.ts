@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-typical-"));
 process.env.ORRAMA_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-typical-vault-"));
@@ -50,7 +51,7 @@ let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token: string;
 
 const get = async (url: string) => {
-  const res = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${token}` } });
+  const res = await app.inject({ method: "GET", url, headers: signedIn(token) });
   return res.json();
 };
 
@@ -62,7 +63,7 @@ beforeAll(async () => {
     url: "/api/auth/login",
     payload: { email: "jules@orrama.dev", password: "orrama-demo" },
   });
-  token = res.json().token;
+  token = sessionOf(res);
 });
 
 afterAll(async () => {

@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fakeChat, type Turn } from "./fakeChat.js";
+import { sessionOf, signedIn } from "./session.js";
 
 export async function bootAi(name: string) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `orrama-${name}-`));
@@ -31,11 +32,11 @@ export async function bootAi(name: string) {
 
   const tokens: Record<string, string> = {};
   for (const who of ["jules", "erin", "mara"]) {
-    tokens[who] = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
   const call = async (who: string, method: string, url: string, payload?: object) => {
     const auth = who.startsWith("bslt_") ? who : tokens[who];
-    const r = await built.app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${auth}` }, ...(payload ? { payload } : {}) });
+    const r = await built.app.inject({ method: method as "GET", url, headers: signedIn(auth), ...(payload ? { payload } : {}) });
     let json: any = null;
     try {
       json = r.json();

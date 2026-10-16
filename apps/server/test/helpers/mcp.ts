@@ -5,12 +5,13 @@
  */
 import type { FastifyInstance } from "fastify";
 import { callTool } from "../../../mcp/src/tools.js";
+import { signedIn } from "./session.js";
 
 export async function mcpClient(app: FastifyInstance, sessionToken: string) {
-  const minted = await app.inject({ method: "POST", url: "/api/tokens", headers: { authorization: `Bearer ${sessionToken}` }, payload: { label: "mcp test" } });
+  const minted = await app.inject({ method: "POST", url: "/api/tokens", headers: signedIn(sessionToken), payload: { label: "mcp test" } });
   const token: string = minted.json().token;
   const api = async (url: string, method = "GET", body?: unknown) => {
-    const r = await app.inject({ method: method as "GET", url, headers: { authorization: `Bearer ${token}` }, ...(body !== undefined ? { payload: body as object } : {}) });
+    const r = await app.inject({ method: method as "GET", url, headers: signedIn(token), ...(body !== undefined ? { payload: body as object } : {}) });
     if (r.statusCode >= 400) throw new Error(`Orrama API error (${r.statusCode}): ${r.json().error ?? r.statusMessage}`);
     return r.json();
   };

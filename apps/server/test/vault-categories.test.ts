@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-cats-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -21,9 +22,9 @@ afterAll(async () => {
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 const tok: Record<string, string> = {};
-for (const who of ["jules", "mara"]) tok[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+for (const who of ["jules", "mara"]) tok[who] = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
 const tree = async (who: string) =>
-  new Map(((await app.inject({ method: "GET", url: "/api/vault/tree", headers: { authorization: `Bearer ${tok[who]}` } })).json() as { path: string; category: string }[]).map((n) => [n.path, n.category]));
+  new Map(((await app.inject({ method: "GET", url: "/api/vault/tree", headers: signedIn(tok[who]) })).json() as { path: string; category: string }[]).map((n) => [n.path, n.category]));
 
 describe("tree categories", () => {
   it("without a rules note, only the PARA defaults apply", async () => {
@@ -36,7 +37,7 @@ describe("tree categories", () => {
     const put = await app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${tok["jules"]}` },
+      headers: signedIn(tok["jules"]),
       payload: { path: "Engineering/Vault categories.md", content: "---\ntags: [vault-categories]\n---\n| Category | Matches |\n| --- | --- |\n| Work | meeting notes, marketing/ |\n" },
     });
     expect(put.statusCode).toBe(200);

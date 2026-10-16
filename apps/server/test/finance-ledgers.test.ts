@@ -7,6 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-fin-ledgers-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -51,7 +52,7 @@ const { buildServer } = await import("../src/main.js");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
 const call = (method: "GET" | "POST", url: string, payload?: object) =>
-  app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, payload });
+  app.inject({ method, url, headers: signedIn(token), payload });
 const get = async (url: string) => {
   const res = await call("GET", url);
   expect(res.statusCode).toBe(200);
@@ -90,7 +91,7 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(FIN, "files", "statement.csv"), statement());
   await import("../src/seed.js");
   app = (await buildServer()).app;
-  token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await app.close();

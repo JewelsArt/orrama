@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { canSymlink, POSIX_MODES } from "./helpers/platform.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-atomic-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -73,11 +74,11 @@ describe("the vault is written atomically", () => {
   let built: Built;
   let token = "";
   const put = async (rel: string, content: string) =>
-    (await built.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${token}` }, payload: { path: rel, content } })).statusCode;
+    (await built.app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(token), payload: { path: rel, content } })).statusCode;
 
   beforeAll(async () => {
     built = await buildServer();
-    token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+    token = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
   });
   afterAll(async () => built.app.close());
 

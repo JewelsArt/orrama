@@ -11,6 +11,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { WebSocket } from "ws";
 import { eq } from "drizzle-orm";
+import { SESSION_COOKIE as HELPER_COOKIE } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-cookie-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -58,6 +59,10 @@ const sessionRow = (id: string) => b.db.select().from(tables.sessions).all().fin
 const sidOf = (token: string) => (b.app.jwt.decode(token) as { sid: string }).sid;
 
 describe("signing in sets the session cookie", () => {
+  it("is the cookie the test helper sends (test/helpers/session.ts spells the name out)", async () => {
+    expect(HELPER_COOKIE).toBe(SESSION_COOKIE);
+  });
+
   it("HttpOnly, SameSite=Strict, the whole site, 30 days; not Secure on http://localhost", async () => {
     const r = await login({ origin: OWN });
     expect(r.statusCode).toBe(200);

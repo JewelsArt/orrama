@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-plan-capacity-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -21,7 +22,7 @@ const { buildServer } = await import("../src/main.js");
 let b: Awaited<ReturnType<typeof buildServer>>;
 let token = "";
 const call = async (method: "GET" | "PUT", url: string, payload?: Record<string, unknown>) =>
-  (await b.app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload } : {}) })).json();
+  (await b.app.inject({ method, url, headers: signedIn(token), ...(payload ? { payload } : {}) })).json();
 
 /**
  * Due before anything the seeded demo vault holds (its tasks are due in 2026,
@@ -46,7 +47,7 @@ const planned = async (mention: string) => {
 
 beforeAll(async () => {
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await b.app.close();

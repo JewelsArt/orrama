@@ -17,6 +17,7 @@ import path from "node:path";
 import ExcelJS from "exceljs";
 import { eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-access-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -42,7 +43,7 @@ const call = async (who: string, method: string, url: string, payload?: unknown)
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${token[who]}` },
+    headers: signedIn(token[who]),
     ...(payload !== undefined ? { payload: payload as Record<string, unknown> } : {}),
   });
   const json = String(res.headers["content-type"] ?? "").includes("json");
@@ -64,7 +65,7 @@ beforeAll(async () => {
   ({ app, store, db } = await buildServer());
   for (const who of ["jules", "erin", "mara"]) {
     const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } });
-    token[who] = res.json().token;
+    token[who] = sessionOf(res);
   }
   const welcome = store.index.all().find((n) => n.path === "Welcome.md")!;
   welcomeId = welcome.id;

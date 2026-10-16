@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-auth-test-"));
 // Pin the vault INSIDE this test's temp data dir. Without this line vaultDir()
@@ -37,10 +38,10 @@ const api = async (method: string, url: string, body?: unknown, auth?: string) =
     url,
     // What a browser on the served page sends: Touch ID refuses a request whose
     // Origin is missing or is not the address it was sent to (routes/auth.ts).
-    headers: { origin: "http://localhost:4623", host: "localhost:4623", ...(auth ? { authorization: `Bearer ${auth}` } : {}) },
+    headers: { origin: "http://localhost:4623", host: "localhost:4623", ...(auth ? signedIn(auth, "http://localhost:4623") : {}) },
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: res.json() };
+  return { status: res.statusCode, json: res.json(), session: sessionOf(res) };
 };
 
 const CREDS = { email: "owner@example.com", username: "owner", displayName: "Owner", password: "a-real-password" };
@@ -64,7 +65,7 @@ describe("first run", () => {
     // The first account founds the workspace, so it must own it - nobody else can
     // grant that later.
     expect(created.json.user.isOwner).toBe(true);
-    token = created.json.token;
+    token = created.session;
     expect((await api("GET", "/api/auth/status")).json).toEqual({ needsSetup: false });
   });
 
@@ -109,14 +110,14 @@ describe("quick unlock", () => {
   it("unlocks with the right code and issues a working session", async () => {
     const r = await api("POST", "/api/auth/unlock", { email: CREDS.email, passcode: "4821" });
     expect(r.status).toBe(200);
-    const me = await api("GET", "/api/me", undefined, r.json.token);
+    const me = await api("GET", "/api/me", undefined, r.session);
     expect(me.json.email).toBe(CREDS.email);
   });
 
   it("is never decided in the browser: a wrong code is refused by the server", async () => {
     const r = await api("POST", "/api/auth/unlock", { email: CREDS.email, passcode: "0000" });
     expect(r.status).toBe(401);
-    expect(r.json.token).toBeUndefined();
+    expect(r.session).toBe("");
   });
 
   it("cools down after five wrong tries, then disables the passcode entirely", async () => {

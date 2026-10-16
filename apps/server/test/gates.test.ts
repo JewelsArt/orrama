@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-gates-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -33,10 +34,10 @@ const api = async (method: string, url: string, user?: string, body?: unknown) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: user ? { authorization: `Bearer ${tokens[user]}` } : {},
+    headers: user ? signedIn(tokens[user]) : {},
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
+  return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })(), session: sessionOf(res) };
 };
 
 beforeAll(async () => {
@@ -48,7 +49,7 @@ beforeAll(async () => {
   for (const email of ["jules@orrama.dev", "erin@orrama.dev", "mara@orrama.dev"]) {
     const r = await api("POST", "/api/auth/login", undefined, { email, password: "orrama-demo" });
     expect(r.status).toBe(200);
-    tokens[email.split("@")[0]!] = r.json.token;
+    tokens[email.split("@")[0]!] = r.session;
   }
 });
 

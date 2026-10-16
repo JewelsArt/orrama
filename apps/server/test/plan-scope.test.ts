@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-plan-scope-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,7 +29,7 @@ const call = async (who: string, method: string, url: string, body?: unknown) =>
     await app.inject({
       method: method as "GET",
       url,
-      headers: { authorization: `Bearer ${tokens[who]}` },
+      headers: signedIn(tokens[who]),
       ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
     })
   ).json();
@@ -42,7 +43,7 @@ beforeAll(async () => {
   app = (await buildServer()).app;
   for (const who of ["jules", "erin"]) {
     const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } });
-    tokens[who] = r.json().token;
+    tokens[who] = sessionOf(r);
   }
   const put = (p: string, content: string) => call("jules", "PUT", "/api/vault/note", { path: p, content });
   // Outside any project, in a folder Engineering edits.

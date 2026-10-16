@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POSIX_MODES } from "./helpers/platform.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-export-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,7 +29,7 @@ type Built = Awaited<ReturnType<typeof buildServer>>;
 let built: Built;
 let token = "";
 const call = async (method: "GET" | "POST" | "PATCH", url: string, payload?: object) => {
-  const r = await built.app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload } : {}) });
+  const r = await built.app.inject({ method, url, headers: signedIn(token), ...(payload ? { payload } : {}) });
   return { status: r.statusCode, json: (() => { try { return r.json(); } catch { return null; } })() };
 };
 
@@ -38,7 +39,7 @@ let exported = "";
 
 beforeAll(async () => {
   built = await buildServer();
-  token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 
   const roadmap = built.store.index.getByPath("Engineering/Atlas Roadmap.md")!;
   const { line, raw: text } = roadmap.tasks.find((t) => t.text.startsWith("dashboard API"))!;
@@ -121,7 +122,7 @@ describe("orrama export", () => {
     (env as { dataDir: string }).dataDir = restored;
     try {
       built = await buildServer();
-      token = (await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+      token = sessionOf(await built.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
       expect((await call("GET", `/api/tasks/${taskId}/comments`)).json.map((c: { body: string }) => c.body)).toEqual(["Exported comment: ask Erin about pagination."]);
       expect(built.db.select().from(tables.taskObjects).all().find((t) => t.id === taskId)?.description).toMatch(/^Exported description/);
       expect((await call("GET", "/api/admin/ai")).json).toMatchObject({ provider: "google", configured: true, instructions: "Exported instructions: be direct." });

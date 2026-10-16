@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-rebuild-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -33,10 +34,10 @@ afterAll(() => fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force:
 async function session(b: Booted) {
   const tokens: Record<string, string> = {};
   for (const who of ["jules", "erin"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
   return async (who: string, method: "GET" | "POST" | "PATCH" | "DELETE", url: string, payload?: object) => {
-    const r = await b.app.inject({ method, url, headers: { authorization: `Bearer ${tokens[who]}` }, ...(payload ? { payload } : {}) });
+    const r = await b.app.inject({ method, url, headers: signedIn(tokens[who]), ...(payload ? { payload } : {}) });
     return { status: r.statusCode, body: r.body ? r.json() : null };
   };
 }

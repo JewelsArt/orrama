@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-only-closed-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -32,7 +33,7 @@ const { buildServer } = await import("../src/main.js");
 let b: Awaited<ReturnType<typeof buildServer>>;
 const tokens: Record<string, string> = {};
 const get = async (who: string, url: string) => {
-  const res = await b.app.inject({ method: "GET", url, headers: { authorization: `Bearer ${tokens[who]}` } });
+  const res = await b.app.inject({ method: "GET", url, headers: signedIn(tokens[who]) });
   return { status: res.statusCode, text: res.body };
 };
 const ids = () => Object.keys(NOTES).map((p) => b.store.index.getByPath(p)!.id);
@@ -41,7 +42,7 @@ const MARKS = ["zebracorn-q3", "zebracorn-hb", "zebracorn-sg"];
 beforeAll(async () => {
   b = await buildServer();
   for (const who of ["erin", "mara"]) {
-    tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+    tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
   }
 });
 afterAll(async () => {

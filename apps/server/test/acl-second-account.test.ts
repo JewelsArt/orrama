@@ -15,6 +15,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-acl-s12-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -35,7 +36,7 @@ const api = async (method: string, url: string, who: string, body?: unknown) => 
   const res = await b.app.inject({
     method: method as "GET",
     url,
-    headers: { authorization: `Bearer ${tokens[who]}` },
+    headers: signedIn(tokens[who]),
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
   let json: any = null;
@@ -54,7 +55,7 @@ beforeAll(async () => {
   for (const who of ["jules", "erin", "mara"]) {
     const res = await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } });
     expect(res.statusCode).toBe(200);
-    tokens[who] = res.json().token;
+    tokens[who] = sessionOf(res);
   }
 });
 afterAll(async () => {
@@ -261,8 +262,8 @@ describe("ACL-010: a removed or renamed account's username is never handed out a
     invite("inv-nina-1");
     const first = await register("nina", "inv-nina-1");
     expect(first.statusCode).toBe(200);
-    const nina = first.json() as { token: string; user: { id: string; username: string } };
-    tokens["nina"] = nina.token;
+    const nina = first.json() as { user: { id: string; username: string } };
+    tokens["nina"] = sessionOf(first);
     expect((await put("nina", "Personal/nina/Inbox.md", "- [ ] interviewing elsewhere\n")).status).toBe(200);
 
     removeAccount(b.db, { id: nina.user.id, username: "nina" });

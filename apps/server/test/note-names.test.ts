@@ -14,6 +14,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-note-names-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -45,7 +46,7 @@ const abs = (rel: string) => path.join(VAULT, rel);
 const everything = () => (fs.readdirSync(VAULT, { recursive: true }) as string[]).map((p) => p.split(path.sep).join("/")).sort();
 
 const call = async (method: "PUT" | "POST" | "GET", url: string, payload?: Record<string, unknown>) => {
-  const res = await b.app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload } : {}) });
+  const res = await b.app.inject({ method, url, headers: signedIn(token), ...(payload ? { payload } : {}) });
   return { status: res.statusCode, json: (() => { try { return res.json(); } catch { return null; } })() };
 };
 const put = (p: string, content: string, create = true) => call("PUT", "/api/vault/note", { path: p, content, create });
@@ -53,7 +54,7 @@ const put = (p: string, content: string, create = true) => call("PUT", "/api/vau
 beforeAll(async () => {
   b = await buildServer();
   const res = await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
-  token = res.json().token;
+  token = sessionOf(res);
 });
 afterAll(async () => {
   await b.app.close();

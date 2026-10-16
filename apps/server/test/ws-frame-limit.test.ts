@@ -13,6 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { afterAll, describe, expect, it } from "vitest";
+import { sessionOf } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-ws-frame-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -30,7 +31,7 @@ afterAll(async () => {
 
 const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: "o@example.test", username: "owner", displayName: "O", password: "a-real-password" } });
 expect(reg.statusCode).toBe(200);
-const session = reg.json().token as string;
+const session = sessionOf(reg) as string;
 
 /** Open a socket, send one frame, and report how it ended (or what came back). */
 const sendOne = (frame: string) =>

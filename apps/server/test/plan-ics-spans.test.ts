@@ -14,6 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { isoLocal } from "@orrama/core";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-plan-ics-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -68,7 +69,7 @@ let b: Awaited<ReturnType<typeof buildServer>>;
 let token = "";
 let feed: http.Server;
 const call = async (method: "GET" | "POST", url: string, payload?: Record<string, unknown>) => {
-  const res = await b.app.inject({ method, url, headers: { authorization: `Bearer ${token}` }, ...(payload ? { payload } : {}) });
+  const res = await b.app.inject({ method, url, headers: signedIn(token), ...(payload ? { payload } : {}) });
   return { status: res.statusCode, body: res.json() };
 };
 
@@ -79,7 +80,7 @@ beforeAll(async () => {
   });
   await new Promise<void>((r) => feed.listen(0, "127.0.0.1", r));
   b = await buildServer();
-  token = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
   const { port } = feed.address() as AddressInfo;
   expect((await call("POST", "/api/calendar/feeds", { label: "Work", url: `http://127.0.0.1:${port}/cal.ics` })).status).toBe(200);
 });

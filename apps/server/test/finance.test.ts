@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-finance-"));
 process.env.ORRAMA_VAULT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-finance-vault-"));
@@ -72,17 +73,16 @@ const api = async (method: string, url: string, auth?: string, body?: unknown) =
   const res = await app.inject({
     method: method as "GET",
     url,
-    headers: auth ? { authorization: `Bearer ${auth}` } : {},
+    headers: auth ? signedIn(auth) : {},
     ...(body !== undefined ? { payload: body as Record<string, unknown> } : {}),
   });
-  return { status: res.statusCode, json: res.json.bind(res) };
+  return { status: res.statusCode, json: res.json.bind(res), session: sessionOf(res) };
 };
 
 beforeAll(async () => {
   await import("../src/seed.js");
   app = (await buildServer()).app;
-  token = (await api("POST", "/api/auth/login", undefined, { email: "jules@orrama.dev", password: "orrama-demo" }))
-    .json().token;
+  token = (await api("POST", "/api/auth/login", undefined, { email: "jules@orrama.dev", password: "orrama-demo" })).session;
 });
 
 afterAll(async () => {

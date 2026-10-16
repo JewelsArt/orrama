@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-slides-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -130,13 +131,13 @@ describe("readPptx on a deck built to be expensive", () => {
 describe("GET /api/projects/:slug/files/:name/slides", () => {
   let app: Awaited<ReturnType<typeof buildServer>>["app"];
   const tokens: Record<string, string> = {};
-  const get = (who: string, url: string) => app.inject({ method: "GET", url, headers: { authorization: `Bearer ${tokens[who]}` } });
+  const get = (who: string, url: string) => app.inject({ method: "GET", url, headers: signedIn(tokens[who]) });
 
   beforeAll(async () => {
     await import("../src/seed.js");
     app = (await buildServer()).app;
     for (const who of ["jules", "erin", "mara"]) {
-      tokens[who] = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
+      tokens[who] = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
     }
     const atlas = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/atlas/files");
     fs.mkdirSync(atlas, { recursive: true });
@@ -146,7 +147,7 @@ describe("GET /api/projects/:slug/files/:name/slides", () => {
     await app.inject({
       method: "PUT",
       url: "/api/vault/note",
-      headers: { authorization: `Bearer ${tokens["mara"]}` },
+      headers: signedIn(tokens["mara"]),
       payload: { path: "Personal/mara/Skunkworks.md", content: "---\ntitle: Skunkworks\ntags:\n  - project/skunkworks\n---\n# Skunkworks\n" },
     });
     const skunk = path.join(process.env.ORRAMA_VAULT_DIR!, "04-Projects/skunkworks/files");

@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-fin-calendar-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -22,7 +23,7 @@ const { buildServer } = await import("../src/main.js");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 let token = "";
 const charges = async (from: string, to: string) => {
-  const res = await app.inject({ method: "GET", url: `/api/calendar/markers?from=${from}&to=${to}`, headers: { authorization: `Bearer ${token}` } });
+  const res = await app.inject({ method: "GET", url: `/api/calendar/markers?from=${from}&to=${to}`, headers: signedIn(token) });
   expect(res.statusCode).toBe(200);
   return (res.json() as { kind: string; title: string; date: string }[])
     .filter((m) => m.kind === "charge" || m.kind === "income")
@@ -42,7 +43,7 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(FIN, "income.md"), note("Income", "income", "| Source | Amount | Every | Next |\n|---|---|---|---|\n| Salary | 1800 | monthly | 2026-11-01 |"));
   await import("../src/seed.js");
   app = (await buildServer()).app;
-  token = (await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json().token;
+  token = sessionOf(await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } }));
 });
 afterAll(async () => {
   await app.close();
