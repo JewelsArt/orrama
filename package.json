@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Orrama \u2014 a personal knowledge and life OS on plain Markdown files, read and written live alongside Obsidian.",
-  "license": "Apache-2.0",
+  "license": "UNLICENSED",
   "packageManager": "pnpm@11.9.0",
   "engines": {
     "node": ">=22"

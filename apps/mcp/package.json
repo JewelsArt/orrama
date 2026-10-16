@@ -2,7 +2,8 @@
   "name": "@orrama/mcp",
   "version": "0.1.0",
   "description": "Orrama's MCP server: the vault, projects, tasks and calendar as tools for Claude, over the local API with a personal token.",
-  "license": "Apache-2.0",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc",

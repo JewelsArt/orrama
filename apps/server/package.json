@@ -2,7 +2,8 @@
   "name": "@orrama/server",
   "version": "0.1.0",
   "description": "Orrama sync server: coordinator + permission gate, never the only copy of your notes.",
-  "license": "Apache-2.0",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts --dev",
