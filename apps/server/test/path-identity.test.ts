@@ -57,6 +57,7 @@ const read = (rel: string) => fs.readFileSync(abs(rel), "utf8");
 const restamps: string[] = [];
 /** A name stored decomposed, the way macOS keeps what some apps write. */
 const NFD = "Shared/Re\u0301sume\u0301.md";
+const MEETING = "Notes/Meeting notes.md";
 
 const put = async (who: string, body: Record<string, unknown>) => {
   const res = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(tokens[who]), payload: body });
@@ -74,6 +75,10 @@ beforeAll(async () => {
   // when every package's tests ran at once, and macOS delivered the event 25 s late.
   fs.mkdirSync(path.dirname(abs(NFD)), { recursive: true });
   fs.writeFileSync(abs(NFD), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
+  // The same for the STO-012 note: those tests are about the rename, and a note written into a
+  // new folder after boot was once not indexed 25 s later under the same load.
+  fs.mkdirSync(path.dirname(abs(MEETING)), { recursive: true });
+  fs.writeFileSync(abs(MEETING), "# Meeting\n\n- [ ] follow up\n");
   b = await buildServer();
   for (const who of ["jules", "mara"]) {
     tokens[who] = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } }));
@@ -233,9 +238,8 @@ describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", 
   const only = (prefix: string, ...paths: string[]) => () => indexPaths(prefix).join("|") === paths.join("|");
 
   it("leaves one index entry under the new spelling, with its id, and never rewrites the file", async () => {
-    fs.mkdirSync(abs("Notes"), { recursive: true });
-    fs.writeFileSync(abs("Notes/Meeting notes.md"), "# Meeting\n\n- [ ] follow up\n");
-    await settle(only("Notes/", "Notes/Meeting notes.md"));
+    // On disk since before boot (beforeAll).
+    expect(indexPaths("Notes/")).toEqual([MEETING]);
     const id = b.store.index.getByPath("Notes/Meeting notes.md")?.id;
     expect(id).toMatch(/^n-/);
     const stamped = read("Notes/Meeting notes.md");
