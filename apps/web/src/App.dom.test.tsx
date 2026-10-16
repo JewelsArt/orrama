@@ -399,7 +399,9 @@ describe("overlays (WEB-018)", () => {
     await view();
     let id = 0;
     act(() => void (id = toast("Moved to Friday")));
-    expect(screen.getByRole("status").textContent).toContain("Moved to Friday");
+    // Found, not read at once: the Toaster subscribes in an effect React may run after the view
+    // shows, and catches up when it does (macOS CI, run 38884589576).
+    expect((await screen.findByText("Moved to Friday")).closest("[role=status]")).not.toBeNull();
     act(() => dismissToast(id));
   });
 
