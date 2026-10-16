@@ -12,7 +12,7 @@ import {
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
-import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS } from "../sessions.js";
+import { listSessions, openSession, rekeySession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
 import { RETIRED_USERNAME, usernameRetired } from "../usernames.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -23,6 +23,67 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
  * where one is sent. A token must never be able to trade itself up.
  */
 export const sessionOnly = (reason: string) => ({ sessionOnly: reason });
+
+/**
+ * The session lives in this cookie (WEB-013). It used to be a token the page kept in
+ * localStorage, where any script running on the page could read it and use it from another
+ * machine for a month. `HttpOnly` keeps it out of reach of script, `SameSite=Strict` keeps
+ * other sites' requests from carrying it, and `fromOwnSite` refuses the writes that could still
+ * arrive with it (`authenticate`, main.ts).
+ */
+export const SESSION_COOKIE = "orrama_session";
+
+/** The session cookie's value in a `Cookie` header, or null. */
+export function sessionCookieOf(header: string | undefined): string | null {
+  for (const part of (header ?? "").split(";")) {
+    const eq = part.indexOf("=");
+    if (eq > 0 && part.slice(0, eq).trim() === SESSION_COOKIE) return part.slice(eq + 1).trim() || null;
+  }
+  return null;
+}
+
+/**
+ * Did the page that sent this come over https (the tailnet name)? Then the cookie is `Secure`.
+ * Not on http://localhost — the desktop app and vite dev — where WebKit refuses to store a
+ * Secure cookie at all. A sign-in is a POST, and a browser sends its page's `Origin` with
+ * every POST; a proxy that ends TLS in front of Orrama may say so instead.
+ */
+export function overHttps(req: Pick<FastifyRequest, "headers" | "protocol">): boolean {
+  return String(req.headers.origin ?? "").startsWith("https://") || req.headers["x-forwarded-proto"] === "https" || req.protocol === "https";
+}
+
+/** The `Set-Cookie` that holds a session for `maxAgeSec` seconds; an empty value and 0 clear it. */
+export function sessionCookie(value: string, maxAgeSec: number, secure: boolean): string {
+  return [`${SESSION_COOKIE}=${value}`, "HttpOnly", "SameSite=Strict", "Path=/", `Max-Age=${Math.max(0, Math.floor(maxAgeSec))}`, ...(secure ? ["Secure"] : [])].join("; ");
+}
+
+/** Forget the session in this browser: sign-out and "sign out everywhere". */
+export const clearSessionCookie = (req: FastifyRequest, reply: FastifyReply) => reply.header("set-cookie", sessionCookie("", 0, overHttps(req)));
+
+/**
+ * Was this request sent by a page of Orrama's own? Its `Origin` must be one of
+ * ORRAMA_PUBLIC_ORIGINS, or the very address the request was sent to (`Host`). A browser
+ * always sends `Origin` on a POST, PUT, PATCH or DELETE and on a WebSocket handshake, and
+ * a page on another site cannot send ours; no `Origin` at all is refused, because the
+ * requests this guards are the ones a browser makes. The Host allow-list (`allowedHost`,
+ * main.ts) has already made sure the Host is one of our names.
+ */
+export function fromOwnSite(headers: Record<string, unknown>, allowed: string[]): boolean {
+  const origin = headers["origin"];
+  if (typeof origin !== "string") return false;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false; // "null" (a sandboxed frame, a file), or not an origin at all
+  }
+  if (allowed.includes(url.origin)) return true;
+  try {
+    return url.host === new URL(`${url.protocol}//${String(headers["host"] ?? "")}`).host;
+  } catch {
+    return false;
+  }
+}
 
 /** Unspent Touch ID challenges kept at once (see putChallenge). */
 export const MAX_LIVE_CHALLENGES = 200;
@@ -39,9 +100,15 @@ const noAccountHash = () => (dummyHash ??= argonHash(crypto.randomBytes(16).toSt
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   /** Passcode, Touch ID and sessions are credentials: changed from a session only. */
   const credentials = { preHandler: [app.authenticate], config: sessionOnly("sign-in methods and sessions are managed from a signed-in session, not with an API token") };
-  /** Every way in ends here: a session row, and a token that names it. */
-  const signIn = (userId: string, req: FastifyRequest) =>
-    app.jwt.sign({ sub: userId, sid: openSession(db, userId, req.headers["user-agent"]) }, { expiresIn: `${SESSION_DAYS}d` });
+  /** Hand this browser a session: the cookie, holding a token that names the row, for `seconds`. */
+  const setSession = (req: FastifyRequest, reply: FastifyReply, userId: string, sid: string, seconds: number) => {
+    const token = app.jwt.sign({ sub: userId, sid }, { expiresIn: Math.max(1, Math.floor(seconds)) });
+    reply.header("set-cookie", sessionCookie(token, seconds, overHttps(req)));
+    return token;
+  };
+  /** Every way in ends here: a session row, and the cookie that names it. */
+  const signIn = (userId: string, req: FastifyRequest, reply: FastifyReply) =>
+    setSession(req, reply, userId, openSession(db, userId, req.headers["user-agent"]), SESSION_DAYS * 86_400);
 
   // One per server, so each test suite's app starts with a clean count.
   const logins = new LoginLimiter();
@@ -119,7 +186,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       db.insert(tables.memberships).values({ id: `m-${crypto.randomUUID().slice(0, 8)}`, userId: id, teamId }).run();
     }
     registrations.succeed(req.ip);
-    const token = signIn(id, req);
+    const token = signIn(id, req, reply);
     return reply.send({ token, user: publicUser(db, store, id) });
   });
 
@@ -139,7 +206,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = signIn(user.id, req);
+    const token = signIn(user.id, req, reply);
     return reply.send({ token, user: publicUser(db, store, user.id) });
   });
 
@@ -271,7 +338,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = signIn(user.id, req);
+    const token = signIn(user.id, req, reply);
     return reply.send({ token, user: publicUser(db, store, user.id) });
   });
 
@@ -404,7 +471,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ counter: result.authenticationInfo.newCounter, lastUsedAt: Date.now() })
       .where(eq(tables.webauthnCredentials.id, cred.id))
       .run();
-    const token = signIn(cred.userId, req);
+    const token = signIn(cred.userId, req, reply);
     return reply.send({ token, user: publicUser(db, store, cred.userId) });
   });
 
@@ -429,9 +496,10 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   // ---- sessions (sessions.ts) ----------------------------------------------
 
   /** Sign out: this session ends on the server, not just in this browser. */
-  app.post("/api/auth/logout", credentials, async (req) => {
+  app.post("/api/auth/logout", credentials, async (req, reply) => {
     if (req.sessionId) revokeSession(db, req.userId, req.sessionId);
     store.events.emit("session-revoked", { sessionId: req.sessionId });
+    clearSessionCookie(req, reply);
     return { ok: true };
   });
 
@@ -445,18 +513,52 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
    * device, the passcode and the calendar feed link (sessions.ts). For when
    * the account may have been someone else's for a while.
    */
-  app.post("/api/auth/revoke-all", credentials, async (req) => {
+  app.post("/api/auth/revoke-all", credentials, async (req, reply) => {
     const done = db.transaction((tx) => revokeEverything(tx, req.userId));
     for (const sessionId of done.sessions) store.events.emit("session-revoked", { sessionId });
+    clearSessionCookie(req, reply);
     return { sessions: done.sessions.length, tokens: done.tokens, devices: done.devices };
   });
 
   /** End one of your sessions — a lost phone, a borrowed laptop. */
-  app.delete("/api/auth/sessions/:id", credentials, async (req) => {
+  app.delete("/api/auth/sessions/:id", credentials, async (req, reply) => {
     const { id } = req.params as { id: string };
     if (!revokeSession(db, req.userId, id)) throw new HttpError(404, "not found");
     store.events.emit("session-revoked", { sessionId: id });
+    if (id === req.sessionId) clearSessionCookie(req, reply);
     return { ok: true };
+  });
+
+  /**
+   * The switch to the cookie, for a browser that still holds a session token from before it
+   * (WEB-013): the desktop window, the phone, an open tab. The app sends that token here once,
+   * as `Bearer`, and forgets it; the session moves into the cookie under a new id (`rekeySession`),
+   * so it works once, only while the session is live, and the old token is dead after — a copy
+   * of it taken from the browser's storage included. The session keeps its 30 days from when it
+   * began. Goes with the `Bearer <session token>` path in `authenticate`: both leave next stage.
+   */
+  app.post("/api/auth/exchange", async (req, reply) => {
+    const header = String(req.headers.authorization ?? "");
+    const refuse = () => reply.code(401).send({ error: "this session has ended — sign in again" });
+    if (!header.startsWith("Bearer ") || header.startsWith("Bearer bslt_")) return refuse();
+    // A page on another site cannot set this header, but it could still be made to send it:
+    // the cookie this answers with is only ever for one of our own pages.
+    if (req.headers.origin !== undefined && !fromOwnSite(req.headers, env.publicOrigins)) {
+      return reply.code(403).send({ error: "this request came from another site" });
+    }
+    let payload: { sub?: unknown; sid?: unknown };
+    try {
+      payload = app.jwt.verify(header.slice(7));
+    } catch {
+      return refuse();
+    }
+    const userId = sessionUser(db, payload);
+    if (!userId) return refuse();
+    const moved = rekeySession(db, userId, payload.sid as string);
+    if (!moved) return refuse(); // traded in by another request meanwhile
+    store.events.emit("session-rekeyed", { from: payload.sid, to: moved.id });
+    setSession(req, reply, userId, moved.id, (moved.createdAt + SESSION_DAYS * 86_400_000 - Date.now()) / 1000);
+    return reply.send({ user: publicUser(db, store, userId) });
   });
 }
 

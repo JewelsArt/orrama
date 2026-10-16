@@ -14,7 +14,7 @@ import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
 import { compactAll } from "./history.js";
 import { isEntry } from "./entry.js";
-import { authRoutes } from "./routes/auth.js";
+import { authRoutes, fromOwnSite, sessionCookieOf } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { projectRoutes } from "./routes/projects.js";
@@ -65,6 +65,9 @@ declare module "fastify" {
 export const WS_MAX_FRAME = 16 * 1024;
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/** Methods that change nothing: the only ones a cookie may carry without our own `Origin`. */
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
  * Is `host` (a Host header) a name this server answers to? Loopback, or a
@@ -234,17 +237,32 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
       db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();
       return;
     }
-    let payload: { sub?: unknown; sid?: unknown };
-    try {
-      payload = await req.jwtVerify();
-    } catch {
-      return reply.code(401).send({ error: "authentication required" });
-    }
+    // A session is the HttpOnly cookie (WEB-013, auth.ts). A session token sent as
+    // `Bearer` is what a browser kept before the cookie, accepted for this one
+    // release so nobody is signed out by the switch (the app trades it for the
+    // cookie at boot, /api/auth/exchange); the next stage drops it.
+    const verified = (token: string | null): { sub?: unknown; sid?: unknown } | null => {
+      if (!token) return null;
+      try {
+        return app.jwt.verify(token);
+      } catch {
+        return null;
+      }
+    };
+    const fromCookie = verified(sessionCookieOf(req.headers.cookie));
+    const payload = fromCookie ?? verified(header.startsWith("Bearer ") ? header.slice(7) : null);
+    if (!payload) return reply.code(401).send({ error: "authentication required" });
     // A valid signature is not enough: the session must still be open
     // (sessions.ts) — signed out, revoked from Settings, or from before
     // sessions existed, it is refused.
     const userId = sessionUser(db, payload);
     if (!userId) return reply.code(401).send({ error: "this session has ended — sign in again" });
+    // The browser attaches the cookie by itself, so a write it carries must come
+    // from one of our own pages. SameSite=Strict already keeps other sites'
+    // requests from carrying it; this is the second lock (auth.ts `fromOwnSite`).
+    if (fromCookie && !SAFE_METHODS.has(req.method) && !fromOwnSite(req.headers, env.publicOrigins)) {
+      return reply.code(403).send({ error: "this request came from another site" });
+    }
     req.userId = userId;
     req.sessionId = payload.sid as string;
   });

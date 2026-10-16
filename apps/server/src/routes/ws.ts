@@ -33,6 +33,12 @@ export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     }
   });
 
+  // The session moved into the cookie under a new id (/api/auth/exchange): its open
+  // socket is the same session, and must still close when that session is revoked.
+  store.events.on("session-rekeyed", ({ from, to }: { from: string; to: string }) => {
+    for (const client of clients) if (client.sessionId === from) client.sessionId = to;
+  });
+
   const sendTo = (client: Client, payload: unknown) => {
     if (client.socket.readyState === 1) client.socket.send(JSON.stringify(payload));
   };
