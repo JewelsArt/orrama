@@ -9,7 +9,13 @@
 - macOS, unhandled happy-dom `NetworkError` on `/api/finance/month/2026-09`: every DOM test
   file unmounts before it un-stubs globals, held by `src/test/dom-hooks.test.ts` (commit 226c544)
 - macOS, App.dom.test "toasts show in the app": expected '' to contain 'Moved to Friday'. The
-  test now waits for the toast (the commit with this file)
+  test now waits for the toast (commit 9fad8e6)
+- macOS, server `path-identity` "a name stored decomposed (NFD) is reached by its composed
+  (NFC) spelling" failed 2 of 5 full `pnpm test` runs here. It waited up to 25 s for the watcher
+  to index a file it had just written. With every package's tests running at once, macOS
+  delivered that event more than 25 s late, during the next test. The file is now on disk
+  before boot, so the first index holds it. The test is about the write, not the watcher, and
+  other tests cover the watcher (the last commit)
 
 All four are test-only. No app code changed.
 
@@ -54,8 +60,8 @@ All four are test-only. No app code changed.
 
   Some may only fail at that extreme delay. Each wants a look in its own change, so they were
   left alone here.
-- Server `new-folder-watch` and `path-identity` timing under load: not looked at, as the prompt
-  allows.
+- Server `new-folder-watch` timing under load: not looked at, as the prompt allows. It did not
+  fail in any of the runs here.
 
 ## Files touched outside my ownership
 - W13 owns the tests of `ws.ts`, `storage.ts` and `door/`. I changed only the `afterEach`

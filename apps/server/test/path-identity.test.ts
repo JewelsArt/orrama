@@ -54,6 +54,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const abs = (rel: string) => path.join(VAULT, rel);
 const read = (rel: string) => fs.readFileSync(abs(rel), "utf8");
 const restamps: string[] = [];
+/** A name stored decomposed, the way macOS keeps what some apps write. */
+const NFD = "Shared/Re\u0301sume\u0301.md";
 
 const put = async (who: string, body: Record<string, unknown>) => {
   const res = await b.app.inject({ method: "PUT", url: "/api/vault/note", headers: { authorization: `Bearer ${tokens[who]}` }, payload: body });
@@ -67,6 +69,10 @@ const indexPaths = (prefix: string) =>
     .sort();
 
 beforeAll(async () => {
+  // On disk before boot, so the first index holds it: waiting for the watcher instead failed
+  // when every package's tests ran at once, and macOS delivered the event 25 s late.
+  fs.mkdirSync(path.dirname(abs(NFD)), { recursive: true });
+  fs.writeFileSync(abs(NFD), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
   b = await buildServer();
   for (const who of ["jules", "mara"]) {
     tokens[who] = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: `${who}@orrama.dev`, password: "orrama-demo" } })).json().token;
@@ -162,21 +168,15 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
   });
 
   it("a name stored decomposed (NFD) is reached by its composed (NFC) spelling", async () => {
-    const nfd = "Shared/Re\u0301sume\u0301.md";
-    fs.writeFileSync(abs(nfd), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
-    // Wait for the watcher to index it: a fixed 800 ms was too short when
-    // every package's tests run at once (pnpm ship), and so was 5 s on a
-    // loaded Mac (wave D): up to 25 s now.
-    const heldNow = () => b.store.index.all().find((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md");
-    for (let t = 0; t < 250 && !heldNow(); t++) await sleep(100);
-    const held = heldNow();
+    const held = b.store.index.all().find((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md");
     expect(held).toBeDefined();
+    expect(fs.readdirSync(abs("Shared"))).toContain(path.basename(NFD)); // still decomposed on disk
     const res = await put("jules", { path: "Shared/R\u00e9sum\u00e9.md", content: "---\ntitle: R\u00e9sum\u00e9\n---\nv2\n" });
     expect(res.status).toBe(200);
     expect(res.json.id).toBe(held!.id);
     expect(res.json.path).toBe(held!.path);
     expect(b.store.index.all().filter((n) => n.path.normalize("NFC") === "Shared/R\u00e9sum\u00e9.md")).toHaveLength(1);
-  }, 30_000);
+  });
 
   it("a file on disk the watcher has not settled yet is still that note, not a creation", async () => {
     // Obsidian just saved it; the watcher waits 300 ms. A write in between
