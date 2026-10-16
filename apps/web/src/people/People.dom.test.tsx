@@ -3,7 +3,7 @@
  * opens its thing, search and sector live in the address, and a person opens at their address
  * (the entity page; a person's sector, WEB-022, is tested there: entity/EntityPage.dom.test.tsx).
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Company, Contact, PeopleContext, ProjectRow } from "@orrama/schema/responses";
@@ -100,7 +100,10 @@ const rowOf = (name: string) => screen.findByRole("button", { name: starts(name)
 const section = (label: string) => screen.getByRole("region", { name: label });
 
 beforeEach(() => history.replaceState(null, "", "/people"));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
+  vi.unstubAllGlobals();
+});
 
 describe("People: the rows", () => {
   it("says role, company and the relation that speaks for them, and when they were last mentioned", async () => {

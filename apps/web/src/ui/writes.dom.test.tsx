@@ -4,7 +4,7 @@
  * `useWrite` for forms gives the sentence and always ends busy; the net says any failed write
  * nobody caught. `api()` remembers which errors came from a write so the net can tell.
  */
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, isFailedWrite } from "../api.js";
 import { Toaster } from "./overlays.js";
@@ -18,6 +18,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const b of screen.queryAllByRole("button", { name: "Dismiss" })) fireEvent.click(b);
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.unstubAllGlobals();
 });
 

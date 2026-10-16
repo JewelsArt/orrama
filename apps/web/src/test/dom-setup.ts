@@ -10,6 +10,8 @@ for (const name of ["localStorage", "sessionStorage"] as const) {
   Object.defineProperty(globalThis, name, { value: new Storage(), configurable: true, writable: true });
 }
 
+// Registered first, so it runs after each test file's own afterEach. A file whose afterEach
+// un-stubs fetch (or any global the page uses) unmounts first: test/dom-hooks.test.ts.
 afterEach(() => {
   cleanup();
   localStorage.clear();

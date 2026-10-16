@@ -4,7 +4,7 @@
  * mailed A's words threaded to B's message, deleted B unsent, and left A waiting to go twice.
  * And reading another message while writing threw the reply away without asking.
  */
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
@@ -18,6 +18,7 @@ const me = { id: "u1", email: "jules@orrama.dev", displayName: "Jules" } as unkn
 beforeEach(() => history.replaceState(null, "", "/mail"));
 
 afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });

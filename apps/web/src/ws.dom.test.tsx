@@ -1,5 +1,5 @@
 /** The socket follows who is signed in, not the user object (WEB-015). */
-import { renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useLiveSync } from "./ws.js";
 
@@ -18,7 +18,10 @@ class FakeSocket {
   }
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup(); // before the stubs go: a late socket from the page must not reach happy-dom's real one
+  vi.unstubAllGlobals();
+});
 
 describe("useLiveSync", () => {
   it("keeps one socket while the same person is signed in, whatever their profile does", () => {

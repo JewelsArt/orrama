@@ -2,7 +2,7 @@
  * Storage that refuses (WEB-025). iOS Safari with "Block All Cookies" makes the localStorage
  * getter itself throw; a full quota makes setItem throw. Neither may blank the app.
  */
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const real = Object.getOwnPropertyDescriptor(globalThis, "localStorage")!;
@@ -16,6 +16,7 @@ const refuseStorage = () =>
 
 beforeEach(() => vi.resetModules());
 afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   Object.defineProperty(globalThis, "localStorage", real);
   vi.unstubAllGlobals();
 });

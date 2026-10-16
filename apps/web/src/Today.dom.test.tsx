@@ -3,7 +3,7 @@
  * reachable from the keyboard (WEB-018, Today's half), each module's plain form when the data
  * isn't there, Customise, and the things the Dashboard did that Today still does.
  */
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIDDEN_KEY, Today } from "./Today.js";
@@ -26,6 +26,7 @@ beforeEach(() => {
   history.replaceState(null, "", "/today");
 });
 afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });

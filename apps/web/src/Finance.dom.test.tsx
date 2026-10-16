@@ -3,7 +3,7 @@
  * does now that it asks (Jules, 11 Oct: Add it writes the row; It's not recurring hides it on
  * this device). The figures are the server's; the fixture is fictional (the boards' shops).
  */
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail } from "@orrama/schema/responses";
@@ -52,6 +52,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-11T12:00:00") });
 });
 afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });

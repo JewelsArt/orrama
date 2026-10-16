@@ -2,7 +2,7 @@
  * The door against a stubbed server: sign-in, lock and first run, their errors in the door's
  * voice, and the two seconds of the gathered vault before the app opens.
  */
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Lock } from "../Lock.js";
@@ -47,6 +47,7 @@ const sent = (key: string) => calls.filter((c) => c.key === key);
 
 beforeEach(() => motion(true));
 afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });

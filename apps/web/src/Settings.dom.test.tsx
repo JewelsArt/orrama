@@ -5,7 +5,7 @@
  * deleting a webhook, removing a calendar, a Touch ID device or a signed-in device. Each now asks
  * through Confirm, says what will happen, and does nothing on "Keep it".
  */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
@@ -56,7 +56,10 @@ beforeEach(() => {
     return new Response(JSON.stringify(body), { status: 200 });
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
+  vi.unstubAllGlobals();
+});
 
 function open(section: SettingsSection, extra: Partial<Parameters<typeof Settings>[0]> = {}) {
   render(
