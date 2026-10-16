@@ -1,10 +1,16 @@
 Orrama
-Copyright 2026 Orrama contributors
+Copyright © 2026 Jules Timothy Sekelj. All rights reserved.
 
-Licensed under the Apache License, Version 2.0 (see LICENSE).
+Orrama is proprietary software, used under the Personal or the Company
+licence (see LICENSE and docs/licence/).
 
-The built web app (apps/web/dist, which the server, the Docker image and the
-desktop app distribute) includes third-party software under its own licences.
-Every package and font it is built from is listed, with its licence text, in
-apps/web/dist/THIRD_PARTY_NOTICES.txt, written by each web build
-(apps/web/licenses.ts).
+Orrama includes third-party software under its own licences. Nothing in
+Orrama's licences limits what those licences allow for that software. Each
+build lists every such package and font, with its version and licence text:
+
+  - apps/web/dist/THIRD_PARTY_NOTICES.txt: the web app (what the server, the
+    Docker image and the desktop app show in your browser or window);
+  - apps/web/dist/THIRD_PARTY_NOTICES_SERVER.txt: the server and the MCP
+    server, which run on your own computer.
+
+Both files are written by every web build (apps/web/licenses.ts).
