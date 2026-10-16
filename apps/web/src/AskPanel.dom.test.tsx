@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { answer, serveAsk, toolCall } from "./test/ask-fixture.js";
 
 const { AskPanel } = await import("./AskPanel.js");
-const { clearToken, SESSION_ENDED, setToken } = await import("./api.js");
+const { SESSION_ENDED, sessionOver, sessionStarted } = await import("./api.js");
 
 beforeEach(() => {
   vi.unstubAllGlobals();
@@ -59,7 +59,7 @@ describe("a run stops when you stop it (AI-006, the web half)", () => {
 describe("an ended session (WEB-013)", () => {
   it("signs the app out from Ask Orr too, like any other request", async () => {
     serveAsk({ askStatus: 401 });
-    setToken("t-ended");
+    sessionStarted();
     const ended = vi.fn();
     window.addEventListener(SESSION_ENDED, ended);
     try {
@@ -68,7 +68,7 @@ describe("an ended session (WEB-013)", () => {
       await waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
     } finally {
       window.removeEventListener(SESSION_ENDED, ended);
-      clearToken();
+      sessionOver();
     }
   });
 });

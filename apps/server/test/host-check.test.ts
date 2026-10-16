@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { liveSocket, refusedWith, sessionOf } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-host-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -28,6 +29,7 @@ afterAll(async () => {
 const as = (host: string, method: "GET" | "POST", url: string, payload?: object) =>
   b.app.inject({ method, url, headers: { host }, ...(payload ? { payload } : {}) });
 const owner = { email: "o@example.test", username: "owner", displayName: "O", password: "a-real-password" };
+let session = "";
 
 describe("Host allowlist", () => {
   it("refuses a foreign Host before any route runs — status, register, unlock", async () => {
@@ -44,13 +46,15 @@ describe("Host allowlist", () => {
     for (const host of ["localhost", "localhost:4625", "127.0.0.1:4623", "[::1]:4623", "LOCALHOST:4623", "mac.tailnet-name.ts.net", "mac.tailnet-name.ts.net:443"]) {
       expect((await as(host, "GET", "/api/auth/status")).statusCode, host).toBe(200);
     }
-    expect((await as("localhost:4623", "POST", "/api/auth/register", owner)).statusCode).toBe(200);
+    const reg = await as("localhost:4623", "POST", "/api/auth/register", owner);
+    expect(reg.statusCode).toBe(200);
+    session = sessionOf(reg);
   });
 
   it("refuses the live-sync socket from a foreign Host", async () => {
-    await expect(b.app.injectWS("/api/ws", { headers: { host: "evil.example:4623" } })).rejects.toThrow();
-    const ok = await b.app.injectWS("/api/ws", { headers: { host: "localhost:4623" } });
-    ok.terminate();
+    // Even with a good session and an Origin that matches the Host it sent.
+    expect(await refusedWith(liveSocket(b.app, session, { host: "evil.example:4623", origin: "http://evil.example:4623" }))).toBe(421);
+    expect(await refusedWith(liveSocket(b.app, session, { host: "localhost:4623", origin: "http://localhost:4623" }))).toBe(0);
   });
 
   it("does not let a URL-shaped Host smuggle in an allowed name", () => {

@@ -7,8 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { WebSocket } from "ws";
-import { sessionOf, signedIn } from "./helpers/session.js";
+import { liveSocket, refusedWith, sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-sessions-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -89,33 +88,18 @@ describe("sessions", () => {
 });
 
 describe("live sync", () => {
-  const openSocket = async () => {
-    const ws: WebSocket = await built.app.injectWS("/api/ws");
-    const got: { type?: string }[] = [];
-    const closed = new Promise<number>((resolve) => ws.on("close", (code: number) => resolve(code)));
-    ws.on("message", (data: Buffer) => got.push(JSON.parse(data.toString())));
-    const ready = async () => {
-      for (let i = 0; i < 100 && !got.some((m) => m.type === "ready"); i++) await new Promise((r) => setTimeout(r, 20));
-      return got.some((m) => m.type === "ready");
-    };
-    return { ws, closed, ready };
-  };
-
   it("revoking a session closes its open socket", async () => {
     const token = await signIn();
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "auth", token }));
+    const s = await liveSocket(built.app, token);
     expect(await s.ready()).toBe(true);
     expect((await call(token, "POST", "/api/auth/logout")).status).toBe(200);
     expect(await s.closed).toBe(4001);
   });
 
-  it("a signed-out token cannot open one", async () => {
+  it("a signed-out session cannot open one", async () => {
     const token = await signIn();
     await call(token, "POST", "/api/auth/logout");
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "auth", token }));
-    expect(await s.closed).toBe(4001);
+    expect(await refusedWith(liveSocket(built.app, token))).toBe(401);
   });
 });
 

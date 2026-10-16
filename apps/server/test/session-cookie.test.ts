@@ -8,8 +8,13 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { WebSocket } from "ws";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Touch ID: whether a device's signature checks out is @simplewebauthn's job, tested there.
+vi.mock("@simplewebauthn/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@simplewebauthn/server")>()),
+  verifyAuthenticationResponse: async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }),
+}));
 import { eq } from "drizzle-orm";
 import { SESSION_COOKIE as HELPER_COOKIE } from "./helpers/session.js";
 
@@ -33,10 +38,11 @@ const PASSWORD = "a-real-password";
 /** What light-my-request sends as Host, and so the address a request "was sent to". */
 const OWN = "http://localhost";
 
+let registered: Awaited<ReturnType<Built["app"]["inject"]>>;
 beforeAll(async () => {
   b = await buildServer();
-  const reg = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: EMAIL, username: "owner", displayName: "Owner", password: PASSWORD } });
-  expect(reg.statusCode).toBe(200);
+  registered = await b.app.inject({ method: "POST", url: "/api/auth/register", payload: { email: EMAIL, username: "owner", displayName: "Owner", password: PASSWORD } });
+  expect(registered.statusCode).toBe(200);
 });
 afterAll(async () => {
   await b.app.close();
@@ -83,6 +89,39 @@ describe("signing in sets the session cookie", () => {
     const r = await withCookie(session, "GET", "/api/me");
     expect(r.statusCode).toBe(200);
     expect(r.json().email).toBe(EMAIL);
+  });
+});
+
+describe("no session credential in any response body", () => {
+  /** What a sign-in answers: the account, and nothing that could sign anyone in. */
+  const onlyTheUser = (r: Res) => {
+    expect(r.statusCode).toBe(200);
+    const session = cookieValue(r);
+    expect(session).not.toBe("");
+    expect(Object.keys(r.json())).toEqual(["user"]);
+    expect(r.body).not.toContain(session);
+    expect(r.body).not.toMatch(/eyJ[\w-]+\.[\w-]+\./); // no JWT of any kind
+  };
+
+  it("signing up", () => onlyTheUser(registered));
+
+  it("a password", async () => onlyTheUser(await login()));
+
+  it("the passcode", async () => {
+    const session = cookieValue(await login());
+    expect((await withCookie(session, "POST", "/api/auth/passcode", { origin: OWN }, { passcode: "4821" })).statusCode).toBe(200);
+    onlyTheUser(await b.app.inject({ method: "POST", url: "/api/auth/unlock", payload: { email: EMAIL, passcode: "4821" } }));
+  });
+
+  it("Touch ID", async () => {
+    const owner = b.db.select().from(tables.users).all()[0]!;
+    b.db.insert(tables.webauthnCredentials).values({ id: "wa-test", userId: owner.id, credentialId: "cred-touch", publicKey: "AAAA", counter: 0, transports: "[]", label: "Mac", createdAt: Date.now() }).run();
+    // The device's signature is the authenticator's business (stubbed above); the answer is ours.
+    const page = { origin: "http://localhost:4623", host: "localhost:4623" };
+    const opts = await b.app.inject({ method: "POST", url: "/api/auth/webauthn/login/options", headers: page, payload: { email: EMAIL } });
+    expect(opts.statusCode).toBe(200);
+    const r = await b.app.inject({ method: "POST", url: "/api/auth/webauthn/login/verify", headers: page, payload: { challengeId: opts.json().challengeId, response: { id: "cred-touch" } } });
+    onlyTheUser(r);
   });
 });
 
@@ -217,17 +256,5 @@ describe("a token kept from before the cookie (this release only)", () => {
     expect(r.statusCode).toBe(403);
     expect(setCookie(r)).toBe("");
     expect((await bearer(token, "GET", "/api/me")).statusCode).toBe(200); // and nothing was spent
-  });
-
-  it("an open live-sync socket follows its session to the new id, so revoking it still closes it", async () => {
-    const token = await oldToken();
-    const ws: WebSocket = await b.app.injectWS("/api/ws");
-    const closed = new Promise<number>((resolve) => ws.on("close", (code: number) => resolve(code)));
-    const ready = new Promise<void>((resolve) => ws.on("message", (m: Buffer) => JSON.parse(String(m)).type === "ready" && resolve()));
-    ws.send(JSON.stringify({ type: "auth", token }));
-    await ready;
-    const session = cookieValue(await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${token}` } }));
-    await withCookie(session, "POST", "/api/auth/logout", { origin: OWN });
-    expect(await closed).toBe(4001);
   });
 });

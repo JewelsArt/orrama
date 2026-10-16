@@ -254,6 +254,8 @@ describe("the shell", () => {
     at("/today");
     render(<App />);
     expect(screen.getByRole("img", { name: "Orrama" })).toBeTruthy();
+    // Asked once a stored token (none here) has been looked for: a moment after the first paint.
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
     answer(new Response("{}", { status: 401 }));
   });
 

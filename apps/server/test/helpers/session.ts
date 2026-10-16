@@ -37,3 +37,53 @@ export function signedIn(credential: string | undefined, origin = OWN_ORIGIN): R
   if (String(credential).startsWith("bslt_")) return { authorization: `Bearer ${credential}` };
   return { cookie: `${SESSION_COOKIE}=${credential}`, origin };
 }
+
+/** What `liveSocket` hands back: the socket, every message it got, and how it ended. */
+export interface LiveSocket {
+  ws: import("ws").WebSocket;
+  got: { type?: string; [k: string]: unknown }[];
+  closed: Promise<number>;
+  /** True once the server said `ready` (within two seconds). */
+  ready(): Promise<boolean>;
+}
+
+/**
+ * Open the live-sync socket the way the browser does: the session's cookie and our own
+ * Origin on the handshake (routes/ws.ts signs it in there). Rejects with
+ * "Unexpected server response: <status>" when the server refuses the upgrade.
+ */
+export async function liveSocket(
+  app: {
+    injectWS(path: string, ctx?: { headers?: Record<string, string> }, opts?: { onInit?: (ws: import("ws").WebSocket) => void }): Promise<import("ws").WebSocket>;
+  },
+  session: string | undefined,
+  { origin = OWN_ORIGIN, host = "localhost" }: { origin?: string; host?: string } = {},
+): Promise<LiveSocket> {
+  const headers: Record<string, string> = { host, origin };
+  if (session) headers["cookie"] = `${SESSION_COOKIE}=${session}`;
+  const got: LiveSocket["got"] = [];
+  let closed!: Promise<number>;
+  // Listening from before the socket opens: the server says `ready` the moment it does.
+  const ws = await app.injectWS("/api/ws", { headers }, {
+    onInit: (socket) => {
+      closed = new Promise<number>((resolve) => socket.on("close", (code: number) => resolve(code)));
+      socket.on("message", (data: Buffer) => got.push(JSON.parse(data.toString())));
+    },
+  });
+  const ready = async () => {
+    for (let i = 0; i < 100 && !got.some((m) => m.type === "ready"); i++) await new Promise((r) => setTimeout(r, 20));
+    return got.some((m) => m.type === "ready");
+  };
+  return { ws, got, closed, ready };
+}
+
+/** The HTTP status a refused upgrade got (0 when it opened). */
+export async function refusedWith(open: Promise<unknown>): Promise<number> {
+  try {
+    const s = (await open) as LiveSocket;
+    s.ws.close();
+    return 0;
+  } catch (e) {
+    return Number(/(\d{3})/.exec(String(e))?.[1] ?? -1);
+  }
+}

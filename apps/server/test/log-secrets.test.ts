@@ -13,9 +13,8 @@ import os from "node:os";
 import path from "node:path";
 import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { WebSocket } from "ws";
 import { POSIX_MODES } from "./helpers/platform.js";
-import { sessionOf, signedIn } from "./helpers/session.js";
+import { liveSocket, OWN_ORIGIN, refusedWith, SESSION_COOKIE, sessionOf, signedIn, type LiveSocket } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-logs-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -24,7 +23,6 @@ process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
 const { buildServer } = await import("../src/main.js");
 const { privateLogFiles, redactUrl } = await import("../src/logging.js");
-const { AUTH_TIMEOUT_MS } = await import("../src/routes/ws.js");
 
 let logged = "";
 const logStream = new Writable({
@@ -35,11 +33,12 @@ const logStream = new Writable({
 });
 
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
+let db: Awaited<ReturnType<typeof buildServer>>["db"];
 let token = "";
 
 beforeAll(async () => {
   await import("../src/seed.js");
-  app = (await buildServer({ logStream })).app;
+  ({ app, db } = await buildServer({ logStream }));
   await app.ready();
   const r = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
   token = sessionOf(r);
@@ -78,74 +77,61 @@ describe("the real app's request log", () => {
   });
 });
 
-/** Open a live-sync socket and collect what happens to it. */
-const openSocket = async (url = "/api/ws") => {
-  const ws: WebSocket = await app.injectWS(url);
-  const got: { type?: string }[] = [];
-  const closed = new Promise<number>((resolve) => ws.on("close", (code: number) => resolve(code)));
-  ws.on("message", (data: Buffer) => got.push(JSON.parse(data.toString())));
-  const waitFor = async (type: string, ms = 2000) => {
+describe("/api/ws signs in on the upgrade, from the session cookie (WEB-013)", () => {
+  const waitFor = async (s: LiveSocket, type: string, ms = 2000) => {
     const until = Date.now() + ms;
     while (Date.now() < until) {
-      if (got.some((m) => m.type === type)) return true;
+      if (s.got.some((m) => m.type === type)) return true;
       await new Promise((r) => setTimeout(r, 20));
     }
     return false;
   };
-  return { ws, got, closed, waitFor };
-};
 
-describe("/api/ws authenticates with its first frame", () => {
-  it("a valid auth frame gets 'ready', then live events", async () => {
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "auth", token }));
-    expect(await s.waitFor("ready")).toBe(true);
+  it("the cookie on the handshake gets 'ready' at once, then live events", async () => {
+    const s = await liveSocket(app, token);
+    expect(await s.ready()).toBe(true);
     await app.inject({
       method: "PUT",
       url: "/api/vault/note",
       headers: signedIn(token),
       payload: { path: "Engineering/Live.md", content: "# live\n" },
     });
-    expect(await s.waitFor("note-changed")).toBe(true);
+    expect(await waitFor(s, "note-changed")).toBe(true);
     s.ws.close();
   });
 
-  it("a bad token is closed with 4001", async () => {
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "auth", token: "not-a-jwt" }));
-    expect(await s.closed).toBe(4001);
-    expect(s.got.some((m) => m.type === "ready")).toBe(false);
-  });
-
-  it("anything but an auth frame first is closed with 4001", async () => {
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "editing", noteId: "n-x" }));
-    expect(await s.closed).toBe(4001);
+  it("no cookie, or a bad one: the upgrade is refused, and no socket is made", async () => {
+    expect(await refusedWith(liveSocket(app, undefined))).toBe(401);
+    expect(await refusedWith(liveSocket(app, "not-a-jwt"))).toBe(401);
   });
 
   it("a token in the URL no longer authenticates", async () => {
-    const s = await openSocket(`/api/ws?token=${token}`);
-    await app.inject({
-      method: "PUT",
-      url: "/api/vault/note",
-      headers: signedIn(token),
-      payload: { path: "Engineering/Unseen.md", content: "# unseen\n" },
-    });
-    expect(await s.waitFor("note-changed", 500)).toBe(false);
-    s.ws.send(JSON.stringify({ type: "editing", noteId: "n-x" }));
-    expect(await s.closed).toBe(4001);
+    const open = app.injectWS(`/api/ws?token=${token}`, { headers: { host: "localhost", origin: OWN_ORIGIN } });
+    expect(await refusedWith(open)).toBe(401);
   });
 
-  it("a valid signature for an account that no longer exists is refused", async () => {
-    const s = await openSocket();
-    s.ws.send(JSON.stringify({ type: "auth", token: app.jwt.sign({ sub: "u-deleted-long-ago" }) }));
-    expect(await s.closed).toBe(4001);
+  it("a live session of an account that no longer exists is refused", async () => {
+    // The row outlived its account (removed while signed in elsewhere).
+    const { tables } = await import("../src/db.js");
+    db.insert(tables.sessions).values({ id: "s-orphan", userId: "u-deleted-long-ago", label: "Mac", createdAt: Date.now(), lastSeenAt: null, revokedAt: null }).run();
+    expect(await refusedWith(liveSocket(app, app.jwt.sign({ sub: "u-deleted-long-ago", sid: "s-orphan" })))).toBe(401);
   });
 
-  it(`a socket that never authenticates is closed after ${AUTH_TIMEOUT_MS}ms`, async () => {
-    const s = await openSocket();
-    expect(await s.closed).toBe(4001);
-  }, AUTH_TIMEOUT_MS + 3000);
+  it("from another site, or with no Origin, it is refused even with a good cookie (a hijacked socket)", async () => {
+    expect(await refusedWith(liveSocket(app, token, { origin: "https://evil.example" }))).toBe(403);
+    const bare = app.injectWS("/api/ws", { headers: { host: "localhost", cookie: `${SESSION_COOKIE}=${token}` } });
+    expect(await refusedWith(bare)).toBe(403);
+  });
+
+  it("an auth frame from an app open since before the cookie is ignored, and the socket stays", async () => {
+    const s = await liveSocket(app, token);
+    expect(await s.ready()).toBe(true);
+    s.ws.send(JSON.stringify({ type: "auth", token: "not-a-jwt" }));
+    s.ws.send("not json");
+    await app.inject({ method: "PUT", url: "/api/vault/note", headers: signedIn(token), payload: { path: "Engineering/Still.md", content: "# still\n" } });
+    expect(await waitFor(s, "note-changed")).toBe(true);
+    s.ws.close();
+  });
 });
 
 describe("privateLogFiles", () => {

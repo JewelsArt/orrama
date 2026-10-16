@@ -208,12 +208,13 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   });
   await app.register(cors, { origin: env.corsOrigin });
   await app.register(jwt, { secret: env.jwtSecret });
-  // A client only ever sends its auth frame (a JWT, well under 1 KiB) and
-  // presence pings. ws's default limit is 100 MiB, and the first frame is read
-  // and JSON.parsed BEFORE it is known to be a valid auth — so anyone could
-  // make the server buffer and parse a few hundred MiB per connection (audit
-  // SEC-010). Over the limit, ws closes with 1009 on the frame header, before
-  // the body is read.
+  // A client only ever sends presence pings, well under 1 KiB. ws's default
+  // limit is 100 MiB; when the socket still signed in with its first frame,
+  // that frame was read and JSON.parsed before it was known to be a valid
+  // auth, so anyone could make the server buffer and parse a few hundred MiB
+  // per connection (audit SEC-010). The socket now signs in on the upgrade
+  // (routes/ws.ts), and the cap still bounds what a signed-in one can send:
+  // over it, ws closes with 1009 on the frame header, before the body is read.
   await app.register(websocket, { options: { maxPayload: WS_MAX_FRAME } });
 
   app.decorate("authenticate", async (req: FastifyRequest, reply: FastifyReply) => {

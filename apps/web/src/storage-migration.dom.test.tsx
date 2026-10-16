@@ -1,8 +1,8 @@
 /**
  * The rename to Orrama (R13) renamed every key this browser keeps, basalt-… to orrama-…. The
  * first load of the renamed app moves them before anything reads one, so nobody is signed out
- * and nothing remembered is lost: the session token, the theme, the remembered tabs, the
- * unsaved drafts.
+ * and nothing remembered is lost: the session token (then traded for the cookie, WEB-013), the
+ * theme, the remembered tabs, the unsaved drafts.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -41,12 +41,16 @@ describe("the move from basalt-… keys", () => {
     expect(localStorage.getItem("orrama-draft:n-1")).toBeNull();
   });
 
-  it("the moved token is the one the app signs in with", async () => {
+  it("the moved token is the one the app trades for the session cookie (WEB-013)", async () => {
     localStorage.setItem("basalt-token", "t-live");
     localStorage.setItem("basalt-last-email", "ines@example.com");
     (await import("./storage.js")).migrateLegacyKeys();
+    const fetched = vi.fn(async () => new Response(JSON.stringify({ user: {} }), { status: 200 }));
+    vi.stubGlobal("fetch", fetched);
     const api = await import("./api.js");
-    expect(api.getToken()).toBe("t-live");
+    await api.adoptStoredSession();
+    expect(fetched).toHaveBeenCalledWith("/api/auth/exchange", { method: "POST", headers: { authorization: "Bearer t-live" } });
+    expect(localStorage.getItem("orrama-token")).toBeNull();
     expect(api.lastEmail()).toBe("ines@example.com");
   });
 

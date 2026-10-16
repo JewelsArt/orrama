@@ -9,9 +9,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import type { WebSocket } from "ws";
 import { afterAll, describe, expect, it } from "vitest";
-import { sessionOf, signedIn } from "./helpers/session.js";
+import { liveSocket, sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-gone-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -41,11 +40,8 @@ describe("a deleted account", () => {
   it("with a socket still open, does not break saves — the socket is closed instead", async () => {
     const jules = await login("jules");
     const erin = await login("erin");
-    const ws: WebSocket = await app.injectWS("/api/ws");
-    const closed = new Promise<number>((r) => ws.on("close", (code: number) => r(code)));
-    const ready = new Promise<void>((r) => ws.on("message", (d: Buffer) => JSON.parse(d.toString()).type === "ready" && r()));
-    ws.send(JSON.stringify({ type: "auth", token: erin }));
-    await ready;
+    const { closed, ready } = await liveSocket(app, erin);
+    expect(await ready()).toBe(true);
     db.delete(tables.users).where(eq(tables.users.username, "erin")).run();
     expect(await save(jules, 2)).toBe(200);
     expect(await Promise.race([closed, new Promise((r) => setTimeout(() => r("still open"), 2000))])).toBe(4001);

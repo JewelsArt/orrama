@@ -100,11 +100,13 @@ const noAccountHash = () => (dummyHash ??= argonHash(crypto.randomBytes(16).toSt
 export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   /** Passcode, Touch ID and sessions are credentials: changed from a session only. */
   const credentials = { preHandler: [app.authenticate], config: sessionOnly("sign-in methods and sessions are managed from a signed-in session, not with an API token") };
-  /** Hand this browser a session: the cookie, holding a token that names the row, for `seconds`. */
+  /**
+   * Hand this browser a session: the cookie, holding a token that names the row, for
+   * `seconds`. Never in a response body: no script on the page may hold it (WEB-013).
+   */
   const setSession = (req: FastifyRequest, reply: FastifyReply, userId: string, sid: string, seconds: number) => {
     const token = app.jwt.sign({ sub: userId, sid }, { expiresIn: Math.max(1, Math.floor(seconds)) });
     reply.header("set-cookie", sessionCookie(token, seconds, overHttps(req)));
-    return token;
   };
   /** Every way in ends here: a session row, and the cookie that names it. */
   const signIn = (userId: string, req: FastifyRequest, reply: FastifyReply) =>
@@ -186,8 +188,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       db.insert(tables.memberships).values({ id: `m-${crypto.randomUUID().slice(0, 8)}`, userId: id, teamId }).run();
     }
     registrations.succeed(req.ip);
-    const token = signIn(id, req, reply);
-    return reply.send({ token, user: publicUser(db, store, id) });
+    signIn(id, req, reply);
+    return reply.send({ user: publicUser(db, store, id) });
   });
 
   app.post("/api/auth/login", async (req, reply) => {
@@ -206,8 +208,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = signIn(user.id, req, reply);
-    return reply.send({ token, user: publicUser(db, store, user.id) });
+    signIn(user.id, req, reply);
+    return reply.send({ user: publicUser(db, store, user.id) });
   });
 
   app.get("/api/me", { preHandler: [app.authenticate] }, async (req) => {
@@ -338,8 +340,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ passcodeFails: 0, passcodeLockedUntil: null })
       .where(eq(tables.users.id, user.id))
       .run();
-    const token = signIn(user.id, req, reply);
-    return reply.send({ token, user: publicUser(db, store, user.id) });
+    signIn(user.id, req, reply);
+    return reply.send({ user: publicUser(db, store, user.id) });
   });
 
   // ── WebAuthn (Touch ID) ──────────────────────────────────────────────────────
@@ -471,8 +473,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       .set({ counter: result.authenticationInfo.newCounter, lastUsedAt: Date.now() })
       .where(eq(tables.webauthnCredentials.id, cred.id))
       .run();
-    const token = signIn(cred.userId, req, reply);
-    return reply.send({ token, user: publicUser(db, store, cred.userId) });
+    signIn(cred.userId, req, reply);
+    return reply.send({ user: publicUser(db, store, cred.userId) });
   });
 
   /** Enrolled devices, for the Settings list and its revoke buttons. */
@@ -535,7 +537,9 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
    * as `Bearer`, and forgets it; the session moves into the cookie under a new id (`rekeySession`),
    * so it works once, only while the session is live, and the old token is dead after — a copy
    * of it taken from the browser's storage included. The session keeps its 30 days from when it
-   * began. Goes with the `Bearer <session token>` path in `authenticate`: both leave next stage.
+   * began. No live-sync socket can be open on the old id: a socket signs in from the cookie,
+   * and no cookie ever held a token from before it. Goes with the `Bearer <session token>`
+   * path in `authenticate`: both leave next stage.
    */
   app.post("/api/auth/exchange", async (req, reply) => {
     const header = String(req.headers.authorization ?? "");
@@ -556,7 +560,6 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     if (!userId) return refuse();
     const moved = rekeySession(db, userId, payload.sid as string);
     if (!moved) return refuse(); // traded in by another request meanwhile
-    store.events.emit("session-rekeyed", { from: payload.sid, to: moved.id });
     setSession(req, reply, userId, moved.id, (moved.createdAt + SESSION_DAYS * 86_400_000 - Date.now()) / 1000);
     return reply.send({ user: publicUser(db, store, userId) });
   });

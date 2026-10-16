@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import type { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { signedIn } from "./helpers/session.js";
+import { sessionOf, signedIn } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-contract-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -51,9 +51,9 @@ beforeAll(async () => {
   fx.writeBrokenBoard(vault, "acme");
   ics = await fx.serveIcs();
   b = await buildServer();
-  const login = (await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } })).json();
-  token = login.token;
-  const me = login.user.id as string;
+  const signed = await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jules@orrama.dev", password: "orrama-demo" } });
+  token = sessionOf(signed);
+  const me = signed.json().user.id as string;
 
   // Rows behind every list, made the way the app makes them.
   const ws = await must("GET", "/api/projects/atlas");
@@ -150,6 +150,30 @@ const SKIPPED: Record<string, string> = {
 };
 
 const describeIssues = (e: z.ZodError) => e.issues.slice(0, 8).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
+
+describe("every way in answers with the account, and the session only in its cookie (WEB-013)", () => {
+  const signIn = (url: string, payload: object, headers: Record<string, string> = {}) =>
+    b.app.inject({ method: "POST", url, headers, payload });
+  const check = (r: Awaited<ReturnType<typeof signIn>>) => {
+    expect(r.statusCode).toBe(200);
+    expect(sessionOf(r)).not.toBe("");
+    const parsed = R.signInResponse.safeParse(r.json());
+    if (!parsed.success) throw new Error(`does not match its schema:\n${describeIssues(parsed.error)}`);
+  };
+
+  it("POST /api/auth/login", async () => check(await signIn("/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" })));
+
+  it("POST /api/auth/unlock", async () => {
+    await must("POST", "/api/auth/passcode", { passcode: "2468" });
+    check(await signIn("/api/auth/unlock", { email: "jules@orrama.dev", passcode: "2468" }));
+  });
+
+  it("POST /api/auth/exchange", async () => {
+    // A token as the app before the cookie kept it: {sub, sid} for a live session.
+    const fresh = sessionOf(await signIn("/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" }));
+    check(await signIn("/api/auth/exchange", {}, { authorization: `Bearer ${fresh}` }));
+  });
+});
 
 describe("every GET the web app reads matches its schema", () => {
   it.each(CASES.map(([pattern, url, schema]) => ({ pattern, url, schema })))("$pattern", async ({ url, schema }) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, lastEmail, touchIdAvailable, unlockWithTouchId, type Me } from "./api.js";
+import { api, lastEmail, type Me, type SignedIn, touchIdAvailable, unlockWithTouchId } from "./api.js";
 import { After, BackspaceIcon, Door, DoorError, FingerprintIcon, PasswordField, useEnter, useNarrow, type DoorHandle } from "./door/Door.js";
 import { cancelled, doorError } from "./door/voice.js";
 import { Button } from "./ui/controls.js";
@@ -90,7 +90,7 @@ export function Lock({ onUnlock, onUsePassword }: { onUnlock: (me: Me) => void; 
       setError("");
       door.current?.think(true);
       try {
-        const res = await api<{ token: string; user: Me }>("POST", "/api/auth/unlock", { email, passcode: code });
+        const res = await api<SignedIn>("POST", "/api/auth/unlock", { email, passcode: code });
         await enter(res, BACK, onUnlock);
       } catch (err) {
         door.current?.think(false);
@@ -160,7 +160,7 @@ export function Lock({ onUnlock, onUsePassword }: { onUnlock: (me: Me) => void; 
     setError("");
     door.current?.think(true);
     try {
-      const res = await api<{ token: string; user: Me }>("POST", "/api/auth/login", { email, password });
+      const res = await api<SignedIn>("POST", "/api/auth/login", { email, password });
       await enter(res, BACK, onUnlock);
     } catch (err) {
       door.current?.think(false);

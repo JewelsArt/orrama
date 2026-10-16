@@ -11,32 +11,48 @@ export type {
   NoteDetail,
   NoteLink,
   SessionInfo,
+  SignedIn,
   TaskLine,
   TaskObject,
   Team,
   TreeNote,
 } from "@orrama/schema/responses";
-import type { Me } from "@orrama/schema/responses";
+import type { Me, SignedIn } from "@orrama/schema/responses";
 import { readKey, removeKey, writeKey } from "./storage.js";
 
-const TOKEN_KEY = "orrama-token";
+/**
+ * The session is a cookie this page cannot read (WEB-013): the server sets it at sign-in,
+ * HttpOnly, and the browser sends it with every request to our own origin. It used to be a
+ * 30-day token in localStorage, where any script on the page could read it and use it from
+ * another machine. What the page keeps is only whether it believes it is signed in, so that a
+ * 401 can tell an ended session from a wrong password on the sign-in screen.
+ */
+let signedIn = false;
+
+/** The server said yes: a sign-in, an unlock, or /api/me at boot. */
+export const sessionStarted = (): void => void (signedIn = true);
+/** Signed out, or the server ended the session. */
+export const sessionOver = (): void => void (signedIn = false);
+
+/** Where the app before the cookie kept its token (`basalt-token` before R13, moved by migrateLegacyKeys). */
+const LEGACY_TOKEN_KEY = "orrama-token";
 
 /**
- * The session token, read on first use rather than when this module loads: a module-level read
- * ran before anything could catch it, so a browser that refuses storage (iOS Safari with "Block
- * All Cookies") failed the import and left a blank page instead of the sign-in screen (WEB-025).
+ * Trade a token kept from before the cookie for the cookie, once, at boot, then forget it
+ * (`POST /api/auth/exchange`): the desktop window, the phone and every open tab held one, and
+ * the switch must not sign anyone out. Forgotten too when the server refuses it (that session
+ * is over anyway); kept when the server could not be reached, to try again next time.
+ * The next release drops this and the server's side of it.
  */
-let token: string | undefined;
-export const getToken = (): string => (token ??= readKey(TOKEN_KEY) ?? "");
-
-export function setToken(t: string) {
-  token = t;
-  writeKey(TOKEN_KEY, t);
-}
-
-export function clearToken() {
-  token = "";
-  removeKey(TOKEN_KEY);
+export async function adoptStoredSession(): Promise<void> {
+  const old = readKey(LEGACY_TOKEN_KEY);
+  if (!old) return;
+  try {
+    const res = await fetch("/api/auth/exchange", { method: "POST", headers: { authorization: `Bearer ${old}` } });
+    if (res.ok || res.status === 401) removeKey(LEGACY_TOKEN_KEY);
+  } catch {
+    // Offline or restarting: the token stays for the next boot.
+  }
 }
 
 /**
@@ -98,8 +114,8 @@ export async function enrolTouchId(label: string): Promise<void> {
   });
 }
 
-/** Unlock with Touch ID. Returns the same {token, user} shape as a password login. */
-export async function unlockWithTouchId(email: string): Promise<{ token: string; user: Me }> {
+/** Unlock with Touch ID. Answers as a password sign-in does: the account, and the session in the cookie. */
+export async function unlockWithTouchId(email: string): Promise<SignedIn> {
   const { challengeId, options } = await api<{ challengeId: string; options: PublicKeyCredentialRequestOptionsJSON }>(
     "POST",
     "/api/auth/webauthn/login/options",
@@ -209,34 +225,31 @@ export const SESSION_ENDED = "orrama:session-ended";
 
 /**
  * Every request the app makes with its session goes out here: api(), Ask Orr's stream, the save
- * sent as the page closes, documents. The one place that knows how a request is signed in, and
- * the one that hears a 401: a session ended elsewhere (signed out from another device, revoked in
+ * sent as the page closes, documents. The one place that knows how a request is signed in (the
+ * cookie, sent same-origin), and the one that hears a 401: a session ended elsewhere (signed out from another device, revoked in
  * Settings) goes back to the sign-in screen instead of a page of failures. Ask Orr used to sign
  * its own requests and missed that, so an ended session showed as an error in the panel (WEB-013).
  */
 export async function sessionFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const token = getToken();
-  const headers = new Headers(init.headers);
-  if (token) headers.set("authorization", `Bearer ${token}`);
-  const res = await fetch(url, { ...init, headers });
+  // Same origin only: the cookie goes with it, and never to another site.
+  const res = await fetch(url, { ...init, credentials: "same-origin" });
   // /api/auth/ answers 401 for a wrong password or passcode: that is not an ended session.
-  if (res.status === 401 && token && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
+  if (res.status === 401 && signedIn && !url.startsWith("/api/auth/")) window.dispatchEvent(new Event(SESSION_ENDED));
   return res;
 }
 
 
-/** Sign out on the server too — the token stops working everywhere it was copied. */
+/** Sign out on the server: the session ends, and the server clears the cookie. */
 export async function signOut(): Promise<void> {
   try {
     await api("POST", "/api/auth/logout");
   } catch {
-    // Already ended, or offline: forgetting it locally is still right.
+    // Already ended, or offline: this page forgets it either way.
   }
-  clearToken();
+  sessionOver();
 }
 
-/** Same auth as api(), but for bytes: project documents are behind the bearer
- *  token, so a plain <a href> would 401. */
+/** Same auth as api(), but for bytes the page shows itself (documents in the reader). */
 export async function apiBlob(url: string, opts: { signal?: AbortSignal } = {}): Promise<Blob> {
   const res = await sessionFetch(url, { signal: opts.signal });
   if (!res.ok) throw new ApiError(res.status, res.statusText);

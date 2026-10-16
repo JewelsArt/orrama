@@ -1,18 +1,17 @@
 /**
- * Live sync channel. Clients connect, send their JWT as the first frame, and receive push events the
- * moment any note they can read changes — the "seconds-fast" half of spec §10.
+ * Live sync channel. A client opens the socket with its session cookie and receives push events
+ * the moment any note it can read changes — the "seconds-fast" half of spec §10.
  * Every outbound event is ACL-checked per recipient with the same core function
  * as everything else: an unreadable note's change is never even announced.
  */
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WebSocket } from "ws";
 import { canRead } from "@orrama/core";
 import type { Db } from "../db.js";
+import { env } from "../env.js";
 import { sessionUser } from "../sessions.js";
 import type { NoteChangedEvent, VaultStore } from "../vaultStore.js";
-
-/** How long a new socket has to send its auth frame before it is closed. */
-export const AUTH_TIMEOUT_MS = 5000;
+import { fromOwnSite, sessionCookieOf } from "./auth.js";
 
 interface Client {
   userId: string;
@@ -31,12 +30,6 @@ export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
       clients.delete(client);
       client.socket.close(4001, "session ended");
     }
-  });
-
-  // The session moved into the cookie under a new id (/api/auth/exchange): its open
-  // socket is the same session, and must still close when that session is revoked.
-  store.events.on("session-rekeyed", ({ from, to }: { from: string; to: string }) => {
-    for (const client of clients) if (client.sessionId === from) client.sessionId = to;
   });
 
   const sendTo = (client: Client, payload: unknown) => {
@@ -61,54 +54,48 @@ export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
     }
   });
 
-  app.get("/api/ws", { websocket: true }, (socket) => {
-    // The token arrives as the FIRST MESSAGE, never in the URL. In `?token=` it
-    // was written to the request log on every connect — and the client
-    // reconnects every two seconds while offline — so the log filled with
-    // 30-day session tokens (audit B7). Until a valid auth frame arrives this
-    // socket receives nothing and may send nothing but that frame.
-    let client: Client | null = null;
-    const refuse = () => socket.close(4001, "authentication required");
-    const deadline = setTimeout(() => {
-      if (!client) refuse();
-    }, AUTH_TIMEOUT_MS);
+  /**
+   * The socket is signed in on the upgrade, before it opens, from the session cookie
+   * (WEB-013). It used to open for anyone and wait up to five seconds for a token in its first
+   * frame, parsed before anyone knew it was one (SEC-010); the token no longer exists in the
+   * page to send. A cookie-authenticated socket from another site is the classic hijack, so
+   * its `Origin` must be our own, as for any write the cookie carries (`fromOwnSite`).
+   * Refused here, the handshake gets an HTTP status and no socket is ever made.
+   */
+  const signInSocket = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!fromOwnSite(req.headers, env.publicOrigins)) return reply.code(403).send({ error: "this request came from another site" });
+    let payload: { sub?: unknown; sid?: unknown } | null = null;
+    try {
+      const token = sessionCookieOf(req.headers.cookie);
+      payload = token ? app.jwt.verify(token) : null;
+    } catch {
+      payload = null;
+    }
+    // A signed-out or revoked session is no session; nor is one for an account since removed.
+    const userId = payload ? sessionUser(db, payload) : null;
+    if (!userId || !store.aclUserOrNull(userId)) return reply.code(401).send({ error: "authentication required" });
+    req.userId = userId;
+    req.sessionId = payload!.sid as string;
+  };
+
+  app.get("/api/ws", { websocket: true, preHandler: signInSocket }, (socket, req) => {
+    const client: Client = { userId: req.userId, sessionId: req.sessionId!, socket };
+    clients.add(client);
+    sendTo(client, { type: "ready" });
 
     socket.on("message", (raw: Buffer) => {
-      let msg: { type?: string; token?: string; noteId?: string };
+      // Presence pings: {type:"editing", noteId}. Broadcast to other users who can read that
+      // note; never to those who can't (presence must not leak, §5.4). Anything else — an
+      // auth frame from an app open since before the cookie included — is ignored.
       try {
-        msg = JSON.parse(raw.toString());
-      } catch {
-        if (!client) refuse();
-        return; // ignore malformed frames once authenticated
-      }
-
-      if (!client) {
-        if (msg.type !== "auth" || typeof msg.token !== "string") return refuse();
-        try {
-          const payload = app.jwt.verify<{ sub?: unknown; sid?: unknown }>(msg.token);
-          const sub = sessionUser(db, payload); // a signed-out or revoked session is no token
-          if (!sub) return refuse();
-          store.aclUser(sub); // a token for an account that no longer exists is no token
-          client = { userId: sub, sessionId: payload.sid as string, socket };
-        } catch {
-          return refuse();
-        }
-        clearTimeout(deadline);
-        clients.add(client);
-        sendTo(client, { type: "ready" });
-        return;
-      }
-
-      // Presence pings: {type:"editing", noteId}. Broadcast to other users who can
-      // read that note; never to those who can't (presence must not leak, §5.4).
-      try {
+        const msg = JSON.parse(raw.toString()) as { type?: string; noteId?: string };
         if (msg.type !== "editing" || !msg.noteId) return;
         const note = store.index.get(msg.noteId);
         if (!note) return;
         const userId = client.userId;
         const me = store.aclUser(userId);
-        if (!canRead(me, note, store.grants())) return;
         const grants = store.grants();
+        if (!canRead(me, note, grants)) return;
         for (const other of clients) {
           if (other.userId === userId) continue;
           const user = store.aclUserOrNull(other.userId);
@@ -120,9 +107,6 @@ export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
       }
     });
 
-    socket.on("close", () => {
-      clearTimeout(deadline);
-      if (client) clients.delete(client);
-    });
+    socket.on("close", () => clients.delete(client));
   });
 }

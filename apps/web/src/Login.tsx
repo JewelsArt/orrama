@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { api, rememberEmail, type Me } from "./api.js";
+import { api, type Me, rememberEmail, type SignedIn } from "./api.js";
 import { After, Door, DoorError, DoorField, DoorFoot, PasswordField, useEnter, type DoorHandle } from "./door/Door.js";
 import { doorError } from "./door/voice.js";
 import { Button } from "./ui/controls.js";
@@ -34,7 +34,7 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
     setError("");
     door.current?.think(true);
     try {
-      const res = await api<{ token: string; user: Me }>("POST", "/api/auth/login", { email: email.trim(), password });
+      const res = await api<SignedIn>("POST", "/api/auth/login", { email: email.trim(), password });
       rememberEmail(email.trim().toLowerCase());
       await enter(res, "Your notes are all here.", onLogin);
     } catch (err) {

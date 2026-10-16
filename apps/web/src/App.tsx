@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, clearToken, getToken, lastEmail, SESSION_ENDED, signOut, type Me } from "./api.js";
+import { adoptStoredSession, api, lastEmail, SESSION_ENDED, sessionOver, sessionStarted, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
 import { Noticed } from "./noticed/Noticed.js";
 import { EntityPage } from "./entity/EntityPage.js";
@@ -299,7 +299,7 @@ export function App() {
   // Settings on another device): drop it and show the sign-in screen.
   useEffect(() => {
     const ended = () => {
-      clearToken();
+      sessionOver();
       disconnectWs();
       setMe(null);
       if (location.pathname.startsWith("/settings")) go({ kind: "today" }, { replace: true });
@@ -309,11 +309,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // Both answers are needed before anything renders: a stored token might still
-    // be valid (straight into the app), and an empty install must offer Setup
-    // rather than a sign-in form no one can satisfy.
-    api<Me>("GET", "/api/me")
-      .then(setMe)
+    // Both answers are needed before anything renders: the session cookie might
+    // still be good (straight into the app), and an empty install must offer
+    // Setup rather than a sign-in form no one can satisfy. A token kept from
+    // before the cookie is traded for it first, so the switch signs no one out.
+    adoptStoredSession()
+      .then(() => api<Me>("GET", "/api/me"))
+      .then((m) => {
+        sessionStarted();
+        setMe(m);
+      })
       .catch(() => setMe(null));
     api<{ needsSetup: boolean }>("GET", "/api/auth/status")
       .then((s) => setNeedsSetup(s.needsSetup))
@@ -361,7 +366,7 @@ export function App() {
     );
   }, [me, serverSnapshot, theme, vision, profiles]);
 
-  useLiveSync(me?.id, getToken);
+  useLiveSync(me?.id);
 
   /**
    * Notice when the server starts serving a bundle newer than the one this tab

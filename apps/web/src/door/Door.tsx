@@ -4,7 +4,7 @@
  * Styles: styles/door.css (classes start with dr-).
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { setToken, type Me } from "../api.js";
+import { sessionStarted, type Me, type SignedIn } from "../api.js";
 import { Field, Input } from "../ui/fields.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { DoorDots, NARROW, type DotsOptions } from "./dots.js";
@@ -55,7 +55,7 @@ export interface Entered {
 }
 
 /**
- * Getting in. The token is kept at once; the dots gather into the vault's real shape (if the
+ * Getting in. The session is the cookie the server just set; the dots gather into the vault's real shape (if the
  * server says it within half a second); after HOLD_MS the app opens. With reduced motion the
  * app opens straight away. Returns `entered` for the door to show and `enter` to call.
  */
@@ -69,8 +69,8 @@ export function useEnter(door: React.RefObject<DoorHandle | null>) {
     };
   }, []);
   const enter = useCallback(
-    async (res: { token: string; user: Me }, sub: string, done: (me: Me) => void) => {
-      setToken(res.token);
+    async (res: SignedIn, sub: string, done: (me: Me) => void) => {
+      sessionStarted();
       if (reducedMotion()) return done(res.user);
       const started = performance.now();
       setEntered({ hi: `${greeting(new Date().getHours())}.`, sub });

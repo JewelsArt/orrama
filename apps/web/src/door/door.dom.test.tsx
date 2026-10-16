@@ -8,10 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Lock } from "../Lock.js";
 import { Login } from "../Login.js";
 import { Setup } from "../Setup.js";
+import { api, SESSION_ENDED, sessionOver } from "../api.js";
 import { HOLD_MS } from "./Door.js";
 
 const ME = { id: "u-1", email: "ines@example.com", username: "ines", displayName: "Ines", avatar: null, isOwner: true, teams: [], appearance: null };
-const IN = { token: "t-1", user: ME };
+/** What every way in answers: the account. The session is a cookie the page never sees (WEB-013). */
+const IN = { user: ME };
 
 type Reply = unknown | ((body: any) => Response | Promise<Response>);
 let calls: { key: string; body: any }[] = [];
@@ -45,7 +47,33 @@ function motion(reduce: boolean) {
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const sent = (key: string) => calls.filter((c) => c.key === key);
 
-beforeEach(() => motion(true));
+/**
+ * Does the app now count itself signed in: does a 401 from an ordinary request end the session?
+ * The door has nothing else to keep: the session is the cookie the server set.
+ */
+async function holdsSession(): Promise<boolean> {
+  vi.stubGlobal("fetch", async () => json(401, { error: "this session has ended — sign in again" }));
+  let ended = false;
+  const on = () => (ended = true);
+  window.addEventListener(SESSION_ENDED, on);
+  await api("GET", "/api/vault/tree").catch(() => {});
+  window.removeEventListener(SESSION_ENDED, on);
+  sessionOver();
+  return ended;
+}
+
+/** Nothing that could sign anyone in is where a script on the page can read it. */
+function nothingReadable() {
+  expect(Object.keys(localStorage).filter((k) => k !== "orrama-last-email")).toEqual([]);
+  expect(Object.keys(sessionStorage)).toEqual([]);
+  expect(document.cookie).toBe("");
+}
+
+beforeEach(() => {
+  motion(true);
+  localStorage.clear();
+  sessionStorage.clear();
+});
 afterEach(() => {
   cleanup(); // before the stubs go: a late request from the page must not reach happy-dom's real fetch
   vi.unstubAllGlobals();
@@ -91,8 +119,9 @@ describe("sign-in", () => {
     type("Password", "orrama-demo");
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
     await waitFor(() => expect(onLogin).toHaveBeenCalledWith(ME));
-    expect(localStorage.getItem("orrama-token")).toBe("t-1");
     expect(localStorage.getItem("orrama-last-email")).toBe("ines@example.com");
+    nothingReadable();
+    expect(await holdsSession()).toBe(true);
   });
 
   it("with motion, the gathered vault shows for two seconds and no longer", async () => {
@@ -143,6 +172,8 @@ describe("lock", () => {
     render(<Lock onUnlock={onUnlock} onUsePassword={vi.fn()} />);
     for (const k of "4321") fireEvent.click(await screen.findByRole("button", { name: k }));
     await waitFor(() => expect(onUnlock).toHaveBeenCalledWith(ME));
+    nothingReadable();
+    expect(await holdsSession()).toBe(true);
   });
 
   it("after ten wrong passcodes, the password is the way in", async () => {
@@ -178,6 +209,35 @@ describe("lock", () => {
     const onUsePassword = vi.fn();
     render(<Lock onUnlock={vi.fn()} onUsePassword={onUsePassword} />);
     await waitFor(() => expect(onUsePassword).toHaveBeenCalled());
+  });
+
+  it("unlocks with Touch ID", async () => {
+    serve({
+      "POST /api/auth/unlock/options": { passcode: false, webauthn: true },
+      "POST /api/auth/webauthn/login/options": { challengeId: "c", options: { challenge: "AAAA" } },
+      "POST /api/auth/webauthn/login/verify": IN,
+    });
+    const bytes = () => new Uint8Array([1, 2, 3]).buffer;
+    vi.stubGlobal("PublicKeyCredential", { isUserVerifyingPlatformAuthenticatorAvailable: async () => true });
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      credentials: {
+        get: async () => ({
+          id: "cred-1",
+          rawId: bytes(),
+          type: "public-key",
+          getClientExtensionResults: () => ({}),
+          response: { clientDataJSON: bytes(), authenticatorData: bytes(), signature: bytes(), userHandle: null },
+        }),
+      },
+    });
+    const onUnlock = vi.fn();
+    render(<Lock onUnlock={onUnlock} onUsePassword={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Unlock with Touch ID" }));
+    await waitFor(() => expect(onUnlock).toHaveBeenCalledWith(ME));
+    expect(sent("POST /api/auth/webauthn/login/verify")[0]!.body.response.id).toBe("cred-1");
+    nothingReadable();
+    expect(await holdsSession()).toBe(true);
   });
 
   it("offers Touch ID only when this device has it, and a dismissed prompt says nothing", async () => {
@@ -244,10 +304,11 @@ describe("first run", () => {
     expect((await screen.findByText("I found 3 notes.")).textContent).toBeTruthy();
     expect(screen.getByText("1 person, 1 project and 1 link between them.")).toBeTruthy();
     expect(sent("POST /api/auth/register")[0]!.body).toEqual({ email: "Ines.V@example.com", username: "ines.v", displayName: "Ines", password: "long-enough" });
-    expect(localStorage.getItem("orrama-token")).toBe("t-1");
+    nothingReadable();
     act(() => fireEvent.click(screen.getByRole("button", { name: "Show me how they relate" })));
     expect(window.location.pathname).toBe("/orrery");
     expect(onDone).toHaveBeenCalledWith(ME);
+    expect(await holdsSession()).toBe(true);
   });
 
   it("on a server someone set up meanwhile, says so", async () => {

@@ -2,7 +2,8 @@
  * localStorage that never takes the app down (WEB-025).
  *
  * Everything the app keeps in the browser is a convenience: the theme, a remembered tab, the
- * last address that signed in, and the session token. Storage can refuse all of it: iOS Safari
+ * last address that signed in. Never the session: that is an HttpOnly cookie no script reads
+ * (WEB-013). Storage can refuse all of it: iOS Safari
  * with "Block All Cookies" makes the very getter throw SecurityError, a full quota makes setItem
  * throw, a private window may hand back nothing. None of that is worth a blank page, so every
  * read and write here is guarded, and a value storage refused is kept in memory for the rest of
@@ -104,7 +105,8 @@ export function guardStorage(win: Window = globalThis as unknown as Window): boo
 }
 
 /**
- * The keys were `basalt-…` until the rename to Orrama (R13): the session token, the theme, every
+ * The keys were `basalt-…` until the rename to Orrama (R13): the session token (traded for the
+ * cookie at boot since WEB-013, `adoptStoredSession` in api.ts), the theme, every
  * remembered tab, unsaved drafts (`basalt-draft:<id>`). Run first thing in main.tsx, before any
  * screen reads a key, this moves each one to its `orrama-…` name, so the first load of the
  * renamed app keeps you signed in and keeps everything this browser remembered. A move, not a

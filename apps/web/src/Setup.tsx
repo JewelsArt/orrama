@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, rememberEmail, setToken, type Me } from "./api.js";
+import { api, type Me, rememberEmail, sessionStarted, type SignedIn } from "./api.js";
 import { Door, DoorError, DoorField, DoorFoot, PasswordField, reducedMotion, type DoorHandle } from "./door/Door.js";
 import { countingLine, firstRunCounts, foundDetail, foundLine, type FirstCounts } from "./door/shape.js";
 import { doorError } from "./door/voice.js";
@@ -67,13 +67,13 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
     setError("");
     door.current?.think(true);
     try {
-      const res = await api<{ token: string; user: Me }>("POST", "/api/auth/register", {
+      const res = await api<SignedIn>("POST", "/api/auth/register", {
         email: email.trim(),
         username,
         displayName: displayName.trim(),
         password,
       });
-      setToken(res.token);
+      sessionStarted();
       rememberEmail(email.trim().toLowerCase());
       door.current?.think(false);
       setMe(res.user);

@@ -28,7 +28,7 @@ describe("useLiveSync", () => {
     vi.stubGlobal("WebSocket", FakeSocket);
     FakeSocket.opened = 0;
     const me = { id: "u-1", displayName: "Jules" };
-    const { rerender, unmount } = renderHook(({ user }) => useLiveSync(user?.id, () => "t"), { initialProps: { user: me as typeof me | null } });
+    const { rerender, unmount } = renderHook(({ user }) => useLiveSync(user?.id), { initialProps: { user: me as typeof me | null } });
     expect(FakeSocket.opened).toBe(1);
     rerender({ user: { ...me, displayName: "Jules T." } }); // saved a new display name
     expect(FakeSocket.opened).toBe(1);

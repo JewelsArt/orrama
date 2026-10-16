@@ -183,7 +183,9 @@ export function serve(over: Record<string, unknown> = {}) {
   vi.stubGlobal("fetch", async (url: string, init: { method?: string } = {}) => {
     const key = `${init.method ?? "GET"} ${url.split("?")[0]}`;
     if (!(key in routes)) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
-    const body = routes[key];
+    const route = routes[key];
+    // A function answers per request, for a server whose answer changes.
+    const body = typeof route === "function" ? (route as () => unknown)() : route;
     if (body instanceof Response) return body;
     return new Response(JSON.stringify(body), { status: 200 });
   });

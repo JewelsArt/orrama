@@ -87,6 +87,13 @@ export const meResponse = o({
 
 export const authStatusResponse = o({ needsSetup: z.boolean() });
 
+/**
+ * What every way in answers (sign-up, password, passcode, Touch ID, the switch from a stored
+ * token): the account, nothing else. The session is the HttpOnly cookie set beside it, never in
+ * the body, where any script on the page could read it (WEB-013).
+ */
+export const signInResponse = o({ user: meResponse });
+
 export const sessionsResponse = z.array(
   o({ id: z.string(), label: z.string(), createdAt: z.number(), lastSeenAt: nnum, current: z.boolean() }),
 );
@@ -928,6 +935,7 @@ export type TaskObject = z.infer<typeof taskObjectSchema>;
 export type DashboardTask = z.infer<typeof dashboardTaskSchema>;
 export type Team = z.infer<typeof teamSchema>;
 export type Me = z.infer<typeof meResponse>;
+export type SignedIn = z.infer<typeof signInResponse>;
 export type SessionInfo = z.infer<typeof sessionsResponse>[number];
 export type AiConfig = z.infer<typeof aiConfigResponse>;
 export type Member = z.infer<typeof membersResponse>[number];
