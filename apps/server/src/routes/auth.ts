@@ -30,8 +30,13 @@ export const sessionOnly = (reason: string) => ({ sessionOnly: reason });
  * machine for a month. `HttpOnly` keeps it out of reach of script, `SameSite=Strict` keeps
  * other sites' requests from carrying it, and `fromOwnSite` refuses the writes that could still
  * arrive with it (`authenticate`, main.ts).
+ *
+ * Named after the port this server listens on (Jules, 16 Oct): a browser keeps cookies per
+ * host name, not per port, so two Orrama servers on `localhost` — the agent on :4623 and a dev
+ * or scratch server — would share one cookie, and signing in to one signed the other out.
+ * Through vite or Tailscale the port is still this server's own, so the name stays the same.
  */
-export const SESSION_COOKIE = "orrama_session";
+export const SESSION_COOKIE = `orrama_session_${env.port}`;
 
 /** The session cookie's value in a `Cookie` header, or null. */
 export function sessionCookieOf(header: string | undefined): string | null {

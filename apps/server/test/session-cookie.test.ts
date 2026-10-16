@@ -16,7 +16,7 @@ vi.mock("@simplewebauthn/server", async (importOriginal) => ({
   verifyAuthenticationResponse: async () => ({ verified: true, authenticationInfo: { newCounter: 1 } }),
 }));
 import { eq } from "drizzle-orm";
-import { SESSION_COOKIE as HELPER_COOKIE } from "./helpers/session.js";
+import { sessionCookieName } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-cookie-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -29,6 +29,7 @@ process.env.ORRAMA_PUBLIC_ORIGINS = `http://localhost:4623,${TAILNET}`;
 const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 const { SESSION_COOKIE } = await import("../src/routes/auth.js");
+const { env } = await import("../src/env.js");
 const { rekeySession } = await import("../src/sessions.js");
 
 type Built = Awaited<ReturnType<typeof buildServer>>;
@@ -65,8 +66,25 @@ const sessionRow = (id: string) => b.db.select().from(tables.sessions).all().fin
 const sidOf = (token: string) => (b.app.jwt.decode(token) as { sid: string }).sid;
 
 describe("signing in sets the session cookie", () => {
-  it("is the cookie the test helper sends (test/helpers/session.ts spells the name out)", async () => {
-    expect(HELPER_COOKIE).toBe(SESSION_COOKIE);
+  it("is the cookie the test helper sends (test/helpers/session.ts works the name out)", async () => {
+    expect(sessionCookieName()).toBe(SESSION_COOKIE);
+  });
+
+  it("is named after this server's port, so servers on one host name never share it", async () => {
+    expect(SESSION_COOKIE).toBe(`orrama_session_${env.port}`);
+    const r = await login({ origin: OWN });
+    expect(setCookie(r).startsWith(`orrama_session_${env.port}=`)).toBe(true);
+  });
+
+  it("another server's cookie on the same host — another port, or the bare name — is not a session here", async () => {
+    const session = cookieValue(await login());
+    for (const name of ["orrama_session", `orrama_session_${env.port + 1}`]) {
+      const r = await b.app.inject({ method: "GET", url: "/api/me", headers: { cookie: `${name}=${session}` } });
+      expect(r.statusCode, name).toBe(401);
+    }
+    // Both at once, as a browser sends them: only this server's is read.
+    const both = await b.app.inject({ method: "GET", url: "/api/me", headers: { cookie: `orrama_session_${env.port + 1}=junk; ${SESSION_COOKIE}=${session}` } });
+    expect(both.statusCode).toBe(200);
   });
 
   it("HttpOnly, SameSite=Strict, the whole site, 30 days; not Secure on http://localhost", async () => {

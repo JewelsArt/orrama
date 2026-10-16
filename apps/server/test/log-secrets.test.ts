@@ -14,7 +14,7 @@ import path from "node:path";
 import { Writable } from "node:stream";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POSIX_MODES } from "./helpers/platform.js";
-import { liveSocket, OWN_ORIGIN, refusedWith, SESSION_COOKIE, sessionOf, signedIn, type LiveSocket } from "./helpers/session.js";
+import { liveSocket, OWN_ORIGIN, refusedWith, sessionCookieName, sessionOf, signedIn, type LiveSocket } from "./helpers/session.js";
 
 process.env.ORRAMA_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-logs-"));
 process.env.ORRAMA_VAULT_DIR = path.join(process.env.ORRAMA_DATA_DIR, "vault");
@@ -119,7 +119,7 @@ describe("/api/ws signs in on the upgrade, from the session cookie (WEB-013)", (
 
   it("from another site, or with no Origin, it is refused even with a good cookie (a hijacked socket)", async () => {
     expect(await refusedWith(liveSocket(app, token, { origin: "https://evil.example" }))).toBe(403);
-    const bare = app.injectWS("/api/ws", { headers: { host: "localhost", cookie: `${SESSION_COOKIE}=${token}` } });
+    const bare = app.injectWS("/api/ws", { headers: { host: "localhost", cookie: `${sessionCookieName()}=${token}` } });
     expect(await refusedWith(bare)).toBe(403);
   });
 

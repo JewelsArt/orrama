@@ -6,11 +6,11 @@
  */
 
 /**
- * routes/auth.ts's SESSION_COOKIE, spelled out: importing the server here would load
- * env.ts before a test file has set its ORRAMA_* variables (session-cookie.test.ts
- * checks the two agree).
+ * routes/auth.ts's SESSION_COOKIE, worked out the way env.ts does (`PORT`, else 4623; tests
+ * never run with --dev): importing the server here would load env.ts before a test file has
+ * set its ORRAMA_* variables. session-cookie.test.ts checks the two agree.
  */
-export const SESSION_COOKIE = "orrama_session";
+export const sessionCookieName = (): string => `orrama_session_${process.env.PORT ?? 4623}`;
 
 /** The address light-my-request's requests are sent to (`Host: localhost:80`). */
 export const OWN_ORIGIN = "http://localhost";
@@ -22,11 +22,11 @@ type SignInResponse =
 
 /** The session a sign-in answered with: its cookie's value ("" when it set none). */
 export function sessionOf(res: SignInResponse): string {
-  if ("cookies" in res) return res.cookies.find((c) => c.name === SESSION_COOKIE)?.value ?? "";
+  if ("cookies" in res) return res.cookies.find((c) => c.name === sessionCookieName())?.value ?? "";
   const h = res.headers as { getSetCookie?: () => string[] } & Record<string, unknown>;
   const raw = typeof h.getSetCookie === "function" ? h.getSetCookie() : ([] as unknown[]).concat(h["set-cookie"] ?? []).map(String);
-  const line = raw.find((c) => c.startsWith(`${SESSION_COOKIE}=`));
-  return line ? line.slice(SESSION_COOKIE.length + 1).split(";")[0]! : "";
+  const line = raw.find((c) => c.startsWith(`${sessionCookieName()}=`));
+  return line ? line.slice(sessionCookieName().length + 1).split(";")[0]! : "";
 }
 
 /**
@@ -35,7 +35,7 @@ export function sessionOf(res: SignInResponse): string {
  */
 export function signedIn(credential: string | undefined, origin = OWN_ORIGIN): Record<string, string> {
   if (String(credential).startsWith("bslt_")) return { authorization: `Bearer ${credential}` };
-  return { cookie: `${SESSION_COOKIE}=${credential}`, origin };
+  return { cookie: `${sessionCookieName()}=${credential}`, origin };
 }
 
 /** What `liveSocket` hands back: the socket, every message it got, and how it ended. */
@@ -60,7 +60,7 @@ export async function liveSocket(
   { origin = OWN_ORIGIN, host = "localhost" }: { origin?: string; host?: string } = {},
 ): Promise<LiveSocket> {
   const headers: Record<string, string> = { host, origin };
-  if (session) headers["cookie"] = `${SESSION_COOKIE}=${session}`;
+  if (session) headers["cookie"] = `${sessionCookieName()}=${session}`;
   const got: LiveSocket["got"] = [];
   let closed!: Promise<number>;
   // Listening from before the socket opens: the server says `ready` the moment it does.
