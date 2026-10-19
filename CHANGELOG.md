@@ -9,6 +9,11 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- **Clay**, a second look next to Paper (Settings → Appearance → Look): cool grey and burnt
+  orange by day, near black after dark, in Inter, with the places on the left and a page's
+  sections at the top, one orange card for the page's big number, grey tiles, and motion (none
+  if your device asks for less). Switching day and night spreads from the sun or moon with a
+  softly wavy edge.
 - `pnpm --dir apps/server export`: everything that lives only in the database
   — accounts, team grants, task descriptions and comments, project settings,
   mail drafts, AI settings, tokens, webhooks, feeds, history — as a restorable
@@ -126,6 +131,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Settings → Appearance asks for the look first (Paper or Clay), then light or dark (Day,
+  Night, Match this device). Match this device works for either look.
+- The rail's light ↔ dark button is now a sun and a moon at the top of the rail, in both looks;
+  the lit one is the mode you're in.
 - The rail holds the eight places (Today, Planning, Notes, Orrery, Projects,
   People, Mail, Money) with Find, Ask Orr and your Orr at the foot. Reload
   and Back left it: use ⌘R and the browser's Back.
