@@ -382,7 +382,7 @@ export function PeopleModule({
       onTitle={go.people.onOpen}
       count={people ? people.length : undefined}
       link={{ label: "People →", href: go.people.href, onOpen: go.people.onOpen }}
-      className="td-people"
+      className="td-people tiles"
     >
       <Pending what="People" loaded={loaded} rows={2} />
       {people && people.length === 0 && <Plain>No one you know is on today's calendar or in today's mail.</Plain>}
@@ -434,7 +434,7 @@ const namesThem = (what: string, name: string) => what.toLocaleLowerCase("en").i
 export function ComingUpModule({ loaded, open, month }: { loaded: Loaded<ComingRow[]>; open: (r: ComingRow) => Link; month: Link }) {
   const rows = loaded.state === "ok" ? loaded.data : null;
   return (
-    <Module title="Coming up" titleHref={month.href} onTitle={month.onOpen} count="next 3 weeks" link={{ label: "Month →", href: month.href, onOpen: month.onOpen }} className="td-up">
+    <Module title="Coming up" titleHref={month.href} onTitle={month.onOpen} count="next 3 weeks" link={{ label: "Month →", href: month.href, onOpen: month.onOpen }} className="td-up tiles">
       <Pending what="Your calendar" loaded={loaded} rows={3} />
       {rows && rows.length === 0 && <Plain step={{ ...month, label: "Open the month" }}>Nothing dated in the next three weeks.</Plain>}
       {rows && rows.length > 0 && (
@@ -544,7 +544,8 @@ export function MoneyModule({
       onTitle={go.money.onOpen}
       count={pace ? monthWord(pace.month, today) : undefined}
       link={{ label: "Money →", href: go.money.href, onOpen: go.money.onOpen }}
-      className="td-money"
+      // Clay draws the month's figure on its orange hero card (only clay.css styles .hero)
+      className={pace ? "td-money hero" : "td-money"}
     >
       <Pending what="Money" loaded={loaded} rows={2} />
       {pace === null && <Plain step={{ ...go.upload, label: "Add a bank export" }}>No bank statement yet.</Plain>}

@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail } from "@orrama/schema/responses";
 import { Money } from "./Finance.js";
+import { aheadOfTypical } from "./money/Overview.js";
 import fixture from "./test/money-fixture.json";
 
 const FIX = fixture as unknown as { finance: FinanceData; month: MonthDetail; catMonth: MonthDetail; category: CategoryDetail; merchant: MerchantDetail };
@@ -183,6 +184,22 @@ describe("Money: the overview's month", () => {
     const href = (name: string) => rows.find((a) => a.querySelector(".nm")?.textContent === name)?.getAttribute("href");
     expect(href("Groceries")).toBe("/money/spending/Groceries?month=2026-09");
     expect(href("Other")).toBe("/money/spending?month=2026-09");
+  });
+
+  it("a category past its typical month is marked ahead (Clay draws its bar orange), and only those", async () => {
+    stubMoney();
+    at("/money?month=2026-09");
+    render(<Money onOpenNote={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Spent in September" });
+    const rows = () => [...document.querySelectorAll<HTMLAnchorElement>("a.mcat")];
+    // the comparison comes with the month's detail, a second request
+    await waitFor(() => expect(rows().some((a) => a.querySelector(".vs")?.textContent)).toBe(true));
+    const all = rows();
+    const over = all.filter((a) => a.querySelector(".vs")?.textContent?.startsWith("+"));
+    expect(over.length).toBeGreaterThan(0);
+    expect(over.length).toBeLessThan(all.length);
+    for (const a of all) expect(a.classList.contains("ahead"), a.querySelector(".nm")?.textContent ?? "").toBe(over.includes(a));
+    expect([aheadOfTypical(80, 64), aheadOfTypical(64, 64), aheadOfTypical(80, undefined), aheadOfTypical(80, 0)]).toEqual([true, false, false, false]);
   });
 
   it("an empty install asks for a bank export, with Orr carrying, and shows no €0.00 month", async () => {

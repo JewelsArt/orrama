@@ -66,6 +66,7 @@ export function ProjectOverview({
       <div className="pj-side">
         <Log
           title="Decisions"
+          tiles
           items={w.decisions}
           placeholder="Log a decision…"
           canEdit={w.canEdit}
@@ -193,6 +194,7 @@ export function decisionOf(item: string): { day: string; text: string } {
 
 function Log({
   title,
+  tiles,
   items,
   placeholder,
   canEdit,
@@ -200,6 +202,8 @@ function Log({
   onAdd,
 }: {
   title: string;
+  /** Clay draws the lines as grey tiles (Decisions, on its board). */
+  tiles?: boolean;
   items: string[];
   placeholder: string;
   canEdit: boolean;
@@ -215,7 +219,7 @@ function Log({
   const shown = items.slice().reverse();
   const cap = all ? shown.length : 4;
   return (
-    <Module title={title} count={items.length} className="pj-log">
+    <Module title={title} count={items.length} className={tiles ? "pj-log tiles" : "pj-log"}>
       {canEdit && (
         <form
           className="pj-addline"
@@ -476,7 +480,7 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
   };
 
   return (
-    <Module title="People & companies" count={people.length} className="pj-people">
+    <Module title="People & companies" count={people.length} className="pj-people tiles">
       {people.length > 0 && (
         <RowList label="People and companies">
           {people.map((p) => (

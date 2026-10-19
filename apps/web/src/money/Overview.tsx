@@ -136,7 +136,7 @@ function Spent({
   const share = typical > 0 ? Math.min(soFar / typical, 1) : 0;
   const at = pace ? pace.elapsed / pace.length : null;
   return (
-    <section className="mod" aria-label={`Spent in ${monthWord(month)}`}>
+    <section className="mod hero" aria-label={`Spent in ${monthWord(month)}`}>
       <Head
         title={`Spent in ${monthWord(month)}`}
         titleTo={to.spending(month)}
@@ -222,7 +222,7 @@ function ByCategory({ month, current, rows, detail }: { month: string; current: 
       <Head title={current ? "This month by category" : `${monthWord(month)} by category`} titleTo={to.spending(month)} count={current ? "so far" : undefined} go={{ label: "Spending →", to: to.spending() }} />
       <div className="mcats">
         {rows.map((r) => (
-          <a key={r.category} className="mcat" style={{ ["--cc" as string]: r.colour }} {...link(r.members ? to.spending(month) : to.category(r.category, month))}>
+          <a key={r.category} className={aheadOfTypical(r.amount, r.members ? undefined : around.get(r.category)) ? "mcat ahead" : "mcat"} style={{ ["--cc" as string]: r.colour }} {...link(r.members ? to.spending(month) : to.category(r.category, month))}>
             <span className="nm">
               <i className="sw" />
               {r.category}
@@ -247,6 +247,12 @@ function ByCategory({ month, current, rows, detail }: { month: string; current: 
 }
 
 /** A bar's fill: this month against a typical whole one, full at typical and beyond. */
+/**
+ * A category already past its typical whole month (Clay draws its bar orange, as the board's
+ * "over"). The board compared against a typical month by this day; no figure by day exists per
+ * category, so this is the honest version: more than a whole typical month already.
+ */
+export const aheadOfTypical = (amount: number, typical: number | undefined) => typical !== undefined && typical > 0 && amount > typical;
 const barShare = (amount: number, typical: number) => (typical > 0 ? Math.min(amount / typical, 1) : amount > 0 ? 1 : 0);
 
 /** Saving, on your own numbers: the arithmetic laid out, not asserted. */
@@ -255,7 +261,7 @@ function Saving({ d }: { d: FinanceData }) {
   const sum = d.summary;
   if (s.basedOn < 3)
     return (
-      <section className="mod" aria-label="Saving">
+      <section className="mod tiles" aria-label="Saving">
         <Head title="Saving" titleTo={to.page("savings")} go={{ label: "The working →", to: to.page("savings") }} />
         <p className="q3">
           Needs three complete months; there {s.basedOn === 1 ? "is" : "are"} {s.basedOn}.
@@ -264,7 +270,7 @@ function Saving({ d }: { d: FinanceData }) {
     );
   const top = s.headroom.filter((h) => h.save > 0).slice(0, 2);
   return (
-    <section className="mod" aria-label="Saving">
+    <section className="mod tiles" aria-label="Saving">
       <Head title="Saving" titleTo={to.page("savings")} count={s.targetRate !== null ? `${s.targetRate}% of income` : "on your own numbers"} go={{ label: "The working →", to: to.page("savings") }} />
       <div className="marith">
         <span>Average month in</span>
@@ -353,7 +359,7 @@ function Commitments({
   const found = d.recurring.filter((r) => r.active && !dismissed.has(`${r.merchant}|${r.amount.toFixed(2)}`));
 
   return (
-    <section className="mod" aria-label="Commitments">
+    <section className="mod tiles" aria-label="Commitments">
       <Head
         title="Commitments"
         titleTo={to.page("subscriptions", month)}
@@ -445,7 +451,7 @@ export function Found({ r, canAdd, busy, onAdd, onDismiss }: { r: Recurring; can
 function Income({ d, month }: { d: FinanceData; month: string }) {
   const charges = chargesIn(d.income.items, month);
   return (
-    <section className="mod" aria-label="Income">
+    <section className="mod tiles" aria-label="Income">
       <Head
         title="Income"
         titleTo={to.page("income", month)}

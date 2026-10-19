@@ -259,3 +259,29 @@
 [data-theme^="clay"] .cmode-sep { display: block; width: 22px; height: 1px; background: var(--line-2); margin: 6px 0 4px; flex: none; }
 /* Planning on the phone: Day · Week · Month went up to the top bar; its old strip goes */
 [data-theme^="clay"] .plan .ptabs2:empty { display: none; }
+
+/* ---- one orange hero card per page, for its big number (Money's month, Today's Money box) ---- */
+[data-theme^="clay"] .mod.hero { background: var(--orr-grad); color: #FFFFFF; border-color: transparent; box-shadow: 0 10px 24px -14px rgba(191, 61, 21, 0.6); }
+[data-theme^="clay"] .hero :is(.mh h2, .mh h2 a, .mh .c, p, .msum, .msum b, .big, .big small, .mbig > b, .mbig > span, .mbig > span b, .mpace .lab, .mpace .lab b, .ui-nm) { color: #FFFFFF; }
+[data-theme^="clay"] .hero :is(p, .msum) a, [data-theme^="clay"] .hero .mbig > span a { color: #FFFFFF; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.55); }
+[data-theme^="clay"] .hero .mh .go { background: #FFFFFF; color: #1F1D21; padding: 4px 12px; border-radius: var(--pill); margin-right: 0; font-size: 13px; white-space: nowrap; }
+[data-theme^="clay"] .hero .mh .go:hover { background: #FFF3EF; }
+[data-theme^="clay"] .hero .ui-bar { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.26) 0 5px, rgba(255, 255, 255, 0.1) 5px 9px); }
+[data-theme^="clay"] .hero .ui-bar i { background: #FFFFFF !important; }
+[data-theme^="clay"] .hero .ui-bar u { background: rgba(255, 255, 255, 0.55); }
+[data-theme^="clay"] .hero :is(.ui-nm, .big):hover { color: #FFFFFF; background: rgba(255, 255, 255, 0.16); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16); }
+[data-theme^="clay"] .hero :is(a, button):focus-visible { box-shadow: 0 0 0 2px #FFFFFF; }
+@media (max-width: 760px) { [data-theme^="clay"] .hero .mh .c { display: none; } }
+
+/* ---- grey tiles inside the white box, like the reel's wallets: lists of things you open ------- */
+[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who) { background: var(--panel); border-radius: 14px; margin: 0 0 6px; padding: 10px 12px; transition: transform .25s cubic-bezier(.2, .7, .2, 1), background-color .25s; }
+[data-theme^="clay"] .tiles .row::before { display: none; }
+[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who):hover { background: color-mix(in srgb, var(--ink) 6%, var(--panel)); transform: translateY(-2px); }
+[data-theme^="clay"] .tiles .mh { margin-bottom: 6px; }
+[data-theme^="clay"] .tiles .ring { background: var(--surface); }
+[data-theme^="clay"] .tiles .marith { background: var(--panel); border-radius: 14px; padding: 12px 14px; max-width: none; }
+[data-theme^="clay"] .tiles .oprop { margin-top: 4px; }
+
+/* a category already past its typical month: its bar in orange, its figure in orange ink */
+[data-theme^="clay"] .money .mcat.ahead .ui-bar i { background: var(--orr-deep); }
+[data-theme^="clay"] .money .mcat .vs b { color: var(--orr-ink); }
