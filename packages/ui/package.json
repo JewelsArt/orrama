@@ -1,7 +1,7 @@
 {
   "name": "@orrama/ui",
   "version": "0.1.0",
-  "description": "Design tokens, base styles and the Figtree font: Orrama's paper (light) and night (dark) themes.",
+  "description": "Design tokens, base styles and the fonts (Figtree; Inter for Clay): Orrama's Paper and Clay looks, by day and by night.",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",

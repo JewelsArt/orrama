@@ -50,6 +50,7 @@ describe("third-party notices", () => {
     plugin.generateBundle.call({ emitFile: (f) => emitted.push(f) }, {}, {
       "a.js": { type: "chunk", moduleIds: [path.join(react, "index.js"), path.join(react, "cjs/react.production.js"), path.join(web, "src/App.tsx")] },
       "f.woff2": { type: "asset", originalFileNames: ["../../packages/ui/src/fonts/figtree-latin-wght-normal.woff2"] },
+      "i.woff2": { type: "asset", originalFileNames: ["../../packages/ui/src/fonts/inter-latin-wght-normal.woff2"] },
     });
     expect(emitted.map((f) => f.fileName)).toEqual([NOTICES_FILE, SERVER_NOTICES_FILE]);
     const text = emitted[0]!.source;
@@ -59,6 +60,9 @@ describe("third-party notices", () => {
     expect(text).toMatch(/Permission is hereby granted, free of charge/);
     expect(text).toMatch(/^ui\/src\/fonts — OFL-1\.1$/m);
     expect(text).toContain("SIL OPEN FONT LICENSE");
+    // Both faces' copyright lines: Figtree, and Inter for Clay (19 Oct 2026).
+    expect(text).toContain("The Figtree Project Authors");
+    expect(text).toContain("The Inter Project Authors");
   });
 
   it("lists the server's and the MCP server's production dependencies, with their licence text", () => {
