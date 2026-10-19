@@ -253,3 +253,12 @@
   .money .mcal-day .sums { font-size: 10.5px; }
 }
 
+/* ---- a narrower window (the page box, styles/shell.css): one column, so every box keeps the
+   width its rows were drawn for; the phone's own layout is above -------------------------------- */
+@media (min-width: 761px) {
+  @container page (max-width: 1000px) {
+    .money .mgrid, .money .mlower { grid-template-columns: minmax(0, 1fr); }
+  }
+}
+/* The day marker's label stays inside the bar at either end ("day 30 of 30"). */
+.money .mpace .lab { left: clamp(48px, calc(var(--at, 0) * 100%), calc(100% - 48px)); }

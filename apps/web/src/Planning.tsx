@@ -572,8 +572,8 @@ export function Planning({
                   {thisOne}
                 </Button>
               )}
-              <Button size="sm" icon="chev-l" aria-label={`Previous ${scale}`} tip={`Previous ${scale}  ←`} onClick={() => step(-1)} />
-              <Button size="sm" icon="chev-r" aria-label={`Next ${scale}`} tip={`Next ${scale}  →`} onClick={() => step(1)} />
+              <Button size="sm" icon="chev-l" aria-label={`Previous ${scale}`} tip={`Previous ${scale}  ←`} data-tip-at="top" onClick={() => step(-1)} />
+              <Button size="sm" icon="chev-r" aria-label={`Next ${scale}`} tip={`Next ${scale}  →`} data-tip-at="top" onClick={() => step(1)} />
             </div>
             {!withPanel && (
               <Button size="sm" icon="list" onClick={() => openToPlan(cut)}>

@@ -257,3 +257,12 @@
 /* A button centres what it holds; a block reads from its top, as on the board. */
 .plan .hg-col .tm:not(.mn) { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
 .plan .hg-col .tm > * { flex: none; }
+
+/* ---- a narrower window (the page box, styles/shell.css): the week keeps its seven days and
+   lets the next three weeks go (the month view has them), and the lane names narrow ----------- */
+@media (min-width: 761px) {
+  @container page (max-width: 1100px) {
+    .plan .wk { grid-template-columns: 112px repeat(7, minmax(0, 1fr)); }
+    .plan .wk-fut { display: none; }
+  }
+}

@@ -97,7 +97,10 @@
 
 /* ---- the page frame ------------------------------------------------------------------- */
 .frame { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; }
+/* The page area is a size container (`page`): a page lays itself out for the width it actually
+   has, which the window, the rail and Clay's frame all change. The areas' "narrower window" rules
+   are @container page queries, between the full desktop and the phone (760 px, a media query). */
+.main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; container: page / inline-size; }
 /* The page, whatever it is: no wider than the shared width, centred. Pages with a gutter pad
    by --page-gutter; the full-height ones (Notes, Mail, Planning, the Orrery, Settings) fill
    the same box with their own columns. */

@@ -158,7 +158,7 @@ function Spent({
             {at !== null && <u style={{ left: `${at * 100}%` }} />}
           </div>
           {at !== null && pace && (
-            <span className="lab" style={{ left: `${at * 100}%` }}>
+            <span className="lab" style={{ ["--at" as string]: at }}>
               day <b>{pace.elapsed}</b> of {pace.length}
             </span>
           )}

@@ -1038,7 +1038,13 @@ screen's own styles go in its area's file, `styles/<area>.css`, never in a share
 one. **One page width.** `.main > *` in `styles/shell.css` caps every page at
 `--page-max` (`--page-content` 1,440 px between two `--page-gutter`s of 40 px) and
 centres it beside the rail. A page pads by `var(--page-gutter)` and never sets its
-own `max-width`. Reading columns keep their own measure inside it (a note 720,
+own `max-width`. **Between the phone and the full desktop** a page adapts to
+the width it actually has: `.main` is a size container named `page`, and an area's
+narrower-window rules are `@media (min-width: 761px) { @container page (max-width: …) }`
+(the window and the rail, and Clay's frame, all change the page's width; the phone stays a
+760 px media query). Today, Money, Projects and Planning have them; a new page that lays out
+columns gets them too. A tooltip near the right edge goes above (`data-tip-at="top"`): a
+hidden one still widens the page. Reading columns keep their own measure inside it (a note 720,
 Settings' section 820, a mail 760).
 
 **One of each pattern.** Overlays go through one stack (`ui/overlays.tsx`):

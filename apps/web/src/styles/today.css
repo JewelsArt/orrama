@@ -129,3 +129,17 @@ p.td-plain { display: flex; align-items: center; gap: 10px; color: var(--ink-2);
   .today .keyrow .chip-dl { grid-column: 1 / -1; justify-self: start; }
   .td-add-row { grid-template-columns: 1fr; }
 }
+
+/* ---- a narrower window (the page box, styles/shell.css): two columns. The first two of the
+   three stack on the left, the third takes the right (a grid, not CSS columns: WebKit left
+   modules unpainted inside multi-column). Fewer columns (Customise) simply sit side by side.
+   The inline grid-template-columns is Today.tsx's three-column split, hence !important. The
+   phone's own layout is above. ------------------------------------------------------------------ */
+@media (min-width: 761px) {
+  @container page (max-width: 1000px) {
+    .td-dash { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: auto 1fr; row-gap: 16px; }
+    .td-dash:has(> .td-col:nth-child(3)) > .td-col:nth-child(1) { grid-column: 1; grid-row: 1; }
+    .td-dash:has(> .td-col:nth-child(3)) > .td-col:nth-child(2) { grid-column: 1; grid-row: 2; }
+    .td-dash:has(> .td-col:nth-child(3)) > .td-col:nth-child(3) { grid-column: 2; grid-row: 1 / span 2; }
+  }
+}

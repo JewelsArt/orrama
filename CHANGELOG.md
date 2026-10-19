@@ -332,6 +332,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- A narrower desktop window (roughly 800–1100 px) no longer breaks pages: Money goes to one
+  column, Today to two, Projects keeps each project's name (the key deadline and people
+  columns go), Planning's week keeps its seven days readable (the next three weeks go), box
+  headings wrap whole instead of mid-phrase, and Planning no longer scrolls sideways.
 - A request the server cannot read — malformed or empty JSON, an unsupported
   content type, an upload over the size limit — is answered with its 400, 413
   or 415 and Fastify's reason, not `500 internal error`, and no longer logged
