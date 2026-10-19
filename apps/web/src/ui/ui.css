@@ -367,7 +367,7 @@ svg.i .fill { fill: currentColor; stroke: none; }
 /* 10–11 · Orr's drawings: one SVG per figure and theme (Orr.tsx); the page's theme picks. */
 .orrw { position: relative; display: inline-block; flex: none; vertical-align: bottom; line-height: 0; }
 .orrsp { position: absolute; left: 0; top: 0; display: block; background: var(--orr-l) 0 0 / 100% 100% no-repeat; pointer-events: none; }
-[data-theme="dark"] .orrsp, [data-theme="command"] .orrsp { background-image: var(--orr-d); }
+[data-theme="dark"] .orrsp, [data-theme="command"] .orrsp, [data-theme="clay-dark"] .orrsp { background-image: var(--orr-d); }
 .orrsp.in { animation: orr-in 150ms ease-out both; }
 .orrsp.out { animation: orr-out 150ms ease-in both; }
 @keyframes orr-in { from { opacity: 0; } to { opacity: 1; } }

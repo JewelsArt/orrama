@@ -112,6 +112,19 @@ describe("the first frame (WEB-019)", () => {
     expect(doc.querySelectorAll("script")[0]).toBe(tag); // before the app's own module
   });
 
+  it("every stylesheet that styles the night styles Clay's night too, and no light rule catches it (19 Oct)", () => {
+    const files = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : d.name.endsWith(".css") ? [path.join(dir, d.name)] : []));
+    const css = [...files(path.join(WEB, "src")), ...files(path.resolve(WEB, "../../packages/ui/src"))];
+    const lists = css.flatMap((f) =>
+      [...fs.readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*)\{/g)].map((m) => ({ f: path.basename(f), sel: m[1]!.trim() })),
+    );
+    const night = lists.filter(({ sel }) => sel.replace(/:not\([^)]*\)/g, "").includes('[data-theme="dark"]') && !sel.includes('[data-theme="clay-dark"]'));
+    // One selector at a time: a light rule must leave Clay's night out in each of its selectors.
+    const notNight = lists.flatMap(({ f, sel }) => sel.split(",").map((one) => ({ f, sel: one.trim() }))).filter(({ sel }) => sel.includes(':not([data-theme="dark"])') && !sel.includes(':not([data-theme="clay-dark"])'));
+    expect([...night, ...notNight].map(({ f, sel }) => `${f}: ${sel}`)).toEqual([]);
+  });
+
   it("every stylesheet that styles the night names it dark, the page's word now", () => {
     const files = (dir: string): string[] =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : d.name.endsWith(".css") ? [path.join(dir, d.name)] : []));

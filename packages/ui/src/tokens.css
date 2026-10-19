@@ -28,6 +28,9 @@
      :root / [data-theme="light"] / [data-theme="paper"]   warm paper (the design target)
      [data-theme="dark"] / [data-theme="command"]           night blue ("command" is the stored
                                                             value today; it stays an alias)
+     [data-theme="clay"] / [data-theme="clay-dark"]         Clay (clay.css): day takes these light
+                                                            values and night these dark ones, then
+                                                            clay.css retints on top
 
    Legacy names at the end alias to the new ones, so pages can move over one at a time.
    Delete each alias when nothing reads it any more; plan.md lists the order. */
@@ -112,7 +115,8 @@
 }
 
 [data-theme="dark"],
-[data-theme="command"] {
+[data-theme="command"],
+[data-theme="clay-dark"] {
   --ground: #090E1A;
   --surface: #131A2B;
   --panel: #1A2236;
@@ -239,7 +243,8 @@
 }
 
 [data-theme="dark"],
-[data-theme="command"] {
+[data-theme="command"],
+[data-theme="clay-dark"] {
   --on-vivid: #101114;
   --cat-b: #7c8089;
   --ink-green: #1cda73;

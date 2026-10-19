@@ -4,6 +4,7 @@
  * main.tsx loads it behind import.meta.env.DEV, so a production bundle has no trace of it.
  */
 import { useRef, useState, type ReactNode } from "react";
+import { isNight, pageTheme } from "../theme.js";
 import {
   Avatar,
   AVATAR_NAMES,
@@ -62,7 +63,7 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 const Line = ({ children }: { children: ReactNode }) => <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>{children}</div>;
 
 export function Gallery() {
-  const [dark, setDark] = useState(document.documentElement.dataset.theme === "dark");
+  const [dark, setDark] = useState(isNight(document.documentElement.dataset.theme));
   const [tab, setTab] = useState<"overview" | "timeline" | "documents" | "todo">("overview");
   const [scale, setScale] = useState<"lanes" | "hours">("lanes");
   const [sw, setSw] = useState(true);
@@ -73,7 +74,9 @@ export function Gallery() {
   const menuAt = useRef<HTMLButtonElement>(null);
   const flip = () => {
     const next = !dark;
-    document.documentElement.dataset.theme = next ? "dark" : "light";
+    // Light ↔ dark in the look on show: Clay's day and night are clay and clay-dark.
+    const theme = document.documentElement.dataset.theme;
+    document.documentElement.dataset.theme = pageTheme(theme?.startsWith("clay") ? "clay" : "paper", next ? "dark" : "light");
     setDark(next);
   };
   return (
