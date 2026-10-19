@@ -36,12 +36,12 @@ const stub = (name: string, buttons: (p: P) => [string, () => void][] = () => []
 // Today goes to its addresses itself (navigate), as every redrawn screen does.
 vi.mock("../Today.js", async () => {
   const { navigate } = await import("../ui/router.js");
-  return {
-    Today: stub("today", (p) => [
-      ["open project", () => navigate({ kind: "project", slug: "thesis" })],
-      ["open note", () => navigate({ kind: "notes", id: "n-1" })],
-    ]),
-  };
+  const Stub = stub("today", (p) => [
+    ["open project", () => navigate({ kind: "project", slug: "thesis" })],
+    ["open note", () => navigate({ kind: "notes", id: "n-1" })],
+  ]);
+  // Who Today greets in Clay: the account's name, shown as a plain prop.
+  return { Today: (p: P) => <Stub {...p} who={p.me?.displayName} /> };
 });
 vi.mock("../Notes.js", () => ({ Notes: stub("notes") }));
 vi.mock("../orrery/Orrery.js", () => {

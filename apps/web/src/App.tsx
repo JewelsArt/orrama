@@ -535,7 +535,7 @@ export function App() {
         ) : shown.kind === "money" ? (
           <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (
-          <Today />
+          <Today me={me} />
         ) : view.kind === "architecture" ? (
           <Notes me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} />
         ) : view.kind === "planning" ? (

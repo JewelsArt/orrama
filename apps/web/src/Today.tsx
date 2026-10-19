@@ -33,7 +33,8 @@ import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relation
 import { itemsOf } from "./noticed/model.js";
 import { ComingUpModule, DueModule, MailModule, MoneyModule, NoticedModule, PeopleModule, ProjectsModule, entitySlug, type Loaded, type MailData, type NoticedData } from "./today/modules.js";
 import { Timetable, type Link } from "./today/Timetable.js";
-import { isoWeek, todayTitle } from "./today/title.js";
+import { greeting, isoWeek, todayTitle } from "./today/title.js";
+import { useLook } from "./ui/shell/SectionBar.js";
 import { onWs } from "./ws.js";
 
 /** The seven modules, in their order (structure.md §2.1). */
@@ -93,7 +94,9 @@ function all<T extends unknown[]>(...ls: { [K in keyof T]: Loaded<T[K]> }): Load
 }
 const map = <T, U>(l: Loaded<T>, f: (t: T) => U): Loaded<U> => (l.state === "ok" ? { state: "ok", data: f(l.data) } : l);
 
-export function Today() {
+export function Today({ me }: { me?: { displayName: string } } = {}) {
+  // Clay greets you by name with the date underneath; Paper says the date (useLook: the shell's look).
+  const look = useLook();
   /* ---- the clock: the now line moves, and a new day reloads ---- */
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => {
@@ -406,8 +409,8 @@ export function Today() {
   return (
     <div className="ui today">
       <PageHeader
-        title={todayTitle(clock)}
-        meta={`Week ${isoWeek(clock)}`}
+        title={look === "clay" ? greeting(clock, me?.displayName) : todayTitle(clock)}
+        meta={look === "clay" ? `${todayTitle(clock)} · Week ${isoWeek(clock)}` : `Week ${isoWeek(clock)}`}
         actions={
           <>
             <LinkButton icon="calendar" {...linkProps(L({ kind: "planning", scale: "day", at: addDays(today, 1) }))}>

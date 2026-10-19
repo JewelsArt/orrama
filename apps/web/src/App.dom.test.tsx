@@ -565,6 +565,13 @@ describe("the theme (§9)", () => {
     await waitFor(() => expect(sent.map((b) => b.appearance && [b.appearance.theme, b.appearance.look])).toContainEqual(["command", "clay"]));
   });
 
+  it("Today is handed the account, so Clay can greet you by name", async () => {
+    serve();
+    at("/today");
+    render(<App />);
+    await waitFor(() => expect((screen.getByTestId("view").textContent ?? "").includes(`who=${ME.displayName}`)).toBe(true));
+  });
+
   /** The rail's light ↔ dark button (F3). */
   const railTheme = () => screen.getAllByRole("navigation", { name: "Places" })[0]!.querySelector<HTMLButtonElement>(".ri.theme")!;
 

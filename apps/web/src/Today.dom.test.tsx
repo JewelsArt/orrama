@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HIDDEN_KEY, Today } from "./Today.js";
 import { Toaster } from "./ui/overlays.js";
+import { ShellLookContext } from "./ui/shell/SectionBar.js";
 import { DRAFTS, INBOX, NOW, SCHEMA_TYPED, stubToday, WARNINGS_TYPED } from "./test/today-fixture.js";
 
 // Live sync, without a socket: a test says a note changed.
@@ -349,6 +350,23 @@ describe("Today: Customise, the header, New", () => {
     const dialog = await screen.findByRole("dialog", { name: "Add income" });
     expect(within(dialog).getByText("No note is tagged #income yet.")).toBeTruthy();
     expect(within(dialog).queryByRole("textbox")).toBeNull();
+  });
+});
+
+describe("Today: Clay greets you (19 Oct)", () => {
+  it("by name with the date underneath in Clay, and with the date alone in Paper", async () => {
+    stubToday();
+    const { unmount } = render(
+      <ShellLookContext.Provider value={{ look: "clay", slot: null }}>
+        <Today me={{ displayName: "Erin Vale" }} />
+      </ShellLookContext.Provider>,
+    );
+    const head = await screen.findByRole("heading", { level: 1 });
+    expect(head.textContent).toBe("Good morning, Erin"); // NOW is 10:40
+    expect(head.parentElement?.querySelector(".meta")?.textContent).toBe("Thursday 8 October · Week 41");
+    unmount();
+    render(<Today me={{ displayName: "Erin Vale" }} />);
+    expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Thursday 8 October");
   });
 });
 

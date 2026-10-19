@@ -1,9 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { isoWeek, todayTitle } from "./title.js";
+import { greeting, isoWeek, todayTitle } from "./title.js";
 
 describe("Today's heading", () => {
   it("says the day in full", () => {
     expect(todayTitle(new Date(2026, 9, 8, 10, 40))).toBe("Thursday 8 October");
+  });
+  it("Clay's greeting: the part of the day by the clock, then the account's first name", () => {
+    const at = (h: number, m = 0) => new Date(2026, 9, 8, h, m);
+    expect(greeting(at(9, 40), "Erin Vale")).toBe("Good morning, Erin");
+    expect([4, 5, 11, 12, 17, 18, 23, 0].map((h) => greeting(at(h), "Erin"))).toEqual([
+      "Good evening, Erin",
+      "Good morning, Erin",
+      "Good morning, Erin",
+      "Good afternoon, Erin",
+      "Good afternoon, Erin",
+      "Good evening, Erin",
+      "Good evening, Erin",
+      "Good evening, Erin",
+    ]);
+    expect(greeting(at(9), "  ")).toBe("Good morning");
+    expect(greeting(at(9), null)).toBe("Good morning");
   });
   it("counts ISO weeks", () => {
     expect(isoWeek(new Date(2026, 9, 8))).toBe(41);
