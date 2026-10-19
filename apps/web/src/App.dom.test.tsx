@@ -572,6 +572,79 @@ describe("the theme (§9)", () => {
     await waitFor(() => expect((screen.getByTestId("view").textContent ?? "").includes(`who=${ME.displayName}`)).toBe(true));
   });
 
+  /** A browser with View Transitions: records what the theme change asks it to play. */
+  function transitions() {
+    const played: { classes: string; animate: { keyframes: number; duration?: number; pseudo?: string } | null }[] = [];
+    const doc = document as unknown as { startViewTransition?: (swap: () => void) => unknown };
+    const animate = vi.fn((k: { clipPath: string[] }, o: { duration: number; pseudoElement: string }) => {
+      played.at(-1)!.animate = { keyframes: k.clipPath.length, duration: o.duration, pseudo: o.pseudoElement };
+      return {} as Animation;
+    });
+    html.animate = animate as unknown as typeof html.animate;
+    doc.startViewTransition = (swap: () => void) => {
+      swap();
+      played.push({ classes: html.className, animate: null });
+      return { ready: Promise.resolve(), finished: new Promise(() => {}) };
+    };
+    return {
+      played,
+      done() {
+        delete doc.startViewTransition;
+        delete (html as unknown as { animate?: unknown }).animate;
+        html.className = "";
+      },
+    };
+  }
+
+  it("Clay's switch is the reel's: a wavy edge on the new picture, 780 ms; Paper's stays the plain circle (19 Oct)", async () => {
+    const user = userEvent.setup();
+    system(false);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", look: "clay", vision: "none", profiles: [] } } });
+    const t = transitions();
+    try {
+      at("/today");
+      render(<App />);
+      await view();
+      const group = await screen.findByRole("group", { name: "Day or night" });
+      await waitFor(() => expect(html.dataset.theme).toBe("clay"));
+      await user.click(within(group).getByRole("button", { name: "Night" }));
+      await waitFor(() => expect(t.played[0]?.animate).not.toBeNull());
+      expect(t.played[0]).toEqual({ classes: "clay-wiping", animate: { keyframes: 41, duration: 780, pseudo: "::view-transition-new(root)" } });
+      cleanup();
+      html.className = "";
+
+      serve({ "GET /api/me": { ...ME, appearance: { theme: "light", look: "paper", vision: "none", profiles: [] } } });
+      localStorage.setItem("orrama-look", "paper");
+      render(<App />);
+      await view();
+      await waitFor(() => expect(html.dataset.theme).toBe("light"));
+      await user.click(railTheme());
+      await new Promise((r) => setTimeout(r, 10));
+      expect(t.played[1]).toEqual({ classes: "rippling", animate: null });
+    } finally {
+      t.done();
+    }
+  });
+
+  it("with less motion asked for, Clay's switch plays nothing: the mode just changes", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q === "(prefers-reduced-motion: reduce)", addEventListener() {}, removeEventListener() {} }));
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", look: "clay", vision: "none", profiles: [] } } });
+    const t = transitions();
+    try {
+      at("/today");
+      render(<App />);
+      await view();
+      const group = await screen.findByRole("group", { name: "Day or night" });
+      await waitFor(() => expect(html.dataset.theme).toBe("clay"));
+      await user.click(within(group).getByRole("button", { name: "Night" }));
+      expect(html.dataset.theme).toBe("clay-dark");
+      expect(t.played).toEqual([]);
+    } finally {
+      t.done();
+    }
+  });
+
   /** The rail's light ↔ dark button (F3). */
   const railTheme = () => screen.getAllByRole("navigation", { name: "Places" })[0]!.querySelector<HTMLButtonElement>(".ri.theme")!;
 

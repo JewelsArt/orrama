@@ -33,6 +33,7 @@ import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
 import { accountTheme, DEVICE_KEY, LOOK_KEY, lookOf, modeOf, pageTheme, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark, type Look, type PageTheme, type Shown } from "./ui/theme.js";
+import { WAVY_MS, wavyKeyframes } from "./ui/wavy.js";
 import { attempt } from "./ui/writes.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 import { flushAll } from "./noteSync.js";
@@ -619,11 +620,27 @@ function wipeTo(next: PageTheme, apply: () => void): void {
   root.style.setProperty("--ry", `${y}px`);
   root.style.setProperty("--r-end", `${Math.ceil(rEnd)}px`);
 
-  const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
+  const start = (document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void>; finished: Promise<void> } }).startViewTransition;
   if (!start || matchMedia("(prefers-reduced-motion: reduce)").matches) {
     swap();
     return;
   }
-  root.classList.add("rippling");
-  start.call(document, swap).finished.finally(() => root.classList.remove("rippling"));
+  // Clay's reveal is the reel's: a softly wavy edge on its own timing (ui/wavy.ts), played on the
+  // new picture by the Web Animations API; until it starts, the picture is clipped to nothing
+  // (html.clay-wiping, base.css). Where that call is refused, the plain circle plays instead.
+  // Paper keeps its plain circle.
+  const wavy = next.startsWith("clay");
+  root.classList.add(wavy ? "clay-wiping" : "rippling");
+  const vt = start.call(document, swap);
+  if (wavy)
+    vt.ready
+      .then(() => {
+        try {
+          root.animate({ clipPath: wavyKeyframes(x, y, Math.ceil(rEnd) + 2) }, { duration: WAVY_MS, easing: "linear", pseudoElement: "::view-transition-new(root)" });
+        } catch {
+          root.classList.add("rippling");
+        }
+      })
+      .catch(() => {});
+  vt.finished.finally(() => root.classList.remove("rippling", "clay-wiping"));
 }

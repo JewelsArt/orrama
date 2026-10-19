@@ -111,6 +111,19 @@ html.rippling::view-transition-new(root) {
   }
 }
 
+/* Clay's reveal (App.tsx, ui/wavy.ts): the wavy edge is played on the new picture by the Web
+   Animations API once the transition is ready; until then it is clipped to nothing, so no frame
+   shows the whole new theme early. */
+html.clay-wiping::view-transition-new(root) {
+  clip-path: circle(0px at var(--rx, 50%) var(--ry, 50%));
+}
+/* The new picture is live: a box's own colour transition would fade inside the wave. */
+html.clay-wiping *,
+html.clay-wiping *::before,
+html.clay-wiping *::after {
+  transition: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.rippling::view-transition-new(root) {
     animation: none;

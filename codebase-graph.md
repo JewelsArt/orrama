@@ -227,7 +227,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/writes.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/wavy.js, ./ui/writes.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -860,6 +860,9 @@
 ### `apps/web/src/ui/theme.ts`
 - **Exports**: Shown, ThemeChoice, Look, PageTheme, THEME_KEY, DEVICE_KEY, LOOK_KEY, shownOf, accountTheme, lookOf, pageTheme, isNight, modeOf, resolveTheme, systemIsDark, useSystemDark
 - **Imports**: react
+
+### `apps/web/src/ui/wavy.ts`
+- **Exports**: WAVY_MS, bezier, clayEase, waveHeight, wavyEdge, wavyKeyframes
 
 ### `apps/web/src/ui/writes.ts`
 - **Exports**: failureText, worthRetrying, attempt, useWrite, installWriteNet
