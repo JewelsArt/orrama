@@ -1,0 +1,212 @@
+/* Clay, Orrama's second look (Jules, 19 October 2026: "That's perfect"). Built from the Vertix
+   dashboard reel by code.xr over five rounds on the canvas, page "4h · Theme: Clay". The spec,
+   every value and why: ~/orrama-redesign/mockups/system/theme-clay.css; this file maps it onto
+   the app's own components (ui.css, styles/*.css), rule by rule, and is loaded after them.
+
+   data-theme="clay" by day, "clay-dark" at night (ui/theme.ts). Night starts from Dark's
+   tokens (tokens.css names clay-dark with dark) and both start from Clay's day below.
+   Nothing here applies to Paper: every rule is under [data-theme^="clay"].
+
+   Measured (WCAG), from the spec:
+     ink #1F1D21 15.0:1 on the ground; ink-2 8.2:1; ink-3 4.75:1 on the ground, 5.3:1 in a box
+     white on the orange fill (#D2441B → #BF3D15): 4.6–5.4:1, so small text is fine on it
+     thin orange marks #E5582E: 3.6:1 on white, 3.3:1 on the ground (shapes only, never text)
+     orange text #B43F17: 5.7:1 on white, 5.3:1 on the warm wash
+     crimson #C2185B (late, the key deadline): 5.9:1 on white, white on it 5.9:1
+   At night: ink #F2F0F3 16.5:1; ink-3 #938E99 5.4:1 in a box; orange #F26A3F 5.7:1 in a box;
+   Orr's orange text #FF8F66 7.3:1 on his wash; late #FF5C93 5.9:1; dark on the light pills 15.2:1. */
+
+/* ---- tokens: day, and the base the night builds on ------------------------------------------ */
+[data-theme^="clay"] {
+  --frame: #E8E6E9;      /* the cool grey around the app */
+  --ground: #F4F2F4;
+  --surface: #FFFFFF;
+  --panel: #F4F2F4;
+  --today: #FFFAF8;
+  --line: #EEEBEE;
+  --line-2: #DEDADE;
+  --card-line: transparent;   /* the reel's boxes have no edge, only a breath of shadow */
+  --shadow-card: 0 1px 3px rgba(31, 29, 33, 0.05), 0 0 0 1px rgba(31, 29, 33, 0.02);
+  --scrim: rgba(31, 29, 33, 0.32);
+  --shadow-pop: 0 18px 40px -16px rgba(31, 29, 33, 0.28), 0 2px 6px rgba(31, 29, 33, 0.08);
+
+  --ink: #1F1D21;
+  --ink-2: #4A474D;
+  --ink-3: #6E6A72;
+
+  /* links and selection are ink, as in the reel: orange only ever means now, progress or "on" */
+  --accent: #1F1D21;
+  --accent-wash: rgba(31, 29, 33, 0.06);
+  --focus-ring: 0 0 0 1px #E5582E, 0 0 0 4px rgba(229, 88, 46, 0.18);
+  --hover: rgba(31, 29, 33, 0.045);
+  --solid: #1F1D21;
+  --solid-fill: #1F1D21;
+  --on-solid: #FFFFFF;
+  --pill-ink: #1F1D21;   /* what you act on: the current rail item, the chosen chip, the section */
+  --on-pill: #FFFFFF;
+
+  --orr-grad: radial-gradient(120% 140% at 88% 0%, rgba(255, 190, 160, 0.38) 0%, rgba(255, 190, 160, 0) 55%), linear-gradient(135deg, #D2441B 0%, #C94018 55%, #BF3D15 100%);
+  --orr-deep: #E5582E;
+  --orr-ink: #B43F17;
+  --orr-wash: #FFF3EF;
+  --orr-wash-2: #FFF8F6;
+  --orr-edge: #F6C2AE;
+  --prog: #E5582E;
+  --bar: #E5582E;
+
+  --sun: #E5582E;
+  --sun-ink: #B43F17;
+  --sun-wash: #FFF3EF;
+
+  /* late and the key deadline are crimson: Light's red read as the orange "now" */
+  --late: #C2185B;
+  --deadline: #C2185B;
+
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ok-wash: #E6F4EC;
+  --warn-wash: #FBF1D6;
+  --late-wash: #FCE7EF;
+
+  --r-1: 8px;
+  --r-2: 12px;
+  --r-3: 20px;
+  --pill: 999px;
+  color-scheme: light;
+  font-feature-settings: "tnum", "cv11";
+}
+
+/* Clay at night: Clay's day turned down, the same cool violet greys near black; the orange
+   stays, black pills become light pills, Dark's area colours and status green and amber. */
+[data-theme="clay-dark"] {
+  --frame: #08070A;
+  --ground: #141316;
+  --surface: #1C1A1F;
+  --panel: #242228;
+  --today: #211C1E;
+  --line: #2A282E;
+  --line-2: #3A373F;
+  --card-line: #2C2A31;
+  --shadow-card: 0 0 0 transparent;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --shadow-pop: 0 18px 48px -14px rgba(0, 0, 0, 0.75), 0 2px 8px rgba(0, 0, 0, 0.5);
+
+  --ink: #F2F0F3;
+  --ink-2: #BEB9C3;
+  --ink-3: #938E99;
+
+  --accent: #F2F0F3;
+  --accent-wash: rgba(242, 240, 243, 0.08);
+  --focus-ring: 0 0 0 1px #F26A3F, 0 0 0 4px rgba(242, 106, 63, 0.25);
+  --hover: rgba(242, 240, 243, 0.05);
+  --solid: #F2F0F3;
+  --solid-fill: #F2F0F3;
+  --on-solid: #1C1A1F;
+  --pill-ink: #F2F0F3;
+  --on-pill: #1C1A1F;
+
+  --orr-deep: #F26A3F;
+  --orr-ink: #FF8F66;
+  --orr-wash: #2A1C18;
+  --orr-wash-2: #231B1B;
+  --orr-edge: #5C3426;
+  --prog: #F26A3F;
+  --bar: #F26A3F;
+
+  --sun: #F26A3F;
+  --sun-ink: #F26A3F;
+  --sun-wash: #2A1C18;
+  --past: 0.45;
+
+  --ok: #40D08A;
+  --warn: #E3B341;
+  --late: #FF5C93;
+  --deadline: #C2185B;
+  --on-deadline: #FFFFFF;
+
+  --c1: #0BA6B8;
+  --c2: #D37B3F;
+  --c3: #1967D4;
+  --c4: #FC486A;
+  --c5: #2396EA;
+  --c-other: #6E7891;
+  --ok-wash: #173126;
+  --warn-wash: #33291A;
+  --late-wash: #3A1726;
+  color-scheme: dark;
+}
+
+/* ---- type: Inter at the reel's weights, one step smaller than Figtree, a touch tighter ------- */
+[data-theme^="clay"] body { font-size: 14px; letter-spacing: -0.006em; }
+[data-theme^="clay"] .ui { font-size: 14px; letter-spacing: -0.006em; }
+[data-theme^="clay"] .phead h1 { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -0.035em; }
+[data-theme^="clay"] .phead .meta { margin-top: 8px; }
+[data-theme^="clay"] .mh h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.015em; }
+[data-theme^="clay"] .row .t { font-weight: 550; }
+[data-theme^="clay"] :is(.td-money .big, .money .mbig > b) { font-weight: 650; letter-spacing: -0.035em; }
+[data-theme^="clay"] .lk { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+
+/* ---- the frame: on a desktop the app sits in a rounded panel on the cool grey ---------------- */
+[data-theme^="clay"] body { background: var(--frame); }
+@media (min-width: 761px) {
+  [data-theme^="clay"] .app { border: 12px solid var(--frame); border-radius: 34px; overflow: hidden; grid-template-columns: 76px minmax(0, 1fr); }
+
+  /* the rail: one capsule of round icons, as the reel's left bar; where you are is a black
+     circle. The place's name stays for screen readers and in its tooltip. */
+  [data-theme^="clay"] .rail { width: 52px; margin: 12px 0 12px 12px; padding: 10px 4px; gap: 6px; border-radius: 28px; background: var(--surface); box-shadow: var(--shadow-card); }
+  [data-theme^="clay"] .rail .ri { width: 42px; height: 42px; padding: 0; gap: 0; justify-content: center; border-radius: 50%; font-size: 0; line-height: 0; }
+  [data-theme^="clay"] .rail .ri svg.i { width: 19px; height: 19px; }
+  [data-theme^="clay"] .rail .ri .hd { width: 20px; height: 20px; }
+  [data-theme^="clay"] .rail .ri.on { background: var(--pill-ink); color: var(--on-pill); box-shadow: none; }
+  [data-theme^="clay"] .rail .ri.on:focus-visible { box-shadow: var(--focus-ring); }
+  [data-theme^="clay"] .rail .ri .dot { top: 6px; right: 6px; background: var(--orr-deep); box-shadow: 0 0 0 2px var(--surface); }
+  [data-theme^="clay"] .rail .ri.on .dot { box-shadow: 0 0 0 2px var(--pill-ink); }
+  /* "Update ready" fits the capsule as a round button with its orange dot; its words stay its name */
+  [data-theme^="clay"] .rail .update { position: relative; width: 42px; height: 42px; padding: 0; border-radius: 50%; font-size: 0; line-height: 0; border-color: var(--orr-edge); background: var(--orr-wash); }
+  [data-theme^="clay"] .rail .update::before { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--orr-deep); }
+  [data-theme^="clay"] .rail .me .avc { transform: scale(0.9); }
+}
+/* the phone's tabs: the current one in ink, like the rest of what you act on */
+[data-theme^="clay"] .ptabs .on { color: var(--ink); }
+[data-theme^="clay"] .more-row.on, [data-theme^="clay"] .more-row.on svg.i { color: var(--ink); }
+
+/* ---- pills: buttons and chips are fully round, the chosen chip is black ----------------------- */
+[data-theme^="clay"] .btn { border-radius: var(--pill); }
+[data-theme^="clay"] .btn.solid:hover { filter: brightness(1.25); }
+[data-theme="clay-dark"] .btn.solid:hover { filter: brightness(0.9); }
+[data-theme^="clay"] .chip { border-radius: var(--pill); }
+[data-theme^="clay"] .chip.on { background: var(--pill-ink); color: var(--on-pill); border-color: var(--pill-ink); }
+
+/* tabs left on a page: a grey track with the current tab as a white pill, not an underline */
+[data-theme^="clay"] .tabs { border-bottom: 0; background: var(--panel); border-radius: var(--pill); padding: 4px; width: max-content; max-width: 100%; }
+[data-theme^="clay"] .tabs :is(a, button) { height: 32px; border-bottom: 0; margin: 0; border-radius: var(--pill); padding: 0 14px; }
+[data-theme^="clay"] .tabs :is(a.on, button[aria-selected="true"], button[aria-checked="true"]) { background: var(--surface); box-shadow: 0 1px 2px rgba(31, 29, 33, 0.08); }
+[data-theme="clay-dark"] .tabs :is(a.on, button[aria-selected="true"], button[aria-checked="true"]) { background: var(--line-2); box-shadow: none; }
+
+/* switches are orange when on, as in the reel */
+[data-theme^="clay"] :is(.ui-sw.on, .ui-sw[aria-checked="true"]) { background: var(--orr-deep); }
+
+/* ---- now: the timetable loses its gradient strip; the current block is the one orange fill ---- */
+[data-theme^="clay"] .tt::before { display: none; }
+[data-theme^="clay"] :is(.it.cur, .tm.cur) { background: var(--orr-grad); border-color: transparent; box-shadow: none; color: #FFFFFF; }
+[data-theme^="clay"] :is(.it.cur, .tm.cur) :is(b, small, span, em) { color: #FFFFFF; }
+[data-theme^="clay"] :is(.it.cur, .tm.cur) i { background: #FFFFFF !important; }
+
+/* Orr's voice stays warm, in Clay's own orange */
+[data-theme^="clay"] .oprop { background: var(--orr-wash-2); box-shadow: inset 3px 0 0 var(--orr-deep); }
+[data-theme^="clay"] .btn:has(> .hd) { background: var(--orr-wash); border-color: var(--orr-edge); }
+
+/* ---- small parts ---------------------------------------------------------------------------- */
+/* initials and done checks sit in Orr's wash, like the reel's round icons */
+[data-theme^="clay"] .ring { border: 0; background: var(--orr-wash); color: var(--orr-ink); }
+[data-theme^="clay"] :is(.cb.done, .cb[aria-checked="true"]) { background: var(--orr-wash); border-color: var(--orr-wash); }
+[data-theme^="clay"] :is(.cb.done, .cb[aria-checked="true"])::after { border-color: var(--orr-ink); }
+/* status reads as the reel's small tinted pills */
+[data-theme^="clay"] .status { padding: 2px 10px 2px 8px; border-radius: var(--pill); background: var(--panel); font-size: 12.5px; }
+[data-theme^="clay"] .status.on-track { background: var(--ok-wash); color: var(--ok); }
+[data-theme^="clay"] .status.at-risk { background: var(--warn-wash); }
+[data-theme^="clay"] .chip-dl { border-radius: var(--pill); padding: 3px 10px; }
+[data-theme^="clay"] .chip-dl.s { padding: 2px 8px; }
+
+/* spending by category: the reel's chart is black and orange, so bars are ink */
+[data-theme^="clay"] .money .mcat .ui-bar i { background: var(--ink); }
+[data-theme^="clay"] .money .mcat .sw { border-radius: 50%; }

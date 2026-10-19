@@ -137,4 +137,38 @@ describe("the first frame (WEB-019)", () => {
     );
     expect(stale).toEqual([]);
   });
+
+  it("Clay leaves Paper alone: every selector in clay.css is Clay's, and only clay.css names Inter (19 Oct)", () => {
+    const UI = path.resolve(WEB, "../../packages/ui/src");
+    const clay = fs.readFileSync(path.join(UI, "clay.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const selectors = [...clay.matchAll(/([^{}]*)\{/g)]
+      .map((m) => m[1]!.trim())
+      .filter((sel) => sel && !sel.startsWith("@") && !/^(from|to|\d+%)$/.test(sel))
+      .flatMap(topLevel);
+    expect(selectors.length).toBeGreaterThan(40);
+    expect(selectors.filter((sel) => !/^(html)?\[data-theme(\^="clay"|="clay-dark"|="clay")\]/.test(sel))).toEqual([]);
+    const files = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? files(path.join(dir, d.name)) : /\.(css|tsx?)$/.test(d.name) ? [path.join(dir, d.name)] : []));
+    const naming = [...files(path.join(WEB, "src")), ...files(UI)].filter(
+      (f) => !f.endsWith("fonts.css") && !f.endsWith("theme.dom.test.ts") && /["']Inter["']/.test(fs.readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "")),
+    );
+    expect(naming.map((f) => path.basename(f))).toEqual(["clay.css"]);
+  });
 });
+
+/** A selector list's selectors: split at the commas outside parentheses (`:is(a, b)` is one). */
+function topLevel(list: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < list.length; i++) {
+    if (list[i] === "(") depth++;
+    else if (list[i] === ")") depth--;
+    else if (list[i] === "," && depth === 0) {
+      out.push(list.slice(from, i).trim());
+      from = i + 1;
+    }
+  }
+  out.push(list.slice(from).trim());
+  return out;
+}

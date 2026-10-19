@@ -31,6 +31,8 @@ import "./styles/projects.css";
 import "./styles/shell.css";
 // The design system last: its classes are its own, and it wins any tie with an older rule.
 import "./ui/ui.css";
+// Clay, the second look (19 Oct 2026): last, so it retints the components and the areas above.
+import "@orrama/ui/clay.css";
 import { App } from "./App.js";
 import { guardStorage, migrateLegacyKeys } from "./storage.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
