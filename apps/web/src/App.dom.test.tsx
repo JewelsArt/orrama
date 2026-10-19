@@ -3,7 +3,7 @@
  * The screens are stubs (test/app-harness.tsx); this is the shell's routing alone.
  */
 import "./test/app-harness.js";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, routeOfView } from "./App.js";
@@ -547,6 +547,22 @@ describe("the theme (§9)", () => {
     render(<App />);
     await waitFor(() => expect(html.dataset.theme).toBe("clay-dark"));
     expect(localStorage.getItem("orrama-look")).toBe("clay");
+  });
+
+  it("in Clay, the rail's moon puts Clay at night for the account, and lights up (19 Oct)", async () => {
+    const user = userEvent.setup();
+    system(false);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", look: "clay", vision: "none", profiles: [] } } });
+    const sent = patches() as { appearance?: { theme?: string; look?: string } }[];
+    at("/today");
+    render(<App />);
+    await view();
+    const group = await screen.findByRole("group", { name: "Day or night" });
+    await waitFor(() => expect(html.dataset.theme).toBe("clay"));
+    await user.click(within(group).getByRole("button", { name: "Night" }));
+    expect(html.dataset.theme).toBe("clay-dark");
+    expect(within(group).getByRole("button", { name: "Night" }).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(sent.map((b) => b.appearance && [b.appearance.theme, b.appearance.look])).toContainEqual(["command", "clay"]));
   });
 
   /** The rail's light ↔ dark button (F3). */

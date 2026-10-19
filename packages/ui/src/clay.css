@@ -210,3 +210,52 @@
 /* spending by category: the reel's chart is black and orange, so bars are ink */
 [data-theme^="clay"] .money .mcat .ui-bar i { background: var(--ink); }
 [data-theme^="clay"] .money .mcat .sw { border-radius: 50%; }
+
+/* ---- the two navs (Shell.tsx, SectionBar.tsx) ----------------------------------------------- */
+/* the top bar: the page's own sections in a white pill, the current one black; Find and you on
+   the right. It lines up with the page below it (one page width, styles/shell.css). */
+[data-theme^="clay"] .ctop { display: none; }
+@media (min-width: 761px) {
+  [data-theme^="clay"] .ctop { display: flex; align-items: center; gap: 12px; flex: none; width: 100%; max-width: var(--page-max); margin-inline: auto; box-sizing: border-box; min-height: 48px; padding: 20px var(--page-gutter) 0; background: transparent; }
+}
+[data-theme^="clay"] .ctop .sp { flex: 1; }
+[data-theme^="clay"] .ctop-sections { display: contents; }
+[data-theme^="clay"] .ctop :is(.tabs, .pjs-filters) { display: inline-flex; align-items: center; gap: 2px; width: auto; max-width: 100%; margin: 0; padding: 5px; border: 0; border-radius: var(--pill); background: var(--surface); box-shadow: var(--shadow-card); overflow-x: auto; scrollbar-width: none; }
+[data-theme^="clay"] .ctop :is(.tabs, .pjs-filters)::-webkit-scrollbar { display: none; }
+[data-theme^="clay"] .ctop :is(.tabs :is(a, button), .pjs-filters .chip) { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 16px; margin: 0; border: 0; border-radius: var(--pill); background: transparent; box-shadow: none; color: var(--ink-2); font-size: 14px; font-weight: 500; white-space: nowrap; transition: background-color .25s, color .25s; }
+[data-theme^="clay"] .ctop :is(.tabs :is(a, button), .pjs-filters .chip):hover { background: var(--hover); color: var(--ink); }
+[data-theme^="clay"] .ctop :is(.tabs :is(a.on, button[aria-selected="true"], button[aria-checked="true"]), .pjs-filters .chip.on) { background: var(--pill-ink); color: var(--on-pill); box-shadow: none; }
+[data-theme^="clay"] .ctop :is(.tabs, .pjs-filters) .n { font-size: 12.5px; font-weight: 450; color: var(--ink-3); }
+[data-theme^="clay"] .ctop :is(.tabs :is(a.on, button[aria-selected="true"], button[aria-checked="true"]), .pjs-filters .chip.on) .n { color: var(--on-pill); opacity: .7; }
+[data-theme^="clay"] .ctop .pjs-filters .lbl { display: none; }
+[data-theme^="clay"] .ctop .pjs-filters .ui-dot { width: 8px; height: 8px; }
+[data-theme^="clay"] .cright { display: flex; align-items: center; gap: 8px; }
+[data-theme^="clay"] .cright .btn.icon { width: 44px; height: 44px; border: 0; background: var(--surface); box-shadow: var(--shadow-card); }
+[data-theme^="clay"] .cme { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 12px 0 7px; border-radius: var(--pill); background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink); text-decoration: none; }
+[data-theme^="clay"] .cme:hover { background: var(--panel); }
+[data-theme^="clay"] .cme:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+[data-theme^="clay"] .cmn { display: flex; flex-direction: column; line-height: 15px; }
+[data-theme^="clay"] .cmn b { font-weight: 600; font-size: 13px; }
+[data-theme^="clay"] .cmn small { font-size: 11.5px; color: var(--ink-3); }
+[data-theme^="clay"] .cme svg.i { width: 16px; height: 16px; color: var(--ink-3); }
+/* the top bar's tooltips hang below it, the last one kept inside the window */
+[data-theme^="clay"] .ctop [data-tip]::after { left: 50%; top: calc(100% + 8px); transform: translateX(-50%); }
+[data-theme^="clay"] .ctop .cme[data-tip]::after { left: auto; right: 0; transform: none; }
+
+/* on the phone the tab bar does the rest: only the sections stay, under the title, and scroll */
+@media (max-width: 760px) {
+  [data-theme^="clay"] .ctop:has(.ctop-sections > *) { display: flex; flex: none; padding: 0 12px 8px; background: var(--ground); }
+  [data-theme^="clay"] .ctop .sp, [data-theme^="clay"] .ctop .cright { display: none; }
+  [data-theme^="clay"] .ctop :is(.tabs :is(a, button), .pjs-filters .chip) { height: 32px; padding: 0 13px; font-size: 13.5px; }
+}
+
+/* day and night at the top of the rail: the lit one is the mode you're in */
+[data-theme^="clay"] .cmode { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+[data-theme^="clay"] .cmode button { width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); cursor: pointer; padding: 0; transition: background-color .25s, color .25s; }
+[data-theme^="clay"] .cmode button:hover { background: var(--hover); color: var(--ink); }
+[data-theme^="clay"] .cmode button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+[data-theme^="clay"] .cmode button[aria-pressed="true"] { background: var(--panel); color: var(--ink); }
+[data-theme^="clay"] .cmode svg.i { width: 18px; height: 18px; }
+[data-theme^="clay"] .cmode-sep { display: block; width: 22px; height: 1px; background: var(--line-2); margin: 6px 0 4px; flex: none; }
+/* Planning on the phone: Day · Week · Month went up to the top bar; its old strip goes */
+[data-theme^="clay"] .plan .ptabs2:empty { display: none; }

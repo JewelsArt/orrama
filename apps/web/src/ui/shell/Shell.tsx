@@ -8,17 +8,24 @@
  * for the account, and its tooltip says which way. No keycaps on screen (§8 #5): a place's key
  * is in its tooltip.
  *
+ * Clay (19 Oct 2026, canvas page 4h) draws the same places as the Vertix reel does: the rail is
+ * a capsule of round icons with the sun and the moon at its top (the lit one is the mode you're
+ * in; F3's button goes), and a top bar holds the page's own sections (SectionBar.tsx), Find,
+ * and a pill with your Orr and name that opens Settings, so Find and your Orr leave the rail.
+ * Settings has no top bar on its board: there they stay in the rail.
+ *
  * Phone (≤ 760 px): a top bar (Back when the page is deeper than its tab, the title, Find),
  * and tabs Today · Planning · Ask Orr · Notes · More. More is a sheet: your Orr at the top,
  * then the Orrery, Projects, People, Mail, Money and Settings, so Settings is reachable on
  * the phone (§1.6).
  */
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { Icon, type IconName } from "../Icon.js";
 import { Avatar, HeadMark } from "../orr/Orr.js";
 import type { Look, Shown } from "../theme.js";
 import { Sheet } from "../overlays.js";
 import { goBack, isDeep, navigate, PLACES, placeOf, placeRoute, routeHref, type Place, type Route } from "../router.js";
+import { ShellLookContext } from "./SectionBar.js";
 
 const ICON: Record<Place, IconName> = {
   today: "sunrise",
@@ -62,9 +69,14 @@ export interface ShellProps {
 
 const YOU: Route = { kind: "settings", section: "you" };
 
-export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, shown, onTheme, children }: ShellProps) {
+export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, shown, look = "paper", onTheme, children }: ShellProps) {
   const here = placeOf(route);
   const [more, setMore] = useState(false);
+  const clay = look === "clay";
+  // Clay's top bar: on every page but Settings, whose board keeps Find and you in the rail.
+  const topBar = clay && route.kind !== "settings";
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const lookContext = useMemo(() => ({ look, slot: topBar ? slot : null }), [look, topBar, slot]);
   useEffect(() => {
     document.title = title ? `${title} · Orrama` : "Orrama";
   }, [title]);
@@ -77,8 +89,10 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
   const MORE: Place[] = ["orrery", "projects", "people", "mail", "money"];
 
   return (
+    <ShellLookContext.Provider value={lookContext}>
     <div className="app">
       <nav className="rail ui" aria-label="Places">
+        {clay && <DayOrNight shown={shown} onTheme={onTheme} />}
         {PLACES.map(({ place, label, key }) => (
           <a
             key={place}
@@ -99,24 +113,28 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
             Update ready<span>Reload</span>
           </button>
         )}
-        <ThemeButton shown={shown} onTheme={onTheme} />
-        <button type="button" className="ri" data-tip="Find  ⌘K" onClick={onFind}>
-          <Icon name="search" />
-          Find
-        </button>
+        {!clay && <ThemeButton shown={shown} onTheme={onTheme} />}
+        {!topBar && (
+          <button type="button" className="ri" data-tip="Find  ⌘K" onClick={onFind}>
+            <Icon name="search" />
+            Find
+          </button>
+        )}
         <button type="button" className="ri" aria-pressed={askOpen} data-tip="Ask Orr  ⌘J" onClick={onAsk}>
           <HeadMark size={22} />
           Ask Orr
         </button>
-        <a
-          className={inSettings ? "me on" : "me"}
-          href={routeHref(YOU)}
-          data-tip={`${me.displayName} · Settings  ⌘,`}
-          aria-label={`${me.displayName}: Settings`}
-          onClick={follow(YOU)}
-        >
-          <Avatar name={me.avatar} size={38} />
-        </a>
+        {!topBar && (
+          <a
+            className={inSettings ? "me on" : "me"}
+            href={routeHref(YOU)}
+            data-tip={`${me.displayName} · Settings  ⌘,`}
+            aria-label={`${me.displayName}: Settings`}
+            onClick={follow(YOU)}
+          >
+            <Avatar name={me.avatar} size={38} />
+          </a>
+        )}
       </nav>
 
       <div className="frame">
@@ -136,6 +154,26 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
             <Icon name="search" />
           </button>
         </header>
+        {topBar && (
+          <div className="ctop ui">
+            {/* the page's sections land here (SectionBar) */}
+            <div className="ctop-sections" ref={setSlot} />
+            <div className="sp" />
+            <div className="cright">
+              <button type="button" className="btn icon" aria-label="Find" data-tip="Find  ⌘K" onClick={onFind}>
+                <Icon name="search" />
+              </button>
+              <a className="cme" href={routeHref(YOU)} aria-label={`${me.displayName}: Settings`} data-tip="Settings  ⌘," onClick={follow(YOU)}>
+                <Avatar name={me.avatar} size={30} />
+                <span className="cmn">
+                  <b>{me.displayName}</b>
+                  <small>Settings</small>
+                </span>
+                <Icon name="chev-d" size={16} />
+              </a>
+            </div>
+          </div>
+        )}
         <main className="main" id="main">
           {children}
         </main>
@@ -203,6 +241,29 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
         </Sheet>
       )}
     </div>
+    </ShellLookContext.Provider>
+  );
+}
+
+/**
+ * Day and night at the top of Clay's rail, as in the reel: both always there, the lit one is
+ * the mode you're in (a grey circle, so it never reads as where you are, which is black).
+ * Picking one is the same change as F3's button: the account's theme, and this device stops
+ * matching its system.
+ */
+function DayOrNight({ shown, onTheme }: { shown: Shown; onTheme: (choice: Shown) => void }) {
+  return (
+    <>
+      <div className="cmode" role="group" aria-label="Day or night">
+        <button type="button" className="sun" aria-label="Day" aria-pressed={shown === "light"} data-tip="Day" onClick={() => onTheme("light")}>
+          <Icon name="sun" />
+        </button>
+        <button type="button" className="moon" aria-label="Night" aria-pressed={shown === "dark"} data-tip="Night" onClick={() => onTheme("dark")}>
+          <Icon name="moon" />
+        </button>
+      </div>
+      <span className="cmode-sep" aria-hidden="true" />
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import { Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
 import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
+import { SectionBar } from "./ui/shell/SectionBar.js";
 export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
 
 /** The four tabs; Overview is the project's own address, the others sit under it. */
@@ -210,17 +211,19 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
         </div>
       )}
 
-      <Tabs
-        label="Project views"
-        value={tab}
-        onChange={(t) => navigate(tabHref(w.slug, t))}
-        items={TABS.map((t) => ({
-          id: t,
-          label: TAB_LABEL[t],
-          href: tabHref(w.slug, t),
-          ...(t === "documents" ? { count: w.files.length } : t === "todo" ? { count: w.total } : {}),
-        }))}
-      />
+      <SectionBar>
+        <Tabs
+          label="Project views"
+          value={tab}
+          onChange={(t) => navigate(tabHref(w.slug, t))}
+          items={TABS.map((t) => ({
+            id: t,
+            label: TAB_LABEL[t],
+            href: tabHref(w.slug, t),
+            ...(t === "documents" ? { count: w.files.length } : t === "todo" ? { count: w.total } : {}),
+          }))}
+        />
+      </SectionBar>
 
       <div className="pj-tab" role="tabpanel" aria-label={TAB_LABEL[tab]}>
         {tab === "overview" && <ProjectOverview w={w} me={me} relations={relations} onChanged={load} onPatch={patch} onOpenNote={onOpenNote} />}

@@ -35,6 +35,7 @@ import { Overview, shownMonth } from "./money/Overview.js";
 import { paletteFor } from "./money/palette.js";
 import { SavingsPage } from "./money/Savings.js";
 import { MonthPage, SpendingPage } from "./money/Spending.js";
+import { SectionBar } from "./ui/shell/SectionBar.js";
 
 /** Today's money card and the colour-vision editor colour and draw categories the way Money does. */
 export { iconFor, paletteFor } from "./money/palette.js";
@@ -310,7 +311,9 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
           <span className="mlabel">{busy ? `Reading ${busy}…` : "Add a bank export"}</span>
         </Button>
       </div>
-      <Tabs label="Money" items={tabs} value={tab} onChange={openTab} />
+      <SectionBar>
+        <Tabs label="Money" items={tabs} value={tab} onChange={openTab} />
+      </SectionBar>
 
       {flashNotice}
       {d && (tab === "overview" || tab === "documents") && (

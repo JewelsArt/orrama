@@ -17,6 +17,7 @@ import { navigate, useRoute } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { onWs } from "./ws.js";
+import { SectionBar } from "./ui/shell/SectionBar.js";
 
 interface Loaded {
   dashboard: DashboardData;
@@ -267,6 +268,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       />
 
       {areaCounts.length > 0 && (
+        <SectionBar>
         <div className="pjs-filters" role="group" aria-label="Area">
           <span className="lbl">Area</span>
           <Chip on={!area} onClick={() => navigate({ kind: "projects", shelf: shelf ?? undefined })}>
@@ -278,6 +280,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
             </Chip>
           ))}
         </div>
+        </SectionBar>
       )}
 
       {failed && !data && (

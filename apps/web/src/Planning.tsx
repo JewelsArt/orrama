@@ -23,6 +23,7 @@ import { PhoneWeek } from "./planning/PhoneWeek.js";
 import { ToPlanPanel, ToPlanSheet } from "./planning/ToPlan.js";
 import { HeadMark } from "./ui/orr/Orr.js";
 import { planningRoute, type PlanningRoute } from "./planning/title.js";
+import { SectionBar } from "./ui/shell/SectionBar.js";
 
 /**
  * Planning (structure.md §2.2, Horizon's timetable): the week as lanes with an Hours switch,
@@ -382,12 +383,14 @@ export function Planning({
   const atThisOne = scale === "month" ? monthKey(first) === monthKey(now) : scale === "day" ? isoDay(theDay) === today : days.includes(today);
   const broken = feeds.filter((f) => f.lastError);
   const scaleTabs = (
-    <Tabs<Scale>
-      label="Scale"
-      value={scale}
-      onChange={(s) => goto(s, scaleAt(s))}
-      items={(["day", "week", "month"] as Scale[]).map((s) => ({ id: s, label: s === "day" ? "Day" : s === "week" ? "Week" : "Month", href: routeHref(planningRoute(s, scaleAt(s), now)) }))}
-    />
+    <SectionBar>
+      <Tabs<Scale>
+        label="Scale"
+        value={scale}
+        onChange={(s) => goto(s, scaleAt(s))}
+        items={(["day", "week", "month"] as Scale[]).map((s) => ({ id: s, label: s === "day" ? "Day" : s === "week" ? "Week" : "Month", href: routeHref(planningRoute(s, scaleAt(s), now)) }))}
+      />
+    </SectionBar>
   );
   const countLinks = (
     <span className="hl">
