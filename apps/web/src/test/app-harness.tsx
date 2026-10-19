@@ -122,6 +122,8 @@ vi.mock("../Settings.js", () => ({
       ["theme light", () => p.onTheme("light")],
       ["theme dark", () => p.onTheme("command")], // the word Settings has always sent
       ["theme match", () => p.onTheme("match")],
+      ["look clay", () => p.onLook("clay")],
+      ["look paper", () => p.onLook("paper")],
     ],
     () => <ProfileEditor />,
   ),

@@ -16,6 +16,7 @@ import type { VisionProfile } from "./palette.js";
 import { AccessSection } from "./settings/Access.js";
 import { AiSection } from "./settings/Ai.js";
 import { AppearanceSection, type ThemeChoice } from "./settings/Appearance.js";
+import type { Look } from "./ui/theme.js";
 import { ConnectionsSection } from "./settings/Connections.js";
 import { DeveloperSection } from "./settings/Developer.js";
 import { DeviceSection } from "./settings/Device.js";
@@ -47,6 +48,9 @@ export interface SettingsProps {
   /** What the page shows now (Match this device resolves to one of the two). */
   shown: "light" | "dark";
   onTheme: (t: ThemeChoice) => void;
+  /** Paper or Clay (19 Oct 2026), per account. */
+  look: Look;
+  onLook: (look: Look) => void;
   vision: string;
   onVision: (v: string) => void;
   profiles: VisionProfile[];
@@ -151,6 +155,8 @@ function Section({ id, members, ...p }: SettingsProps & { id: SettingsSection; m
           theme={p.theme}
           shown={p.shown}
           onTheme={p.onTheme}
+          look={p.look}
+          onLook={p.onLook}
           vision={p.vision}
           onVision={p.onVision}
           profiles={p.profiles}
@@ -178,7 +184,7 @@ function Section({ id, members, ...p }: SettingsProps & { id: SettingsSection; m
  * The phone's Settings (§1.6): your Orr on top, then the sections in two groups, each row
  * saying where it stands (the theme, the model, how many notes…), and Sign out at the foot.
  */
-function PhoneList({ me, theme, onSignOut, visible, server }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null }) {
+function PhoneList({ me, theme, look, onSignOut, visible, server }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null }) {
   const [ai, setAi] = useState<AiConfig | null>(null);
   const [mail, setMail] = useState<MailAccount | null>(null);
   const [feeds, setFeeds] = useState<Feed[] | null>(null);
@@ -206,7 +212,7 @@ function PhoneList({ me, theme, onSignOut, visible, server }: SettingsProps & { 
 
   const connections = [mail?.connected ? "Gmail" : null, feeds && feeds.length > 0 ? `${feeds.length} ${feeds.length === 1 ? "calendar" : "calendars"}` : null].filter(Boolean).join(", ");
   const summary: Partial<Record<SettingsSection, string>> = {
-    appearance: theme === "match" ? "Match this device" : theme === "dark" ? "Dark" : "Light",
+    appearance: `${look === "clay" ? "Clay" : "Paper"}, ${theme === "match" ? "Match this device" : theme === "dark" ? "Night" : "Day"}`,
     ai: ai ? (ai.configured ? (ai.model ?? "") : "Not set up") : "",
     notes: server ? `${server.notes} notes` : "",
     connections: mail && feeds ? connections || "None yet" : "",

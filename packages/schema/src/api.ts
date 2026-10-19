@@ -52,6 +52,8 @@ export const visionProfileSchema = z.object({
 
 export const appearanceSchema = z.object({
   theme: z.enum(["light", "paper", "command"]).optional(),
+  /** The look (Settings → Appearance): Paper or Clay. Absent is Paper. Light or dark is `theme`. */
+  look: z.enum(["paper", "clay"]).optional(),
   vision: z
     .string()
     .regex(/^(none|deuteranopia|protanopia|tritanopia|custom:[A-Za-z0-9_-]{1,40})$/)

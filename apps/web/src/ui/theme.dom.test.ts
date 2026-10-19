@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, THEME_KEY } from "./theme.js";
+import { accountTheme, DEVICE_KEY, isNight, LOOK_KEY, lookOf, modeOf, resolveTheme, shownOf, THEME_KEY } from "./theme.js";
 
 const WEB = path.resolve(import.meta.dirname, "../..");
 const BOOT = fs.readFileSync(path.join(WEB, "public/boot-theme.js"), "utf8");
@@ -38,6 +38,21 @@ describe("the theme", () => {
     expect(resolveTheme(null, false, true)).toBe("light"); // light is the default
   });
 
+  it("in Clay, the same choice shows Clay's day or night (19 Oct)", () => {
+    expect(resolveTheme("light", false, true, "clay")).toBe("clay");
+    expect(resolveTheme("command", false, false, "clay")).toBe("clay-dark");
+    expect(resolveTheme("light", true, true, "clay")).toBe("clay-dark");
+    expect(resolveTheme("command", true, false, "clay")).toBe("clay");
+    expect(resolveTheme("command", false, false, "paper")).toBe("dark");
+    expect([lookOf("clay"), lookOf("paper"), lookOf(null), lookOf("vertix")]).toEqual(["clay", "paper", "paper", "paper"]);
+  });
+
+  it("night is dark or Clay at night, whatever the look", () => {
+    expect(["light", "dark", "clay", "clay-dark", "command", undefined].map(isNight)).toEqual([false, true, false, true, true, false]);
+    expect(modeOf("clay-dark")).toBe("dark");
+    expect(modeOf("clay")).toBe("light");
+  });
+
   it("reads the account's words: command is dark, paper is light", () => {
     expect([shownOf("command"), shownOf("dark"), shownOf("paper"), shownOf("light"), shownOf(undefined)]).toEqual(["dark", "dark", "light", "light", "light"]);
     expect([accountTheme("dark"), accountTheme("light")]).toEqual(["command", "light"]);
@@ -46,15 +61,17 @@ describe("the theme", () => {
 
 describe("the first frame (WEB-019)", () => {
   it("the boot script puts on the theme the app will show, in every stored case", () => {
-    for (const account of [null, "light", "paper", "command", "dark"])
-      for (const match of [false, true])
-        for (const dark of [false, true]) {
-          localStorage.clear();
-          if (account) localStorage.setItem(THEME_KEY, account);
-          if (match) localStorage.setItem(DEVICE_KEY, "match");
-          system(dark);
-          expect(boot(), `account ${account}, match ${match}, system dark ${dark}`).toBe(resolveTheme(account, match, dark));
-        }
+    for (const look of [null, "paper", "clay"])
+      for (const account of [null, "light", "paper", "command", "dark"])
+        for (const match of [false, true])
+          for (const dark of [false, true]) {
+            localStorage.clear();
+            if (look) localStorage.setItem(LOOK_KEY, look);
+            if (account) localStorage.setItem(THEME_KEY, account);
+            if (match) localStorage.setItem(DEVICE_KEY, "match");
+            system(dark);
+            expect(boot(), `look ${look}, account ${account}, match ${match}, system dark ${dark}`).toBe(resolveTheme(account, match, dark, lookOf(look)));
+          }
   });
 
   it("and the colour-vision mode", () => {

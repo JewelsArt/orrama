@@ -69,6 +69,8 @@ function open(section: SettingsSection, extra: Partial<Parameters<typeof Setting
       theme="light"
       shown="light"
       onTheme={() => {}}
+      look="paper"
+      onLook={() => {}}
       vision="none"
       onVision={() => {}}
       profiles={[]}
@@ -179,6 +181,8 @@ describe("the Settings page (structure.md §3)", () => {
         theme="light"
         shown="light"
         onTheme={() => {}}
+        look="paper"
+        onLook={() => {}}
         vision="none"
         onVision={() => {}}
         profiles={[]}
@@ -203,7 +207,7 @@ describe("the Settings page (structure.md §3)", () => {
       ["developer", "This server"],
     ] as const) {
       const { unmount } = render(
-        <Settings me={ME} section={section} theme="light" shown="light" onTheme={() => {}} vision="none" onVision={() => {}} profiles={[]} onProfiles={() => {}} onUpdate={() => {}} onSignOut={() => {}} />,
+        <Settings me={ME} section={section} theme="light" shown="light" onTheme={() => {}} look="paper" onLook={() => {}} vision="none" onVision={() => {}} profiles={[]} onProfiles={() => {}} onUpdate={() => {}} onSignOut={() => {}} />,
       );
       const head = await screen.findByRole("heading", { level: 2 });
       expect(head.querySelector(".set-where")?.textContent).toBe(where);
@@ -221,14 +225,25 @@ describe("the Settings page (structure.md §3)", () => {
     expect(location.pathname).toBe("/settings/device");
   });
 
-  it("the theme offers Light, Dark and Match this device", async () => {
+  it("the look and light or dark are two choices, each saved on its own (Clay, 19 Oct)", async () => {
     const user = userEvent.setup();
     const onTheme = vi.fn();
-    open("appearance", { onTheme });
-    await user.click(screen.getByRole("radio", { name: /Match this device/ }));
+    const onLook = vi.fn();
+    open("appearance", { onTheme, onLook });
+    const look = screen.getByRole("radiogroup", { name: "Look" });
+    const mode = screen.getByRole("radiogroup", { name: "Light or dark" });
+    expect(within(look).getAllByRole("radio")).toHaveLength(2);
+    expect(within(look).getByRole("radio", { name: /^Paper/ }).getAttribute("aria-checked")).toBe("true");
+    await user.click(within(look).getByRole("radio", { name: /^Clay/ }));
+    expect(onLook).toHaveBeenLastCalledWith("clay");
+    expect(onTheme).not.toHaveBeenCalled();
+    await user.click(within(mode).getByRole("radio", { name: /Match this device/ }));
     expect(onTheme).toHaveBeenLastCalledWith("match");
-    await user.click(screen.getByRole("radio", { name: /^Dark/ }));
+    await user.click(within(mode).getByRole("radio", { name: /^Night/ }));
     expect(onTheme).toHaveBeenLastCalledWith("dark");
+    await user.click(within(mode).getByRole("radio", { name: /^Day/ }));
+    expect(onTheme).toHaveBeenLastCalledWith("light");
+    expect(onLook).toHaveBeenCalledTimes(1);
   });
 
   it("picking your Orr saves it to the account", async () => {

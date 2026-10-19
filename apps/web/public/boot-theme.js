@@ -21,7 +21,9 @@
     var stored = read("theme");
     dark = stored === "dark" || stored === "command";
   }
-  root.setAttribute("data-theme", dark ? "dark" : "light");
+  // The look (Clay, 19 Oct 2026): Clay's day and night are their own data-themes.
+  if (read("look") === "clay") root.setAttribute("data-theme", dark ? "clay-dark" : "clay");
+  else root.setAttribute("data-theme", dark ? "dark" : "light");
   var vision = read("vision");
   if (vision) root.setAttribute("data-vision", vision);
 })();

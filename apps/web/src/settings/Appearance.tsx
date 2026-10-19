@@ -1,6 +1,7 @@
 /**
- * Settings → Appearance (structure.md §3.1 #2, §9 #2): the theme per account, plus Match this
- * device, and colour vision (four built-in profiles and your own, with the palette editor).
+ * Settings → Appearance (structure.md §3.1 #2, §9 #2): the look (Paper or Clay, 19 Oct 2026),
+ * then light or dark for it, per account, plus Match this device, and colour vision (four
+ * built-in profiles and your own, with the palette editor).
  *
  * Each colour-vision row previews its own palette: the swatch strip carries data-vision, so
  * vision.css re-declares the colours for that strip alone, and you compare the modes side by
@@ -12,6 +13,7 @@ import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { PALETTE_SLOTS, type VisionProfile } from "../palette.js";
 import { Button } from "../ui/controls.js";
 import { RadioGroup } from "../ui/fields.js";
+import type { Look } from "../ui/theme.js";
 import { VisionEditor } from "../VisionEditor.js";
 import { SectionHead, SubHead, WhereMark, type SectionMeta } from "./parts.js";
 
@@ -34,6 +36,8 @@ export function AppearanceSection({
   theme,
   onTheme,
   shown,
+  look,
+  onLook,
   vision,
   onVision,
   profiles,
@@ -44,6 +48,8 @@ export function AppearanceSection({
   onTheme: (t: ThemeChoice) => void;
   /** What the page shows now, light or dark (Match resolves to one). */
   shown: "light" | "dark";
+  look: Look;
+  onLook: (look: Look) => void;
   vision: string;
   onVision: (v: string) => void;
   profiles: VisionProfile[];
@@ -72,15 +78,30 @@ export function AppearanceSection({
       <SectionHead meta={meta} />
 
       <div>
-        <SubHead>Theme</SubHead>
+        <SubHead>Look</SubHead>
+        <div className="set-opts">
+          <RadioGroup<Look>
+            label="Look"
+            value={look}
+            onChange={onLook}
+            options={[
+              { id: "paper", label: "Paper", help: "Warm paper by day, night blue after dark. Every device you sign in on." },
+              { id: "clay", label: "Clay", help: "Cool grey and burnt orange, near black after dark. Every device you sign in on." },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div>
+        <SubHead>Light or dark</SubHead>
         <div className="set-opts">
           <RadioGroup<ThemeChoice>
-            label="Theme"
+            label="Light or dark"
             value={theme}
             onChange={onTheme}
             options={[
-              { id: "light", label: "Light", help: "Warm paper. Every device you sign in on." },
-              { id: "dark", label: "Dark", help: "Night blue. Every device you sign in on." },
+              { id: "light", label: "Day", help: "For the look above. Every device you sign in on." },
+              { id: "dark", label: "Night", help: "For the look above. Every device you sign in on." },
               {
                 id: "match",
                 label: (
@@ -88,7 +109,7 @@ export function AppearanceSection({
                     Match this device <WhereMark where="device" />
                   </>
                 ),
-                help: `Follows this device's own light or dark setting; your other devices keep yours. Now ${shown}.`,
+                help: `Follows this device's own light or dark setting; your other devices keep yours. Now ${shown === "dark" ? "night" : "day"}.`,
               },
             ]}
           />

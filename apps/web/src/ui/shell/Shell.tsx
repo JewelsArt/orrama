@@ -16,7 +16,7 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Icon, type IconName } from "../Icon.js";
 import { Avatar, HeadMark } from "../orr/Orr.js";
-import type { Shown } from "../theme.js";
+import type { Look, Shown } from "../theme.js";
 import { Sheet } from "../overlays.js";
 import { goBack, isDeep, navigate, PLACES, placeOf, placeRoute, routeHref, type Place, type Route } from "../router.js";
 
@@ -54,6 +54,8 @@ export interface ShellProps {
   mailDot?: number;
   /** The theme the page shows, and App's changeTheme: the rail's light ↔ dark button. */
   shown: Shown;
+  /** Paper or Clay: Clay draws its own rail and top bar. */
+  look?: Look;
   onTheme: (choice: Shown) => void;
   children: ReactNode;
 }

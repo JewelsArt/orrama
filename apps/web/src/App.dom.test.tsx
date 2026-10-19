@@ -499,6 +499,56 @@ describe("the theme (§9)", () => {
     expect(html.dataset.theme).toBe("light"); // no longer following the system
   });
 
+  it("the look is the account's: Clay shows its own day and night and goes up apart from the theme (Clay, 19 Oct)", async () => {
+    const user = userEvent.setup();
+    system(false);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", vision: "none", profiles: [] } } });
+    const sent = patches() as { appearance?: { theme?: string; look?: string } }[];
+    at("/settings/you");
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "look clay" }));
+    expect(html.dataset.theme).toBe("clay");
+    expect(localStorage.getItem("orrama-look")).toBe("clay");
+    await waitFor(() => expect(sent.map((b) => b.appearance && [b.appearance.theme, b.appearance.look])).toContainEqual(["light", "clay"]));
+    await user.click(screen.getByRole("button", { name: "theme dark" }));
+    expect(html.dataset.theme).toBe("clay-dark");
+    await waitFor(() => expect(sent.map((b) => b.appearance && [b.appearance.theme, b.appearance.look])).toContainEqual(["command", "clay"]));
+    await user.click(screen.getByRole("button", { name: "look paper" }));
+    expect(html.dataset.theme).toBe("dark");
+  });
+
+  it("the wipe's new picture is already in the look: what startViewTransition captures (Clay, 19 Oct)", async () => {
+    const user = userEvent.setup();
+    system(false);
+    localStorage.setItem("orrama-look", "clay");
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "light", look: "clay", vision: "none", profiles: [] } } });
+    const captured: (string | undefined)[] = [];
+    const doc = document as unknown as { startViewTransition?: (swap: () => void) => unknown };
+    doc.startViewTransition = (swap: () => void) => {
+      swap();
+      captured.push(html.dataset.theme); // the browser snapshots the page as the callback returns
+      return { finished: Promise.resolve(), ready: Promise.resolve() };
+    };
+    try {
+      at("/settings/you");
+      render(<App />);
+      await user.click(await screen.findByRole("button", { name: "theme dark" }));
+      await user.click(screen.getByRole("button", { name: "look paper" }));
+      expect(captured).toEqual(["clay-dark", "dark"]);
+    } finally {
+      delete doc.startViewTransition;
+    }
+  });
+
+  it("an account in Clay is shown in Clay on a device that has never seen it", async () => {
+    system(true);
+    serve({ "GET /api/me": { ...ME, appearance: { theme: "command", look: "clay", vision: "none", profiles: [] } } });
+    at("/today");
+    render(<App />);
+    await waitFor(() => expect(html.dataset.theme).toBe("clay-dark"));
+    expect(localStorage.getItem("orrama-look")).toBe("clay");
+  });
+
   /** The rail's light ↔ dark button (F3). */
   const railTheme = () => screen.getAllByRole("navigation", { name: "Places" })[0]!.querySelector<HTMLButtonElement>(".ri.theme")!;
 

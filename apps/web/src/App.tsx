@@ -32,7 +32,7 @@ import { canonical, goBack as historyBack, navigate as go, placeOf, placeRoute, 
 import { KeysSheet } from "./ui/shell/KeysSheet.js";
 import { ErrorBoundary } from "./ui/ErrorBoundary.js";
 import { Shell } from "./ui/shell/Shell.js";
-import { accountTheme, DEVICE_KEY, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark } from "./ui/theme.js";
+import { accountTheme, DEVICE_KEY, LOOK_KEY, lookOf, modeOf, pageTheme, resolveTheme, shownOf, systemIsDark, THEME_KEY, useSystemDark, type Look, type PageTheme, type Shown } from "./ui/theme.js";
 import { attempt } from "./ui/writes.js";
 import { disconnectWs, useLiveSync } from "./ws.js";
 import { flushAll } from "./noteSync.js";
@@ -231,8 +231,12 @@ export function App() {
   // instead: Match this device (ui/theme.ts). The page shows what the two resolve to.
   const [theme, setTheme] = useState(() => readKey(THEME_KEY) ?? "light");
   const [matchDevice, setMatchDevice] = useState(() => readKey(DEVICE_KEY) === "match");
+  // The look, Paper or Clay (19 Oct 2026): per account like the theme, cached for the first frame.
+  const [look, setLook] = useState<Look>(() => lookOf(readKey(LOOK_KEY)));
   const systemDark = useSystemDark();
-  const themeShown = resolveTheme(theme, matchDevice, systemDark);
+  const themeShown = resolveTheme(theme, matchDevice, systemDark, look);
+  // Light or dark, whatever the look: what the rail, Find and Settings speak in.
+  const mode = modeOf(themeShown);
   // Colour-vision mode. Orthogonal to the theme: it swaps the palette, not the
   // ground, so every combination of the two is a real, tested surface.
   const [vision, setVision] = useState(() => readKey("orrama-vision") ?? "none");
@@ -257,6 +261,7 @@ export function App() {
     document.documentElement.dataset.theme = themeShown;
   }, [themeShown]);
   useEffect(() => writeKey(THEME_KEY, theme), [theme]);
+  useEffect(() => writeKey(LOOK_KEY, look), [look]);
   useEffect(() => (matchDevice ? writeKey(DEVICE_KEY, "match") : removeKey(DEVICE_KEY)), [matchDevice]);
 
   useEffect(() => {
@@ -281,13 +286,13 @@ export function App() {
     const profile = isCustom(vision) ? profiles.find((p) => p.id === customId(vision)) : undefined;
     if (!profile) return;
     const cs = getComputedStyle(root);
-    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), themeShown, {
+    const vars = profileVars(profile, cs.getPropertyValue("--surface").trim(), mode, {
       ok: cs.getPropertyValue("--ok").trim(),
       warn: cs.getPropertyValue("--warn").trim(),
       danger: cs.getPropertyValue("--danger").trim(),
     });
     for (const [name, value] of Object.entries(vars)) root.style.setProperty(name, value);
-  }, [vision, profiles, themeShown]);
+  }, [vision, profiles, themeShown, mode]);
 
   // Back from "Continue with ChatGPT": show where it landed, at its own address.
   useEffect(() => {
@@ -348,23 +353,25 @@ export function App() {
       return;
     }
     if (a.theme) setTheme(a.theme);
+    // The account is the truth for the look too: absent is Paper.
+    setLook(lookOf(a.look));
     if (a.vision) setVision(a.vision);
     if (a.profiles) setProfiles(a.profiles);
-    setServerSnapshot(JSON.stringify({ theme: a.theme, vision: a.vision, profiles: a.profiles }));
+    setServerSnapshot(JSON.stringify({ theme: a.theme, look: lookOf(a.look), vision: a.vision, profiles: a.profiles }));
   }, [me, serverSnapshot]);
 
   useEffect(() => {
     if (!me || serverSnapshot === null) return; // not hydrated: never write first
-    const next = JSON.stringify({ theme, vision, profiles });
+    const next = JSON.stringify({ theme, look, vision, profiles });
     if (next === serverSnapshot) return;
     // Recorded on success only. A write that fails during a server restart must
     // not be remembered as synced — that is how a stale value gets resurrected
     // and pushed back up as if it were a choice.
     // This device keeps the look either way; the account copy is said when it fails (WEB-010).
     void attempt("Your appearance is on this device but didn't save to your account.", () =>
-      api<Me>("PATCH", "/api/me", { appearance: { theme, vision, profiles } }).then(() => setServerSnapshot(next)),
+      api<Me>("PATCH", "/api/me", { appearance: { theme, look, vision, profiles } }).then(() => setServerSnapshot(next)),
     );
-  }, [me, serverSnapshot, theme, vision, profiles]);
+  }, [me, serverSnapshot, theme, look, vision, profiles]);
 
   useLiveSync(me?.id);
 
@@ -404,45 +411,22 @@ export function App() {
    *
    * `choice` is "light", "dark" ("command" is the account's word for it) or "match": this
    * device follows its system from now on, and the account keeps its theme for the others.
+   * The look stays as it is: in Clay, "dark" is Clay at night.
    */
-  const changeTheme = useCallback(
-    (choice: string) => {
-      const root = document.documentElement;
-      const match = choice === "match";
-      const next = match ? (systemIsDark() ? "dark" : "light") : shownOf(choice);
-      // dataset is written directly, not via React state: startViewTransition
-      // captures the new state as soon as this callback returns, and a setState
-      // wouldn't have flushed by then. The state only keeps React in step after.
-      const swap = () => {
-        root.dataset.theme = next;
-        setMatchDevice(match);
-        if (!match) setTheme(accountTheme(next));
-      };
-      if (next === root.dataset.theme) return swap();
-
-      // Origin is the CONTROL's centre, not the pointer: a keyboard activation reports
-      // clientX/clientY of 0, which bloomed the whole theme out of the top-left corner.
-      const at = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
-      const r = at?.getBoundingClientRect() ?? new DOMRect(innerWidth / 2, innerHeight / 2, 0, 0);
-      const x = r.left + r.width / 2;
-      const y = r.top + r.height / 2;
-      // Radius at which the circle has swallowed the viewport: the distance to
-      // whichever corner is furthest from the button.
-      const rEnd = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-      root.style.setProperty("--rx", `${x}px`);
-      root.style.setProperty("--ry", `${y}px`);
-      root.style.setProperty("--r-end", `${Math.ceil(rEnd)}px`);
-
-      const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
-      if (!start || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        swap();
-        return;
-      }
-      root.classList.add("rippling");
-      start.call(document, swap).finished.finally(() => root.classList.remove("rippling"));
-    },
-    [],
-  );
+  const lookNow = useRef(look);
+  lookNow.current = look;
+  const changeTheme = useCallback((choice: string) => {
+    const match = choice === "match";
+    const nextMode: Shown = match ? (systemIsDark() ? "dark" : "light") : shownOf(choice);
+    wipeTo(pageTheme(lookNow.current, nextMode), () => {
+      setMatchDevice(match);
+      if (!match) setTheme(accountTheme(nextMode));
+    });
+  }, []);
+  /** Paper or Clay (Settings → Appearance), in the mode the page is in, with the same wipe. */
+  const changeLook = useCallback((next: Look) => {
+    wipeTo(pageTheme(next, modeOf(document.documentElement.dataset.theme)), () => setLook(next));
+  }, []);
 
   /* The keys (structure.md §1.5), decided by shellKey (ui/keys.ts). ⌘R is main.tsx's,
      outside React, so it still reloads when a view has crashed (WEB-011). */
@@ -496,7 +480,8 @@ export function App() {
       // On the phone: Today's + is Capture (§1.3), every other page's is New, prefilled for it.
       onNew={route.kind === "today" ? () => setCaptureOpen(true) : route.kind === "settings" ? undefined : (button) => setNewAt(button)}
       mailDot={draftsWaiting}
-      shown={themeShown}
+      shown={mode}
+      look={look}
       onTheme={changeTheme}
     >
       {/* A crash stays in the page (WEB-011): the rail, the keys and ⌘R keep working, and
@@ -522,8 +507,10 @@ export function App() {
             me={me}
             section={route.section}
             theme={matchDevice ? "match" : shownOf(theme)}
-            shown={themeShown}
+            shown={mode}
             onTheme={changeTheme}
+            look={look}
+            onLook={changeLook}
             vision={vision}
             onVision={setVision}
             profiles={profiles}
@@ -579,7 +566,7 @@ export function App() {
         <ErrorBoundary what="Find" onLeave={{ label: "Close", run: () => setPaletteOpen(false) }}>
           <Find
             me={me}
-            shown={themeShown === "dark" ? "dark" : "light"}
+            shown={mode}
             onClose={() => setPaletteOpen(false)}
             onTheme={changeTheme}
             onCapture={() => {
@@ -603,4 +590,40 @@ export function App() {
       <Toaster />
     </Shell>
   );
+}
+
+/**
+ * Put `next` on <html> with the circular wipe, then let React catch up (`apply`).
+ *
+ * The dataset is written directly, not via React state: startViewTransition captures the new
+ * state as soon as the callback returns, and a setState wouldn't have flushed by then. The
+ * origin is the CONTROL's centre, not the pointer: a keyboard activation reports
+ * clientX/clientY of 0, which bloomed the whole theme out of the top-left corner.
+ */
+function wipeTo(next: PageTheme, apply: () => void): void {
+  const root = document.documentElement;
+  const swap = () => {
+    root.dataset.theme = next;
+    apply();
+  };
+  if (next === root.dataset.theme) return swap();
+
+  const at = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+  const r = at?.getBoundingClientRect() ?? new DOMRect(innerWidth / 2, innerHeight / 2, 0, 0);
+  const x = r.left + r.width / 2;
+  const y = r.top + r.height / 2;
+  // Radius at which the circle has swallowed the viewport: the distance to whichever corner is
+  // furthest from the control.
+  const rEnd = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  root.style.setProperty("--rx", `${x}px`);
+  root.style.setProperty("--ry", `${y}px`);
+  root.style.setProperty("--r-end", `${Math.ceil(rEnd)}px`);
+
+  const start = (document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } }).startViewTransition;
+  if (!start || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    swap();
+    return;
+  }
+  root.classList.add("rippling");
+  start.call(document, swap).finished.finally(() => root.classList.remove("rippling"));
 }

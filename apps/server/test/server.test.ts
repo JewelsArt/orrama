@@ -837,6 +837,15 @@ describe("graph + plan + profile", () => {
     const me = await api("GET", "/api/me", "mara");
     expect(me.json.appearance.profiles[0].colors[0]).toBe("#23d6ff");
   });
+
+  it("the look (Paper or Clay) is kept on the account apart from light or dark", async () => {
+    const r = await api("PATCH", "/api/me", "erin", { appearance: { theme: "light", look: "clay" } });
+    expect(r.status).toBe(200);
+    const me = await api("GET", "/api/me", "erin");
+    expect(me.json.appearance).toEqual({ theme: "light", look: "clay" });
+    expect((await api("PATCH", "/api/me", "erin", { appearance: { look: "vertix" } })).status).toBe(400);
+    expect((await api("GET", "/api/me", "erin")).json.appearance.look).toBe("clay");
+  });
 });
 
 describe("history (§10)", () => {
