@@ -18,6 +18,7 @@ import { chargeDays, daysIn, dayLabel, eur, monthName, monthPace, monthWord, not
 import { link, to } from "./links.js";
 import { monthByCategory, recurringRow } from "./model.js";
 import { UNCATEGORISED } from "./palette.js";
+import { CountUp } from "../ui/CountUp.js";
 
 type Cats = FinanceData["spending"]["categories"];
 
@@ -145,7 +146,9 @@ function Spent({
         go={{ label: "All spending →", to: to.spending() }}
       />
       <div className="mbig">
-        <b>{eur(soFar)}</b>
+        <b>
+          <CountUp text={eur(soFar)} />
+        </b>
         <span>{typical > 0 ? `of a typical ${eur(typical)} a month` : "a typical month needs three complete months"}</span>
       </div>
       {typical > 0 && (

@@ -20,6 +20,7 @@ import type { Link } from "./Timetable.js";
 import { routeOf, type Known } from "../entity/links.js";
 import type { Part } from "../noticed/model.js";
 import { navigate, routeHref } from "../ui/router.js";
+import { CountUp } from "../ui/CountUp.js";
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 const follow = (l: Link) => (e: MouseEvent) => {
@@ -552,7 +553,7 @@ export function MoneyModule({
       {pace && (
         <>
           <a className="big" href={go.month(pace.month).href} onClick={follow(go.month(pace.month))}>
-            {eur(pace.spent)} <small>{pace.dayOf ? `spent by day ${pace.dayOf}` : `spent in ${monthWord(pace.month, today)}`}</small>
+            <CountUp text={eur(pace.spent)} /> <small>{pace.dayOf ? `spent by day ${pace.dayOf}` : `spent in ${monthWord(pace.month, today)}`}</small>
           </a>
           <Bar value={pace.typical > 0 ? pace.spent / pace.typical : 0} label={`${eur(pace.spent)} of a typical ${eur(pace.typical)}`} />
           <p>

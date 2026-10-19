@@ -274,9 +274,9 @@
 @media (max-width: 760px) { [data-theme^="clay"] .hero .mh .c { display: none; } }
 
 /* ---- grey tiles inside the white box, like the reel's wallets: lists of things you open ------- */
-[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who) { background: var(--panel); border-radius: 14px; margin: 0 0 6px; padding: 10px 12px; transition: transform .25s cubic-bezier(.2, .7, .2, 1), background-color .25s; }
+[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who) { background: var(--panel); border-radius: 14px; margin: 0 0 6px; padding: 10px 12px; transition: background-color .25s; }
 [data-theme^="clay"] .tiles .row::before { display: none; }
-[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who):hover { background: color-mix(in srgb, var(--ink) 6%, var(--panel)); transform: translateY(-2px); }
+[data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who):hover { background: color-mix(in srgb, var(--ink) 6%, var(--panel)); }
 [data-theme^="clay"] .tiles .mh { margin-bottom: 6px; }
 [data-theme^="clay"] .tiles .ring { background: var(--surface); }
 [data-theme^="clay"] .tiles .marith { background: var(--panel); border-radius: 14px; padding: 12px 14px; max-width: none; }
@@ -285,3 +285,47 @@
 /* a category already past its typical month: its bar in orange, its figure in orange ink */
 [data-theme^="clay"] .money .mcat.ahead .ui-bar i { background: var(--orr-deep); }
 [data-theme^="clay"] .money .mcat .vs b { color: var(--orr-ink); }
+
+/* ---- motion, as in the reel (Jules: "The reel uses a lot of animations that I'm fond of") -----
+   None of it for anyone who has asked their device for less: every animation and every lift is
+   inside the media query below (theme.dom.test.ts holds this file to it). Fills are backwards
+   only, so a finished animation never holds a transform or an opacity over the page's own. */
+@property --clay-n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --clay-k { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@property --clay-r { syntax: "<integer>"; inherits: false; initial-value: 0; }
+@counter-style clay-3 { system: extends decimal; pad: 3 "0"; }
+@keyframes clay-in { from { opacity: 0; filter: blur(10px); transform: translateY(12px); } }
+@keyframes clay-grow { from { transform: scaleX(0); } }
+@keyframes clay-ring { from { stroke-dasharray: 0 69.1; } }
+@keyframes clay-count { from { --clay-n: var(--from, 0); } }
+@keyframes clay-pill { from { opacity: 0; transform: scale(.86); } }
+@media (prefers-reduced-motion: no-preference) {
+  /* boxes arrive one after another out of a blur */
+  [data-theme^="clay"] :is(.ctop, .phead, .tt, .mod, .card, .wk, .hg, .oprop, .set-sec) { animation: clay-in .75s cubic-bezier(.2, .7, .2, 1) backwards; }
+  [data-theme^="clay"] .phead { animation-delay: .05s; }
+  [data-theme^="clay"] :is(.tt, .oprop, .wk, .hg) { animation-delay: .12s; }
+  [data-theme^="clay"] :is(.td-col, .mcol, .pj-side) > :nth-child(1) { animation-delay: .18s; }
+  [data-theme^="clay"] :is(.td-col, .mcol, .pj-side) > :nth-child(2) { animation-delay: .26s; }
+  [data-theme^="clay"] :is(.td-col, .mcol, .pj-side) > :nth-child(3) { animation-delay: .34s; }
+  [data-theme^="clay"] :is(.td-col, .mcol, .pj-side) > :nth-child(n + 4) { animation-delay: .42s; }
+  [data-theme^="clay"] :is(.it, .tm) { animation: clay-in .6s .3s cubic-bezier(.2, .7, .2, 1) backwards; }
+  /* bars and rings fill */
+  [data-theme^="clay"] .ui-bar i { transform-origin: left center; animation: clay-grow 1.1s .45s cubic-bezier(.2, .7, .2, 1) backwards; }
+  [data-theme^="clay"] .pr .v { animation: clay-ring 1.2s .45s cubic-bezier(.2, .7, .2, 1) backwards; }
+  /* the current section's pill pops in */
+  [data-theme^="clay"] .ctop :is(.tabs :is(a.on, button[aria-selected="true"], button[aria-checked="true"]), .pjs-filters .chip.on) { animation: clay-pill .5s .25s cubic-bezier(.2, .9, .3, 1.2) backwards; }
+  /* the hero's number counts up (ui/CountUp.tsx): the real figure stays as text for screen
+     readers, the counting digits are drawn in ::before with an empty alternative text. The
+     counters read --clay-k and --clay-r, never --clay-n itself: WebKit interpolates a
+     registered integer through fractions (844.06), which counter-reset refuses (it drew 0),
+     while an integer computed by calc() is rounded in both engines. */
+  [data-theme^="clay"] .cnt { position: relative; --clay-n: var(--to); --clay-k: calc(var(--clay-n) / 1000 - 0.5); --clay-r: calc(var(--clay-n) - var(--clay-k) * 1000); counter-reset: clay-k var(--clay-k) clay-r var(--clay-r); animation: clay-count 1.3s .3s cubic-bezier(.2, .7, .2, 1) backwards; }
+  [data-theme^="clay"] .cnt::before { content: counter(clay-r); content: counter(clay-r) / ""; }
+  [data-theme^="clay"] .cnt.k::before { content: counter(clay-k) "," counter(clay-r, clay-3); content: counter(clay-k) "," counter(clay-r, clay-3) / ""; }
+  [data-theme^="clay"] .cnt > .cnt-n { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* tiles and the hero lift under the pointer */
+  [data-theme^="clay"] :is(.mod, .card, .tt) { transition: transform .3s cubic-bezier(.2, .7, .2, 1), box-shadow .3s; }
+  [data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who) { transition: transform .25s cubic-bezier(.2, .7, .2, 1), background-color .25s; }
+  [data-theme^="clay"] .tiles :is(.row, .pj-lines > li, .pj-who):hover { transform: translateY(-2px); }
+  [data-theme^="clay"] .mod.hero:hover { transform: translateY(-4px); box-shadow: 0 18px 32px -16px rgba(191, 61, 21, .7); }
+}

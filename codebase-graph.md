@@ -315,7 +315,7 @@
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ws.js
+- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ui/shell/SectionBar.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -540,8 +540,8 @@
 - **Imports**: @orrama/schema/responses, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js
 
 ### `apps/web/src/money/Overview.tsx`
-- **Exports**: shownMonth, Overview, Found, default
-- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js
+- **Exports**: shownMonth, Overview, aheadOfTypical, Found, default
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js, ../ui/CountUp.js
 
 ### `apps/web/src/money/Savings.tsx`
 - **Exports**: SavingsPage
@@ -762,10 +762,14 @@
 
 ### `apps/web/src/today/modules.tsx`
 - **Exports**: Loaded, DueModule, MailData, MailModule, PeopleModule, ComingUpModule, ProjectsModule, monthWord, MoneyModule, paceSentence, NoticedData, NoticedModule
-- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js, ../entity/links.js, ../noticed/model.js, ../ui/router.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/states.js, ../mail/people.js, ./model.js, ./Timetable.js, ../entity/links.js, ../noticed/model.js, ../ui/router.js, ../ui/CountUp.js
 
 ### `apps/web/src/today/title.ts`
-- **Exports**: todayTitle, isoWeek
+- **Exports**: todayTitle, greeting, isoWeek
+
+### `apps/web/src/ui/CountUp.tsx`
+- **Exports**: CountUp
+- **Imports**: react
 
 ### `apps/web/src/ui/ErrorBoundary.tsx`
 - **Exports**: ErrorBoundary

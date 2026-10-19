@@ -156,6 +156,34 @@ describe("the first frame (WEB-019)", () => {
   });
 });
 
+describe("Clay's motion (19 Oct)", () => {
+  it("every animation and every lift in clay.css plays only for those who allow motion", () => {
+    const clay = fs.readFileSync(path.resolve(WEB, "../../packages/ui/src/clay.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const start = clay.indexOf("@media (prefers-reduced-motion: no-preference)");
+    expect(start).toBeGreaterThan(0);
+    // the block: from its opening brace to the brace that closes it
+    let depth = 0;
+    let end = clay.indexOf("{", start);
+    for (let i = end; i < clay.length; i++) {
+      if (clay[i] === "{") depth++;
+      else if (clay[i] === "}" && --depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    const inside = clay.slice(start, end);
+    const outside = clay.slice(0, start) + clay.slice(end + 1);
+    expect(inside).toMatch(/animation:/);
+    expect(outside.match(/[^-]animation(-[a-z]+)?\s*:[^;]*/g) ?? []).toEqual([]);
+    const lifts = [...outside.matchAll(/([^{}]*:hover[^{}]*)\{([^}]*)\}/g)].filter((m) => /transform\s*:/.test(m[2]!)).map((m) => m[1]!.trim());
+    expect(lifts).toEqual([]);
+    // the counting digits never reach a screen reader: their alternative text is empty
+    expect(inside).toMatch(/\.cnt::before \{[^}]*\/ ""/);
+    // and they never read the animated integer itself: WebKit steps it through fractions
+    expect(clay).not.toMatch(/counter(-reset)?\([^)]*clay-n|clay-n var\(/);
+  });
+});
+
 /** A selector list's selectors: split at the commas outside parentheses (`:is(a, b)` is one). */
 function topLevel(list: string): string[] {
   const out: string[] = [];
