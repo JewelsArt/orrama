@@ -60,6 +60,16 @@
 .rail .ri.on .dot { box-shadow: 0 0 0 2px var(--orr-wash); }
 .rail .ri .hd { width: 22px; height: 22px; display: block; }
 .rail .grow { flex: 1; min-height: 8px; }
+/* Day and night at the top of the rail (19 Oct 2026, from Clay; Jules chose it for Paper too):
+   side by side in Paper's wider rail, the lit one, the mode you're in, a white disc like a box
+   on the paper ground, so it never reads as the current place (orange). Clay draws its own. */
+.cmode { display: flex; gap: 4px; flex: none; }
+.cmode button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; }
+.cmode button:hover { color: var(--ink); background: var(--hover); }
+.cmode button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cmode button[aria-pressed="true"] { color: var(--ink); background: var(--surface); box-shadow: inset 0 0 0 1px var(--card-line), var(--shadow-card); }
+.cmode svg.i { width: 18px; height: 18px; }
+.cmode-sep { display: block; width: 40px; height: 1px; flex: none; margin: 8px 0 6px; background: var(--line-2); }
 .rail .update, .more-sheet .update {
   width: 72px;
   flex: none;

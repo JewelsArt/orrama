@@ -251,6 +251,7 @@
 
 /* day and night at the top of the rail: the lit one is the mode you're in */
 [data-theme^="clay"] .cmode { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+[data-theme^="clay"] .cmode button[aria-pressed="true"] { box-shadow: none; }
 [data-theme^="clay"] .cmode button { width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink-3); cursor: pointer; padding: 0; transition: background-color .25s, color .25s; }
 [data-theme^="clay"] .cmode button:hover { background: var(--hover); color: var(--ink); }
 [data-theme^="clay"] .cmode button:focus-visible { outline: none; box-shadow: var(--focus-ring); }

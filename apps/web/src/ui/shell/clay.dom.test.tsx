@@ -1,8 +1,8 @@
 /**
  * Clay's shell (19 October 2026, canvas page 4h): the two navs and day or night in the rail.
  * A page's sections go to the top bar in Clay and stay in place in Paper (SectionBar); the sun
- * and the moon replace F3's button in Clay only; Find and your Orr move to the top bar, except
- * on Settings, whose board keeps them in the rail.
+ * and the moon replace F3's button (in Paper too: Jules, 19 Oct); Find and your Orr move to the
+ * top bar in Clay, except on Settings, whose board keeps them in the rail.
  */
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -102,10 +102,15 @@ describe("day or night in the rail", () => {
     expect(within(group).getByRole("button", { name: "Day" }).getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("Paper keeps F3's one button and has no sun and moon", () => {
-    mount({ look: "paper", shown: "light" });
-    expect(within(rail()).queryByRole("group", { name: "Day or night" })).toBeNull();
-    expect(rail().querySelector(".ri.theme")?.getAttribute("aria-label")).toBe("Switch to dark");
+  it("Paper has the same sun and moon at the top of its rail (Jules, 19 Oct), and keeps Find in it", async () => {
+    const user = userEvent.setup();
+    const onTheme = mount({ look: "paper", shown: "dark" });
+    const group = within(rail()).getByRole("group", { name: "Day or night" });
+    expect(rail().firstElementChild).toBe(group);
+    expect(within(group).getByRole("button", { name: "Night" }).getAttribute("aria-pressed")).toBe("true");
+    expect(rail().querySelector(".ri.theme")).toBeNull();
     expect(within(rail()).getByRole("button", { name: /Find/ })).toBeTruthy();
+    await user.click(within(group).getByRole("button", { name: "Day" }));
+    expect(onTheme).toHaveBeenLastCalledWith("light");
   });
 });

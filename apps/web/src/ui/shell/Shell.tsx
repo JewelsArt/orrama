@@ -4,13 +4,13 @@
  * Desktop: a rail on the paper ground with the eight places in order, then the update note
  * (only after a ship), Find, Ask Orr (his head) and your Orr at the foot, which opens
  * Settings → You. Reload and Back left the rail (§8 #4): ⌘R and the browser's own Back do
- * those now. Dark came back (Jules, 13 Oct, F3): one button above Find switches light ↔ dark
- * for the account, and its tooltip says which way. No keycaps on screen (§8 #5): a place's key
- * is in its tooltip.
+ * those now. Dark came back (Jules, 13 Oct, F3) as one button above Find; since 19 Oct it is a
+ * sun and a moon at the top of the rail in both looks, the lit one the mode you're in (Jules
+ * chose Clay's pair for Paper too). No keycaps on screen (§8 #5): a place's key is in its
+ * tooltip.
  *
  * Clay (19 Oct 2026, canvas page 4h) draws the same places as the Vertix reel does: the rail is
- * a capsule of round icons with the sun and the moon at its top (the lit one is the mode you're
- * in; F3's button goes), and a top bar holds the page's own sections (SectionBar.tsx), Find,
+ * a capsule of round icons with the sun and the moon at its top, and a top bar holds the page's own sections (SectionBar.tsx), Find,
  * and a pill with your Orr and name that opens Settings, so Find and your Orr leave the rail.
  * Settings has no top bar on its board: there they stay in the rail.
  *
@@ -92,7 +92,7 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
     <ShellLookContext.Provider value={lookContext}>
     <div className="app">
       <nav className="rail ui" aria-label="Places">
-        {clay && <DayOrNight shown={shown} onTheme={onTheme} />}
+        <DayOrNight shown={shown} onTheme={onTheme} />
         {PLACES.map(({ place, label, key }) => (
           <a
             key={place}
@@ -113,7 +113,6 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
             Update ready<span>Reload</span>
           </button>
         )}
-        {!clay && <ThemeButton shown={shown} onTheme={onTheme} />}
         {!topBar && (
           <button type="button" className="ri" data-tip="Find  ⌘K" onClick={onFind}>
             <Icon name="search" />
@@ -246,10 +245,10 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
 }
 
 /**
- * Day and night at the top of Clay's rail, as in the reel: both always there, the lit one is
- * the mode you're in (a grey circle, so it never reads as where you are, which is black).
- * Picking one is the same change as F3's button: the account's theme, and this device stops
- * matching its system.
+ * Day and night at the top of the rail, as in the Vertix reel (Clay, 19 Oct; Paper too, Jules's
+ * choice the same day): both always there, the lit one is the mode you're in (never drawn like
+ * where you are). Picking one sets the account's theme, and this device stops matching its
+ * system (App's changeTheme). It replaces F3's single light ↔ dark button.
  */
 function DayOrNight({ shown, onTheme }: { shown: Shown; onTheme: (choice: Shown) => void }) {
   return (
@@ -275,22 +274,5 @@ function PhoneTab({ place, on }: { place: Place; on: boolean }) {
       <Icon name={ICON[place]} />
       {label}
     </a>
-  );
-}
-
-/**
- * Light ↔ dark for the account, in one click (Jules, 13 Oct). It shows the way it goes: the
- * moon and "Dark" while the page is light, the sun and "Light" while it is dark. A device on
- * Match this device stops matching and takes the opposite of what it shows (changeTheme with
- * "light" or "dark" does both).
- */
-function ThemeButton({ shown, onTheme }: { shown: Shown; onTheme: (choice: Shown) => void }) {
-  const to: Shown = shown === "dark" ? "light" : "dark";
-  const word = to === "dark" ? "Dark" : "Light";
-  return (
-    <button type="button" className="ri theme" data-tip={`Switch to ${to}`} aria-label={`Switch to ${to}`} onClick={() => onTheme(to)}>
-      <Icon name={to === "dark" ? "moon" : "sun"} />
-      {word}
-    </button>
   );
 }

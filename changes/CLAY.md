@@ -23,6 +23,8 @@ Built to canvas page "4h · Theme: Clay" (approved by Jules 19 Oct 2026), the pr
 - Motion under `prefers-reduced-motion: no-preference` only; the hero's figure counts up
   (`ui/CountUp.tsx`, registered integers, real figure kept as text) (070ec57)
 - The wavy day ↔ night reveal on `::view-transition-new(root)`, 780 ms (`ui/wavy.ts`) (562eeaf)
+- Paper gets the sun and moon too, and F3's single button goes (Jules's answer, 19 Oct): side by
+  side at the top of Paper's rail, the lit one a white disc (see the last commit)
 - changes/CLAY.md (this file)
 
 ## Audit tickets fixed
@@ -34,6 +36,8 @@ Built to canvas page "4h · Theme: Clay" (approved by Jules 19 Oct 2026), the pr
   sections at the top, a sun and a moon to switch, and motion (none if your device asks for less).
 - Changed: Settings → Appearance asks for the look first, then light or dark (Day, Night, Match
   this device). Match this device works for either look.
+- Changed: the rail's light ↔ dark button is now a sun and a moon at the top of the rail; the lit
+  one is the mode you're in.
 
 ## CLAUDE.md changes to apply (exact text, and where)
 - "Design rules", first paragraph, after "(accounts store dark as `command`, read as an alias).":
@@ -51,10 +55,10 @@ Built to canvas page "4h · Theme: Clay" (approved by Jules 19 Oct 2026), the pr
 - "Conventions & gotchas", the bullet "**The first frame**", replace its last two sentences
   ("The account keeps light or dark; …" to the end) with:
   > The account keeps light or dark and the look (Paper or Clay); "Match this device" is a
-  > per-device key, `orrama-theme-device`, and the look is cached as `orrama-look`. The rail's
-  > light ↔ dark button (`ThemeButton`, `ui/shell/Shell.tsx`) in Paper, and the sun and moon at the
-  > top of the rail in Clay, call App's `changeTheme("light" | "dark")`, which keeps the look and
-  > stops Match this device. Every theme change goes through `wipeTo` (App.tsx): Paper's plain
+  > per-device key, `orrama-theme-device`, and the look is cached as `orrama-look`. The sun and
+  > the moon at the top of the rail (`DayOrNight`, `ui/shell/Shell.tsx`, both looks; they replaced
+  > F3's single button on 19 Oct) call App's `changeTheme("light" | "dark")`, which keeps the look
+  > and stops Match this device. Every theme change goes through `wipeTo` (App.tsx): Paper's plain
   > circle (`html.rippling`), Clay's wavy edge (`ui/wavy.ts`, played on
   > `::view-transition-new(root)` with the Web Animations API), nothing with reduced motion.
 - Layout table, `apps/web/src/` row, after "`ui/Icon.tsx` (line icons; no glyphs, no emoji),":
@@ -80,14 +84,14 @@ Built to canvas page "4h · Theme: Clay" (approved by Jules 19 Oct 2026), the pr
 - Orr's sprite in the top bar is the account's own Orr (the board drew victOrr).
 
 ## Not done (and why) / needs Jules
-Decisions asked with the question tool at the end of the session (built with the
-recommendation meanwhile):
-1. Pages with no board: every page but Settings gets Clay's top bar (Find and you, top right);
-   only Money, a project, Planning and Projects hand it sections. Should Mail's categories (All,
-   Primary, Updates…) move up too? People's search and sector? (Built: they stay in place.)
-2. The greeting's hours: morning 5–12, afternoon 12–18, evening otherwise (built), the first word
-   of the display name.
-3. Paper keeps F3's single button; the sun and moon are Clay's only (built). Give Paper the pair?
+Nothing open. Jules answered the three questions on 19 Oct:
+1. Mail's categories (and People's search) stay in place; every page but Settings gets Clay's
+   top bar with Find and you, and only Money, a project, Planning and Projects hand it sections.
+2. The greeting as built: morning 5–12, afternoon 12–18, evening otherwise, the first word of the
+   display name.
+3. Paper gets the sun and moon too; F3's single button is gone in both looks. So Paper is not
+   pixel-identical any more at the top of its rail (the places sit ~50 px lower); everything else
+   in Paper is as before (`~/basalt-scratch/CLAY/shots/paper/`, taken before that change).
 
 ## Files touched outside my ownership
 - `apps/web/src/Finance.tsx`, `Project.tsx`, `Planning.tsx`, `Overview.tsx`: wrap their sections
@@ -111,6 +115,7 @@ recommendation meanwhile):
 - Every commit: `pnpm typecheck --force` and `pnpm test` green, except path-identity's STO-012
   case-only rename, the watcher flake plan.md lists under load (passes alone every time).
 - Every behaviour's test sabotage-checked (each commit message lists them).
+- Paper's rail with the pair, day and night: `~/basalt-scratch/CLAY/shots/paper/rail-both.png`.
 - Screenshots (WebKit, scripts-style WKWebView probe), board beside app, day and night, desktop
   and phone: `~/basalt-scratch/CLAY/shots/*.png`; the sweep of screens with no board:
   `~/basalt-scratch/CLAY/shots/sheet-*.png`; Paper before and after:
