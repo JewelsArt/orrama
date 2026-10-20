@@ -1,15 +1,17 @@
 /**
  * What a time item opens in place, as R0's Popover (it was its own `cal-popup` with a
  * backdrop): booked time with its budget, length and Remove; your event with its name, length
- * and Delete; a subscribed calendar's occurrence, read-only; and a new event where you
+ * and Delete; a subscribed calendar's occurrence, read-only, with its call, place and
+ * description when the feed has them; and a new event where you
  * double-clicked. Lengths step by half an hour or take a typed "1.5h".
  */
 import { useMemo, useState, type RefObject } from "react";
 import { parseDurationInput } from "../calendarMath.js";
-import { Button } from "../ui/controls.js";
+import { Button, LinkButton } from "../ui/controls.js";
 import { dateLabel, minutesLabel } from "../ui/dates.js";
 import { Input } from "../ui/fields.js";
 import { Popover } from "../ui/overlays.js";
+import { cardDetails, type CardDetails } from "./details.js";
 import { hoursLabel, type Item } from "./model.js";
 import { SNAP } from "./Hours.js";
 
@@ -191,6 +193,7 @@ function ItemBody({ item, anchor, onClose, actions }: { item: Item; anchor: HTML
       <p className="plan-pop-meta">
         {when} · {ev?.source === "ics" ? `${ev.feedLabel ?? "a feed"}, read-only` : "your calendar"}
       </p>
+      {ev?.source === "ics" && <FeedDetails details={cardDetails(ev)} />}
       {editable && (
         <>
           <Length value={len} onChange={(v) => void setLength(v)} label="Length" />
@@ -205,6 +208,69 @@ function ItemBody({ item, anchor, onClose, actions }: { item: Item; anchor: HTML
             </Button>
           </div>
         </>
+      )}
+    </>
+  );
+}
+
+/** Opens outside the app, never with this page as its opener. */
+const OUT = { target: "_blank", rel: "noopener noreferrer" } as const;
+
+/** A subscribed occurrence's call, place and description, as text and http(s) links only. */
+function FeedDetails({ details }: { details: CardDetails | null }) {
+  if (!details) return null;
+  const { join, place, lines, page } = details;
+  return (
+    <>
+      {(join || page) && (
+        <div className="plan-pop-acts">
+          {join && (
+            <LinkButton kind="solid" size="sm" href={join.href} {...OUT}>
+              {join.label}
+            </LinkButton>
+          )}
+          {page && (
+            <LinkButton kind="quiet" size="sm" icon="ext" href={page.href} {...OUT}>
+              {page.label}
+            </LinkButton>
+          )}
+        </div>
+      )}
+      {place && (
+        <p className="plan-pop-place">
+          {place.kind === "map" ? (
+            <a href={place.href} {...OUT} title="Open in Google Maps">
+              {place.text}
+            </a>
+          ) : (
+            place.parts.map((p, i) =>
+              typeof p === "string" ? (
+                p
+              ) : (
+                <a key={i} href={p.href} {...OUT} title={p.href}>
+                  {p.label}
+                </a>
+              ),
+            )
+          )}
+        </p>
+      )}
+      {lines.length > 0 && (
+        <div className="plan-pop-desc">
+          {lines.map((parts, i) => (
+            <p key={i} className={parts.length === 0 ? "gap" : undefined}>
+              {parts.map((p, j) =>
+                typeof p === "string" ? (
+                  p
+                ) : (
+                  <a key={j} href={p.href} {...OUT} title={p.href}>
+                    {p.label}
+                  </a>
+                ),
+              )}
+            </p>
+          ))}
+        </div>
       )}
     </>
   );

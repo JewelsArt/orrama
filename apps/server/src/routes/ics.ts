@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { canRead } from "@orrama/core";
 import { tables, type Db } from "../db.js";
-import { buildIcs, expandIcsReport, parseIcs, type IcsExportItem, type VEvent } from "../ics.js";
+import { buildIcs, expandIcsReport, parseIcs, type IcsDetails, type IcsExportItem, type VEvent } from "../ics.js";
 import { decryptSecret, encryptSecret } from "../secrets.js";
 import { BlockedTargetError, safeFetch } from "../safeFetch.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -87,6 +87,8 @@ export interface IcsCalItem {
   readonly: true;
   feedLabel: string;
   allDay: boolean;
+  /** Where, what and the call, as the feed gave them (clean text and http(s) links only, `ics.ts`). */
+  details?: IcsDetails;
 }
 
 /** All ICS occurrences in range for the requesting user's own feeds. */
@@ -114,6 +116,7 @@ export async function icsEventsFor(db: Db, userId: string, username: string, fro
           readonly: true,
           feedLabel: feed.label,
           allDay: o.allDay,
+          ...(o.details && { details: o.details }),
         });
       }
     }),

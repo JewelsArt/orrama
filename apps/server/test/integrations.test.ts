@@ -145,6 +145,9 @@ describe("inbound ICS feeds", () => {
       "DTEND;TZID=Europe/Amsterdam:20260629T110000",
       "RRULE:FREQ=WEEKLY;BYDAY=MO,TH",
       "SUMMARY:TCL exam prep",
+      "LOCATION:Room B2",
+      "DESCRIPTION:Bring <b>chapter 4</b>",
+      "X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij",
       "END:VEVENT",
       "END:VCALENDAR",
     ].join("\r\n");
@@ -164,6 +167,8 @@ describe("inbound ICS feeds", () => {
     ]);
     expect(ics[0].readonly).toBe(true);
     expect(ics[0].feedLabel).toBe("Uni");
+    // What the card shows besides the time comes with it, to the feed's owner.
+    expect(ics[0].details).toEqual({ location: "Room B2", description: "Bring chapter 4", conference: "https://meet.google.com/abc-defg-hij" });
 
     // Erin queries the same range: jules's subscribed calendar is not hers to see.
     const erin = await api("GET", "/api/events?from=2026-07-06&to=2026-07-12", tokens["erin"]);

@@ -9,6 +9,8 @@
  * COUNT, UNTIL, EXDATE, RECURRENCE-ID overrides, STATUS:CANCELLED.
  */
 
+import { Parser } from "htmlparser2";
+
 const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const DAY_MS = 86_400_000;
 const MAX_OCCURRENCES = 3000;
@@ -42,6 +44,23 @@ export interface VEvent {
   exdates: number[]; // UTC ms of excluded occurrence starts
   recurrenceId: number | null; // UTC ms of the occurrence this overrides
   cancelled: boolean;
+  /** What the card shows besides the time; each override carries its own. */
+  details?: IcsDetails;
+}
+
+/**
+ * What a feed says about an event besides its time: where, what, and the call.
+ * The feed is untrusted input, so all of it is already clean here — text only
+ * (a description's HTML read down to its words), capped, and the two links
+ * kept only when they are http(s).
+ */
+export interface IcsDetails {
+  location?: string;
+  description?: string;
+  /** The event's own URL property. */
+  url?: string;
+  /** The meeting to join: Google's X-GOOGLE-CONFERENCE, else a known meeting link in the text. */
+  conference?: string;
 }
 
 /** One concrete occurrence, in server-local calendar coordinates. */
@@ -52,6 +71,7 @@ export interface IcsOccurrence {
   startMin: number;
   durationMin: number;
   allDay: boolean;
+  details?: IcsDetails;
 }
 
 /* ---------- timezone math (Intl-based, no tz database dependency) ---------- */
@@ -162,18 +182,141 @@ function parseDuration(value: string): number | null {
   return m[1] ? -min : min;
 }
 
+/**
+ * RFC 5545 TEXT, in one pass: `\n` is a line break, `\,` `\;` `\\` the character.
+ * Two passes read `\\n` (an escaped backslash, then n) as a line break.
+ */
 function unescapeText(v: string): string {
-  return v.replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1");
+  return v.replace(/\\(.)/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c));
+}
+
+/** A description longer than this is cut, with an ellipsis: it is a card, not a reader. */
+export const MAX_DESCRIPTION = 2000;
+const MAX_LOCATION = 300;
+const MAX_URL = 2000;
+
+/** An http(s) URL as written, or undefined. Nothing else becomes a link (no javascript:, no data:). */
+export function httpUrl(raw: string | undefined): string | undefined {
+  const v = raw?.trim();
+  if (!v || v.length > MAX_URL || /[\s<>"]/.test(v)) return undefined;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" || u.protocol === "http:" ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Hosts whose links are a meeting to join, for feeds that do not name it (Outlook, Teams, Zoom invites). */
+const MEETING_HOSTS = /^(?:meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|(?:[\w-]+\.)?zoom\.us|(?:[\w-]+\.)?webex\.com|whereby\.com)$/i;
+const URLS = /https?:\/\/[^\s<>"()\[\]]+/g;
+/** URLS without the g flag, for `.test()` (a global regex keeps its lastIndex between calls). */
+const HAS_URL = new RegExp(URLS.source);
+
+/** Tags whose end is a line break in the text they become. */
+const BLOCK_TAGS = new Set(["br", "p", "div", "li", "ul", "ol", "tr", "table", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "hr"]);
+/** Dropped with everything inside them. */
+const OPAQUE_TAGS = new Set(["script", "style", "head", "title", "template", "iframe", "object", "svg", "math", "noscript"]);
+const LOOKS_HTML = /<\/?(?:a|b|i|u|br|p|div|span|ul|ol|li|strong|em|html|body|font|table|h[1-6])\b[^>]*>/i;
+
+/**
+ * A description as plain text. Google writes descriptions edited in its web
+ * app as HTML; that is read down to its words here and never rendered. A link
+ * whose words are not its address keeps the address after them, so it can
+ * still be followed. Not yet capped (`capped`).
+ */
+export function descriptionText(raw: string): string {
+  let text = raw;
+  if (LOOKS_HTML.test(raw)) {
+    let out = "";
+    let opaque = 0;
+    const links: { href: string | undefined; at: number }[] = [];
+    const parser = new Parser(
+      {
+        onopentag(name, attrs) {
+          if (OPAQUE_TAGS.has(name)) opaque++;
+          else if (name === "a") links.push({ href: httpUrl(attrs["href"]), at: out.length });
+          else if (name === "br") out += "\n";
+        },
+        ontext(t) {
+          if (opaque === 0) out += t;
+        },
+        onclosetag(name) {
+          if (OPAQUE_TAGS.has(name)) opaque = Math.max(0, opaque - 1);
+          else if (name === "a") {
+            const link = links.pop();
+            // Words that already hold an address (Google wraps its own in a redirect) need no second one.
+            if (link?.href && !HAS_URL.test(out.slice(link.at))) out += ` ${link.href}`;
+          } else if (name !== "br" && BLOCK_TAGS.has(name) && !out.endsWith("\n")) out += "\n";
+        },
+      },
+      { decodeEntities: true, lowerCaseTags: true },
+    );
+    parser.write(raw);
+    parser.end();
+    text = out;
+  }
+  return text
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** At most MAX_DESCRIPTION characters, never half of one, with an ellipsis when cut. */
+function capped(text: string): string {
+  if (text.length <= MAX_DESCRIPTION) return text;
+  return `${Array.from(text).slice(0, MAX_DESCRIPTION).join("").trimEnd()}…`;
+}
+
+/** The first meeting link in some text, or undefined. */
+function meetingLinkIn(text: string | undefined): string | undefined {
+  for (const m of text?.matchAll(URLS) ?? []) {
+    const url = httpUrl(m[0].replace(/[.,;:!?]+$/, ""));
+    if (!url) continue;
+    try {
+      if (MEETING_HOSTS.test(new URL(url).hostname)) return url;
+    } catch {
+      /* not a URL after all */
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Google's own "Join with Google Meet … Please do not edit this section." block,
+ * fenced by `-::~:~::~:…::-` lines. With the meeting as its own button it only
+ * repeats it (and the dial-in numbers), so it goes.
+ */
+const GOOGLE_INVITE_BLOCK = /-::~[:~]*::-[\s\S]*?-::~[:~]*::-/g;
+
+/** The event's details from its raw properties, clean, or undefined when it has none. */
+function detailsOf(raw: { location?: string; description?: string; url?: string; conference?: string }): IcsDetails | undefined {
+  let text = raw.description ? descriptionText(raw.description) : "";
+  const location = raw.location?.replace(/\s+/g, " ").trim().slice(0, MAX_LOCATION) || undefined;
+  const conference = httpUrl(raw.conference) ?? meetingLinkIn(location) ?? meetingLinkIn(text);
+  // Before the cap, which could cut the block's closing fence off.
+  if (conference) text = text.replace(GOOGLE_INVITE_BLOCK, "").trim();
+  const description = text ? capped(text) : undefined;
+  const details: IcsDetails = {};
+  if (location) details.location = location;
+  if (description) details.description = description;
+  const url = httpUrl(raw.url);
+  if (url) details.url = url;
+  if (conference) details.conference = conference;
+  return Object.keys(details).length > 0 ? details : undefined;
 }
 
 export function parseIcs(text: string): VEvent[] {
   const lines = unfold(text);
   const events: VEvent[] = [];
-  let cur: Partial<VEvent> & { start?: Wall; end?: Wall; durationRaw?: number } | null = null;
+  let cur: Partial<VEvent> & { start?: Wall; end?: Wall; durationRaw?: number; raw?: { location?: string; description?: string; url?: string; conference?: string } } | null = null;
 
   for (const line of lines) {
     if (line === "BEGIN:VEVENT") {
-      cur = { exdates: [], rrule: null, recurrenceId: null, cancelled: false, title: "(untitled)" };
+      cur = { exdates: [], rrule: null, recurrenceId: null, cancelled: false, title: "(untitled)", raw: {} };
       continue;
     }
     if (line === "END:VEVENT") {
@@ -192,6 +335,7 @@ export function parseIcs(text: string): VEvent[] {
           exdates: cur.exdates ?? [],
           recurrenceId: cur.recurrenceId ?? null,
           cancelled: cur.cancelled ?? false,
+          details: detailsOf(cur.raw ?? {}),
         });
       }
       cur = null;
@@ -206,6 +350,18 @@ export function parseIcs(text: string): VEvent[] {
         break;
       case "SUMMARY":
         cur.title = unescapeText(prop.value);
+        break;
+      case "LOCATION":
+        cur.raw!.location = unescapeText(prop.value);
+        break;
+      case "DESCRIPTION":
+        cur.raw!.description = unescapeText(prop.value);
+        break;
+      case "URL":
+        cur.raw!.url = prop.value;
+        break;
+      case "X-GOOGLE-CONFERENCE":
+        cur.raw!.conference = prop.value;
         break;
       case "DTSTART":
         cur.start = parseDt(prop.value, prop.params) ?? cur.start;
@@ -525,7 +681,7 @@ export function expandIcsReport(events: VEvent[], from: string, to: string, maxS
       const days = Math.max(1, Math.round(ev.durationMin / 1440));
       for (let i = 0; i < days; i++) {
         const day = wallDateStr(addDays(startWall, i));
-        if (day >= from && day <= to) out.push({ uid: ev.uid, title: ev.title, date: day, startMin: 0, durationMin: 1440, allDay: true });
+        if (day >= from && day <= to) out.push({ uid: ev.uid, title: ev.title, date: day, startMin: 0, durationMin: 1440, allDay: true, ...(ev.details && { details: ev.details }) });
       }
       return;
     }
@@ -534,7 +690,7 @@ export function expandIcsReport(events: VEvent[], from: string, to: string, maxS
     // One that began before the window and still runs into it is kept, under
     // its own start date: its time inside the window is busy (audit COR-010).
     if (slot.date > to) return;
-    out.push({ uid: ev.uid, title: ev.title, date: slot.date, startMin: slot.startMin, durationMin: ev.durationMin, allDay: false });
+    out.push({ uid: ev.uid, title: ev.title, date: slot.date, startMin: slot.startMin, durationMin: ev.durationMin, allDay: false, ...(ev.details && { details: ev.details }) });
   };
 
   for (const ev of events) {

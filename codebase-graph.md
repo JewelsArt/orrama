@@ -58,7 +58,8 @@
 - **Imports**: drizzle-orm, yjs, @orrama/sync, ./db.js
 
 ### `apps/server/src/ics.ts`
-- **Exports**: MAX_EXPAND_STEPS, VEvent, IcsOccurrence, wallToUtc, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
+- **Exports**: MAX_EXPAND_STEPS, VEvent, IcsDetails, IcsOccurrence, wallToUtc, MAX_DESCRIPTION, httpUrl, descriptionText, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
+- **Imports**: htmlparser2
 
 ### `apps/server/src/logging.ts`
 - **Exports**: redactUrl, reqSerializer, errSerializer, privateLogFiles, LOG_ROTATE_BYTES, AGENT_LOG, rotateLogIfLarge
@@ -663,7 +664,7 @@
 
 ### `apps/web/src/planning/ItemPopover.tsx`
 - **Exports**: Pop, PopActions, ItemPopover
-- **Imports**: react, ../calendarMath.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ./model.js, ./Hours.js
+- **Imports**: react, ../calendarMath.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ./details.js, ./model.js, ./Hours.js
 
 ### `apps/web/src/planning/Lanes.tsx`
 - **Exports**: LanesProps, dropTarget, startDrag, Lanes
@@ -684,6 +685,10 @@
 ### `apps/web/src/planning/ToPlan.tsx`
 - **Exports**: ToPlanProps, ToPlanPanel, ToPlanSheet
 - **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/overlays.js, ./model.js, ./Hours.js
+
+### `apps/web/src/planning/details.ts`
+- **Exports**: webLink, joinLabel, mapsLink, Place, CardDetails, cardDetails
+- **Imports**: @orrama/schema/responses, ../mail/plainText.js
 
 ### `apps/web/src/planning/model.ts`
 - **Exports**: Proposal, ItemKind, LaneId, Item, CALENDAR_LANE, DATED_LANE, money, hoursLabel, taskKey, buildItems, byDay, itemsOn, Lane, weekLanes, nextWeeks, bookedOn, DEFAULT_START, DEFAULT_END, windowFor, firstScroll, dueCounts, ToPlanCut, toPlanCuts, dueWords, proposalWords, nowAlong, weekDays

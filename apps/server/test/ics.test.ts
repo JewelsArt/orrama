@@ -5,7 +5,7 @@
 process.env.TZ = "Europe/Amsterdam";
 
 import { describe, expect, it } from "vitest";
-import { buildIcs, expandIcs, expandIcsReport, MAX_EXPAND_STEPS, parseIcs } from "../src/ics.js";
+import { buildIcs, expandIcs, expandIcsReport, foldLine, MAX_DESCRIPTION, MAX_EXPAND_STEPS, parseIcs } from "../src/ics.js";
 
 const wrap = (body: string) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${body}\r\nEND:VCALENDAR\r\n`;
 
@@ -444,5 +444,98 @@ describe("buildIcs, long and awkward titles", () => {
   it("round-trips through the parser to the same title, breaks as \\n", () => {
     const [ev] = parseIcs(ics);
     expect(ev!.title).toBe(title.replace(/\r\n?/g, "\n"));
+  });
+});
+
+describe("parseIcs: what a subscribed event's card shows besides the time", () => {
+  /** One event, its lines folded at 75 octets the way Google writes them. */
+  const one = (...props: string[]) =>
+    parseIcs(wrap(["BEGIN:VEVENT", "UID:m1", "DTSTART:20261021T080000Z", "DTEND:20261021T090000Z", "SUMMARY:Sync", ...props, "END:VEVENT"].map(foldLine).join("\r\n")))[0]!;
+  const FENCE = "-::~:~::~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~:~::~:~::-";
+
+  it("reads a Google Meet event: the call, the place, and the words without Google's invite block", () => {
+    const ev = one(
+      "LOCATION:Scooperz\\, Keizersgracht 123\\, 1015 CJ Amsterdam\\, Netherlands",
+      `DESCRIPTION:Q4 report\\; numbers first.\\nAgenda: https://docs.google.com/document/d/abc\\n\\n${FENCE}\\nJoin with Google Meet: https://meet.google.com/abc-defg-hij\\nOr dial: (NL) +31 20 123 4567 PIN: 123456789#\\n\\nPlease do not edit this section.\\n${FENCE}`,
+      "X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij",
+    );
+    expect(ev.details).toEqual({
+      location: "Scooperz, Keizersgracht 123, 1015 CJ Amsterdam, Netherlands",
+      description: "Q4 report; numbers first.\nAgenda: https://docs.google.com/document/d/abc",
+      conference: "https://meet.google.com/abc-defg-hij",
+    });
+  });
+
+  it("reads a description written as HTML down to its words, keeping a link's address", () => {
+    const ev = one(
+      'DESCRIPTION:<b>Bring</b> the deck&nbsp;&amp; the numbers.<br><ul><li>One</li><li>Two</li></ul><a href="https://example.com/brief">the brief</a> and <a href="javascript:alert(1)">this</a><script>alert(1)</script><style>p{}</style><img src=x onerror=alert(1)>',
+    );
+    expect(ev.details?.description).toBe("Bring the deck & the numbers.\nOne\nTwo\nthe brief https://example.com/brief and this");
+  });
+
+  it("does not repeat an address the link's words already hold (Google's redirect around its own links)", () => {
+    const ev = one('DESCRIPTION:<a href="https://www.google.com/url?q=https://example.com/x&amp;sa=D">https://example.com/x</a>');
+    expect(ev.details?.description).toBe("https://example.com/x");
+  });
+
+  it("keeps only http(s) links: a javascript: or data: call or URL is dropped", () => {
+    expect(one("X-GOOGLE-CONFERENCE:javascript:alert(1)", "URL:data:text/html,<script>alert(1)</script>").details).toBeUndefined();
+    expect(one("X-GOOGLE-CONFERENCE:JaVaScRiPt:alert(1)", "URL:https://example.com/event").details).toEqual({ url: "https://example.com/event" });
+  });
+
+  it("finds a Teams or Zoom call in the text when the feed does not name one", () => {
+    const ev = one("DESCRIPTION:Microsoft Teams meeting\\nJoin: https://teams.microsoft.com/l/meetup-join/19%3ameeting_x/0?context=y.\\nhttps://example.com/not-a-call");
+    expect(ev.details?.conference).toBe("https://teams.microsoft.com/l/meetup-join/19%3ameeting_x/0?context=y");
+    expect(one("LOCATION:https://acme.zoom.us/j/123456").details?.conference).toBe("https://acme.zoom.us/j/123456");
+  });
+
+  it("caps a long description, with an ellipsis", () => {
+    const d = one(`DESCRIPTION:${"word ".repeat(2000)}`).details!.description!;
+    expect(d.length).toBeLessThanOrEqual(MAX_DESCRIPTION + 1);
+    expect(d.endsWith("…")).toBe(true);
+  });
+
+  it("reads an escaped backslash before an n as the two characters, not a line break", () => {
+    expect(one("DESCRIPTION:C:\\\\new folder").details?.description).toBe("C:\\new folder");
+  });
+
+  it("an event with none of them has no details", () => {
+    expect(one().details).toBeUndefined();
+  });
+
+  it("a moved occurrence carries its own place and words, the others the series'", () => {
+    const occ = expandIcs(
+      parseIcs(
+        wrap(
+          [
+            "BEGIN:VEVENT",
+            "UID:s1",
+            "DTSTART;TZID=Europe/Amsterdam:20261019T100000",
+            "DTEND;TZID=Europe/Amsterdam:20261019T110000",
+            "RRULE:FREQ=DAILY;COUNT=3",
+            "SUMMARY:Standup",
+            "LOCATION:Room 1",
+            "X-GOOGLE-CONFERENCE:https://meet.google.com/aaa-bbbb-ccc",
+            "END:VEVENT",
+            "BEGIN:VEVENT",
+            "UID:s1",
+            "RECURRENCE-ID;TZID=Europe/Amsterdam:20261020T100000",
+            "DTSTART;TZID=Europe/Amsterdam:20261020T140000",
+            "DTEND;TZID=Europe/Amsterdam:20261020T150000",
+            "SUMMARY:Standup",
+            "LOCATION:Room 2",
+            "DESCRIPTION:Moved for the demo",
+            "END:VEVENT",
+          ].join("\r\n"),
+        ),
+      ),
+      "2026-10-19",
+      "2026-10-25",
+    );
+    expect(occ.map((o) => [o.date, o.details])).toEqual([
+      ["2026-10-19", { location: "Room 1", conference: "https://meet.google.com/aaa-bbbb-ccc" }],
+      ["2026-10-20", { location: "Room 2", description: "Moved for the demo" }],
+      ["2026-10-21", { location: "Room 1", conference: "https://meet.google.com/aaa-bbbb-ccc" }],
+    ]);
   });
 });

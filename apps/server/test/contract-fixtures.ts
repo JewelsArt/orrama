@@ -57,6 +57,10 @@ const ICS = [
   "DTSTART:20261005T090000Z",
   "DTEND:20261005T100000Z",
   "SUMMARY:Subscribed standup",
+  "LOCATION:Keizersgracht 1\\, Amsterdam",
+  "DESCRIPTION:Agenda<br>Notes: <a href=\"https://docs.example.com/x\">doc</a>",
+  "URL:https://example.com/event",
+  "X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij",
   "END:VEVENT",
   "END:VCALENDAR",
 ].join("\r\n");

@@ -293,6 +293,13 @@ export const calEventSchema = o({
   readonly: z.boolean().optional(),
   feedLabel: z.string().optional(),
   allDay: z.boolean().optional(),
+  /** A subscribed occurrence's location, description (plain text) and links (http(s) only). */
+  details: o({
+    location: z.string().optional(),
+    description: z.string().optional(),
+    url: z.string().optional(),
+    conference: z.string().optional(),
+  }).optional(),
 });
 export const eventsResponse = z.array(calEventSchema);
 

@@ -165,6 +165,13 @@
 .plan-pop-stats { display: flex; gap: 14px; font-size: 12.5px; color: var(--ink-3); }
 .plan-pop-stats b { color: var(--ink); font-weight: 700; margin-left: 3px; }
 .plan-pop-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-pop-place { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+/* A subscribed event's description: the feed's text, its addresses as links, scrolled past nine lines. */
+.plan-pop-desc { max-height: 162px; overflow-y: auto; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink-2); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.plan-pop-desc p { margin: 0; }
+.plan-pop-desc p.gap { height: 9px; }
+.plan-pop .plan-pop-place a, .plan-pop .plan-pop-desc a { color: var(--accent); }
+.plan-pop .plan-pop-place a:hover, .plan-pop .plan-pop-desc a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .plan-len { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .plan-len .inp { height: 32px; text-align: center; }
 
