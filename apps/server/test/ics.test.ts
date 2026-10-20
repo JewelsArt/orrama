@@ -466,6 +466,21 @@ describe("parseIcs: what a subscribed event's card shows besides the time", () =
     });
   });
 
+  it("drops Google's unfenced Meet footer in any language, and only when nothing but the call follows", () => {
+    const footer = [
+      "Deelnemen via Google Meet: https://meet.google.com/abc-defg-hij",
+      "Of bel: (NL) +31 20 123 4567 Pincode: 123456789#",
+      "Meer telefoonnummers: https://tel.meet/abc-defg-hij?pin=123456789",
+      "",
+      "Ga voor meer informatie over Meet naar https://support.google.com/a/users/answer/9282720",
+    ].join("\\n");
+    const call = "X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij";
+    expect(one(`DESCRIPTION:${footer}`, call).details).toEqual({ conference: "https://meet.google.com/abc-defg-hij" });
+    expect(one(`DESCRIPTION:Company update to start off the week.\\n\\n${footer}`, call).details?.description).toBe("Company update to start off the week.");
+    // Something of the organiser's own after the link: the text is theirs, left whole.
+    expect(one("DESCRIPTION:Link: https://meet.google.com/abc-defg-hij\\nBring the Q4 deck.", call).details?.description).toBe("Link: https://meet.google.com/abc-defg-hij\nBring the Q4 deck.");
+  });
+
   it("reads a description written as HTML down to its words, keeping a link's address", () => {
     const ev = one(
       'DESCRIPTION:<b>Bring</b> the deck&nbsp;&amp; the numbers.<br><ul><li>One</li><li>Two</li></ul><a href="https://example.com/brief">the brief</a> and <a href="javascript:alert(1)">this</a><script>alert(1)</script><style>p{}</style><img src=x onerror=alert(1)>',

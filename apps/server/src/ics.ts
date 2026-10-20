@@ -292,13 +292,31 @@ function meetingLinkIn(text: string | undefined): string | undefined {
  */
 const GOOGLE_INVITE_BLOCK = /-::~[:~]*::-[\s\S]*?-::~[:~]*::-/g;
 
+/** A line of Google's Meet footer after the join line: its links, a number to dial, or nothing. */
+const MEET_FOOTER_LINE = /^\s*$|https?:\/\/(?:meet\.google\.com|tel\.meet|support\.google\.com)\/|\+\d[\d\s()-]{6,}/;
+
+/**
+ * Google's feed also writes the call as a footer with no fences, in the
+ * calendar's language ("Deelnemen via Google Meet: …", "Of bel: …", "Ga voor
+ * meer informatie over Meet naar …"). It is told by its shape, not its words:
+ * from the line that holds the call's own address to the end, every line is
+ * a Meet, tel.meet or support link, a number to dial, or blank. Anything else
+ * after it, and the text is left alone.
+ */
+function withoutMeetFooter(text: string, conference: string): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => l.includes(conference));
+  if (at < 0 || !lines.slice(at + 1).every((l) => MEET_FOOTER_LINE.test(l))) return text;
+  return lines.slice(0, at).join("\n").trim();
+}
+
 /** The event's details from its raw properties, clean, or undefined when it has none. */
 function detailsOf(raw: { location?: string; description?: string; url?: string; conference?: string }): IcsDetails | undefined {
   let text = raw.description ? descriptionText(raw.description) : "";
   const location = raw.location?.replace(/\s+/g, " ").trim().slice(0, MAX_LOCATION) || undefined;
   const conference = httpUrl(raw.conference) ?? meetingLinkIn(location) ?? meetingLinkIn(text);
   // Before the cap, which could cut the block's closing fence off.
-  if (conference) text = text.replace(GOOGLE_INVITE_BLOCK, "").trim();
+  if (conference) text = withoutMeetFooter(text.replace(GOOGLE_INVITE_BLOCK, "").trim(), conference);
   const description = text ? capped(text) : undefined;
   const details: IcsDetails = {};
   if (location) details.location = location;

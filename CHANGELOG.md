@@ -12,7 +12,7 @@ one is in CLAUDE.md, "Releases".
 - A subscribed calendar's event (Google's secret iCal address, Outlook, Teams, Zoom) shows
   more than its time in Planning: a Join button for its Google Meet, Teams or Zoom call, its
   place (an address opens in Google Maps) and its description as plain text with its links,
-  without Google's "Join with Google Meet … do not edit this section" block. The feed is
+  without the join and dial-in text Google adds to it, in any language. The feed is
   read as text: a description's HTML is read down to its words, only http(s) addresses
   become links, and a long one is cut at 2,000 characters.
 - **Clay**, a second look next to Paper (Settings → Appearance → Look): cool grey and burnt
