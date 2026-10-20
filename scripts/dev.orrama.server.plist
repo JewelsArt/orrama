@@ -4,13 +4,13 @@
   The launchd agent that runs Orrama on the Mac. A TEMPLATE: install it as
   scripts/README.md says, and replace every REPLACE_ME first. The server refuses
   to start on REPLACE_ME (env.ts), so a forgotten secret is a refusal in
-  ~/.basalt-run/server.log, not a server signing sessions with a known key.
+  ~/.orrama-run/server.log, not a server signing sessions with a known key.
   Paths are this machine's (/Users/jules/basalt, Homebrew node).
 -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>dev.basalt.server</string>
+  <string>dev.orrama.server</string>
   <!--
     node itself, not `pnpm start`: launchd signals this process on a stop,
     kickstart -k or logout, and the server's graceful close (watcher, requests,
@@ -31,7 +31,7 @@
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <!-- The Obsidian vault Orrama reads and writes. -->
     <key>ORRAMA_VAULT_DIR</key>
-    <string>/Users/jules/Obsidian Vault</string>
+    <string>/Users/jules/Orrama Vault</string>
     <!-- Every address Orrama is reached at (Host check, Touch ID). -->
     <key>ORRAMA_PUBLIC_ORIGINS</key>
     <string>http://localhost:4623</string>
@@ -46,10 +46,10 @@
   <true/>
   <key>KeepAlive</key>
   <true/>
-  <!-- launchd does not create this folder: mkdir -p ~/.basalt-run first. -->
+  <!-- launchd does not create this folder: mkdir -p ~/.orrama-run first. -->
   <key>StandardOutPath</key>
-  <string>/Users/jules/.basalt-run/server.log</string>
+  <string>/Users/jules/.orrama-run/server.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/jules/.basalt-run/server.log</string>
+  <string>/Users/jules/.orrama-run/server.log</string>
 </dict>
 </plist>

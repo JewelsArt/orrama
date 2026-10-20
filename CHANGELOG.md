@@ -131,6 +131,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- This machine's install no longer carries the Obsidian or Basalt name: the vault is
+  `~/Orrama Vault`, the launchd agents are `dev.orrama.server` and `dev.orrama.vault-backup`, and
+  logs go to `~/.orrama-run` (the server rotates `~/.orrama-run/server.log`). The plist template
+  is `scripts/dev.orrama.server.plist`.
 - Settings → Appearance asks for the look first (Paper or Clay), then light or dark (Day,
   Night, Match this device). Match this device works for either look.
 - The rail's light ↔ dark button is now a sun and a moon at the top of the rail, in both looks;

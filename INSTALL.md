@@ -142,7 +142,7 @@ skip past with devtools.
 This is the setup most people want: Orrama reading the notes they already have.
 
 ```bash
-ORRAMA_VAULT_DIR="$HOME/Obsidian Vault" pnpm --dir apps/server start
+ORRAMA_VAULT_DIR="$HOME/Orrama Vault" pnpm --dir apps/server start
 ```
 
 Orrama reads and writes **those files, live** — the same folder Obsidian opens. The
@@ -225,8 +225,8 @@ the database. Rotate the credential itself at the provider too.
 ### Keep it running in the background (macOS)
 
 A `launchd` agent with `KeepAlive` restarts the server on boot and on crash.
-`scripts/dev.basalt.server.plist` is the template and `scripts/README.md` the
-install steps: create `~/.basalt-run`, fill in the secrets, the vault and the
+`scripts/dev.orrama.server.plist` is the template and `scripts/README.md` the
+install steps: create `~/.orrama-run`, fill in the secrets, the vault and the
 public origins (the server refuses the `REPLACE_ME` placeholders), `chmod 600`,
 then `launchctl bootstrap`.
 

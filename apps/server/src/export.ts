@@ -208,7 +208,7 @@ What is not here
   written in the notes come back from the files themselves.
 
 Restoring
-  1. Stop Orrama (launchd: launchctl bootout gui/$(id -u)/dev.basalt.server).
+  1. Stop Orrama (launchd: launchctl bootout gui/$(id -u)/dev.orrama.server).
   2. Copy basalt.db over ${source}
      and delete basalt.db-wal and basalt.db-shm beside it if they exist.
   3. Start Orrama again. It re-reads the vault on boot.

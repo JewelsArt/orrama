@@ -2,7 +2,7 @@
  * What the request log may say about a request.
  *
  * Fastify logs every request's URL, and under launchd that log is a plain file
- * (~/.basalt-run/server.log) that is never rotated. Secrets rode in URLs: the
+ * (~/.orrama-run/server.log) that is never rotated. Secrets rode in URLs: the
  * live-sync socket put the 30-day session token in `?token=` and reconnected
  * every two seconds while offline, and the calendar feed's secret IS its path
  * (`/ics/<token>.ics`) — Google polls it hourly. By September the log held
@@ -83,8 +83,8 @@ export function privateLogFiles(fds: number[] = [1, 2]): number[] {
 
 /** Past this the log is rotated: one previous generation is kept, so ~10 MB at most. */
 export const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
-/** Where the launchd agent sends stdout and stderr (dev.basalt.server.plist). */
-export const AGENT_LOG = path.join(os.homedir(), ".basalt-run", "server.log");
+/** Where the launchd agent sends stdout and stderr (dev.orrama.server.plist). */
+export const AGENT_LOG = path.join(os.homedir(), ".orrama-run", "server.log");
 
 /**
  * Keep the agent's log from growing forever (audit B7). launchd opens

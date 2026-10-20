@@ -4,7 +4,7 @@
  * The AI SDK's errors hold the request body (the prompt, the notes in it) in
  * `requestBodyValues`, once per attempt in `errors`/`lastError`, and Fastify's
  * generic handler logged an error whole: a failed model call once wrote the
- * text of the notes it was sent into ~/.basalt-run/server.log. `errSerializer`
+ * text of the notes it was sent into ~/.orrama-run/server.log. `errSerializer`
  * (logging.ts) keeps the message and the error's own fields and drops the rest.
  */
 import fs from "node:fs";

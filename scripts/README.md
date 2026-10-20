@@ -1,6 +1,6 @@
 # scripts
 
-## `dev.basalt.server.plist` — run the Orrama server at login
+## `dev.orrama.server.plist` — run the Orrama server at login
 
 The desktop app (`/Applications/Orrama.app`, `Basalt.app` until it is rebuilt) is a native window that loads the
 Orrama server at `http://localhost:4623` (same-origin: the Fastify server serves
@@ -9,23 +9,23 @@ both the built web app and the API). So the app needs that server running.
 This LaunchAgent starts it at login and restarts it if it dies (`KeepAlive`).
 It runs `node --import tsx src/main.ts` in `apps/server` — what `pnpm start`
 runs, without pnpm in between, so launchd's SIGTERM reaches the server and it
-closes cleanly. Logs go to `~/.basalt-run/server.log`.
+closes cleanly. Logs go to `~/.orrama-run/server.log`.
 
 It is a template. Paths are absolute for this machine (`/Users/jules/basalt`,
-`~/Obsidian Vault`, Homebrew node) — edit them if anything moves — and the two
+`~/Orrama Vault`, Homebrew node) — edit them if anything moves — and the two
 secrets are `REPLACE_ME`, which the server refuses to start on.
 
 Install:
 
 ```sh
-mkdir -p ~/.basalt-run                      # launchd does not create the log folder
+mkdir -p ~/.orrama-run                      # launchd does not create the log folder
 pnpm --dir apps/web build                   # the server serves the built bundle
-cp scripts/dev.basalt.server.plist ~/Library/LaunchAgents/
-chmod 600 ~/Library/LaunchAgents/dev.basalt.server.plist   # it holds the secrets
+cp scripts/dev.orrama.server.plist ~/Library/LaunchAgents/
+chmod 600 ~/Library/LaunchAgents/dev.orrama.server.plist   # it holds the secrets
 # Edit the copy: both REPLACE_ME (openssl rand -hex 32 each), ORRAMA_VAULT_DIR,
 # and ORRAMA_PUBLIC_ORIGINS (every address Orrama is reached at).
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.basalt.server.plist
-launchctl kickstart -k gui/$(id -u)/dev.basalt.server   # start it now
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/dev.orrama.server.plist
+launchctl kickstart -k gui/$(id -u)/dev.orrama.server   # start it now
 curl -s http://127.0.0.1:4623/api/health                 # {"ok":true,…}
 ```
 
@@ -37,8 +37,8 @@ AI key or ChatGPT sign-in.
 Check / stop:
 
 ```sh
-launchctl print gui/$(id -u)/dev.basalt.server | grep -E 'state|pid'
-launchctl bootout gui/$(id -u)/dev.basalt.server        # stop + disable
+launchctl print gui/$(id -u)/dev.orrama.server | grep -E 'state|pid'
+launchctl bootout gui/$(id -u)/dev.orrama.server        # stop + disable
 ```
 
 ## `ship.sh` — `pnpm ship`

@@ -7,7 +7,7 @@ user, one vault").
 
 ## Start here (read this first in a new session)
 
-- **The vault is `~/Obsidian Vault`** — the same folder Obsidian opens, not a
+- **The vault is `~/Orrama Vault`** — a plain folder of Markdown, not a
   copy. Orrama reads and writes those files live. `apps/server/data/` holds the
   **live database** (and `vault-old-copy/`, a pre-merge backup you can ignore):
   the index, plus everything that exists only there — accounts, credentials,
@@ -15,7 +15,7 @@ user, one vault").
   reseed or write to it**, in any checkout; run `export` before anything that
   could. Work on a scratch copy (Dev loop).
 - **The app is already running.** A launchd agent
-  (`~/Library/LaunchAgents/dev.basalt.server.plist`, KeepAlive) serves the API on
+  (`~/Library/LaunchAgents/dev.orrama.server.plist`, KeepAlive) serves the API on
   **:4623** *and* the built web bundle from `apps/web/dist`. The desktop app is a
   Tauri window that shows :4623 once it answers as Orrama. `pnpm --dir apps/web dev` (:4625) is for
   iterating; the desktop app does not see it.
@@ -236,12 +236,13 @@ it (`agentWrites.ts`).
 
 A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project's note is `VaultStore.projectNote(key)`: `04-Projects/<slug>.md`, else the note the registration row is anchored to (`projects.note_id`, set to the note that registered the key) while it still carries the tag; the `projectNoteFor` ranking only anchors a row that has none or whose note is gone or untagged, and the choice is stored. It is never chosen from the notes the caller can read: a tag is free text, and that made any folder editor the owner of another team's project (audit ACL-002). Every other tagged note only joins the project. A project is named by that note's `title:`, else by the name it was registered under. `store.projects(user)` lists only projects whose note (or, for a folder project, folder) the reader can read; a registration no note carries any more is the owners'. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals. The Projects board reads only existing endpoints: the steps from `/api/dashboard/<team>`, each project's note and dates from `/api/projects`, the area from `/api/vault/tree`, the people from the links between the project note and contact or company notes in `/api/vault/graph`, and the graph's warnings per project only when `/api/graph/schema` has any.
 
-## One shared vault with Obsidian
+## The vault is a folder other editors share
 
-The vault is `~/Obsidian Vault` — the *same folder* Obsidian opens, not a copy.
+The vault is `~/Orrama Vault` (until 20 Oct 2026 `~/Obsidian Vault`, shared live
+with Obsidian) — the folder itself, not a copy.
 `ORRAMA_VAULT_DIR` (see `env.ts`) points the server at it; the SQLite DB stays in
-`<dataDir>` because it is a cache of the files, not part of the notes. Both apps
-read and write the same Markdown: Obsidian saves whole files and the chokidar
+`<dataDir>` because it is a cache of the files, not part of the notes. Any editor
+can write the same Markdown: an outside editor saves whole files and the chokidar
 watcher re-indexes them; Orrama writes through `VaultStore.write`. Editing the
 *same note* in both at once is the one thing to avoid — last writer wins on the
 overlapping region. A folder linked in from elsewhere (a symlink to a synced
@@ -253,7 +254,7 @@ second name for a file the index holds under a name that still exists is not
 indexed.
 
 On this machine the server runs as a launchd agent
-(`~/Library/LaunchAgents/dev.basalt.server.plist`, `KeepAlive`), which is where
+(`~/Library/LaunchAgents/dev.orrama.server.plist`, `KeepAlive`), which is where
 `ORRAMA_VAULT_DIR` is set — changing the vault path means editing that plist and
 `launchctl unload && load`, not just an export in a shell. The vault deliberately
 lives outside `~/Documents`: that folder is iCloud-synced (rewriting ~600 files
@@ -496,8 +497,7 @@ The app was Basalt until October 2026 (R13 renamed the code; its notes:
 the repo, or already stored, depends on them. Do not "finish" the rename on any of
 them without a migration:
 
-- the launchd labels and plists (`dev.basalt.server`, `dev.basalt.vault-backup`), the
-  log folder `~/.basalt-run`, the database file `basalt.db`, the `~/basalt` checkout,
+- the database file `basalt.db`, the `~/basalt` checkout,
   and the desktop app's identifier `dev.basalt.app` (its saved state and macOS
   permissions belong to it);
 - what other programs read: the webhook headers `x-basalt-event`/`x-basalt-signature`
@@ -793,7 +793,7 @@ an auth frame from an app older than the cookie is ignored.
   rather than leave a doc that reads otherwise. `mergeText` merges with every
   line terminated (Obsidian writes no final newline).
 - **The agent's log rotates itself** (`rotateLogIfLarge`, `logging.ts`): past
-  5 MB at boot or on the hourly check, `~/.basalt-run/server.log` moves to
+  5 MB at boot or on the hourly check, `~/.orrama-run/server.log` moves to
   `server.log.1` (owner-only) and starts again (truncated by name after the
   inode check: Windows refuses to truncate through an append-only handle) —
   only when stdout really is

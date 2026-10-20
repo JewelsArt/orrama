@@ -1,7 +1,7 @@
 /**
  * Settings → Notes says which folder this server reads the notes from (structure.md §3.2, "This
  * server"). It is a path on the Mac, so only an owner may see it, and it is said the way a
- * person writes it: `~/Obsidian Vault`, not `/Users/<name>/Obsidian Vault`.
+ * person writes it: `~/Orrama Vault`, not `/Users/<name>/Orrama Vault`.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -56,7 +56,7 @@ describe("GET /api/settings/server", () => {
 
 describe("homePath", () => {
   it("says a folder under home with a tilde, and leaves others alone", () => {
-    expect(homePath("/Users/x/Obsidian Vault", "/Users/x")).toBe("~/Obsidian Vault");
+    expect(homePath("/Users/x/Orrama Vault", "/Users/x")).toBe("~/Orrama Vault");
     expect(homePath("/Users/x/a/b", "/Users/x")).toBe("~/a/b");
     expect(homePath("/Users/xy/notes", "/Users/x")).toBe("/Users/xy/notes");
     expect(homePath("/srv/notes", "/Users/x")).toBe("/srv/notes");

@@ -1,6 +1,6 @@
 /**
  * The agent's log stays under a cap (logging.ts, audit B7). launchd appends to
- * ~/.basalt-run/server.log forever; by September it was 6.4 MB and climbing.
+ * ~/.orrama-run/server.log forever; by September it was 6.4 MB and climbing.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -79,7 +79,7 @@ describe("rotateLogIfLarge", () => {
 describe("the server under launchd", () => {
   it.skipIf(!STAT_APPEND)(`rotates an over-size log when it starts ${STAT_APPEND ? "" : NO_STAT}`, async () => {
     const home = path.join(tmp, "home");
-    const log = path.join(home, ".basalt-run", "server.log");
+    const log = path.join(home, ".orrama-run", "server.log");
     fs.mkdirSync(path.dirname(log), { recursive: true });
     fs.writeFileSync(log, `${"x".repeat(1023)}\n`.repeat(6 * 1024)); // 6 MB
     const fd = fs.openSync(log, "a");

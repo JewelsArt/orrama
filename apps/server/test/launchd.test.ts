@@ -20,7 +20,7 @@ const root = path.resolve(import.meta.dirname, "../../..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-launchd-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-const plist = fs.readFileSync(path.join(root, "scripts/dev.basalt.server.plist"), "utf8");
+const plist = fs.readFileSync(path.join(root, "scripts/dev.orrama.server.plist"), "utf8");
 const strings = (xml: string) => [...xml.matchAll(/<string>([^<]*)<\/string>/g)].map((m) => m[1]!);
 const section = (key: string, tag: "array" | "dict") => plist.split(`<key>${key}</key>`)[1]!.split(`</${tag}>`)[0]!;
 const program = strings(section("ProgramArguments", "array"));
