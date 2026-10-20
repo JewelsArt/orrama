@@ -24,7 +24,7 @@ vi.mock("../api.js", async (orig) => {
         case "/api/companies":
           return [{ id: "n-kade", name: "Kade Social", path: "Contacts/Companies/Kade Social.md", description: "Social-media agency", sector: "", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false }];
         case "/api/projects":
-          return [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: null, noteId: "n-thesis", total: 4, done: 1, status: "on-track", start: null, deadline: null, nextDue: null, overdue: 0 }];
+          return [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: null, noteId: "n-thesis", total: 4, done: 1, status: "on-track", start: null, deadline: null, group: null, nextDue: null, overdue: 0 }];
         case "/api/vault/graph":
           return { nodes: [], edges: [] };
         case "/api/vault/tree":

@@ -3,7 +3,7 @@ import { api, isAbort, type DashboardData, type DashboardTask, type Me, type Tea
 import { CATEGORIES } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
-import { boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
+import { boardGroups, boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
 import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
 import { areaOf, useNoteAreas } from "./projectArea.js";
 import { useTaskCard } from "./ProjectViews.js";
@@ -137,6 +137,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           href: tabHref(p.slug!, ["overview", "timeline", "documents", "todo"].includes(lastTab) ? lastTab : "overview"),
           noteId,
           area: areaOf(noteId ? areas.get(noteId) : undefined, p.domain),
+          group: row?.group ?? null,
           status: p.status,
           total: p.total,
           done: p.done,
@@ -155,6 +156,9 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const shown = active
     .filter(inArea)
     .sort((a, b) => (a.next?.due ?? "9999").localeCompare(b.next?.due ?? "9999") || a.name.localeCompare(b.name));
+  // One area at a time is split by the projects' groups (Work: Scooperz, Websites…); every area
+  // at once stays one list, where the area's dot already tells them apart.
+  const groups = area ? boardGroups(shown) : null;
   const shelved = shelf ? shelfRows(projects, shelf).filter(inArea) : [];
   const openSteps = shown.reduce((s, p) => s + (p.total - p.done), 0);
   const areaCounts = CATEGORIES.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length })).filter((c) => c.n > 0 || c.id === area);
@@ -250,6 +254,19 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       </div>
     ));
 
+  const columns = (
+    <div className="pg ph" aria-hidden="true">
+      <span />
+      <span>Project · next step</span>
+      <span>Status</span>
+      <span>Next date</span>
+      <span>Key deadline</span>
+      <span>People</span>
+      <span />
+      <span />
+    </div>
+  );
+
   const create = async (name: string) => {
     const res = await api<{ slug: string }>("POST", "/api/projects", { name, ...(area === "school" ? { domain: "academic" } : area === "work" ? { domain: "professional" } : area === "personal" ? { domain: "personal" } : {}) });
     navigate(tabHref(res.slug, "overview"));
@@ -300,20 +317,25 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
         </div>
       )}
 
-      {data && shown.length > 0 && (
+      {data && shown.length > 0 && !groups && (
         <section className="card pjs-board" aria-label="Open projects">
-          <div className="pg ph" aria-hidden="true">
-            <span />
-            <span>Project · next step</span>
-            <span>Status</span>
-            <span>Next date</span>
-            <span>Key deadline</span>
-            <span>People</span>
-            <span />
-            <span />
-          </div>
+          {columns}
           {rows(shown)}
         </section>
+      )}
+      {data && groups && (
+        <div className="pjs-groups">
+          {groups.map((g, i) => (
+            <section key={g.key} className="card pjs-board" aria-label={g.label}>
+              <header className="pjs-gh">
+                <h2>{g.label}</h2>
+                <span className="n">{g.projects.length}</span>
+              </header>
+              {i === 0 && columns}
+              {rows(g.projects)}
+            </section>
+          ))}
+        </div>
       )}
 
       {data && shown.length === 0 && (

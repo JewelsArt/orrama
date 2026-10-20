@@ -22,6 +22,8 @@ const server = vi.hoisted(() => ({
   contacts: [] as Record<string, unknown>[],
   /** When it says yes, that request fails as a server that isn't there would (WEB-010). */
   fail: null as ((method: string, url: string) => boolean) | null,
+  /** `/api/projects`: the groups other projects use. */
+  projects: [] as { slug: string; group: string | null }[],
 }));
 
 vi.mock("./ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
@@ -43,6 +45,7 @@ vi.mock("./api.js", async (orig) => {
       if (method === "GET" && url.startsWith("/api/graph/relations"))
         return { entity: { id: "n-1", title: "Thesis", type: "project", summary: "", fields: {} }, relations: server.relations, warnings: [] };
       if (method === "GET" && url === "/api/contacts") return server.contacts;
+      if (method === "GET" && url === "/api/projects") return server.projects;
       if (method === "GET" && url.startsWith("/api/vault/note/")) return { id: "n-1", path: "04-Projects/thesis.md", title: "Thesis", content: "", hash: "h", tags: [], canEdit: true };
       if (method === "GET") return [];
       return { ok: true };
@@ -60,9 +63,10 @@ beforeEach(() => {
   server.relations = [];
   server.contacts = [];
   server.fail = null;
+  server.projects = [];
   server.workspace = {
     slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null,
-    status: "on-track", start: "2026-09-01", deadline: "2027-01-15", prompt: "",
+    status: "on-track", start: "2026-09-01", deadline: "2027-01-15", group: "", prompt: "",
     goals: ["Pick a supervisor", "Defend in January", "book the room", "Done means: signed off."], goalsSource: SOURCE,
     decisions: ["**2026-10-06** — MASE over MAPE."], inbox: [], people: [], notes: [], files: [], content: "", canEdit: true, total: 2, done: 1, tasks: [],
   };
@@ -378,5 +382,56 @@ describe("a failed write is never silent (WEB-010)", () => {
     });
     expect(within(doc).queryByRole("alert")).toBeNull();
     expect(within(doc).queryByText("Opening the note…")).toBeNull();
+  });
+});
+
+describe("the group (Jules, 20 Oct)", () => {
+  const menu = async (name: RegExp) => {
+    fireEvent.click(screen.getByRole("button", { name }));
+    await act(async () => {});
+    return screen.getByRole("menu", { name: "Group" });
+  };
+
+  it("lists the groups other projects use, the current one ticked, and writes the one picked", async () => {
+    server.workspace = { ...server.workspace, group: "Scooperz" };
+    server.projects = [
+      { slug: "a", group: "Websites" },
+      { slug: "b", group: "scooperz" },
+      { slug: "c", group: null },
+    ];
+    await open();
+    const m = await menu(/Group: Scooperz/);
+    const items = [...m.querySelectorAll("button")];
+    expect(items.map((i) => i.textContent)).toEqual(["Scooperz", "Websites", "New group…", "No group"]);
+    expect(items[0]!.getAttribute("aria-checked")).toBe("true");
+    await act(async () => fireEvent.click(within(m).getByText("Websites")));
+    expect(patches()).toEqual([{ group: "Websites" }]);
+  });
+
+  it("No group takes it out", async () => {
+    server.workspace = { ...server.workspace, group: "Scooperz" };
+    await open();
+    const m = await menu(/Group: Scooperz/);
+    await act(async () => fireEvent.click(within(m).getByText("No group")));
+    expect(patches()).toEqual([{ group: "" }]);
+  });
+
+  it("a new group is named in a dialog, no Markdown needed", async () => {
+    await open();
+    const m = await menu(/Add to a group/);
+    expect(within(m).queryByText("No group")).toBeNull();
+    await act(async () => fireEvent.click(within(m).getByText("New group…")));
+    const dialog = screen.getByRole("dialog", { name: "New group" });
+    fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Personal branding" } });
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Add" })));
+    expect(patches()).toEqual([{ group: "Personal branding" }]);
+    expect(screen.queryByRole("dialog", { name: "New group" })).toBeNull();
+  });
+
+  it("without edit it is the name alone", async () => {
+    server.workspace = { ...server.workspace, group: "Scooperz", canEdit: false };
+    await open();
+    expect(screen.getByText("Scooperz").tagName).toBe("SPAN");
+    expect(screen.queryByRole("button", { name: /Group/ })).toBeNull();
   });
 });

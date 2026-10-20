@@ -68,6 +68,8 @@ export interface BoardProject {
   href: string;
   noteId: string | null;
   area: Category | null;
+  /** The note's `group:` inside its area ("Scooperz", "Websites"); null without one. */
+  group: string | null;
   status: string;
   shelf: BoardShelf;
   total: number;
@@ -103,6 +105,7 @@ export function boardProject(input: {
   href: string;
   noteId: string | null;
   area: Category | null;
+  group: string | null;
   status: string;
   total: number;
   done: number;
@@ -124,6 +127,34 @@ export function boardProject(input: {
     key,
     flags: [...own, ...input.warnings],
   };
+}
+
+export interface BoardGroup {
+  /** The group's name folded for comparison; "" is the projects with none. */
+  key: string;
+  label: string;
+  projects: BoardProject[];
+}
+
+/**
+ * One area's open projects split by their note's `group:` (Jules, 20 Oct: some work is for
+ * Scooperz, some is making websites, some personal branding). The biggest group comes first,
+ * then by name; projects with no group come last, under Other. Names are compared without case,
+ * and the spelling of the first project in the board's order is the one shown. Inside a group
+ * the board's order stays. Null when no project has a group: the board stays one list.
+ */
+export function boardGroups(projects: BoardProject[]): BoardGroup[] | null {
+  const by = new Map<string, BoardGroup>();
+  for (const p of projects) {
+    const name = p.group?.trim() ?? "";
+    // A group called Other is the same Other as no group at all.
+    const key = name.toLocaleLowerCase() === "other" ? "" : name.toLocaleLowerCase();
+    const g = by.get(key) ?? { key, label: key ? name : "Other", projects: [] };
+    g.projects.push(p);
+    by.set(key, g);
+  }
+  if (![...by.keys()].some(Boolean)) return null;
+  return [...by.values()].sort((a, b) => Number(!a.key) - Number(!b.key) || b.projects.length - a.projects.length || a.label.localeCompare(b.label));
 }
 
 const shortStep = (s: string) => s.split(/\s+[—–-]\s+|:\s/)[0]!.trim();

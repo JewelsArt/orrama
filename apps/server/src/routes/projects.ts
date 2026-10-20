@@ -34,6 +34,14 @@ export const slugify = (name: string): string =>
 
 export const asDomain = (d: unknown): Domain | undefined => (DOMAINS.includes(d as Domain) ? (d as Domain) : undefined);
 
+/**
+ * A project's group inside its area (front matter `group:`, "Scooperz", "Websites"): one line of
+ * free text, its spaces collapsed, at most 60 characters. The Projects board splits an area's
+ * projects by it; empty is no group.
+ */
+export const GROUP_MAX = 60;
+export const asGroup = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v).replace(/\s+/g, " ").trim().slice(0, GROUP_MAX).trim() : "");
+
 /** The starter body for a new project note — carries the tags that put it on the board. */
 export function projectNoteScaffold(name: string, slug: string, domain?: Domain): string {
   return [
@@ -261,6 +269,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
           status: str(fm["status"]) || null,
           start: str(fm["start"]) || null,
           deadline: str(fm["deadline"]) || null,
+          group: asGroup(fm["group"]) || null,
           nextDue: dates?.nextDue ?? null,
           overdue: dates?.overdue ?? 0,
         };
@@ -359,6 +368,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       status: str(fm["status"]),
       start: str(fm["start"]),
       deadline: str(fm["deadline"]),
+      group: asGroup(fm["group"]),
       prompt: readSection(note.content, SEC.prompt),
       goals: readSectionItems(note.content, SEC.goals),
       goalsSource: readSection(note.content, SEC.goals),
@@ -451,9 +461,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     if (body["prompt"] !== undefined) next = writeSection(next, SEC.prompt, section(body["prompt"]));
     if (body["goals"] !== undefined) next = writeSection(next, SEC.goals, section(body["goals"]));
     const fmFields = ["status", "start", "deadline", "domain"] as const;
-    if (fmFields.some((k) => body[k] !== undefined)) {
+    if (fmFields.some((k) => body[k] !== undefined) || body["group"] !== undefined) {
       next = updateFrontmatter(next, (d) => {
         for (const k of fmFields) if (body[k] !== undefined) d[k] = str(body[k]);
+        // No group is no `group:` line, not an empty one.
+        if (body["group"] !== undefined) d["group"] = asGroup(body["group"]) || undefined;
         return d;
       });
     }

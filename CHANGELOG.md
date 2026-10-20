@@ -9,6 +9,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Projects: one area at a time is split into groups, a box each (Work: Scooperz, Websites,
+  Personal branding…), the biggest first and projects without one under Other. A project's
+  group is its note's `group:` front matter, set from the project page's header: pick a group
+  other projects use, make a new one, or take it out.
 - A subscribed calendar's event (Google's secret iCal address, Outlook, Teams, Zoom) shows
   more than its time in Planning: a Join button for its Google Meet, Teams or Zoom call, its
   place (an address opens in Google Maps) and its description as plain text with its links,

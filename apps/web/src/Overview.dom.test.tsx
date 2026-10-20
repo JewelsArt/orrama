@@ -33,6 +33,9 @@ const DASHBOARD = {
     project("literature-review", "on-track", { total: 2, done: 2, lastActivityMs: 200, domain: "academic" }),
     project("thai-cooking", "paused"),
     project("lisbon-trip", "cancelled", { lastActivityMs: 400 }),
+    project("shop-site", "on-track"),
+    project("bakery-site", "on-track"),
+    project("client-report", "at-risk"),
   ],
   members: [],
   orphaned: [],
@@ -44,7 +47,12 @@ const NAMES: Record<string, string> = {
   "literature-review": "Literature review",
   "thai-cooking": "Learn to cook Thai",
   "lisbon-trip": "Lisbon trip",
+  "shop-site": "Shop site",
+  "bakery-site": "Bakery site",
+  "client-report": "Client report",
 };
+/** The notes' `group:`; Brand refresh has none. One spelling differs, and is the same group. */
+const GROUPS: Record<string, string> = { "shop-site": "websites", "bakery-site": "Websites", "client-report": "Acme" };
 
 vi.mock("./TaskCard.js", () => ({ TaskCard: () => null }));
 vi.mock("./DocViewer.js", () => ({ DocViewer: () => null }));
@@ -56,7 +64,7 @@ vi.mock("./api.js", async (orig) => {
       server.calls.push(`${method} ${url}`);
       if (url === "/api/teams") return [{ ...DASHBOARD.team, total: 0, done: 0 }];
       if (url === "/api/dashboard/home") return DASHBOARD;
-      if (url === "/api/projects") return DASHBOARD.projects.map((p) => ({ slug: p.slug, key: p.slug, name: NAMES[p.slug], domain: p.domain, noteId: null, total: p.total, done: p.done, status: p.status, start: null, deadline: null, nextDue: null, overdue: 0 }));
+      if (url === "/api/projects") return DASHBOARD.projects.map((p) => ({ slug: p.slug, key: p.slug, name: NAMES[p.slug], domain: p.domain, noteId: null, total: p.total, done: p.done, status: p.status, start: null, deadline: null, group: GROUPS[p.slug] ?? null, nextDue: null, overdue: 0 }));
       if (url === "/api/vault/graph") return { nodes: [], edges: [] };
       if (url === "/api/graph/schema") throw new Error("no ontology");
       if (url === "/api/vault/tree") return [];
@@ -117,5 +125,26 @@ describe("Projects (F1)", () => {
     expect(within(done).getAllByRole("link").map((a) => a.textContent)).toEqual(["Literature review"]);
     expect(shelves().map((b) => b.textContent)).toEqual(["Done 1"]);
     await act(async () => {});
+  });
+});
+
+describe("Work split by group (Jules, 20 Oct)", () => {
+  const boxes = () => [...document.querySelectorAll<HTMLElement>(".pjs-board")].map((b) => b.getAttribute("aria-label"));
+  it("one area shows a box per group, the biggest first, Other last", async () => {
+    at("/projects?area=work");
+    render(<Board />);
+    const sites = await screen.findByRole("region", { name: "Websites" });
+    expect(boxes()).toEqual(["Websites", "Acme", "Other"]);
+    expect(within(sites).getAllByRole("link").map((a) => a.textContent)).toEqual(["Bakery site", "Shop site"]);
+    expect(within(screen.getByRole("region", { name: "Other" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Brand refresh"]);
+    // The column heads are drawn once, in the first box.
+    expect(document.querySelectorAll(".pjs .ph")).toHaveLength(1);
+    expect(sites.querySelector(".ph")).not.toBeNull();
+  });
+
+  it("every area at once stays one list", async () => {
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    expect(boxes()).toEqual(["Open projects"]);
   });
 });

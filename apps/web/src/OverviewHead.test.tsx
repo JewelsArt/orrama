@@ -14,7 +14,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { DashboardTask } from "./api.js";
-import { boardProject, boardShelf, nextDate, ProjectRow, ProjectSteps, shelfRows } from "./OverviewHead.js";
+import { boardGroups, boardProject, boardShelf, nextDate, ProjectRow, ProjectSteps, shelfRows } from "./OverviewHead.js";
 
 const INTERACTIVE_TAGS = new Set(["button", "a", "input", "select", "textarea"]);
 const INTERACTIVE_ROLES = /\brole="(button|link|switch|checkbox|menuitem|option|tab)"/;
@@ -46,6 +46,7 @@ const base = {
   slug: "thesis",
   projectId: "p-1",
   name: "Thesis",
+  group: null as string | null,
   href: "/projects/thesis",
   noteId: "n-p",
   area: { id: "school", label: "School", color: "var(--c3)" },
@@ -153,5 +154,22 @@ describe("the Done shelf (F1)", () => {
     const list = [p("CV v4", "completed", 100), p("Summer report", "archived", 300), p("Lisbon trip", "cancelled", 400), p("Old notes", "archived"), p("Literature review", "completed", 200)];
     expect(shelfRows(list, "done").map((x) => x.name)).toEqual(["Summer report", "Literature review", "CV v4", "Old notes"]);
     expect(shelfRows(list, "cancelled").map((x) => x.name)).toEqual(["Lisbon trip"]);
+  });
+});
+
+describe("boardGroups", () => {
+  const p = (name: string, group: string | null) => boardProject({ ...base, slug: name, name, group, tasks: [] });
+  it("is null when no project has a group, so the board stays one list", () => {
+    expect(boardGroups([p("A", null), p("B", "  ")])).toBeNull();
+  });
+  it("a group called Other is the same Other as no group, and it goes last", () => {
+    const g = boardGroups([p("A", "other"), p("B", null), p("C", "Zed")])!;
+    expect(g.map((x) => [x.label, x.projects.map((q) => q.name)])).toEqual([
+      ["Zed", ["C"]],
+      ["Other", ["A", "B"]],
+    ]);
+  });
+  it("equal sizes go by name", () => {
+    expect(boardGroups([p("A", "Websites"), p("B", "Acme")])!.map((x) => x.label)).toEqual(["Acme", "Websites"]);
   });
 });

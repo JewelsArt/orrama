@@ -167,7 +167,7 @@
 - **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/core, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
 
 ### `apps/server/src/routes/projects.ts`
-- **Exports**: DOMAINS, Domain, slugify, asDomain, projectNoteScaffold, linkTo, projectRoutes
+- **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, projectRoutes
 - **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
 
 ### `apps/server/src/routes/settings.ts`
@@ -279,7 +279,7 @@
 - **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @orrama/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/OverviewHead.tsx`
-- **Exports**: BoardShelf, SHELVES, boardShelf, shelfRows, BoardPerson, BoardProject, stepOrder, boardProject, nextDate, ProjectRow, ProjectSteps
+- **Exports**: BoardShelf, SHELVES, boardShelf, shelfRows, BoardPerson, BoardProject, stepOrder, boardProject, BoardGroup, boardGroups, nextDate, ProjectRow, ProjectSteps
 - **Imports**: react, ./api.js, ./categories.js, ./entity/index.js, ./entity/StatusMenu.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js
 
 ### `apps/web/src/Planning.tsx`
@@ -288,7 +288,7 @@
 
 ### `apps/web/src/Project.tsx`
 - **Exports**: default, Tab, LAST_TAB_KEY, tabHref, leftLabel, Project
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./ProjectOverview.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./projectGroup.js, ./ProjectOverview.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/ProjectOverview.tsx`
 - **Exports**: ProjectOverview, decisionOf
@@ -701,6 +701,10 @@
 ### `apps/web/src/projectArea.ts`
 - **Exports**: areaOf, useNoteAreas
 - **Imports**: react, ./api.js, ./categories.js
+
+### `apps/web/src/projectGroup.tsx`
+- **Exports**: groupNames, useProjectGroups, GroupMenu
+- **Imports**: react, ./api.js, @orrama/schema/responses, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/writes.js
 
 ### `apps/web/src/settings/Access.tsx`
 - **Exports**: AccessSection

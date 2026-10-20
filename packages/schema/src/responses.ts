@@ -390,6 +390,8 @@ export const projectsResponse = z.array(
     status: nstr,
     start: nstr,
     deadline: nstr,
+    /** Front matter `group:`, the project's group inside its area; null without one. */
+    group: nstr,
     nextDue: nstr,
     overdue: z.number(),
   }),
@@ -429,6 +431,8 @@ export const projectWorkspaceResponse = o({
   status: z.string(),
   start: z.string(),
   deadline: z.string(),
+  /** Front matter `group:`; "" without one. */
+  group: z.string(),
   prompt: z.string(),
   /** Display items: markers and checkboxes stripped. Never written back. */
   goals: z.array(z.string()),

@@ -169,7 +169,7 @@ Conversations, Documents and the prompt on the right. **Timeline**,
 
 **None of it is a database row.** Goals/Prompt/Decisions/Inbox are `##` sections of the project note (`packages/core/src/sections.ts`),
 people are real `[[links]]` the picker writes into `## People`, steps are the
-note's checkboxes, and `status`/`start`/`deadline` are front-matter. Delete the
+note's checkboxes, and `status`/`start`/`deadline`/`group` are front-matter. Delete the
 DB, re-index, and the workspace comes back — same rule as the dashboard.
 
 **One status vocabulary**: a project's `status:` is read as one of the ontology's seven
@@ -181,7 +181,11 @@ and every step ticked is completed. The Projects board shows three shelves, Paus
 Cancelled and **Done** (completed and archived together, newest first by the board's
 `lastActivityMs`; `boardShelf`/`shelfRows` in `OverviewHead.tsx`), each at
 `/projects?shelf=<id>`; that is the page only, and the ontology and the project page keep
-both words. Dates are typed (`entity/dateInput.ts`, day before
+both words. With one area chosen, the open projects are split by the note's `group:` (one
+line, at most 60 characters; `boardGroups` in `OverviewHead.tsx`), a box per group, the
+biggest first, Other last; all areas at once stay one list. The header's group menu
+(`projectGroup.tsx`) offers the groups `/api/projects` reports, New group… and No group,
+which drops the line. Dates are typed (`entity/dateInput.ts`, day before
 month) and written when a field is left: never while typing, never a year before 1900.
 
 A slot is a `##` heading (a closed `## Goals ##` too; a `### Goals` inside

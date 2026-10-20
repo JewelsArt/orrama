@@ -9,6 +9,12 @@
 .pjs-filters .chip .n { color: var(--ink-3); font-weight: 500; }
 .pjs-board { padding: 8px 18px; }
 .pjs-empty { padding: 22px 24px; }
+/* One area split by the projects' `group:`: a box per group, its name on top (as the To-do's
+   sections are named), the column heads in the first box only. */
+.pjs-groups { display: flex; flex-direction: column; gap: 12px; }
+.pjs-gh { display: flex; align-items: baseline; gap: 8px; padding: 6px 0 8px; }
+.pjs-gh h2 { margin: 0; font-size: 17px; line-height: 26px; font-weight: 750; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pjs-gh .n { font-size: 13px; color: var(--ink-3); }
 
 /* One grid for the head and every row. */
 .pjs .pg { display: grid; grid-template-columns: 36px minmax(0, 1fr) 124px 150px 170px 128px 34px 58px; gap: 14px; align-items: center; }
@@ -91,6 +97,9 @@
   .pjs > header .phead h1, .pjs > header .phead .meta, .pjs > header .phead .sp { display: none; }
   .pjs > header .phead .btn { height: 36px; min-height: 0; }
   .pjs-board { padding: 4px 12px; }
+  .pjs-groups { gap: 10px; }
+  .pjs-gh { padding: 8px 0 2px; }
+  .pjs-gh h2 { font-size: 16px; }
   .pjs-filters { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
   .pjs-filters .lbl { display: none; }
   .pjs-filters .chip { flex: none; min-height: 0; height: 32px; }

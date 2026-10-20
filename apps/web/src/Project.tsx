@@ -5,6 +5,7 @@ import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DatesButton, EntityHeader, OrrWarnings, shelfOf, statusOf, statusProblems, StatusMenu, useRelations, type StatusId } from "./entity/index.js";
 import { slugOf } from "./orrery/model.js";
 import { areaOf, useNoteAreas } from "./projectArea.js";
+import { GroupMenu, useProjectGroups } from "./projectGroup.js";
 import { ProjectOverview } from "./ProjectOverview.js";
 import { AddStepDialog, ProjectBoard, ProjectTimeline, ProjectTodo } from "./ProjectViews.js";
 import { writeKey } from "./storage.js";
@@ -106,6 +107,7 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
 
   const relations = useRelations(w?.noteId, version);
   const areas = useNoteAreas(w?.noteId);
+  const groupRows = useProjectGroups(w ? version : null);
 
   if (error)
     return (
@@ -180,6 +182,7 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
                 {area.label}
               </a>
             )}
+            <GroupMenu value={w.group} canEdit={w.canEdit} rows={groupRows} write={(group) => patch({ group })} />
             <a className="ent-link" href={tabHref(w.slug, "todo")} onClick={(e) => go(e, w.slug, "todo")}>
               {pct}% · {w.done} of {w.total} {w.total === 1 ? "step" : "steps"}
             </a>

@@ -72,7 +72,7 @@ vi.mock("../api.js", async (orig) => {
         case "/api/companies":
           return [westerdok, kade];
         case "/api/projects":
-          return [{ slug: "graduation-thesis", noteId: "n-thesis", name: "Graduation thesis", key: "project/graduation-thesis", domain: "academic", total: 3, done: 1, status: "on-track", start: null, deadline: null, nextDue: null, overdue: 0 }];
+          return [{ slug: "graduation-thesis", noteId: "n-thesis", name: "Graduation thesis", key: "project/graduation-thesis", domain: "academic", total: 3, done: 1, status: "on-track", start: null, deadline: null, group: null, nextDue: null, overdue: 0 }];
         case "/api/vault/graph":
           return { nodes: TREE.map((n) => ({ id: n.id, title: n.title, folder: n.folder, sector: null, tags: [], links: 0, tasks: 0, kind: n.id === "n-talk" ? "conversation" : "note", description: "" })), edges: [] };
         case "/api/vault/tree":

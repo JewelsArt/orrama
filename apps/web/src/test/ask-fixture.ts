@@ -21,7 +21,7 @@ export const TREE = [
   { id: "n-kade", path: "Contacts/Companies/Kade Social.md", folder: "Contacts/Companies", title: "Kade Social", hash: "h", mtimeMs: 0, tags: ["company"], openTasks: 0, category: "personal" },
   { id: "n-weekly", path: "Shared/Weekly meetings.md", folder: "Shared", title: "Weekly meetings", hash: "h", mtimeMs: 0, tags: [], openTasks: 2, category: "work" },
 ];
-export const PROJECTS = [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: "academic", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: null, nextDue: null, overdue: 0 }];
+export const PROJECTS = [{ slug: "graduation-thesis", key: "project/graduation-thesis", name: "Graduation thesis", domain: "academic", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: null, group: null, nextDue: null, overdue: 0 }];
 
 /**
  * Install the fake server. `configured: false` is Orr without a model; `treeAfter` holds the tree
