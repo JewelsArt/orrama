@@ -1,7 +1,8 @@
 /**
  * Rename, move, the trash and history from the Notes page itself (1C): the note's ⋯ offers
  * them, a renamed note's address follows it, the open note put in the trash closes and Undo
- * opens it again, and /notes/trash is the Trash view.
+ * opens it again, /notes/trash is the Trash view, and a vault with no notes says so plainly
+ * with New note (it used to send a friend to a Settings part that can't change the folder).
  */
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -143,7 +144,7 @@ describe("the note's ⋯", () => {
   });
 });
 
-describe("the Trash view", () => {
+describe("the Trash view and the empty home", () => {
   it("/notes/trash is the Trash view, reached from the tree", async () => {
     render(<Routed />);
     await flush();
@@ -151,5 +152,16 @@ describe("the Trash view", () => {
     await flush();
     expect(path()).toBe("/notes/trash");
     expect(await screen.findByText("The trash is empty")).toBeTruthy();
+  });
+
+  it("a vault with no notes says so, with New note, and no Settings that can't help", async () => {
+    srv.notes = new Map();
+    render(<Routed />);
+    await flush();
+    expect(await screen.findByText("No notes yet")).toBeTruthy();
+    expect(screen.queryByText(/Point me at your notes folder/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Settings/ })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "New note" }).pop()!);
+    expect(screen.getByRole("dialog", { name: "New note" })).toBeTruthy();
   });
 });

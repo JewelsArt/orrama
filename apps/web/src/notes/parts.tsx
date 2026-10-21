@@ -202,20 +202,16 @@ export function NotesHome(p: HomeProps) {
     return (
       <div className="nt-home">
         <EmptyState
-          pose="read"
-          title="Point me at your notes folder"
-          text="Orrama reads the Markdown files in one folder on this server. Settings → Notes says which."
+          pose="write"
+          title="No notes yet"
+          text="Write your first note and it'll be here."
           actions={
-            <>
-              <LinkButton kind="solid" size="sm" href="/settings/notes">
-                Settings → Notes
-              </LinkButton>
-              <Button size="sm" onClick={p.onNew}>
-                Write the first note
-              </Button>
-            </>
+            <Button kind="solid" size="sm" icon="plus" onClick={p.onNew}>
+              New note
+            </Button>
           }
         />
+        {p.phoneTree && <div className="nt-phone-tree">{p.phoneTree}</div>}
       </div>
     );
   const areas = CATEGORIES.filter((c) => (p.areaCounts.get(c.id) ?? 0) > 0);
@@ -469,11 +465,11 @@ export function SidePanel(p: SideProps) {
                 <Checkbox state={stateOf(t)} label={t.text} onToggle={() => p.onCheck(t)} />
                 <span className="nt-task-t">{t.text}</span>
                 {t.blockId ? (
-                  <span className="nt-promoted" title="A task object: it has its own card" aria-label="Promoted">
+                  <span className="nt-promoted" title="Promoted: Planning keeps track of this task even when its words change" aria-label="Promoted">
                     <Icon name="bolt" size={14} />
                   </span>
                 ) : (
-                  note.canEdit && <Button kind="quiet" size="sm" icon="bolt" aria-label={`Promote “${t.text}” to a task object`} tip="Promote to a task object" onClick={() => p.onPromote(t)} />
+                  note.canEdit && <Button kind="quiet" size="sm" icon="bolt" aria-label={`Promote “${t.text}”`} tip="Promote, so Planning keeps track of this task even when its words change" onClick={() => p.onPromote(t)} />
                 )}
               </li>
             ))}
