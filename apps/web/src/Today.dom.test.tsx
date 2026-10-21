@@ -115,6 +115,19 @@ describe("Today: the modules", () => {
     expect(document.querySelector(".tt-orr")!.getAttribute("data-pose")).toBe("read");
   });
 
+  it("a tick can be taken back: the row leaves the list, and its toast's Undo unticks the step (1B)", async () => {
+    const { sent } = stubToday();
+    const user = userEvent.setup();
+    render(<Toaster />);
+    await shown();
+    await user.click(within(mod("Due")).getByRole("checkbox", { name: "Done: Refine research question" }));
+    // The newest toast's Undo: an earlier test's tick may still be on screen.
+    await user.click((await screen.findAllByRole("button", { name: "Undo" })).at(-1)!);
+    await waitFor(() => expect(sent.filter((r) => r.method === "POST")).toHaveLength(2));
+    expect(sent.filter((r) => r.method === "POST").map((r) => (r.body as { checked: boolean }).checked)).toEqual([true, false]);
+    expect(sent.filter((r) => r.method === "POST")[1]!.body).toMatchObject({ noteId: "n-thesis", blockId: "t-refine", text: "Refine research question" });
+  });
+
   it("a tick the server didn't take is said with Retry; a task that moved is said as such (WEB-010)", async () => {
     const { routes, sent } = stubToday({ "POST /api/tasks/check": 500 });
     const user = userEvent.setup();

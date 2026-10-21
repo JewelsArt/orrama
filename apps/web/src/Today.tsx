@@ -12,11 +12,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, isoLocal } from "@orrama/core/dates";
 import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
-import { api, ApiError } from "./api.js";
+import { api } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
 import { New } from "./create/New.js";
 import { addressOf } from "./mail/people.js";
 import { readJson, writeKey } from "./storage.js";
+import { tickStep } from "./steps.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import { Button, LinkButton } from "./ui/controls.js";
 import { timeLabel, toDate } from "./ui/dates.js";
@@ -26,7 +27,6 @@ import { PageHeader } from "./ui/layout.js";
 import { Popover, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type Route } from "./ui/router.js";
 import { Skeleton } from "./ui/states.js";
-import { attempt } from "./ui/writes.js";
 import { AddMoneyRow } from "./today/AddMoneyRow.js";
 import { minuteOf, poseAt, type DayItem } from "./today/day.js";
 import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, type ComingRow } from "./today/model.js";
@@ -213,22 +213,11 @@ export function Today({ me }: { me?: { displayName: string } } = {}) {
   const taskLink = useCallback((t: DashboardTask): Link => ({ href: routeHref({ kind: "notes", id: t.noteId }), onOpen: () => void openCard(t) }), [openCard]);
   const dayLink = L({ kind: "planning", scale: "day", at: today });
 
-  /* ---- ticking a task: the checkbox in its note ---- */
+  /* ---- ticking a task: the checkbox in its note, with Undo ---- */
   const tick1 = useCallback(
-    (t: DashboardTask) =>
-      attempt("The task wasn't ticked.", async () => {
-        try {
-          // Named by its block id or its text, the line only a hint (COR-001): a note that moved
-          // since this page was drawn gets the right task or a 409, never its neighbour.
-          await api("POST", "/api/tasks/check", { noteId: t.noteId, line: t.line, blockId: t.blockId, text: t.text, checked: true });
-        } catch (e) {
-          // Anything else (the server down, a 500) is said by attempt, with Retry (WEB-010).
-          if (!(e instanceof ApiError && e.status === 409)) throw e;
-          toast("That task changed in its note since Today was drawn. Here it is as it is now.");
-        } finally {
-          reload();
-        }
-      }),
+    // Named by its block id or its text, the line only a hint (COR-001): a note that moved
+    // since this page was drawn gets the right task or a 409, never its neighbour.
+    (t: DashboardTask) => tickStep(t, { notTicked: "The task wasn't ticked.", moved: "That task changed in its note since Today was drawn. Here it is as it is now.", changed: reload }),
     [reload],
   );
 
