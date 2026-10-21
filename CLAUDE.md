@@ -247,7 +247,12 @@ with Obsidian) — the folder itself, not a copy.
 `ORRAMA_VAULT_DIR` (see `env.ts`) points the server at it; the SQLite DB stays in
 `<dataDir>` because it is a cache of the files, not part of the notes. Any editor
 can write the same Markdown: an outside editor saves whole files and the chokidar
-watcher re-indexes them; Orrama writes through `VaultStore.write`. Editing the
+watcher re-indexes them. On macOS Node's fs.watch serves every folder from one
+FSEvents stream that it rebuilds, losing undelivered events, whenever a folder
+watch is added or closed — so 1 s after `ready` and after any folder appears or
+goes, `VaultStore.reconcileLater` walks the vault and settles what the events
+missed (`test/watch-lost-events.test.ts`). Never trust the watcher alone to have
+seen everything. Orrama writes through `VaultStore.write`. Editing the
 *same note* in both at once is the one thing to avoid — last writer wins on the
 overlapping region. A folder linked in from elsewhere (a symlink to a synced
 folder) is part of the vault: followed at boot, by the watcher and for writes,
@@ -836,10 +841,9 @@ an auth frame from an app older than the cookie is ignored.
   issues a session goes through `signIn` in `routes/auth.ts`. A token without a
   `sid` is refused. In the web app every request goes through `sessionFetch`
   (`api.ts`), same-origin; the page only keeps whether it counts itself signed
-  in (`sessionStarted`/`sessionOver`). For this release only, a session token
-  sent as `Bearer` is still accepted and `POST /api/auth/exchange` trades one
-  (kept in `orrama-token` by the app before the cookie) for the cookie once
-  (`adoptStoredSession` at boot); both go in the next stage. Server tests sign
+  in (`sessionStarted`/`sessionOver`). A session is never read from
+  `Authorization: Bearer`: that header carries API tokens only, and a session
+  token sent that way is refused (401). Server tests sign
   in with `test/helpers/session.ts` (`sessionOf`, `signedIn`, `liveSocket`).
 - **Settings asks before anything it can't undo.** Removing, disconnecting,
   revoking, rotating or signing out goes through `Confirm` with the consequence
@@ -903,8 +907,8 @@ an auth frame from an app older than the cookie is ignored.
   the older direct callers an in-memory one. Every key is `orrama-…`; until the
   rename (R13) they were `basalt-…`, and `migrateLegacyKeys()` (first thing in
   `main.tsx`) moves any left over. Never a credential: the session is an
-  HttpOnly cookie (WEB-013); the token the app kept before it is traded once at
-  boot and deleted (`adoptStoredSession`). A new key is `orrama-<area>-<what>`.
+  HttpOnly cookie (WEB-013); the token the app kept before it
+  (`orrama-token`, `basalt-token`) is deleted by `migrateLegacyKeys()`, never sent. A new key is `orrama-<area>-<what>`.
 - **The suite runs on macOS, Linux and Windows** (CI: Ubuntu and macOS on push,
   `windows.yml` by hand; audit OPS-003). A test that needs POSIX permission bits,
   symlinks or signal handlers says so through `test/helpers/platform.ts`
@@ -929,8 +933,15 @@ an auth frame from an app older than the cookie is ignored.
   link itself. dom-setup's `cleanup()` runs after each file's own afterEach, so
   a file that un-stubs fetch or another global there calls `cleanup()` first
   (`src/test/dom-hooks.test.ts`). What an effect puts on screen (a toast, a
-  request's answer) is found with `findBy…`, never read at once after the view
-  appears.
+  request's answer, a refusal) is found with `findBy…` or `waitFor` on that
+  thing, never read at once after the view appears and never after a fixed
+  number of ticks; an absence is checked after a positive find from the same
+  answer. Check a new DOM test with `pnpm --dir apps/web test:slow` (React's
+  scheduler 30 ms late, `src/test/slow-scheduler.ts`; not in CI): it must pass
+  there too. In the app, state the account hydrates and a window listener that
+  must be current while what it serves is on screen go in a `useLayoutEffect`
+  (App's appearance, Lock's keys): a passive effect can run after the first
+  click.
 - **Typing is never lost** (`apps/web/src/noteSync.ts`, `packages/sync/src/client.ts`):
   every editor saves through a NoteSync from `openNoteSync`. A failed save keeps its reason
   and retries on its own (2 s doubling to 30 s) unless the server refused it
@@ -1260,6 +1271,7 @@ pnpm --dir apps/server dev    # :4627, apps/server/data-dev — never the live D
 ORRAMA_API_PORT=4627 pnpm --dir apps/web dev   # :4625, proxies /api (ws included) to the dev server
 # /dev/ui on :4625 shows every component of the design system (dev server only)
 pnpm test                     # every package, in temp folders — permission tests are release-blocking
+pnpm --dir apps/web test:slow     # DOM tests with React's scheduler late: run it on a new DOM test
 ```
 
 To start the demo over, delete `apps/server/data-dev` (only that) and seed again.

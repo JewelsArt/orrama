@@ -347,6 +347,9 @@ one is in CLAUDE.md, "Releases".
   digest behind it. Today already says what's due.
 - The sheet a person or company opened in on a project's page (their own page
   has what it showed).
+- The one-time move of an old sign-in into the secure cookie (from the 16 October
+  release). A browser, window or phone not opened since then asks you to sign in
+  again. A sign-in token left in its storage is deleted, never sent.
 
 ### Fixed
 
@@ -657,6 +660,13 @@ one is in CLAUDE.md, "Releases".
   on the AI estimate: the plan opens at once with the quick estimate, and the
   AI's numbers replace it quietly when they arrive (6 s → about 10 ms per load
   on a 100-task vault).
+- A note created, renamed, moved or deleted outside Orrama at the moment a folder appeared or
+  went anywhere in the vault (or just after the server started) could be missed until a
+  restart. The vault is now read again a second after any such moment.
+- Picking day or night, or Paper or Clay, right after the app opens is no longer undone.
+  Before, the page showed your choice but your account and the next load kept the old one.
+- On the lock screen, digits typed on the keyboard the moment the keypad appears are no
+  longer lost.
 
 ### Security
 
@@ -742,6 +752,8 @@ one is in CLAUDE.md, "Releases".
   instead of in the browser's storage (WEB-013). Nothing to do: the first time
   the app opens after the update, it moves your existing sign-in over by
   itself. A write sent with that cookie from another site is refused.
+- The MCP server is on a version of the MCP SDK (1.32.1) with no known high advisories
+  (CI's dependency audit is green again).
 
 ### Internal
 
@@ -825,6 +837,8 @@ one is in CLAUDE.md, "Releases".
   request can't reach the real network; the toast test waits for the toast.
 - A licence guard: a test fails on any production dependency whose licence is
   not on the permissive allowlist (no copyleft).
+- DOM tests find what an effect renders instead of reading it at once.
+  `pnpm --dir apps/web test:slow` runs them with React's scheduler late, as on a loaded runner.
 
 ### Upgrading
 
@@ -849,9 +863,9 @@ one is in CLAUDE.md, "Releases".
 - Optional: the installed `~/Library/LaunchAgents/dev.basalt.server.plist` may
   run node directly as the template in `scripts/` does (pnpm passes SIGTERM on
   macOS too, so nothing breaks if it stays).
-- The next release stops accepting a session token sent as `Bearer` and drops
-  `/api/auth/exchange`. A browser, window or phone not opened once on this
-  release will have to sign in again then.
+- A session token sent as `Bearer` is no longer accepted and `/api/auth/exchange`
+  is gone (21 October). A browser, window or phone not opened between 16 and 21
+  October signs in again once.
 
 ## [0.1.0] — 2026-10-01
 

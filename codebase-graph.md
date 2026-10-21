@@ -46,7 +46,7 @@
 - **Imports**: node:fs, node:path, node:url
 
 ### `apps/server/src/env.ts`
-- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, env, assertProductionSecrets, envProblems, assertValidEnv, vaultDir, dbPath
+- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, DEFAULT_SOURCE_URL, env, assertProductionSecrets, envProblems, assertValidEnv, vaultDir, dbPath
 - **Imports**: node:fs, node:net, node:path
 
 ### `apps/server/src/export.ts`
@@ -199,7 +199,7 @@
 - **Imports**: node:crypto, node:fs, node:path, @node-rs/argon2, @orrama/core, ./atomicWrite.js, ./db.js, ./env.js, ./vaultStore.js
 
 ### `apps/server/src/sessions.ts`
-- **Exports**: SESSION_DAYS, sessionLabel, openSession, sessionUser, rekeySession, revokeSession, revokeEverything, listSessions
+- **Exports**: SESSION_DAYS, sessionLabel, openSession, sessionUser, revokeSession, revokeEverything, listSessions
 - **Imports**: node:crypto, drizzle-orm, ./db.js
 
 ### `apps/server/src/slides.ts`
@@ -323,7 +323,7 @@
 - **Imports**: react, ./ui/controls.js, ./ui/overlays.js, ./palette.js
 
 ### `apps/web/src/api.ts`
-- **Exports**: default, sessionStarted, sessionOver, adoptStoredSession, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isFailedWrite, isAbort, unlessAborted, latestOnly, SESSION_ENDED, sessionFetch, signOut, apiBlob, ApiError
+- **Exports**: default, sessionStarted, sessionOver, lastEmail, rememberEmail, touchIdAvailable, enrolTouchId, unlockWithTouchId, api, isFailedWrite, isAbort, unlessAborted, latestOnly, SESSION_ENDED, sessionFetch, signOut, apiBlob, ApiError
 - **Imports**: @orrama/schema/responses, ./storage.js
 
 ### `apps/web/src/ask/Answer.tsx`
@@ -997,7 +997,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, treeResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, DashboardData, TreeNote, NotesOverview, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, treeResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, Health, DashboardData, TreeNote, NotesOverview, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`
