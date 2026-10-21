@@ -5,7 +5,7 @@
 import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { GraphRelations, NoteDetail, NotesOverview, TreeNote } from "@orrama/schema/responses";
 import { CATEGORIES, categoryOf } from "../categories.js";
-import { FileTree } from "../FileTree.js";
+import { FileTree, type TreeActions } from "../FileTree.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { Button, Checkbox, LinkButton, Ring, Square, type TaskState } from "../ui/controls.js";
@@ -41,6 +41,14 @@ export interface TreePaneProps {
   hrefOf: (n: TreeNote) => string;
   onHome: () => void;
   onNew: () => void;
+  onNewFolder: () => void;
+  /** Every folder, empty ones too, and what can be done to a row (1C). */
+  folders?: string[];
+  actions?: TreeActions;
+  /** The Trash view: its address, and whether it is the page open now. */
+  trashHref: string;
+  onTrash: () => void;
+  inTrash: boolean;
 }
 
 /** One row of the tree's own lists (Pinned, Recent, Inbox). */
@@ -75,6 +83,7 @@ export function TreePane(p: TreePaneProps) {
         <a href="/notes" className="nt-tree-title" onClick={follow(p.onHome)}>
           Notes
         </a>
+        <Button kind="quiet" size="sm" icon="folder" aria-label="New folder" tip="New folder" onClick={p.onNewFolder} />
         <Button kind="quiet" size="sm" icon="plus" aria-label="New note" tip="New note" onClick={p.onNew} />
       </div>
       <div className="nt-filter">
@@ -129,7 +138,26 @@ export function TreePane(p: TreePaneProps) {
         {!searching && p.inbox && (
           <TreeRow n={{ ...p.inbox, title: "Inbox" }} icon="inbox" meta={p.inbox.openTasks || ""} active={p.inbox.id === p.activeId} onOpen={() => p.onOpen(p.inbox!.id)} href={p.hrefOf(p.inbox)} />
         )}
-        {p.tree === null ? <Skeleton rows={6} label="Reading your notes" /> : <FileTree notes={p.shown} activeId={p.activeId} onOpen={p.onOpen} hrefOf={p.hrefOf} filter={p.filter} reveal={p.reveal} />}
+        {p.tree === null ? (
+          <Skeleton rows={6} label="Reading your notes" />
+        ) : (
+          <FileTree
+            notes={p.shown}
+            activeId={p.activeId}
+            onOpen={p.onOpen}
+            hrefOf={p.hrefOf}
+            filter={p.filter}
+            reveal={p.reveal}
+            folders={p.area === "all" ? p.folders : undefined}
+            actions={p.actions}
+          />
+        )}
+        {!searching && (
+          <a className={p.inTrash ? "ti on nt-trash-row" : "ti nt-trash-row"} href={p.trashHref} aria-current={p.inTrash ? "page" : undefined} onClick={follow(p.onTrash)}>
+            <Icon name="trash" />
+            <span>Trash</span>
+          </a>
+        )}
       </div>
     </aside>
   );
@@ -288,7 +316,7 @@ export function NoteTop({
   onHome: () => void;
   onFolder: (folder: string) => void;
   orrery: string;
-  menu: MenuItem[];
+  menu: (MenuItem | "-")[];
   /** On a phone, the tree opens as a sheet from here. */
   onTree: () => void;
 }) {

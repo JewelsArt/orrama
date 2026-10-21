@@ -1,8 +1,24 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import type { TreeNote } from "./api.js";
 import { readJson, writeKey } from "./storage.js";
 import { Icon } from "./ui/Icon.js";
+import { Menu, type MenuItem } from "./ui/overlays.js";
 import { folderName } from "./notes/read.js";
+
+/**
+ * What can be done to a row (1C): its ⋯ menu — always there on a touch screen, on hover and
+ * focus with a mouse, and on a right-click — and, on a desktop, dragging a note or a folder
+ * onto a folder (or onto the tree's own space, for the top folder).
+ */
+export interface TreeActions {
+  noteMenu: (n: TreeNote) => (MenuItem | "-")[];
+  folderMenu: (folder: string, notes: number) => (MenuItem | "-")[];
+  onDropNote: (noteId: string, folder: string) => void;
+  onDropFolder: (from: string, folder: string) => void;
+}
+
+const DRAG_NOTE = "application/x-orrama-note";
+const DRAG_FOLDER = "application/x-orrama-folder";
 
 interface FolderNode {
   name: string;
@@ -32,7 +48,7 @@ export function sameTitleFilenames(notes: { id: string; title: string; folder: s
   return out;
 }
 
-function buildTree(notes: TreeNote[]): FolderNode {
+function buildTree(notes: TreeNote[], folders: string[] = []): FolderNode {
   const root: FolderNode = { name: "", path: "", folders: [], notes: [], count: 0 };
   const dir = (path: string): FolderNode => {
     if (path === "") return root;
@@ -49,6 +65,7 @@ function buildTree(notes: TreeNote[]): FolderNode {
     }
     return cur;
   };
+  for (const f of folders) dir(f);
   for (const n of notes) dir(n.folder).notes.push(n);
   const finish = (node: FolderNode): number => {
     node.folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -90,6 +107,8 @@ export function FileTree({
   hrefOf,
   filter = "",
   reveal,
+  folders,
+  actions,
 }: {
   notes: TreeNote[];
   activeId: string | null;
@@ -99,6 +118,9 @@ export function FileTree({
   filter?: string;
   /** A folder to show open (the crumb of the note you are reading). */
   reveal?: string;
+  /** Every folder there is, so an empty one shows too (GET /api/vault/folders). */
+  folders?: string[];
+  actions?: TreeActions;
 }) {
   // null = never touched → everything starts folded, for a calm first view; once you toggle,
   // your exact choices persist.
@@ -107,7 +129,8 @@ export function FileTree({
     return Array.isArray(saved) ? new Set(saved.filter((s): s is string => typeof s === "string")) : null;
   });
 
-  const tree = useMemo(() => buildTree(notes), [notes]);
+  // Empty folders only when the whole tree is shown: a life area's tree is its notes' folders.
+  const tree = useMemo(() => buildTree(notes, folders), [notes, folders]);
   const filenames = useMemo(() => sameTitleFilenames(notes), [notes]);
   const allFolderPaths = useMemo(() => {
     const s = new Set<string>();
@@ -145,26 +168,90 @@ export function FileTree({
 
   const matches = useMemo(() => filterNotes(notes, filter), [notes, filter]);
 
-  const noteRow = (n: TreeNote, depth: number, meta?: string) => (
-    <a
-      key={n.id}
-      className={n.id === activeId ? "ti on" : "ti"}
-      style={{ paddingLeft: 8 + depth * 14 }}
-      href={hrefOf(n)}
-      aria-current={n.id === activeId ? "page" : undefined}
-      onClick={(e) => {
-        if (!plainClick(e)) return;
+  // One menu at a time, under the ⋯ (or the row) it was asked from.
+  const [menu, setMenu] = useState<{ items: (MenuItem | "-")[]; label: string } | null>(null);
+  const anchor = useRef<HTMLElement | null>(null);
+  const openMenu = (el: HTMLElement, label: string, items: (MenuItem | "-")[]) => {
+    anchor.current = el;
+    setMenu({ label, items });
+  };
+  const more = (label: string, items: () => (MenuItem | "-")[]) =>
+    actions && (
+      <button
+        type="button"
+        className="ti-more"
+        aria-label={`More for ${label}`}
+        aria-haspopup="menu"
+        onClick={(e) => openMenu(e.currentTarget, label, items())}
+      >
+        <Icon name="dots" size={16} />
+      </button>
+    );
+  const onContext = (label: string, items: () => (MenuItem | "-")[]) => (e: MouseEvent<HTMLElement>) => {
+    if (!actions) return;
+    e.preventDefault();
+    openMenu(e.currentTarget, label, items());
+  };
+
+  // Drag a row onto a folder: the folder under the pointer is marked.
+  const [over, setOver] = useState<string | null>(null);
+  const dragging = (e: DragEvent) => e.dataTransfer.types.includes(DRAG_NOTE) || e.dataTransfer.types.includes(DRAG_FOLDER);
+  const dropOn = (folder: string) =>
+    actions && {
+      onDragOver: (e: DragEvent) => {
+        if (!dragging(e)) return;
         e.preventDefault();
-        onOpen(n.id);
-      }}
-    >
-      <Icon name="doc" />
-      <span>
-        {n.title}
-        {filenames.has(n.id) && <em className="ti-file"> {filenames.get(n.id)}</em>}
-      </span>
-      <small>{meta ?? (n.openTasks > 0 ? n.openTasks : "")}</small>
-    </a>
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        if (over !== folder) setOver(folder);
+      },
+      onDragLeave: (e: DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setOver((o) => (o === folder ? null : o));
+      },
+      onDrop: (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(null);
+        const note = e.dataTransfer.getData(DRAG_NOTE);
+        const from = e.dataTransfer.getData(DRAG_FOLDER);
+        if (note) actions.onDropNote(note, folder);
+        else if (from && from !== folder && !folder.startsWith(`${from}/`)) actions.onDropFolder(from, folder);
+      },
+    };
+  const dragFrom = (type: string, value: string) =>
+    actions && {
+      draggable: true,
+      onDragStart: (e: DragEvent) => {
+        e.dataTransfer.setData(type, value);
+        e.dataTransfer.effectAllowed = "move";
+      },
+      onDragEnd: () => setOver(null),
+    };
+
+  const noteRow = (n: TreeNote, depth: number, meta?: string) => (
+    <div key={n.id} className="ti-row" onContextMenu={onContext(n.title, () => actions!.noteMenu(n))}>
+      <a
+        className={n.id === activeId ? "ti on" : "ti"}
+        style={{ paddingLeft: 8 + depth * 14 }}
+        href={hrefOf(n)}
+        aria-current={n.id === activeId ? "page" : undefined}
+        onClick={(e) => {
+          if (!plainClick(e)) return;
+          e.preventDefault();
+          onOpen(n.id);
+        }}
+        {...dragFrom(DRAG_NOTE, n.id)}
+      >
+        <Icon name="doc" />
+        <span>
+          {n.title}
+          {filenames.has(n.id) && <em className="ti-file"> {filenames.get(n.id)}</em>}
+        </span>
+        <small>{meta ?? (n.openTasks > 0 ? n.openTasks : "")}</small>
+      </a>
+      {more(n.title, () => actions!.noteMenu(n))}
+    </div>
   );
 
   const renderFolder = (node: FolderNode, depth: number): React.ReactNode => {
@@ -172,11 +259,14 @@ export function FileTree({
     return (
       <div key={node.path || "(root)"} role="group" aria-label={node.path ? folderName(node.name) : undefined}>
         {node.path !== "" && (
-          <button type="button" className="ti" style={{ paddingLeft: 8 + (depth - 1) * 14 }} onClick={() => toggle(node.path)} aria-expanded={isOpen}>
-            <Icon name={isOpen ? "chev-d" : "chev-r"} />
-            <span>{folderName(node.name)}</span>
-            <small>{node.count}</small>
-          </button>
+          <div className={over === node.path ? "ti-row drop" : "ti-row"} onContextMenu={onContext(folderName(node.name), () => actions!.folderMenu(node.path, node.count))} {...dropOn(node.path)}>
+            <button type="button" className="ti" style={{ paddingLeft: 8 + (depth - 1) * 14 }} onClick={() => toggle(node.path)} aria-expanded={isOpen} {...dragFrom(DRAG_FOLDER, node.path)}>
+              <Icon name={isOpen ? "chev-d" : "chev-r"} />
+              <span>{folderName(node.name)}</span>
+              <small>{node.count || ""}</small>
+            </button>
+            {more(folderName(node.name), () => actions!.folderMenu(node.path, node.count))}
+          </div>
         )}
         {isOpen && (
           <>
@@ -188,12 +278,21 @@ export function FileTree({
     );
   };
 
+  const menuEl = menu && <Menu anchor={anchor} label={menu.label} items={menu.items} align="end" onClose={() => setMenu(null)} />;
+
   if (filter.trim() !== "")
     return (
       <div className="nt-filetree" aria-label="Notes matching the filter">
         {matches.map((n) => noteRow(n, 0, n.folder ? folderName(n.folder.split("/").pop()!) : ""))}
         {matches.length === 0 && <p className="nt-none">No notes match “{filter.trim()}”.</p>}
+        {menuEl}
       </div>
     );
-  return <div className="nt-filetree">{renderFolder(tree, 0)}</div>;
+  // The tree's own space is the top folder: a row dropped there leaves its folder.
+  return (
+    <div className={over === "" ? "nt-filetree drop" : "nt-filetree"} {...dropOn("")}>
+      {renderFolder(tree, 0)}
+      {menuEl}
+    </div>
+  );
 }

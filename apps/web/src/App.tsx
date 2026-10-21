@@ -148,7 +148,7 @@ export function titleOf(r: Route): string {
     case "today":
       return todayTitle(); // the Today board's top bar: "Thursday 8 October"
     case "notes":
-      return r.path ? words(r.path) : "Notes";
+      return r.trash ? "Trash" : r.path ? words(r.path) : "Notes";
     case "notes-health":
       return "Orr noticed";
     case "project":
@@ -542,7 +542,7 @@ export function App() {
         ) : view.kind === "dashboard" ? (
           <Today me={me} />
         ) : view.kind === "architecture" ? (
-          <Notes me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} />
+          <Notes me={me} noteId={view.noteId} notePath={shown.kind === "notes" ? shown.path : undefined} trash={shown.kind === "notes" && !!shown.trash} />
         ) : view.kind === "planning" ? (
           <Planning me={me} route={route.kind === "planning" ? route : undefined} onOpenNote={openNote} onOpenProject={(slug) => navigate({ kind: "project", slug })} />
         ) : view.kind === "overview" ? (

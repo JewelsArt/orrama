@@ -15,6 +15,10 @@ import { slugOf } from "./orrery/model.js";
 import { AreaChip, NotesHome, NoteTop, SidePanel, TreePane } from "./notes/parts.js";
 import { dueOf, folderName, isOrdinary, pinnedIn, thousands, wordCount } from "./notes/read.js";
 import { NameDialog } from "./ui/NameDialog.js";
+import { Confirm, type ConfirmRequest } from "./Confirm.js";
+import { folderOf, listFolders, moveFolder, moveNote, nameOf, notePath, sayMoved, trashNoteWithUndo } from "./noteActions.js";
+import { folderWords, HistorySheet, MoveDialog, NewFolderDialog, RenameFolderDialog, RenameNoteDialog, TrashView, trashFolderRequest } from "./notes/actions.js";
+import type { TreeActions } from "./FileTree.js";
 import { Button } from "./ui/controls.js";
 import { anyLayerOpen, Sheet, toast, type MenuItem } from "./ui/overlays.js";
 import { Notice } from "./ui/states.js";
@@ -41,8 +45,11 @@ const RECENT_AT_HOME = 8;
  * Notes home. Which note is open is the address (/notes/<path>); /notes opens on the last one
  * until you close it. The map left for the Orrery (§8 #3).
  */
-export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; notePath?: string }) {
+export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: Me; noteId?: string; notePath?: string; trash?: boolean }) {
+  const notePathProp = openPath;
   const [tree, setTree] = useState<TreeNote[] | null>(null);
+  /** Every folder, empty ones too (1C). */
+  const [folders, setFolders] = useState<string[]>([]);
   const treeRef = useRef<TreeNote[]>([]);
   treeRef.current = tree ?? [];
   const [category, setCategory] = useState("all");
@@ -98,6 +105,10 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
         if (isAbort(e)) return;
         setOverview(null);
       },
+    );
+    listFolders().then(
+      (f) => setFolders(Array.isArray(f) ? f : []),
+      () => {},
     );
     try {
       setTree(await api<TreeNote[]>("GET", "/api/vault/tree", undefined, { signal: nextTree() }));
@@ -174,8 +185,11 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
       writeKey(LAST_NOTE_KEY, id);
       if (syncRef.current?.id === id) {
         // The same note again (a toggle, a live-sync event): refresh the header
-        // and let the sync merge the text into whatever is being typed.
+        // and let the sync merge the text into whatever is being typed. Renamed or moved
+        // meanwhile (here or elsewhere): the address follows it.
+        const was = openRef.current;
         setOpen(note);
+        if (was && was.id === id && was.path !== note.path && wantRef.current === id) navigate({ kind: "notes", path: addressOf(note.path) }, { replace: true });
         void syncRef.current.sync?.refresh();
         return;
       }
@@ -239,16 +253,26 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
   // Follow the address. A path is looked up in the tree (App's copy of it may predate a note
   // just made); bare /notes opens the note you had open last, until you close it.
   const treeLoaded = tree !== null;
-  const wanted = noteId ?? (notePath !== undefined ? (tree ?? []).find((n) => addressOf(n.path) === notePath)?.id : undefined);
+  // The open note just renamed or moved is the note at its new address before the tree has it.
+  const wanted =
+    noteId ??
+    (notePathProp !== undefined
+      ? ((tree ?? []).find((n) => addressOf(n.path) === notePathProp)?.id ?? (open && addressOf(open.path) === notePathProp ? open.id : undefined))
+      : undefined);
   useEffect(() => {
+    if (trash) {
+      if (wantRef.current || openRef.current) closeNote();
+      setMissing(null);
+      return;
+    }
     if (wanted) {
       if (wanted !== wantRef.current) void openNote(wanted);
       return;
     }
-    if (notePath !== undefined) {
+    if (notePathProp !== undefined) {
       if (treeLoaded) {
         closeNote();
-        setMissing(`${notePath}.md`);
+        setMissing(`${notePathProp}.md`);
       }
       return;
     }
@@ -256,12 +280,12 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
     const last = readKey(LAST_NOTE_KEY);
     if (last && treeLoaded && treeRef.current.some((n) => n.id === last)) go(last);
     else if (wantRef.current || openRef.current) closeNote();
-  }, [wanted, notePath, treeLoaded, openNote, closeNote, go]);
+  }, [wanted, notePathProp, treeLoaded, openNote, closeNote, go, trash]);
   // Opened by its id: once the tree knows the path, the address says it (replacing, not adding).
   useEffect(() => {
-    if (!noteId || notePath !== undefined || !open || open.id !== noteId) return;
+    if (!noteId || notePathProp !== undefined || !open || open.id !== noteId) return;
     navigate({ kind: "notes", path: addressOf(open.path) }, { replace: true });
-  }, [noteId, notePath, open]);
+  }, [noteId, notePathProp, open]);
 
   useEffect(() => {
     const off = onWs((msg) => {
@@ -373,6 +397,136 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
     void s.flush().then(() => void loadTree());
   };
 
+  // ---- rename, move, the trash and history (1C: none of it had a screen) ----
+  const [renaming, setRenaming] = useState<{ id: string; path: string } | null>(null);
+  const [moving, setMoving] = useState<Parameters<typeof MoveDialog>[0]["item"] | null>(null);
+  const [newFolderIn, setNewFolderIn] = useState<string | null>(null);
+  const [newNoteIn, setNewNoteIn] = useState<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [history, setHistory] = useState(false);
+  const [asking, setAsking] = useState<ConfirmRequest | null>(null);
+
+  /** Before the open note moves or goes: what is typed is saved where it is now. */
+  const settleOpen = useCallback(async () => {
+    await syncRef.current?.sync?.flush();
+  }, []);
+  /** After anything moved: the tree again, and the open note read again — its header, its
+   *  sync and the address follow where it is now (openNote), live sync or not. */
+  const afterChange = useCallback(async () => {
+    await loadTree();
+    const cur = openRef.current;
+    if (cur && wantRef.current === cur.id) await openNote(cur.id);
+  }, [loadTree, openNote]);
+  /** Put a note in the trash; the open one closes, and Undo opens it again. */
+  const trashOne = useCallback(
+    async (n: { id: string; path: string; title: string }) => {
+      const isOpen = openRef.current?.id === n.id;
+      if (isOpen) await settleOpen();
+      await trashNoteWithUndo(n.path, n.title, {
+        after: () => {
+          if (isOpen) {
+            void syncRef.current?.sync?.refresh(); // it is gone: the sync stops saving
+            leave();
+          }
+          void loadTree();
+        },
+        restored: (id) => {
+          void loadTree();
+          // By its id: the tree that knows its path again may not have been drawn yet.
+          if (isOpen && id) navigate({ kind: "notes", id });
+        },
+      });
+    },
+    [settleOpen, leave, loadTree],
+  );
+  const moveNoteTo = useCallback(
+    async (n: { id: string; path: string; title: string }, folder: string) => {
+      if (folderOf(n.path) === folder) return;
+      if (openRef.current?.id === n.id) await settleOpen();
+      await attempt(`“${n.title}” wasn't moved.`, async () => {
+        const done = await moveNote(n.path, notePath(folder, nameOf(n.path)));
+        sayMoved(`Moved “${n.title}” to ${folderWords(folder)}.`, n.path, done, () => void afterChange());
+        await afterChange();
+      });
+    },
+    [settleOpen, afterChange],
+  );
+  const moveFolderTo = useCallback(
+    async (from: string, folder: string) => {
+      const leaf = from.slice(from.lastIndexOf("/") + 1);
+      await settleOpen();
+      await attempt("The folder wasn't moved.", async () => {
+        const done = await moveFolder(from, folder ? `${folder}/${leaf}` : leaf);
+        toast(`Moved “${folderName(leaf)}” to ${folderWords(folder)}.`, {
+          ms: 8000,
+          action: { label: "Undo", run: () => void attempt("The folder wasn't put back.", () => moveFolder(done.path, from).then(afterChange)) },
+        });
+        setReveal(folder || undefined);
+        await afterChange();
+      });
+    },
+    [settleOpen, afterChange],
+  );
+  const treeActions: TreeActions = useMemo(
+    () => ({
+      noteMenu: (n) => [
+        {
+          label: "Rename…",
+          onSelect: () => {
+            if (openRef.current?.id === n.id) void settleOpen();
+            setRenaming({ id: n.id, path: n.path });
+          },
+        },
+        { label: "Move to…", onSelect: () => setMoving({ kind: "note", id: n.id, path: n.path, title: n.title }) },
+        "-" as const,
+        { label: "Move to the trash", danger: true, onSelect: () => void trashOne(n) },
+      ],
+      folderMenu: (folder, count) => [
+        { label: "New note here", onSelect: () => setNewNoteIn(folder) },
+        { label: "New folder here", onSelect: () => setNewFolderIn(folder) },
+        { label: "Rename…", onSelect: () => setRenamingFolder(folder) },
+        { label: "Move to…", onSelect: () => setMoving({ kind: "folder", path: folder }) },
+        "-" as const,
+        {
+          label: "Move to the trash",
+          danger: true,
+          onSelect: () => {
+            void settleOpen();
+            setAsking(trashFolderRequest(folder, count, () => void afterChange()));
+          },
+        },
+      ],
+      onDropNote: (id, folder) => {
+        const n = treeRef.current.find((t) => t.id === id);
+        if (n) void moveNoteTo(n, folder);
+      },
+      onDropFolder: (from, folder) => void moveFolderTo(from, folder),
+    }),
+    [settleOpen, trashOne, afterChange, moveNoteTo, moveFolderTo],
+  );
+  /** An earlier version back in the note: a normal edit through its sync, so it is the newest
+   *  version now and Undo (or History again) steps back. */
+  const restoreVersion = (text: string, at: number) => {
+    const s = syncRef.current?.sync;
+    if (!s) return;
+    const before = s.content;
+    s.edit(text);
+    setRestored((n) => n + 1);
+    void s.flush().then(() =>
+      toast(`Restored the version from ${dateTimeLabel(at)}.`, {
+        ms: 8000,
+        action: {
+          label: "Undo",
+          run: () => {
+            s.edit(before);
+            setRestored((n) => n + 1);
+            void s.flush();
+          },
+        },
+      }),
+    );
+  };
+
   const scoped = useMemo(() => (category === "all" ? (tree ?? []) : (tree ?? []).filter((n) => categoryOf(n) === category)), [tree, category]);
   const catCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -439,6 +593,15 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
       leave();
     },
     onNew: () => setNaming(true),
+    onNewFolder: () => setNewFolderIn(""),
+    folders,
+    actions: treeActions,
+    trashHref: routeHref({ kind: "notes", trash: true }),
+    onTrash: () => {
+      setTreeSheet(false);
+      navigate({ kind: "notes", trash: true });
+    },
+    inTrash: trash,
   };
 
   const treeNote = open ? byId.get(open.id) : undefined;
@@ -457,14 +620,28 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
   // The window and the phone's top bar name the note as the page does (a title that is only an
   // id is shown by its kind, date and gist, F3), not by its file name.
   usePageTitle(open ? routeHref({ kind: "notes", path: addressOf(open.path) }) : "", open?.title);
-  const menu: MenuItem[] = open
+  const menu: (MenuItem | "-")[] = open
     ? [
         ...(open.canEdit ? [{ label: pinned ? "Unpin from Notes home" : "Pin to Notes home", onSelect: togglePin }] : []),
         // Only on an ordinary note: never on a person, a company, a conversation, the ontology,
         // or a project already (structure.md §8 #7).
         ...(open.canEdit && ordinary ? [{ label: "Make this a project", onSelect: () => void makeProject() }] : []),
+        ...(open.canEdit
+          ? [
+              {
+                label: "Rename…",
+                onSelect: () => {
+                  void settleOpen();
+                  setRenaming({ id: open.id, path: open.path });
+                },
+              },
+              { label: "Move to…", onSelect: () => setMoving({ kind: "note" as const, id: open.id, path: open.path, title: open.title }) },
+            ]
+          : []),
+        { label: "History", onSelect: () => setHistory(true) },
         { label: "Show in the Orrery", onSelect: () => navigate(orrery) },
         { label: "Close note", onSelect: leave },
+        ...(open.canEdit ? ["-" as const, { label: "Move to the trash", danger: true, onSelect: () => void trashOne(open) }] : []),
       ]
     : [];
 
@@ -474,7 +651,9 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
 
       <div className="nt-ed">
         <div className="nt-box">
-          {open ? (
+          {trash ? (
+            <TrashView onOpen={(id) => navigate({ kind: "notes", id })} onChanged={() => void loadTree()} ask={setAsking} />
+          ) : open ? (
             <>
               <NoteTop path={open.path} folderLabel={folderLabel} onHome={leave} onFolder={showFolder} orrery={orrery} menu={menu} onTree={() => setTreeSheet(true)} />
               <article className="nt-doc">
@@ -571,7 +750,11 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
               onArea={showArea}
               onNew={() => setNaming(true)}
               folderLabel={folderLabel}
-              phoneTree={tree && tree.length > 0 ? <FileTree notes={scoped} activeId={null} onOpen={go} hrefOf={hrefOf} /> : undefined}
+              phoneTree={
+                tree && (tree.length > 0 || folders.length > 0) ? (
+                  <FileTree notes={scoped} activeId={null} onOpen={go} hrefOf={hrefOf} folders={category === "all" ? folders : undefined} actions={treeActions} />
+                ) : undefined
+              }
             />
           )}
         </div>
@@ -592,13 +775,52 @@ export function Notes({ me, noteId, notePath }: { me: Me; noteId?: string; noteP
       )}
 
       {treeSheet && (
-        <Sheet title="Notes" onClose={() => setTreeSheet(false)} className="nt-tree-sheet">
+        <Sheet
+          title="Notes"
+          onClose={() => setTreeSheet(false)}
+          className="nt-tree-sheet"
+          head={<Button kind="quiet" size="sm" icon="folder" aria-label="New folder" onClick={() => setNewFolderIn("")} />}
+        >
           <TreePane {...treeProps} />
         </Sheet>
       )}
       {naming && (
         <NameDialog title="New note" label="Path" help="A folder and a name, like Ideas/Reading list" onSubmit={createNote} onClose={() => setNaming(false)} />
       )}
+      {newNoteIn !== null && (
+        <NameDialog
+          title="New note"
+          label="Name"
+          help={`Inside ${folderWords(newNoteIn)}`}
+          onSubmit={(name) => createNote(`${newNoteIn}/${name}`)}
+          onClose={() => setNewNoteIn(null)}
+        />
+      )}
+      {newFolderIn !== null && (
+        <NewFolderDialog
+          parent={newFolderIn}
+          onDone={(path) => {
+            setReveal(path);
+            void loadTree();
+          }}
+          onClose={() => setNewFolderIn(null)}
+        />
+      )}
+      {renamingFolder !== null && (
+        <RenameFolderDialog folder={renamingFolder} onDone={(path) => {
+          setReveal(path);
+          void afterChange();
+        }} onClose={() => setRenamingFolder(null)} />
+      )}
+      {renaming && <RenameNoteDialog note={renaming} onDone={() => void afterChange()} onClose={() => setRenaming(null)} />}
+      {moving && <MoveDialog item={moving} folders={folders} onDone={(path) => {
+        setReveal(moving.kind === "folder" ? path : folderOf(path) || undefined);
+        void afterChange();
+      }} onClose={() => setMoving(null)} />}
+      {history && open && (
+        <HistorySheet noteId={open.id} title={open.title} current={text} me={me} canEdit={open.canEdit && !!sync} onRestore={restoreVersion} onClose={() => setHistory(false)} />
+      )}
+      <Confirm request={asking} onClose={() => setAsking(null)} />
     </div>
   );
 }

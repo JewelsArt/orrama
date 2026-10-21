@@ -591,9 +591,20 @@
 - **Exports**: createNote, blankNote, ContactFields, contactNote, CompanyFields, companyNote
 - **Imports**: ./api.js
 
+### `apps/web/src/noteActions.ts`
+- **Exports**: folderOf, nameOf, notePath, folderLeaf, nameProblem, Moved, moveNote, renameNote, linkersOf, linkersSentence, trashNote, trashList, restoreFromTrash, emptyTrash, listFolders, makeFolder, moveFolder, renameFolder, trashFolder, trashNoteWithUndo, sayMoved
+- **Imports**: @orrama/schema/responses, ./api.js, ./ui/overlays.js, ./ui/writes.js
+
 ### `apps/web/src/noteSync.ts`
 - **Exports**: DRAFT_PREFIX, Draft, readDraft, dropDraft, restoredText, openNoteSync, retire, unsavedCount, flushAll, sendBeforeLeaving, failing, installLeaveGuard, resetNoteSyncs
 - **Imports**: @orrama/sync/client, @orrama/sync/merge, ./api.js, ./storage.js
+
+### `apps/web/src/notes/actions.tsx`
+- **Exports**: folderWords, RenameNoteDialog, NewFolderDialog, RenameFolderDialog, MoveDialog, trashFolderRequest, HistorySheet, TrashView
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../noteActions.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./diff.js, ./read.js
+
+### `apps/web/src/notes/diff.ts`
+- **Exports**: DiffLine, diffLines, Shown, withContext, changeWords
 
 ### `apps/web/src/notes/links.ts`
 - **Exports**: LinkRef, TreeRef, noteForLink

@@ -33,7 +33,7 @@ export type Route =
   | { kind: "today" }
   | { kind: "planning"; scale: "day" | "week" | "month"; at?: string }
   /** A note by its vault path (no .md), or, until the path is known, by its id. */
-  | { kind: "notes"; path?: string; id?: string }
+  | { kind: "notes"; path?: string; id?: string; trash?: boolean }
   | { kind: "notes-health" }
   | { kind: "orrery"; center?: string; area?: string; topic?: string }
   /** The board, filtered to one life area (`?area=school`), with a shelf open (`?shelf=done`). */
@@ -94,6 +94,7 @@ export function parseRoute(pathname: string, search = ""): Route | null {
     case "notes":
       if (rest.length === 0) return opt("id") ? { kind: "notes", id: opt("id") } : { kind: "notes" };
       if (rest.length === 1 && rest[0] === "health") return { kind: "notes-health" };
+      if (rest.length === 1 && rest[0] === "trash") return { kind: "notes", trash: true };
       if (rest.length === 1 && rest[0] === "map") return { kind: "orrery" };
       return { kind: "notes", path: rest.join("/") };
     case "orrery": {
@@ -159,7 +160,7 @@ export function routeHref(r: Route): string {
     case "planning":
       return `/planning/${r.scale}${r.at ? `/${enc(r.at)}` : ""}`;
     case "notes":
-      return r.path ? `/notes/${encPath(r.path)}` : `/notes${query({ id: r.id })}`;
+      return r.trash ? "/notes/trash" : r.path ? `/notes/${encPath(r.path)}` : `/notes${query({ id: r.id })}`;
     case "notes-health":
       return "/notes/health";
     case "orrery":
