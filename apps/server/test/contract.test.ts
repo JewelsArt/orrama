@@ -34,6 +34,7 @@ let ics: Awaited<ReturnType<typeof fx.serveIcs>>;
 let token = "";
 let noteId = "";
 let seq = 0;
+let cardOf = "";
 const call = async (method: string, url: string, payload?: unknown) => {
   const r = await b.app.inject({ method: method as "GET", url, headers: signedIn(token), payload: payload as object });
   return { status: r.statusCode, body: r.body ? (JSON.parse(r.body) as unknown) : null };
@@ -59,6 +60,7 @@ beforeAll(async () => {
   // Rows behind every list, made the way the app makes them.
   const ws = await must("GET", "/api/projects/atlas");
   const [t1, t2] = ws["tasks"] as { noteId: string; line: number; raw: string }[];
+  cardOf = `noteId=${t1!.noteId}&text=${encodeURIComponent(t1!.raw)}`;
   await must("POST", "/api/events", { title: "Dentist", date: "2026-10-06", startMin: 540, durationMin: 60 });
   await must("POST", "/api/tasks/blocks", { noteId: t1!.noteId, line: t1!.line, text: t1!.raw, date: "2026-10-07", startMin: 600, durationMin: 60 });
   await must("POST", "/api/tokens", { label: "CLI" });
@@ -148,6 +150,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/finance/merchant/:x", () => "/api/finance/merchant/UNIQLO", R.financeMerchantResponse],
   ["/api/home", () => "/api/home", R.homeResponse],
   ["/api/tasks", () => "/api/tasks", R.tasksResponse],
+  ["/api/tasks/card", () => `/api/tasks/card?${cardOf}`, R.taskCardResponse],
   ["/api/mail/account", () => "/api/mail/account", R.mailAccountResponse],
   ["/api/mail/drafts", () => "/api/mail/drafts", R.mailDraftsResponse],
   ["/api/tokens", () => "/api/tokens", R.tokensResponse],

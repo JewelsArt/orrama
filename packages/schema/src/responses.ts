@@ -67,6 +67,26 @@ export const dashboardTaskSchema = taskLineSchema.extend({
 /** GET /api/tasks: every task the caller can read, with its promoted object (Today's Due). */
 export const tasksResponse = z.array(dashboardTaskSchema);
 
+/** A step as its card shows it (GET /api/tasks/card, and the answer to every card change). */
+export const taskCardResponse = o({
+  task: taskLineSchema.extend({
+    noteId: z.string(),
+    notePath: z.string(),
+    noteTitle: z.string(),
+    /** The words as typed: the line without its box, block id, dates, priority and `#deadline`. */
+    words: z.string(),
+  }),
+  canEdit: z.boolean(),
+  /** The project the step's note belongs to, if any. */
+  project: o({ slug: z.string(), name: z.string() }).nullable(),
+  /** The `##` heading above the step in its note, if any. */
+  section: nstr,
+  /** Where it can be moved: every project whose note you can edit, with that note's sections. */
+  places: z.array(o({ slug: z.string(), name: z.string(), sections: z.array(z.string()) })),
+  /** Whether the step already sits in your inbox note. */
+  inInbox: z.boolean(),
+});
+
 const teamBase = { id: z.string(), slug: z.string(), name: z.string(), color: z.string(), icon: z.string() };
 export const teamSchema = o(teamBase);
 
@@ -1004,6 +1024,7 @@ export type GraphSummaries = z.infer<typeof graphSummariesResponse>;
 export type Appearance = z.infer<typeof appearanceSchema>;
 export type TaskLine = z.infer<typeof taskLineSchema>;
 export type TaskObject = z.infer<typeof taskObjectSchema>;
+export type TaskCardData = z.infer<typeof taskCardResponse>;
 export type DashboardTask = z.infer<typeof dashboardTaskSchema>;
 export type Team = z.infer<typeof teamSchema>;
 export type Me = z.infer<typeof meResponse>;

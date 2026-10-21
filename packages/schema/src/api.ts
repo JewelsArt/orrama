@@ -150,6 +150,53 @@ export const taskDatesSchema = z
   .refine((b) => b.start !== undefined || b.due !== undefined, { message: "start or due required" })
   .refine((b) => !b.start || !b.due || b.start <= b.due, { message: "start must not be after due" });
 
+/** A day that exists, as the line writes it: the shape alone lets 2026-02-30 through. */
+const realDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => {
+    const t = Date.parse(`${d}T00:00:00Z`);
+    return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === d && d >= "1900-01-01";
+  }, "not a real day");
+
+/**
+ * Change a step from its card (`POST /api/tasks/edit`): each part on its own, written into its
+ * line as a person would type it (core `editTaskLine`). Absent = leave it; null = take it off.
+ */
+export const taskEditSchema = z
+  .object({
+    ...taskRef,
+    words: z.string().trim().min(1).max(2000).regex(/^[^\r\n]*$/, "one line").optional(),
+    due: realDay.nullable().optional(),
+    start: realDay.nullable().optional(),
+    priority: z.union([z.literal(1), z.literal(2), z.literal(3)]).nullable().optional(),
+    key: z.boolean().optional(),
+    status: z.enum(["todo", "in-progress", "done", "blocked"]).optional(),
+  })
+  .refine(namesTheTask, NAME_THE_TASK);
+
+/**
+ * Move a step (`POST /api/tasks/move`): to a project's note, last under one of its `##`
+ * sections ("Tasks" when none is named), or to your inbox.
+ */
+export const taskMoveSchema = z
+  .object({
+    ...taskRef,
+    to: z.union([
+      z.object({ project: z.string().min(1).max(64), section: z.string().trim().min(1).max(200).regex(/^[^\r\n#]*$/, "a heading's words").optional() }).strict(),
+      z.object({ inbox: z.literal(true) }).strict(),
+    ]),
+  })
+  .refine(namesTheTask, NAME_THE_TASK);
+
+/** Which step a card opens on (`GET /api/tasks/card?noteId=…&blockId=…&text=…&line=…`). */
+export const taskCardQuerySchema = z
+  .object({ ...taskRef, line: z.coerce.number().int().nonnegative().optional() })
+  .refine(namesTheTask, NAME_THE_TASK);
+
+/** Delete a step's line (`POST /api/tasks/delete`). */
+export const taskDeleteSchema = z.object(taskRef).refine(namesTheTask, NAME_THE_TASK);
+
 /** A task booked onto a day (`/api/tasks/schedule`) or a calendar slot (`/api/tasks/blocks`). */
 export const taskPlaceSchema = z.object(taskRef).refine(namesTheTask, NAME_THE_TASK);
 
@@ -236,4 +283,6 @@ export const askVaultSchema = z.object({
 export type NoteWrite = z.infer<typeof noteWriteSchema>;
 export type CheckTask = z.infer<typeof checkTaskSchema>;
 export type SetTaskStatus = z.infer<typeof setTaskStatusSchema>;
+export type TaskEdit = z.infer<typeof taskEditSchema>;
+export type TaskMove = z.infer<typeof taskMoveSchema>;
 export type Grant = z.infer<typeof grantSchema>;
