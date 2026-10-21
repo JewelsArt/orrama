@@ -14,10 +14,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../../..");
-// The audit quotes what it found, redacted; everything else is ours.
 const files = execFileSync("git", ["ls-files", "-z", "-co", "--exclude-standard"], { cwd: root, encoding: "utf8" })
   .split("\0")
-  .filter((f) => f && !f.startsWith("docs/audit/") && f !== "pnpm-lock.yaml" && /\.(ts|tsx|mts|js|mjs|md|json|yml|yaml|css|html)$/.test(f))
+  .filter((f) => f && f !== "pnpm-lock.yaml" && /\.(ts|tsx|mts|js|mjs|md|json|yml|yaml|css|html)$/.test(f))
   .filter((f) => fs.existsSync(path.join(root, f)));
 const text = (f: string) => fs.readFileSync(path.join(root, f), "utf8");
 

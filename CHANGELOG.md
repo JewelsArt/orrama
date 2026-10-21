@@ -314,6 +314,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Removed
 
+- The 2 October audit's write-up and tickets (`docs/audit/`) are no longer in the
+  repository.
 - Plus Jakarta Sans and JetBrains Mono (loaded from Google Fonts).
 - Glyph icons (✕ × ‹ › ✎ ↵) and keycaps on screen.
 - Basalt no longer creates `.mcp.json` and `CLAUDE.md` in your vault on every

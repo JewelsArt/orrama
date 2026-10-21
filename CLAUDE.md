@@ -511,7 +511,7 @@ them without a migration:
 - the bridges: `migrateLegacyKeys` (browser keys `basalt-…` → `orrama-…`), the boot
   script's fallback, `basaltSuggested` read in `board.ts`, and the `BASALT_*` refusal
   (`renamedEnvProblems` in the server's `env.ts`, the MCP server and the web dev server);
-- history: `docs/audit/`, `CHANGELOG.md`, `docs/spec.md`, `scripts/merge-vaults.mjs`,
+- history: `CHANGELOG.md`, `docs/spec.md`, `scripts/merge-vaults.mjs`,
   `apps/desktop/basalt-icon.svg` (the old artwork).
 
 ## One user, one vault
