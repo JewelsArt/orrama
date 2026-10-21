@@ -84,6 +84,23 @@
 .dr-count { font-variant-numeric: tabular-nums; }
 .dr-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
 
+/* Where are your notes? (door/NotesChoice.tsx): at first run in the card, and in Settings → Notes in a dialog. */
+.dr-first2 .dr-p { margin-bottom: 14px; }
+.dr-ch { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.dr-ch-opts { display: flex; flex-direction: column; gap: 8px; }
+.dr-ch-opt { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 11px 13px; border-radius: var(--r-2); border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.dr-ch-opt b { font-size: 15px; line-height: 21px; font-weight: 700; }
+.dr-ch-opt span { color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
+.dr-ch-opt:hover:not(:disabled) { background: var(--hover); }
+.dr-ch-opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.dr-ch-opt:disabled { cursor: default; }
+.dr-ch-opt:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dr-ch-note, .dr-ch-fixed { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
+.dr-ch-fixed b { color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
+.dr-ch .field .help { overflow-wrap: anywhere; }
+.dr-ch-acts { display: flex; gap: 8px; justify-content: flex-end; }
+.dr-ch-acts .dr-go { margin-top: 0; }
+
 /* ---- the phone: the halo above, the form below, a keypad on the lock ---- */
 @media (max-width: 559px) {
   .dr-mid { top: auto; bottom: 24px; transform: translateX(-50%); gap: 10px; }
@@ -92,6 +109,7 @@
   .dr-word { font-size: 28px; line-height: 32px; }
   .dr-card { padding: 18px; }
   .dr-clock { font-size: 44px; line-height: 48px; }
+  .dr-ch-opt:not(.on) span { display: none; }
   .door.in .dr-mid { bottom: auto; top: 30%; transform: translate(-50%, -50%); }
 }
 /* A short window (a phone on its side): the column scrolls with the page rather than off it. */

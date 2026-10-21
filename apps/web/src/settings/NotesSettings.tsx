@@ -1,14 +1,18 @@
 /**
  * Settings → Notes (structure.md §3.1 #4): the folder this server reads the notes from, the life
- * areas (the vault's own `#vault-categories` note), and the ontology with Orr noticed. All of it
- * is the server's and the vault's: the folder is set where the server is started, the areas
- * and the ontology are notes, so this section shows them and opens them rather than editing.
+ * areas (the vault's own `#vault-categories` note), and the ontology with Orr noticed. The folder
+ * is changed here with the first run's chooser (Change…, door/NotesChoice.tsx), unless it is set
+ * where the server starts (ORRAMA_VAULT_DIR), and the example from first run is removed here.
+ * The areas and the ontology are notes, so this section shows them and opens them.
  */
-import { useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import type { GraphSchema, ServerSettings, TreeNote } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { CATEGORIES } from "../categories.js";
-import { Dot } from "../ui/controls.js";
+import { Confirm, type ConfirmRequest } from "../Confirm.js";
+import { NotesChoice } from "../door/NotesChoice.js";
+import { Button, Dot } from "../ui/controls.js";
+import { Dialog } from "../ui/overlays.js";
 import { Icon } from "../ui/Icon.js";
 import { navigate, routeHref, type Route } from "../ui/router.js";
 import { Skeleton } from "../ui/states.js";
@@ -27,7 +31,13 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
   const [server, setServer] = useState<ServerSettings | null | undefined>(owner ? undefined : null);
   const [tree, setTree] = useState<TreeNote[] | null>(null);
   const [schema, setSchema] = useState<GraphSchema | null>(null);
-  const [how, setHow] = useState<"folder" | "export" | null>(null);
+  const [how, setHow] = useState<"export" | null>(null);
+  const [changing, setChanging] = useState(false);
+  const [ask, setAsk] = useState<ConfirmRequest | null>(null);
+
+  /** Asked again after the example goes: the counts below are the folder's. */
+  const [version, setVersion] = useState(0);
+  const loadServer = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
     if (owner)
@@ -40,7 +50,20 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
     api<GraphSchema>("GET", "/api/graph/schema")
       .then(setSchema)
       .catch(() => setSchema(null));
-  }, [owner]);
+  }, [owner, version]);
+
+  const removeExample = () =>
+    setAsk({
+      title: "Remove the example?",
+      body: "This deletes Garden studio, Sam Rivera, Oakline Builders and the site visit, with anything you added to them. Your own notes stay.",
+      confirmLabel: "Remove the example",
+      danger: true,
+      failed: "The example wasn't removed.",
+      onConfirm: async () => {
+        await api("DELETE", "/api/settings/example");
+        loadServer();
+      },
+    });
 
   const tagged = (tag: string) => tree?.find((n) => n.tags.includes(tag));
   const areasNote = tagged("vault-categories");
@@ -59,25 +82,51 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
           {server === undefined ? (
             <Skeleton rows={1} label="Loading the notes folder" />
           ) : server ? (
-            <StateLine
-              tone="ok"
-              title={server.notesFolder}
-              detail={`${plural(server.notes, "note")} · read live, also by Obsidian`}
-              action={
-                <button type="button" className="set-how" aria-expanded={how === "folder"} onClick={() => setHow(how === "folder" ? null : "folder")}>
-                  How to change it?
-                </button>
-              }
-            />
+            <>
+              <StateLine
+                tone="ok"
+                title={server.notesFolder}
+                detail={server.fixed ? `${plural(server.notes, "note")} · set where Orrama starts` : plural(server.notes, "note")}
+                action={
+                  server.fixed ? undefined : (
+                    <Button size="sm" onClick={() => setChanging(true)}>
+                      Change…
+                    </Button>
+                  )
+                }
+              />
+              {server.example > 0 && (
+                <StateLine
+                  tone="off"
+                  title="The example"
+                  detail="Garden studio, Sam Rivera, Oakline Builders and a site visit this week."
+                  action={
+                    <Button size="sm" onClick={removeExample}>
+                      Remove the example
+                    </Button>
+                  }
+                />
+              )}
+            </>
           ) : (
             <StateLine tone="bad" title="The server didn't say" detail="Reload the page to try again." />
           )}
-          {how === "folder" && (
-            <p className="set-help">
-              The folder is set where the server starts: <code>ORRAMA_VAULT_DIR</code> in its launch agent on the Mac. Change it
-              there and restart the agent; the first read gives every note an id line.
-            </p>
+          {changing && server && (
+            <Dialog title="Where are your notes?" onClose={() => setChanging(false)}>
+              <NotesChoice
+                server={server}
+                place="settings"
+                onCancel={() => setChanging(false)}
+                onDone={(_way, moved) => {
+                  // Another folder: everything on screen was the old one's.
+                  if (moved) return window.location.reload();
+                  setChanging(false);
+                  loadServer();
+                }}
+              />
+            </Dialog>
           )}
+          <Confirm request={ask} onClose={() => setAsk(null)} />
         </div>
       )}
 

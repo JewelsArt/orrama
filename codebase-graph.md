@@ -327,7 +327,7 @@
 
 ### `apps/web/src/Setup.tsx`
 - **Exports**: Setup
-- **Imports**: react, ./api.js, ./door/Door.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./door/Door.js, ./door/NotesChoice.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
 
 ### `apps/web/src/TaskCard.tsx`
 - **Exports**: PlannableTask, TaskCard
@@ -398,6 +398,10 @@
 ### `apps/web/src/door/Door.tsx`
 - **Exports**: HOLD_MS, reducedMotion, useNarrow, greeting, DoorHandle, Entered, useEnter, Door, After, DoorError, DoorFoot, PasswordField, DoorField, FingerprintIcon, BackspaceIcon
 - **Imports**: react, ../api.js, ../ui/fields.js, ../ui/orr/Orr.js, ./dots.js, ./shape.js
+
+### `apps/web/src/door/NotesChoice.tsx`
+- **Exports**: NotesWay, lookWords, NotesChoice
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js
 
 ### `apps/web/src/door/dots.ts`
 - **Exports**: MAX_DOTS, NARROW, AreaShape, VaultShape, areaSpans, assignDots, DotsOptions, DoorDots
@@ -766,7 +770,7 @@
 
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../ui/controls.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../Confirm.js, ../door/NotesChoice.js, ../ui/controls.js, ../ui/overlays.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js
 
 ### `apps/web/src/settings/SignedIn.tsx`
 - **Exports**: SignedInSection

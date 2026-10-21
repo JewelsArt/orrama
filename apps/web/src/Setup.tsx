@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import type { ServerSettings } from "@orrama/schema/responses";
 import { api, type Me, rememberEmail, sessionStarted, type SignedIn } from "./api.js";
 import { Door, DoorError, DoorField, DoorFoot, PasswordField, reducedMotion, type DoorHandle } from "./door/Door.js";
+import { NotesChoice, type NotesWay } from "./door/NotesChoice.js";
 import { countingLine, firstRunCounts, foundDetail, foundLine, type FirstCounts } from "./door/shape.js";
 import { doorError } from "./door/voice.js";
 import { Button } from "./ui/controls.js";
@@ -11,26 +13,39 @@ const COUNT_MS = 3200;
 /** The gather, before the two ways on appear. */
 const GATHER_MS = 1500;
 
+/** What the door says once the notes are there, by the way the person started. */
+function readyWords(way: NotesWay, c: FirstCounts): { hi: string; detail: string } {
+  if (way === "example") return { hi: "Your example is ready.", detail: foundDetail(c) };
+  if (way === "empty" || c.notes === 0) return { hi: "Your notes start here.", detail: "Write your first one, and it'll be here." };
+  return { hi: foundLine(c), detail: foundDetail(c) };
+}
+
 /**
  * First run (structure.md §2.14, take B). Shown when GET /api/auth/status reports an empty
  * install, which is the only time the register endpoint accepts a request without an invite:
  * the first account founds the workspace and owns it.
  *
  * 1. Your account: name, email, password, stored on this machine only. No dots yet.
- * 2. Orrama reads your notes: each one arrives as a dot as it's counted.
- * 3. They gather: "I found 312 notes." Show me how they relate (the Orrery), or Start with today.
+ * 2. Where are your notes? Start with an example, start empty, or use notes you already have
+ *    (door/NotesChoice.tsx). Also shown on its own (`resume`) when the founder signs in again
+ *    before choosing: /api/auth/status says `chooseNotes` until it is settled.
+ * 3. Orrama reads them: each one arrives as a dot as it's counted, then they gather. Show me how
+ *    they relate (the Orrery), or Start with today.
  *
- * Choosing the notes folder is for later (structure.md §2.14, decided 8 October): first run reads
- * the folder the server started with. The counts are real, asked once the account exists.
+ * The counts are real, asked once the folder is settled.
  */
-export function Setup({ onDone }: { onDone: (me: Me) => void }) {
+export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: Me }) {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  /** Set once the account exists: Orrama is reading the notes. */
-  const [me, setMe] = useState<Me | null>(null);
+  /** Set once the account exists: next, where the notes are. */
+  const [me, setMe] = useState<Me | null>(resume ?? null);
+  /** The folder read now, for the chooser; then how the person started. */
+  const [server, setServer] = useState<ServerSettings | null>(null);
+  const [serverFailed, setServerFailed] = useState(false);
+  const [way, setWay] = useState<NotesWay | null>(null);
   const [counts, setCounts] = useState<FirstCounts | null>(null);
   /** 0–1 while counting; 1 once counted. */
   const [counted, setCounted] = useState(0);
@@ -84,9 +99,22 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
     }
   };
 
-  // 2 and 3: read what the server found, bring the dots in as they're counted, then gather.
+  // 2: what the server reads now, for the chooser.
   useEffect(() => {
-    if (!me) return;
+    if (!me || way) return;
+    let alive = true;
+    setServerFailed(false);
+    api<ServerSettings>("GET", "/api/settings/server")
+      .then((s) => alive && setServer(s))
+      .catch(() => alive && setServerFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [me, way]);
+
+  // 3: read what the server found, bring the dots in as they're counted, then gather.
+  useEffect(() => {
+    if (!me || !way) return;
     let alive = true;
     let timer: ReturnType<typeof setInterval> | undefined;
     const reduce = reducedMotion();
@@ -119,7 +147,7 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
       alive = false;
       clearInterval(timer);
     };
-  }, [me]);
+  }, [me, way]);
 
   const go = (to: Route) => {
     navigate(to);
@@ -158,13 +186,28 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
           </div>
           <DoorFoot />
         </>
+      ) : !way ? (
+        <>
+          <div className="dr-card dr-first2">
+            <h1 className="dr-h">Where are your notes?</h1>
+            <p className="dr-p">Orrama keeps them as files on this computer, so they stay yours.</p>
+            {server ? (
+              <NotesChoice server={server} place="first" onDone={(w) => setWay(w)} />
+            ) : serverFailed ? (
+              <p className="dr-err" role="alert">
+                Orrama's server isn't answering. Reload the page to try again.
+              </p>
+            ) : null}
+          </div>
+          <DoorFoot />
+        </>
       ) : (
         <>
           <div className="dr-first3" aria-live="polite">
             {done && counts ? (
               <>
-                <b className="dr-hi">{foundLine(counts)}</b>
-                <p className="dr-count">{foundDetail(counts)}</p>
+                <b className="dr-hi">{readyWords(way, counts).hi}</b>
+                <p className="dr-count">{readyWords(way, counts).detail}</p>
               </>
             ) : done ? (
               <b className="dr-hi">Your account is ready.</b>
@@ -176,12 +219,12 @@ export function Setup({ onDone }: { onDone: (me: Me) => void }) {
             )}
             {done && (
               <div className="dr-acts">
-                {counts && counts.notes > 0 && (
+                {counts && counts.notes > 0 && way !== "empty" && (
                   <Button kind="solid" onClick={() => go({ kind: "orrery" })}>
                     Show me how they relate
                   </Button>
                 )}
-                <Button kind={counts && counts.notes > 0 ? "default" : "solid"} onClick={() => go({ kind: "today" })}>
+                <Button kind={counts && counts.notes > 0 && way !== "empty" ? "default" : "solid"} onClick={() => go({ kind: "today" })}>
                   Start with today
                 </Button>
               </div>

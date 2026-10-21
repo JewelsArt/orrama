@@ -25,7 +25,8 @@ const ME = {
 
 const ROUTES: Record<string, unknown> = {
   "GET /api/members": [{ id: "u-1", username: "jules", displayName: "Jules", isOwner: true, avatar: "victorr" }],
-  "GET /api/settings/server": { notesFolder: "~/Notes", notes: 12, version: "0.1.0" },
+  "GET /api/settings/server": { notesFolder: "~/Notes", notes: 12, version: "0.1.0", fixed: false, own: false, example: 4 },
+  "POST /api/settings/notes-folder/look": { folder: "~/Orrama/vault", problem: null, notes: 0, more: false, unstamped: 0, ontology: true, current: false },
   "GET /api/health": { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama" },
   "GET /api/calendar/feeds": [{ id: "f1", label: "School", host: "example.edu", createdAt: 1, lastSyncedAt: null, lastError: null }],
   "GET /api/mail/account": { connected: true, email: "jules@example.com", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null },
@@ -94,6 +95,7 @@ const CASES: { what: string; section: SettingsSection; button: string; confirm: 
   { what: "signing another device out", section: "sessions", button: "Sign out iPhone · Safari", confirm: "Sign out", request: "DELETE /api/auth/sessions/s2" },
   { what: "signing out everywhere", section: "sessions", button: "Sign out everywhere", confirm: "Sign out everywhere", request: "POST /api/auth/revoke-all" },
   { what: "disconnecting ChatGPT", section: "ai", button: "Disconnect ChatGPT", confirm: "Disconnect", request: "POST /api/admin/ai/chatgpt/disconnect" },
+  { what: "removing the example", section: "notes", button: "Remove the example", confirm: "Remove the example", request: "DELETE /api/settings/example" },
 ];
 
 describe("WEB-017: what can't be undone asks first", () => {
@@ -327,5 +329,27 @@ describe("the Settings page (structure.md §3)", () => {
     expect(list.textContent).toMatch(/Orr & AI.*gpt-5/);
     await user.click(within(list as HTMLElement).getByRole("button", { name: "Sign out of this device" }));
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("Notes: the folder with Change…, which opens the first run's chooser; no Obsidian, no terminal lesson", async () => {
+    const user = userEvent.setup();
+    open("notes");
+    await screen.findByText("~/Notes");
+    const sec = document.querySelector(".set-sec")!;
+    expect(sec.textContent).not.toMatch(/Obsidian|How to change it|ORRAMA_VAULT_DIR/);
+    await user.click(screen.getByRole("button", { name: "Change…" }));
+    const dialog = screen.getByRole("dialog", { name: "Where are your notes?" });
+    expect(within(dialog).getAllByRole("radio").map((r) => r.textContent?.split(/(?<=[a-z])(?=[A-Z])/)[0])).toEqual(["Start with an example", "Start empty", "Use notes I already have"]);
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    // Only a look (it writes nothing): no folder chosen, nothing started.
+    expect(sent.filter((k) => k !== "POST /api/settings/notes-folder/look")).toEqual([]);
+  });
+
+  it("Notes: a folder set where Orrama starts is shown, not changed", async () => {
+    answer({ "GET /api/settings/server": { notesFolder: "~/Orrama Vault", notes: 600, version: "0.1.0", fixed: true, own: false, example: 0 } });
+    open("notes");
+    expect((await screen.findByText("~/Orrama Vault")).closest(".set-sec")!.textContent).toMatch(/600 notes · set where Orrama starts/);
+    expect(screen.queryByRole("button", { name: "Change…" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove the example" })).toBeNull();
   });
 });

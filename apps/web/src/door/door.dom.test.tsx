@@ -257,6 +257,8 @@ describe("first run", () => {
       { id: "n-1", path: "a.md", folder: "", title: "a", hash: "h", mtimeMs: 0, tags: [], openTasks: 0, category: "work" },
       { id: "n-2", path: "b.md", folder: "", title: "b", hash: "h", mtimeMs: 0, tags: [], openTasks: 0, category: "school" },
       { id: "n-3", path: "c.md", folder: "", title: "c", hash: "h", mtimeMs: 0, tags: [], openTasks: 0, category: "work" },
+      // Orrama's own note that says what things are: not counted among the person's notes.
+      { id: "n-4", path: "Orrama/What things are.md", folder: "Orrama", title: "What things are", hash: "h", mtimeMs: 0, tags: ["vault-ontology"], openTasks: 0, category: "work" },
     ],
     "GET /api/projects": [{ slug: "p", key: "project/p", name: "P", domain: null, noteId: "n-1", total: 0, done: 0, status: null, start: null, deadline: null, nextDue: null, overdue: 0 }],
     "GET /api/contacts": [{ id: "n-2" }],
@@ -292,23 +294,110 @@ describe("first run", () => {
     expect(sent("POST /api/auth/register")).toHaveLength(0);
   });
 
-  it("makes the account, says what it found, and opens the Orrery or Today", async () => {
-    serve({ "POST /api/auth/register": IN, ...found });
-    const onDone = vi.fn();
-    window.history.replaceState(null, "", "/today");
-    render(<Setup onDone={onDone} />);
+  /** The folder read now (Orrama's own, nothing set where it starts) and what a look at another says. */
+  const OWN = { notesFolder: "~/Orrama/vault", notes: 0, version: "0.1.0", fixed: false, own: true, example: 0 };
+  const LOOK = { folder: "~/Notes", problem: null, notes: 3, more: false, unstamped: 3, ontology: false, current: false };
+  const signUp = () => {
     type("Your name", "Ines");
     type("Email", "Ines.V@example.com");
     type("Password", "long-enough");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect((await screen.findByText("I found 3 notes.")).textContent).toBeTruthy();
-    expect(screen.getByText("1 person, 1 project and 1 link between them.")).toBeTruthy();
+  };
+
+  it("makes the account, asks where the notes are, reads the folder chosen, and opens the Orrery or Today", async () => {
+    // The server reads Orrama's own folder until the choice restarts it on ~/Notes.
+    let reading = OWN;
+    serve({
+      "POST /api/auth/register": IN,
+      "GET /api/settings/server": () => json(200, reading),
+      "POST /api/settings/notes-folder/look": (b: { folder: string | null }) => json(200, b.folder === null ? { ...LOOK, folder: OWN.notesFolder, notes: 0, unstamped: 0, current: true } : LOOK),
+      "PUT /api/settings/notes-folder": () => {
+        reading = { ...OWN, notesFolder: "~/Notes", notes: 3, own: false };
+        return json(200, { folder: "~/Notes", restart: true });
+      },
+      "POST /api/settings/start": { ontology: "written", example: 0 },
+      ...found,
+    });
+    const onDone = vi.fn();
+    window.history.replaceState(null, "", "/today");
+    render(<Setup onDone={onDone} />);
+    signUp();
+    await screen.findByRole("heading", { name: "Where are your notes?" });
     expect(sent("POST /api/auth/register")[0]!.body).toEqual({ email: "Ines.V@example.com", username: "ines.v", displayName: "Ines", password: "long-enough" });
+    fireEvent.click(await screen.findByRole("radio", { name: /Use notes I already have/ }));
+    type("Folder", "~/Notes");
+    // Before anything is chosen, the page says what is there and what Orrama adds, in words.
+    expect(
+      await screen.findByText("3 notes. Orrama adds a short id line at the top of each, once, so links keep working when a note is renamed. It also adds one note, What things are, that tells it who is a person, a company or a project."),
+    ).toBeTruthy();
+    expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect((await screen.findByText("I found 3 notes.", undefined, { timeout: 3000 })).textContent).toBeTruthy();
+    expect(screen.getByText("1 person, 1 project and 1 link between them.")).toBeTruthy();
+    expect(sent("PUT /api/settings/notes-folder").map((c) => c.body)).toEqual([{ folder: "~/Notes" }]);
+    expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: false }]);
     nothingReadable();
     act(() => fireEvent.click(screen.getByRole("button", { name: "Show me how they relate" })));
     expect(window.location.pathname).toBe("/orrery");
     expect(onDone).toHaveBeenCalledWith(ME);
     expect(await holdsSession()).toBe(true);
+  });
+
+  it("starts with the example in Orrama's own folder: no folder change, no restart", async () => {
+    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 4 }, ...found });
+    render(<Setup onDone={vi.fn()} />);
+    signUp();
+    expect((await screen.findByRole("radio", { name: /Start with an example/ })).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Your example is ready.")).toBeTruthy();
+    expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
+    expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: true }]);
+  });
+
+  it("starts empty: no example, and Today is the one way on", async () => {
+    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 0 }, ...found });
+    render(<Setup onDone={vi.fn()} />);
+    signUp();
+    fireEvent.click(await screen.findByRole("radio", { name: /Start empty/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText("Your notes start here.")).toBeTruthy();
+    expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: false }]);
+    expect(screen.queryByRole("button", { name: "Show me how they relate" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start with today" })).toBeTruthy();
+  });
+
+  it("a folder that can't be used is said beside the field, and nothing goes on", async () => {
+    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, problem: "There is no folder there.", notes: 0 } });
+    render(<Setup onDone={vi.fn()} />);
+    signUp();
+    fireEvent.click(await screen.findByRole("radio", { name: /Use notes I already have/ }));
+    type("Folder", "~/Nope");
+    expect(await screen.findByText("There is no folder there.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("a folder set where Orrama starts is shown as fixed: its notes are used as they are", async () => {
+    serve({
+      "POST /api/auth/register": IN,
+      "GET /api/settings/server": { ...OWN, notesFolder: "~/Orrama Vault", notes: 3, fixed: true, own: false },
+      "POST /api/settings/notes-folder/look": { ...LOOK, folder: "~/Orrama Vault", ontology: true, current: true },
+      "POST /api/settings/start": { ontology: "there", example: 0 },
+      ...found,
+    });
+    render(<Setup onDone={vi.fn()} />);
+    signUp();
+    expect((await screen.findByText(/That folder is set where Orrama starts/)).textContent).toContain("~/Orrama Vault");
+    expect(screen.queryByRole("radio")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Use these notes" }));
+    expect(await screen.findByText("I found 3 notes.")).toBeTruthy();
+    expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
+  });
+
+  it("asks again when the founder signs in before choosing (resume): no account form", async () => {
+    serve({ "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true } });
+    render(<Setup onDone={vi.fn()} resume={ME as never} />);
+    expect(await screen.findByRole("heading", { name: "Where are your notes?" })).toBeTruthy();
+    expect(screen.queryByLabelText("Your name")).toBeNull();
   });
 
   it("on a server someone set up meanwhile, says so", async () => {

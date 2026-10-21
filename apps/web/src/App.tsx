@@ -202,6 +202,8 @@ export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   /** undefined = still asking the server; true = empty install, show Setup. */
   const [needsSetup, setNeedsSetup] = useState<boolean | undefined>(undefined);
+  /** The founder has an account but never said where the notes are (first run, step 2). */
+  const [chooseNotes, setChooseNotes] = useState(false);
   /** Set when the user chooses "use password instead", to skip the lock screen. */
   const [forcePassword, setForcePassword] = useState(false);
   /*
@@ -324,8 +326,11 @@ export function App() {
         setMe(m);
       })
       .catch(() => setMe(null));
-    api<{ needsSetup: boolean }>("GET", "/api/auth/status")
-      .then((s) => setNeedsSetup(s.needsSetup))
+    api<{ needsSetup: boolean; chooseNotes?: boolean }>("GET", "/api/auth/status")
+      .then((s) => {
+        setNeedsSetup(s.needsSetup);
+        setChooseNotes(!!s.chooseNotes);
+      })
       .catch(() => setNeedsSetup(false));
   }, []);
 
@@ -466,6 +471,17 @@ export function App() {
 
   if (me === undefined || needsSetup === undefined) return <Boot />;
   if (me === null && needsSetup) return <Setup onDone={setMe} />;
+  if (me && chooseNotes && me.isOwner) {
+    return (
+      <Setup
+        resume={me}
+        onDone={(m) => {
+          setChooseNotes(false);
+          setMe(m);
+        }}
+      />
+    );
+  }
   // A device that has signed in before gets the quick-unlock screen; it offers
   // "use password instead", which is also the only way out of a passcode lockout.
   if (me === null && !forcePassword && lastEmail()) {

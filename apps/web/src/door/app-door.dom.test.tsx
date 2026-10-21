@@ -66,6 +66,21 @@ describe("the door in the app", () => {
     await waitFor(() => expect(screen.getByTestId("view").dataset.view).toBe("lock"));
   });
 
+  it("a founder who never said where the notes are is asked again once signed in (first run, 1A)", async () => {
+    serve({ "GET /api/auth/status": { needsSetup: false, chooseNotes: true } });
+    at("/today");
+    render(<App />);
+    // Setup is a stub here (test/app-harness.tsx); door.dom.test.tsx covers what it shows.
+    expect((await screen.findByTestId("view")).dataset.view).toBe("setup");
+  });
+
+  it("…and only the founder: anyone else goes straight in", async () => {
+    serve({ "GET /api/me": { ...ME, isOwner: false }, "GET /api/auth/status": { needsSetup: false, chooseNotes: true } });
+    at("/today");
+    render(<App />);
+    expect((await screen.findByTestId("view")).dataset.view).toBe("today");
+  });
+
   it("boots as Orr rising, named Orrama", async () => {
     let answer!: (r: Response) => void;
     vi.stubGlobal("fetch", async (url: string) =>

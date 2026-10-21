@@ -58,7 +58,8 @@ export async function firstRunCounts(): Promise<{ counts: FirstCounts; shape: Va
   ]);
   return {
     counts: {
-      notes: tree.length,
+      // Orrama's own note that says what things are is not one of the person's notes.
+      notes: tree.filter((n) => !n.tags.includes("vault-ontology")).length,
       people: contacts.length,
       companies: companies.length,
       projects: projects.length,
