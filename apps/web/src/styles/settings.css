@@ -83,6 +83,9 @@
 .set-stored { color: var(--ink-3); }
 .set-row-form, .set-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: start; }
 .set-row-form > .btn, .set-add > .btn { margin-top: 26px; }
+/* You → Password (1A): the two fields and the button on one row; one column on the phone. */
+.set-pw { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px 10px; align-items: start; }
+.set-pw > .btn { margin-top: 26px; }
 .set-add { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) auto; margin-top: 12px; }
 .set-add:has(> .field:only-of-type) { grid-template-columns: minmax(0, 1fr) auto; }
 .set-pin { max-width: 140px; letter-spacing: .3em; }
@@ -150,7 +153,8 @@
   .set-head .set-title { display: none; } /* the top bar says it */
   .set-head p { margin-top: 0; }
   .set-aside { display: none; }
-  .set-two, .set-add, .set-row-form { grid-template-columns: minmax(0, 1fr); }
+  .set-two, .set-add, .set-row-form, .set-pw { grid-template-columns: minmax(0, 1fr); }
+  .set-pw > .btn { margin-top: 0; }
   .set-add:has(> .field:only-of-type) { grid-template-columns: minmax(0, 1fr); }
   .set-row-form > .btn, .set-add > .btn { margin-top: 0; justify-self: start; }
   .set-item { grid-template-columns: auto minmax(0, 1fr) auto; }

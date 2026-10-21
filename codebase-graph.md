@@ -1027,7 +1027,7 @@
 - **Imports**: ./safeRegex.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, Grant
+- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, Grant
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`

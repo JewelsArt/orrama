@@ -352,4 +352,32 @@ describe("the Settings page (structure.md §3)", () => {
     expect(screen.queryByRole("button", { name: "Change…" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove the example" })).toBeNull();
   });
+
+  it("You: the password is changed here, and says what happened to the other devices", async () => {
+    const user = userEvent.setup();
+    answer({ "POST /api/auth/password": { sessions: 2, tokens: 1, devices: 0 } });
+    const sent2 = bodies();
+    open("you");
+    expect(document.querySelector(".set-sec")!.textContent).not.toMatch(/Terminal|pnpm/);
+    await user.type(await screen.findByLabelText("Current password"), "old one here");
+    await user.type(screen.getByLabelText("New password"), "a longer new one");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByText("Password changed. 2 other devices were signed out.")).toBeTruthy();
+    expect(sent2).toEqual([{ key: "POST /api/auth/password", body: { current: "old one here", next: "a longer new one" } }]);
+    expect((screen.getByLabelText("Current password") as HTMLInputElement).value).toBe("");
+  });
+
+  it("You: a wrong current password is said, and nothing is cleared", async () => {
+    const user = userEvent.setup();
+    const base = globalThis.fetch;
+    vi.stubGlobal("fetch", async (url: string, init: { method?: string } = {}) =>
+      url === "/api/auth/password" ? new Response(JSON.stringify({ error: "that is not your current password" }), { status: 403 }) : base(url, init),
+    );
+    open("you");
+    await user.type(await screen.findByLabelText("Current password"), "not it");
+    await user.type(screen.getByLabelText("New password"), "a longer new one");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
+    expect(await screen.findByText("That isn't your current password.")).toBeTruthy();
+    expect((screen.getByLabelText("New password") as HTMLInputElement).value).toBe("a longer new one");
+  });
 });

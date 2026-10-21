@@ -9,7 +9,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
-import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@orrama/schema";
+import { appearanceSchema, loginSchema, passcodeSchema, passwordChangeSchema, registerSchema, unlockSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
 import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
@@ -121,6 +121,7 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
   // One per server, so each test suite's app starts with a clean count.
   const logins = new LoginLimiter();
   const registrations = new LoginLimiter();
+  const passwordChanges = new LoginLimiter();
   const tooMany = (reply: FastifyReply, wait: number, what: string) =>
     reply
       .code(429)
@@ -241,6 +242,29 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
       db.update(tables.users).set(set).where(eq(tables.users.id, req.userId)).run();
     }
     return publicUser(db, store, req.userId);
+  });
+
+  /**
+   * Change the password (Settings → You). The current one first, counted before Argon2 like a
+   * sign-in. A wrong one is a 403, not a 401: the page reads a 401 as "this session ended".
+   * Then the same clean break as the terminal's `account` command (SEC-007), but this
+   * session, which just proved the password, stays signed in: every other session, every API
+   * token and Touch ID device go, and the passcode and the planning feed link are cleared.
+   */
+  app.post("/api/auth/password", credentials, async (req, reply) => {
+    const wait = passwordChanges.attempt(req.ip);
+    if (wait > 0) return tooMany(reply, wait, "wrong passwords");
+    const body = passwordChangeSchema.parse(req.body);
+    const user = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
+    if (!user || !(await argonVerify(user.passwordHash, body.current))) throw new HttpError(403, "that is not your current password");
+    passwordChanges.succeed(req.ip);
+    const passwordHash = await argonHash(body.next);
+    const done = db.transaction((tx) => {
+      tx.update(tables.users).set({ passwordHash }).where(eq(tables.users.id, req.userId)).run();
+      return revokeEverything(tx, req.userId, Date.now(), req.sessionId);
+    });
+    for (const sessionId of done.sessions) store.events.emit("session-revoked", { sessionId });
+    return { sessions: done.sessions.length, tokens: done.tokens, devices: done.devices };
   });
 
   // ── First run ────────────────────────────────────────────────────────────────

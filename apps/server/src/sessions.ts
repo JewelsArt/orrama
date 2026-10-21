@@ -12,7 +12,7 @@
  * A token from before this (no `sid`) is refused: one sign-in per device.
  */
 import crypto from "node:crypto";
-import { and, eq, isNull, lt } from "drizzle-orm";
+import { and, eq, isNull, lt, ne } from "drizzle-orm";
 import { tables, type Db } from "./db.js";
 
 export const SESSION_DAYS = 30;
@@ -76,8 +76,9 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
  * write. Returns the revoked session ids, so their live-sync sockets can be
  * closed (`session-revoked`), and what else was removed.
  */
-export function revokeEverything(db: Db | Tx, userId: string, now = Date.now()) {
-  const live = and(eq(tables.sessions.userId, userId), isNull(tables.sessions.revokedAt));
+export function revokeEverything(db: Db | Tx, userId: string, now = Date.now(), keep?: string) {
+  // `keep`: the session that changed the password from Settings stays signed in (1A).
+  const live = and(eq(tables.sessions.userId, userId), isNull(tables.sessions.revokedAt), ...(keep ? [ne(tables.sessions.id, keep)] : []));
   const sessions = db.select({ id: tables.sessions.id }).from(tables.sessions).where(live).all().map((s) => s.id);
   db.update(tables.sessions).set({ revokedAt: now }).where(live).run();
   const tokens = db.delete(tables.apiTokens).where(eq(tables.apiTokens.userId, userId)).run().changes;

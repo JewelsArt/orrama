@@ -1,10 +1,11 @@
 /**
- * Settings → You (structure.md §3.1 #1): your name, your Orr, and the account's address. The
- * eight Orrs are a small row (§3.3: set once, fun, not at the weight of a form). Email and
- * password are shown, not changed: that is one command on the Mac (Jules, 11 October).
+ * Settings → You (structure.md §3.1 #1): your name, your Orr, the account's address and its
+ * password. The eight Orrs are a small row (§3.3: set once, fun, not at the weight of a form).
+ * The email is shown, not changed (one command on the Mac, Jules, 11 October); the password is
+ * changed here (1A): this device stays signed in, every other way in ends.
  */
 import { useState } from "react";
-import { api, type Me } from "../api.js";
+import { api, ApiError, type Me } from "../api.js";
 import { Button } from "../ui/controls.js";
 import { Field, Input } from "../ui/fields.js";
 import { Avatar, AVATAR_NAMES, avatarName } from "../ui/orr/Orr.js";
@@ -15,7 +16,11 @@ export function YouSection({ meta, me, onUpdate }: { meta: SectionMeta; me: Me; 
   const [name, setName] = useState(me.displayName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [how, setHow] = useState(false);
+  const [oldPw, setOldPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const [pwDone, setPwDone] = useState<string | null>(null);
   const current = avatarName(me.avatar);
 
   const patch = async (body: { avatar?: string; displayName?: string }) => {
@@ -27,6 +32,24 @@ export function YouSection({ meta, me, onUpdate }: { meta: SectionMeta; me: Me; 
       setError(said(e, "That didn't save. Try again in a moment."));
     } finally {
       setBusy(false);
+    }
+  };
+  const changePassword = async () => {
+    if (pwBusy) return;
+    setPwDone(null);
+    if (!oldPw || !newPw) return setPwError("Type your current password and the new one.");
+    if (newPw.length < 8) return setPwError("Make the new password at least 8 characters.");
+    setPwBusy(true);
+    setPwError(null);
+    try {
+      const r = await api<{ sessions: number; tokens: number; devices: number }>("POST", "/api/auth/password", { current: oldPw, next: newPw });
+      setOldPw("");
+      setNewPw("");
+      setPwDone(r.sessions === 0 ? "Password changed." : `Password changed. ${r.sessions === 1 ? "1 other device was" : `${r.sessions} other devices were`} signed out.`);
+    } catch (e) {
+      setPwError(e instanceof ApiError && e.status === 403 ? "That isn't your current password." : said(e, "The password wasn't changed. Try again in a moment."));
+    } finally {
+      setPwBusy(false);
     }
   };
   const nameChanged = name.trim() !== "" && name.trim() !== me.displayName;
@@ -82,22 +105,33 @@ export function YouSection({ meta, me, onUpdate }: { meta: SectionMeta; me: Me; 
             <dt>Email</dt>
             <dd>{me.email}</dd>
           </div>
-          <div>
-            <dt>Password</dt>
-            <dd>
-              Changed on the Mac that runs Orrama.{" "}
-              <button type="button" className="set-how" aria-expanded={how} onClick={() => setHow(!how)}>
-                How?
-              </button>
-            </dd>
-          </div>
         </dl>
-        {how && (
-          <p className="set-help">
-            In Terminal, in the Orrama folder, run <code>pnpm --dir apps/server account</code>. It asks for the new
-            email or password without showing it, and a new password signs every device out.
-          </p>
-        )}
+      </div>
+
+      <div>
+        <SubHead>Password</SubHead>
+        <form
+          className="set-pw"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void changePassword();
+          }}
+          noValidate
+        >
+          <Field label="Current password">
+            <Input type="password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} autoComplete="current-password" disabled={pwBusy} />
+          </Field>
+          <Field label="New password" help="At least 8 characters." error={pwError}>
+            <Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" disabled={pwBusy} />
+          </Field>
+          <Button type="submit" kind="solid" disabled={pwBusy || !oldPw || !newPw}>
+            {pwBusy ? "Changing…" : "Change password"}
+          </Button>
+        </form>
+        <p className="set-help">
+          {pwDone ??
+            "This device stays signed in. Every other device is signed out, API tokens and Touch ID are removed, and the passcode and the planning link are turned off."}
+        </p>
       </div>
 
       {error && <Notice title="Not saved" text={error} />}

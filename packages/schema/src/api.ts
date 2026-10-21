@@ -4,6 +4,12 @@ import { z } from "zod";
 export const roleSchema = z.enum(["viewer", "editor", "admin"]);
 export const taskStatusSchema = z.enum(["todo", "in-progress", "done", "blocked", "orphaned"]);
 
+/** Settings → You: the password now, and the new one (sign-up's rule). */
+export const passwordChangeSchema = z.object({
+  current: z.string().min(1).max(256),
+  next: z.string().min(8).max(256),
+});
+
 export const registerSchema = z.object({
   email: z.string().email(),
   // Must start alphanumeric: a username becomes a path segment under Personal/,
