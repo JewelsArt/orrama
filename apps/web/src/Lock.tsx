@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, lastEmail, type Me, type SignedIn, touchIdAvailable, unlockWithTouchId } from "./api.js";
 import { After, BackspaceIcon, Door, DoorError, FingerprintIcon, PasswordField, useEnter, useNarrow, type DoorHandle } from "./door/Door.js";
 import { cancelled, doorError } from "./door/voice.js";
@@ -120,8 +120,11 @@ export function Lock({ onUnlock, onUsePassword }: { onUnlock: (me: Me) => void; 
     [busy, entered, methods, usePw, submitCode, setDigits],
   );
 
-  // A physical keyboard is the fastest way in on a laptop; the pad is for touch.
-  useEffect(() => {
+  // A physical keyboard is the fastest way in on a laptop; the pad is for touch. Subscribed in a
+  // layout effect: the listener closes over `methods` and `busy`, and a passive effect can run
+  // after the keypad is on screen, so digits typed in that gap went to the old listener (no
+  // methods yet) and were dropped.
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.metaKey || e.ctrlKey || e.altKey) return;
       if (/^[0-9]$/.test(e.key)) push(e.key);
