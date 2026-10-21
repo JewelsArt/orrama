@@ -5,7 +5,7 @@
  */
 import type { CategoryDetail, MonthDetail } from "@orrama/schema/responses";
 import { useState } from "react";
-import { Segmented, Tabs } from "../ui/controls.js";
+import { Button, Segmented, Tabs } from "../ui/controls.js";
 import { Crumbs } from "../ui/layout.js";
 import { navigate } from "../ui/router.js";
 import { Skeleton } from "../ui/states.js";
@@ -14,6 +14,9 @@ import { eur, monthLong, monthShort, monthWord, plural, weekday } from "./format
 import { useGrain, useMonthKeys } from "./hooks.js";
 import { link, to } from "./links.js";
 import { shopsOf } from "./model.js";
+import { wordLabel } from "./OwnAccounts.js";
+import type { EditReq } from "./writes.js";
+import { termsOf } from "@orrama/core/spending";
 
 /** The month a category opens on: the address's, else its last complete month with spending, else its last with any. */
 export function pickMonth(d: CategoryDetail, asked?: string): string | null {
@@ -30,6 +33,8 @@ export function CategoryPage({
   month,
   detail,
   colour,
+  words,
+  onEdit,
   onYear,
 }: {
   name: string;
@@ -39,6 +44,9 @@ export function CategoryPage({
   /** That month, filtered to this category. */
   detail: MonthDetail | null;
   colour: string;
+  /** The category's words as written, or null when no row of the categories names it. */
+  words: string | null;
+  onEdit: (r: EditReq) => void;
   onYear: (year: string) => void;
 }) {
   const [grain, setGrain] = useGrain();
@@ -70,6 +78,29 @@ export function CategoryPage({
     );
 
   const yearTabs = d.years.length > 0 && <Tabs bare label="Year" items={d.years.map((y) => ({ id: y, label: y }))} value={d.year ?? ""} onChange={onYear} />;
+  // What files a shop here: the category's own words, said as a sentence with the way to change them.
+  const list0 = words === null ? [] : termsOf(words);
+  const filing =
+    words === null ? null : (
+      <p className="q3 mwords">
+        {list0.length > 0 ? (
+          <>
+            Shops whose name has {list0.map((w, i) => (
+              <span key={w}>
+                {i > 0 && (i === list0.length - 1 ? " or " : ", ")}
+                <b>{wordLabel(w)}</b>
+              </span>
+            ))}{" "}
+            come here.
+          </>
+        ) : (
+          "No words yet, so no shop comes here."
+        )}{" "}
+        <Button size="sm" kind="quiet" icon="pen" onClick={() => onEdit({ kind: "categories", focus: name })}>
+          Change
+        </Button>
+      </p>
+    );
   if (d.years.length === 0)
     return (
       <div className="mpage" style={{ ["--cc" as string]: colour }}>
@@ -78,6 +109,7 @@ export function CategoryPage({
           <i className="mswatch" />
           <h1>{name}</h1>
         </div>
+        {filing}
         <section className="mod">
           <p className="q3">Nothing has cost anything in {name} yet.</p>
         </section>
@@ -115,6 +147,7 @@ export function CategoryPage({
         <span className="sp" />
         {yearTabs}
       </div>
+      {filing}
       {sel && (
         <div className="mphone">
           <b>{eur(sel.total)}</b>
@@ -210,16 +243,19 @@ export function CategoryPage({
             <p className="q3">Nothing in {byMonth ? monthLong(month!) : d.year}.</p>
           ) : (
             list.map((m) => (
-              <a key={m.name} className="row mshop" {...link(to.merchant(m.name, name))}>
-                <span className="x">
-                  <span className="t">{m.name}</span>
-                  <span className="m">{plural(m.count, "purchase")}</span>
-                </span>
-                <span className="ui-bar">
-                  <i style={{ width: `${Math.max(0, m.total / top) * 100}%` }} />
-                </span>
-                <span className="r">{eur(m.total)}</span>
-              </a>
+              <div key={m.name} className="mshoprow">
+                <a className="row mshop" {...link(to.merchant(m.name, name))}>
+                  <span className="x">
+                    <span className="t">{m.name}</span>
+                    <span className="m">{plural(m.count, "purchase")}</span>
+                  </span>
+                  <span className="ui-bar">
+                    <i style={{ width: `${Math.max(0, m.total / top) * 100}%` }} />
+                  </span>
+                  <span className="r">{eur(m.total)}</span>
+                </a>
+                <Button size="sm" kind="quiet" icon="tag" aria-label={`Put ${m.name} in another category`} tip="Another category" data-tip-at="top" onClick={() => onEdit({ kind: "shop", shop: m.name, current: name })} />
+              </div>
             ))
           )}
         </section>

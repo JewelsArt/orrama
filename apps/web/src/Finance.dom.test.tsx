@@ -3,11 +3,12 @@
  * does now that it asks (Jules, 11 Oct: Add it writes the row; It's not recurring hides it on
  * this device). The figures are the server's; the fixture is fictional (the boards' shops).
  */
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail } from "@orrama/schema/responses";
 import { Money } from "./Finance.js";
+import { Toaster } from "./ui/overlays.js";
 import { aheadOfTypical } from "./money/Overview.js";
 import fixture from "./test/money-fixture.json";
 
@@ -21,7 +22,7 @@ interface Sent {
   body: unknown;
 }
 
-function stubMoney(over: { finance?: FinanceData; category?: CategoryDetail; upload?: unknown } = {}) {
+function stubMoney(over: { finance?: FinanceData; category?: CategoryDetail; upload?: unknown; merchant?: Partial<MerchantDetail>; writes?: Record<string, { status: number; body: unknown }> } = {}) {
   const sent: Sent[] = [];
   vi.stubGlobal(
     "fetch",
@@ -36,8 +37,11 @@ function stubMoney(over: { finance?: FinanceData; category?: CategoryDetail; upl
         return json({ ...copy(url.includes("category=") ? FIX.catMonth : FIX.month), month });
       }
       if (method === "GET" && path.startsWith("/api/finance/category/")) return json(copy(over.category ?? FIX.category));
-      if (method === "GET" && path.startsWith("/api/finance/merchant/")) return json({ ...copy(FIX.merchant), merchant: path.split("/").pop()! });
+      if (method === "GET" && path.startsWith("/api/finance/merchant/")) return json({ ...copy(FIX.merchant), merchant: path.split("/").pop()!, ...over.merchant });
+      const w = over.writes?.[`${method} ${path}`];
+      if (w) return json(w.body, w.status);
       if (method === "POST" && path === "/api/finance/subscriptions") return json({ ok: true, noteId: "n-subs", path: "02-Areas/finance/subscriptions.md" });
+      if (method !== "GET" && path.startsWith("/api/finance/") && path !== "/api/finance/payslip") return json({ ok: true, noteId: "n-x", path: "02-Areas/finance/x.md", from: "Shopping", to: "Groceries", term: "x" });
       if (method === "POST" && path === "/api/finance/payslip") return json(over.upload ?? {});
       return json({ error: "not here" }, 404);
     }),
@@ -59,13 +63,17 @@ afterEach(() => {
 });
 
 describe("Money: what looks recurring", () => {
-  it("Add it writes the charge into the #subscriptions note, dated from its last charge, and reloads", async () => {
+  it("Add it opens the commitment sheet filled in from the charge, dated from its last charge; Add writes it and reloads", async () => {
     const { sent } = stubMoney();
     at("/money");
     const user = userEvent.setup();
     render(<Money onOpenNote={vi.fn()} />);
     const found = await screen.findByText(/charged €29\.99 monthly/);
     await user.click(within(found.closest(".oprop") as HTMLElement).getByRole("button", { name: "Add it" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a subscription" });
+    expect((within(sheet).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("BASIC-FIT");
+    expect(sent.some((r) => r.method === "POST")).toBe(false);
+    await user.click(within(sheet).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(sent.some((r) => r.method === "POST")).toBe(true));
     const post = sent.find((r) => r.method === "POST")!;
     expect(post.url).toBe("/api/finance/subscriptions");
@@ -223,5 +231,308 @@ describe("Money: the overview's month", () => {
     const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
     await user.upload(input, new File(["Type,Amount\n"], "revolut-oct.csv", { type: "text/csv" }));
     expect(await screen.findByText(/Read 12 transactions from revolut-oct\.csv, 1 Oct to 11 Oct \(1 row skipped/)).toBeTruthy();
+  });
+});
+
+/* ---- Money in screens (stage 1, 1G): every ledger row added, changed and removed here ---- */
+
+const fin = (edit?: (f: FinanceData) => void): FinanceData => {
+  const f = copy(FIX.finance);
+  edit?.(f);
+  return f;
+};
+const writes = (sent: Sent[]) => sent.filter((r) => r.method !== "GET");
+
+describe("Money in screens: commitments and income", () => {
+  it("a line opens its sheet; Save sends only what changed, named by its row and the table's version", async () => {
+    const { sent } = stubMoney();
+    at("/money/subscriptions");
+    const user = userEvent.setup();
+    render(
+      <>
+        <Money onOpenNote={vi.fn()} />
+        <Toaster />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: /^Spotify, €11\.99 monthly: change or remove$/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Spotify" });
+    expect((within(sheet).getByRole("textbox", { name: "Amount" }) as HTMLInputElement).value).toBe("11.99");
+    expect((within(sheet).getByRole("combobox", { name: "Every" }) as HTMLSelectElement).value).toBe("monthly");
+    // All eight rhythms are offered.
+    expect(within(sheet).getAllByRole("option").map((o) => (o as HTMLOptionElement).value)).toEqual(["weekly", "biweekly", "4-weekly", "monthly", "2-monthly", "quarterly", "half-yearly", "yearly"]);
+    const amount = within(sheet).getByRole("textbox", { name: "Amount" });
+    await user.clear(amount);
+    await user.type(amount, "12.99");
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Every" }), "yearly");
+    await user.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes(sent)).toHaveLength(1));
+    expect(writes(sent)[0]).toEqual({ method: "PATCH", url: "/api/finance/subscriptions/2", body: { version: FIX.finance.tables.subscriptions!.version, name: "Spotify", set: { amount: "12.99", cadence: "yearly" } } });
+    expect(await screen.findByText("Spotify is saved.")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Spotify" })).toBeNull());
+  });
+
+  it("Remove asks first, then removes the row", async () => {
+    const { sent } = stubMoney();
+    at("/money/income");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: /^Study grant, .*: change or remove$/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Study grant" });
+    await user.click(within(sheet).getByRole("button", { name: "Remove" }));
+    const ask = await screen.findByRole("alertdialog", { name: "Remove Study grant?" });
+    expect(writes(sent)).toEqual([]);
+    await user.click(within(ask).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "DELETE", url: "/api/finance/income/0", body: { version: FIX.finance.tables.income!.version, name: "Study grant" } }]));
+  });
+
+  it("a table changed elsewhere since: the sheet says so and keeps what was typed", async () => {
+    stubMoney({ writes: { "PATCH /api/finance/subscriptions/0": { status: 409, body: { error: "This list changed since you opened it, so nothing was saved. Open it again and redo the change." } } } });
+    at("/money/subscriptions");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: /^Rent, / }));
+    const sheet = await screen.findByRole("dialog", { name: "Rent" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Note" }), "with service costs");
+    await user.click(within(sheet).getByRole("button", { name: "Save" }));
+    expect(await within(sheet).findByText(/Not saved\. This list changed since you opened it/)).toBeTruthy();
+    expect((within(sheet).getByRole("textbox", { name: "Note" }) as HTMLInputElement).value).toBe("with service costs");
+  });
+
+  it("a row the ledger cannot read is named, with Fix it opening its sheet to pick a rhythm", async () => {
+    const f = fin((x) => {
+      x.subscriptions.unreadable = [{ service: "Club", line: 15, field: "cadence", text: "every so often" }];
+      x.tables.subscriptions!.rows.push({ index: 6, line: 15, name: "Club", cells: { service: "Club", amount: "60", cadence: "every so often", next: "", match: "", category: "", note: "" } });
+    });
+    stubMoney({ finance: f });
+    at("/money/subscriptions");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Fix it" }));
+    const sheet = await screen.findByRole("dialog", { name: "Club" });
+    expect((within(sheet).getByRole("combobox", { name: "Every" }) as HTMLSelectElement).value).toBe("");
+    expect((within(sheet).getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("with no ledger notes at all, the pages offer Add, and no sentence teaches a table or a tag", async () => {
+    const empty = fin((x) => {
+      x.notes = { income: null, subscriptions: null, payslips: null, area: null };
+      x.subscriptions = { ...x.subscriptions, items: [], count: 0, totals: [], activity: {} };
+      x.income = { ...x.income, items: [], count: 0, totals: [], activity: {} };
+      x.payslips = [];
+      x.tables = { subscriptions: null, income: null, payslips: null, categories: null, "own-accounts": null };
+    });
+    stubMoney({ finance: empty });
+    for (const page of ["/money", "/money/subscriptions", "/money/income", "/money/spending", "/money/savings", "/money/documents"]) {
+      at(page);
+      const { unmount, container } = render(<Money onOpenNote={vi.fn()} />);
+      await screen.findByRole("heading", { level: 1, name: "Money" });
+      await waitFor(() => expect(container.querySelector(".ui-skel, [aria-busy='true']")).toBeNull());
+      expect(container.textContent).not.toMatch(/tagged|#income|#subscriptions|#payslips|Markdown|table|02-Areas/);
+      unmount();
+    }
+    at("/money/income");
+    render(<Money onOpenNote={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Add income" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add a payslip" })).toBeTruthy();
+  });
+});
+
+describe("Money in screens: categories and their words", () => {
+  const open = async () => {
+    const { sent } = stubMoney();
+    at("/money/spending");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Edit categories" }));
+    return { sent, user, sheet: await screen.findByRole("dialog", { name: "Categories" }) };
+  };
+  const version = () => FIX.finance.tables.categories!.version;
+  /** A control of the sheet, once the last change has landed and the sheet takes clicks again. */
+  const ready = async (sheet: HTMLElement, name: string) => {
+    const b = within(sheet).getByRole("button", { name }) as HTMLButtonElement;
+    await waitFor(() => expect(b.disabled).toBe(false));
+    return b;
+  };
+
+  it("lists every category in its order, the first five with their colours, each with its words", async () => {
+    const { sheet } = await open();
+    const items = within(sheet).getAllByRole("listitem");
+    expect(items.map((li) => li.querySelector("b")!.textContent)).toEqual(["Rent", "Groceries", "Eating out", "Transport", "Subscriptions", "Shopping", "Going out", "Health", "Education"]);
+    const swatch = (i: number) => (items[i]!.querySelector(".mce-head") as HTMLElement).style.getPropertyValue("--cc");
+    expect([0, 1, 2, 3, 4, 5].map(swatch)).toEqual(["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c-other)"]);
+    expect(within(items[5]!).getByText("grey")).toBeTruthy();
+    expect(within(items[1]!).getByText("ah (whole name)")).toBeTruthy();
+  });
+
+  it("a category only the commitments fill is shown after the rest, and not editable here", async () => {
+    const f = fin((x) => {
+      x.tables.categories!.rows = x.tables.categories!.rows.filter((r) => r.name !== "Subscriptions");
+    });
+    stubMoney({ finance: f });
+    at("/money/spending");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "Edit categories" }));
+    const sheet = await screen.findByRole("dialog", { name: "Categories" });
+    const last = within(sheet).getAllByRole("listitem").at(-1)!;
+    expect(last.textContent).toBe("Subscriptionsfilled by your commitments");
+    expect(within(last).queryByRole("button")).toBeNull();
+  });
+
+  it("a word is added to and removed from one category's list", async () => {
+    const { sent, user, sheet } = await open();
+    await user.type(within(sheet).getByRole("textbox", { name: "Add a word to Groceries" }), "lidl{Enter}");
+    await waitFor(() => expect(writes(sent)).toHaveLength(1));
+    expect(writes(sent)[0]).toEqual({ method: "PATCH", url: "/api/finance/categories/1", body: { version: version(), name: "Groceries", set: { matches: "albert heijn, jumbo, =ah, lidl" } } });
+    await user.click(await ready(sheet, "Remove the word jumbo from Groceries"));
+    await waitFor(() => expect(writes(sent)).toHaveLength(2));
+    expect(writes(sent)[1]!.body).toEqual({ version: version(), name: "Groceries", set: { matches: "albert heijn, =ah" } });
+  });
+
+  it("moves a category up, renames, removes after asking, and adds a new one", async () => {
+    const { sent, user, sheet } = await open();
+    await user.click(within(sheet).getByRole("button", { name: "Move Shopping up" }));
+    await waitFor(() => expect(writes(sent)).toHaveLength(1));
+    expect(writes(sent)[0]).toEqual({ method: "POST", url: "/api/finance/categories/5/move", body: { version: version(), name: "Shopping", to: 4 } });
+    expect((within(sheet).getByRole("button", { name: "Move Rent up" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await user.click(await ready(sheet, "More for Health"));
+    await user.click(await screen.findByRole("menuitem", { name: "Rename…" }));
+    const rename = await screen.findByRole("dialog", { name: "Rename Health" });
+    const field = within(rename).getByRole("textbox", { name: "Name" });
+    await user.clear(field);
+    await user.type(field, "Care");
+    await user.click(within(rename).getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(writes(sent)).toHaveLength(2));
+    expect(writes(sent)[1]).toEqual({ method: "PATCH", url: "/api/finance/categories/7", body: { version: version(), name: "Health", set: { category: "Care" } } });
+
+    await user.click(await ready(sheet, "More for Education"));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove…" }));
+    const ask = await screen.findByRole("alertdialog", { name: "Remove Education?" });
+    expect(within(ask).getByText("Its shops go to Other. Your statements are not changed.")).toBeTruthy();
+    await user.click(within(ask).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(writes(sent)).toHaveLength(3));
+    expect(writes(sent)[2]).toEqual({ method: "DELETE", url: "/api/finance/categories/8", body: { version: version(), name: "Education" } });
+
+    await user.click(await ready(sheet, "Add a category"));
+    const name = await screen.findByRole("dialog", { name: "New category" });
+    await user.type(within(name).getByRole("textbox", { name: "Name" }), "Pets");
+    await user.click(within(name).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(writes(sent)).toHaveLength(4));
+    expect(writes(sent)[3]).toEqual({ method: "POST", url: "/api/finance/categories", body: { category: "Pets" } });
+  });
+
+  it("a category's page says which words bring shops in, and opens the sheet on it", async () => {
+    stubMoney();
+    at("/money/spending/Groceries?month=2026-09");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    const line = (await screen.findByText(/come here\./)).closest("p")!;
+    expect(line.textContent).toMatch(/Shops whose name has albert heijn, jumbo or ah \(whole name\) come here\./);
+    await user.click(within(line).getByRole("button", { name: "Change" }));
+    const sheet = await screen.findByRole("dialog", { name: "Categories" });
+    expect(within(sheet).getAllByRole("listitem").find((li) => li.classList.contains("on"))!.querySelector("b")!.textContent).toBe("Groceries");
+  });
+});
+
+describe("Money in screens: put a shop in a category", () => {
+  it("from the shop's page: the dialog says what moves before it moves", async () => {
+    const { sent } = stubMoney();
+    at("/money/spending?merchant=HEMA");
+    const user = userEvent.setup();
+    render(
+      <>
+        <Money onOpenNote={vi.fn()} />
+        <Toaster />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Put it in another category" }));
+    const dialog = await screen.findByRole("dialog", { name: "Put HEMA in a category" });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "Groceries");
+    expect(within(dialog).getByText(/moves from Shopping to/).textContent).toBe("Every HEMA row moves from Shopping to Groceries, in every month.");
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "POST", url: "/api/finance/categories/shop", body: { merchant: "HEMA", category: "Groceries" } }]));
+    expect(await screen.findByText("Every HEMA row is in Groceries now.")).toBeTruthy();
+    // The shop's page is read again, with where it is filed now.
+    await waitFor(() => expect(gets(sent, "/api/finance/merchant/").length).toBeGreaterThan(1));
+  });
+
+  it("a shop a commitment claims says so, and offers no move", async () => {
+    stubMoney({ merchant: { filing: { category: "Subscriptions", commitment: "Netflix", own: null } } });
+    at("/money/spending?merchant=NETFLIX.COM");
+    render(<Money onOpenNote={vi.fn()} />);
+    expect((await screen.findByText(/as your/)).closest("p")!.textContent).toBe("Counted under Subscriptions, as your Netflix commitment.");
+    expect(screen.queryByRole("button", { name: "Put it in another category" })).toBeNull();
+  });
+
+  it("from a shop's row on its category's page", async () => {
+    const { sent } = stubMoney();
+    at("/money/spending/Groceries?month=2026-09");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Where it went in September" });
+    const row = (await screen.findAllByRole("link")).find((a) => a.classList.contains("mshop"))!;
+    const shop = row.querySelector(".t")!.textContent!;
+    await user.click(screen.getByRole("button", { name: `Put ${shop} in another category` }));
+    const dialog = await screen.findByRole("dialog", { name: `Put ${shop} in a category` });
+    await user.selectOptions(within(dialog).getByRole("combobox", { name: "Category" }), "\u0000new");
+    await user.type(within(dialog).getByRole("textbox", { name: "Name of the new category" }), "Lunch");
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "POST", url: "/api/finance/categories/shop", body: { merchant: shop, category: "Lunch" } }]));
+  });
+});
+
+describe("Money in screens: payslips and own accounts", () => {
+  it("a payslip PDF kept but not read: Type the figures files them for that file", async () => {
+    const f = fin((x) => {
+      x.files = [{ name: "august.pdf", size: 1000, mtimeMs: Date.parse("2026-09-02"), ext: ".pdf" }, ...x.files];
+    });
+    const { sent } = stubMoney({ finance: f });
+    at("/money/income");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    expect(await screen.findByText("kept, its figures not read")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Type the figures" }));
+    const sheet = await screen.findByRole("dialog", { name: "A payslip's figures" });
+    fireEvent.change(within(sheet).getByLabelText("Month it pays for"), { target: { value: "2026-08" } });
+    await user.type(within(sheet).getByRole("textbox", { name: "Gross" }), "2.600,00");
+    await user.type(within(sheet).getByRole("textbox", { name: "Net" }), "2000");
+    await user.click(within(sheet).getByRole("button", { name: "File it" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "POST", url: "/api/finance/payslips", body: { month: "2026-08", gross: 2600, net: 2000, file: "august.pdf" } }]));
+  });
+
+  it("a filed payslip opens to change its net, or be removed", async () => {
+    const { sent } = stubMoney();
+    at("/money/income");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: /^Aug 2026, €650\.00: change or remove$/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Payslip, Aug 2026" });
+    const net = within(sheet).getByRole("textbox", { name: "Net" });
+    await user.clear(net);
+    await user.type(net, "660");
+    await user.click(within(sheet).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "PATCH", url: "/api/finance/payslips/1", body: { version: "v-slips", name: "2026-08", set: { net: "660.00" } } }]));
+  });
+
+  it("own accounts are listed on Savings, added and removed there", async () => {
+    const { sent } = stubMoney();
+    at("/money/savings");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    const box = await screen.findByRole("region", { name: "Your own accounts" });
+    expect(within(box).getByText("brokerly")).toBeTruthy();
+    await user.click(within(box).getByRole("button", { name: "Add an account" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add an account" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Name" }), "Pot");
+    await user.type(within(sheet).getByRole("textbox", { name: "On your statement as" }), "savings pot,  =pot ");
+    await user.click(within(sheet).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "POST", url: "/api/finance/own-accounts", body: { account: "Pot", matches: "savings pot, =pot" } }]));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add an account" })).toBeNull());
+    await user.click(within(box).getByRole("button", { name: /Broker/ }));
+    const edit = await screen.findByRole("dialog", { name: "Broker" });
+    await user.click(within(edit).getByRole("button", { name: "Remove" }));
+    await user.click(within(await screen.findByRole("alertdialog", { name: "Remove Broker?" })).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(writes(sent)[1]).toEqual({ method: "DELETE", url: "/api/finance/own-accounts/0", body: { version: "v-own", name: "Broker" } }));
   });
 });

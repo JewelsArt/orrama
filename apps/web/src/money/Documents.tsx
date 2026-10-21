@@ -6,7 +6,7 @@ import { isoLocal, monthKey } from "@orrama/core/dates";
 import type { FinanceData } from "@orrama/schema/responses";
 import { Button } from "../ui/controls.js";
 import { EmptyState } from "../ui/states.js";
-import { dayLabel, FINANCE_FILES_DIR, kb, monthLong, plural } from "./format.js";
+import { dayLabel, kb, monthLong, plural } from "./format.js";
 
 export function DocumentsPage({ d, onRead, onUpload }: { d: FinanceData; onRead: (name: string) => void; onUpload: () => void }) {
   if (d.files.length === 0)
@@ -15,7 +15,7 @@ export function DocumentsPage({ d, onRead, onUpload }: { d: FinanceData; onRead:
         <EmptyState
           pose="carry"
           title="Nothing uploaded yet."
-          text={`Bank exports and payslips you add are kept in ${FINANCE_FILES_DIR}, beside your notes.`}
+          text="Bank exports and payslips you add are kept with your notes, on this computer."
           actions={
             <Button kind="solid" icon="upload" onClick={onUpload}>
               Add a bank export
@@ -37,7 +37,7 @@ export function DocumentsPage({ d, onRead, onUpload }: { d: FinanceData; onRead:
       <div className="mh">
         <h2>Documents</h2>
         <span className="c">
-          {plural(d.files.length, "file")} · {kb(total)} · in {FINANCE_FILES_DIR}
+          {plural(d.files.length, "file")} · {kb(total)}
         </span>
       </div>
       {[...groups].map(([month, files]) => (

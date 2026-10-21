@@ -19,6 +19,7 @@ import { link, to } from "./links.js";
 import { monthByCategory, recurringRow } from "./model.js";
 import { UNCATEGORISED } from "./palette.js";
 import { CountUp } from "../ui/CountUp.js";
+import type { EditReq } from "./writes.js";
 
 type Cats = FinanceData["spending"]["categories"];
 
@@ -38,6 +39,7 @@ export function Overview({
   onAdd,
   adding,
   onUpload,
+  onEdit,
 }: {
   d: FinanceData;
   month: string;
@@ -49,6 +51,7 @@ export function Overview({
   /** The merchant being written into the ledger. */
   adding: string | null;
   onUpload: () => void;
+  onEdit: (r: EditReq) => void;
 }) {
   const cats = d.spending.categories;
   const latest = d.spending.months[d.spending.months.length - 1]?.month ?? null;
@@ -70,7 +73,7 @@ export function Overview({
             <EmptyState
               pose="carry"
               title="Drop a bank export (CSV) here to start."
-              text="Or add one with the button. Statements are read in your own folder, 02-Areas/finance/files, and nothing leaves it."
+              text="Or add one with the button. Statements are kept with your notes, on this computer, and nothing leaves it."
               actions={
                 <Button kind="solid" icon="upload" onClick={onUpload}>
                   Add a bank export
@@ -87,8 +90,8 @@ export function Overview({
         <Saving d={d} />
       </div>
       <div className="mcol">
-        <Commitments d={d} month={month} dismissed={dismissed} onDismiss={onDismiss} onAdd={onAdd} adding={adding} />
-        <Income d={d} month={month} />
+        <Commitments d={d} month={month} dismissed={dismissed} onDismiss={onDismiss} onAdd={onAdd} adding={adding} onEdit={onEdit} />
+        <Income d={d} month={month} onEdit={onEdit} />
       </div>
     </div>
   );
@@ -341,6 +344,7 @@ function Commitments({
   onDismiss,
   onAdd,
   adding,
+  onEdit,
 }: {
   d: FinanceData;
   month: string;
@@ -348,6 +352,7 @@ function Commitments({
   onDismiss: (r: Recurring) => void;
   onAdd: (r: Recurring) => void;
   adding: string | null;
+  onEdit: (r: EditReq) => void;
 }) {
   const today = isoLocal();
   const thisMonth = today.slice(0, 7);
@@ -371,7 +376,12 @@ function Commitments({
         go={{ label: "Calendar →", to: to.page("subscriptions", month) }}
       />
       {d.subscriptions.count === 0 ? (
-        <p className="q3">Nothing recorded. Add rows to the note tagged #subscriptions, or add a charge below when one looks recurring.</p>
+        <div className="mnone">
+          <p className="q3">Nothing recorded yet. Rent, a gym, a phone plan: add what comes back, or a charge below when one looks recurring.</p>
+          <Button size="sm" icon="plus" onClick={() => onEdit({ kind: "line", ledger: "subscriptions" })}>
+            Add a commitment
+          </Button>
+        </div>
       ) : (
         <>
           <div className="mstrip" style={{ gridTemplateColumns: `repeat(${len}, minmax(0, 1fr))` }} aria-label={`Charges in ${monthName(month)}`} role="img">
@@ -416,7 +426,7 @@ function Commitments({
         </>
       )}
       {found.slice(0, 2).map((r) => (
-        <Found key={`${r.merchant}-${r.amount}`} r={r} canAdd={!!d.notes.subscriptions && recurringRow(r, null) !== null} busy={adding === r.merchant} onAdd={() => onAdd(r)} onDismiss={() => onDismiss(r)} />
+        <Found key={`${r.merchant}-${r.amount}`} r={r} canAdd={recurringRow(r, null) !== null} busy={adding === r.merchant} onAdd={() => onAdd(r)} onDismiss={() => onDismiss(r)} />
       ))}
     </section>
   );
@@ -451,7 +461,7 @@ export function Found({ r, canAdd, busy, onAdd, onDismiss }: { r: Recurring; can
 }
 
 /** What comes in this month, from the income ledger. */
-function Income({ d, month }: { d: FinanceData; month: string }) {
+function Income({ d, month, onEdit }: { d: FinanceData; month: string; onEdit: (r: EditReq) => void }) {
   const charges = chargesIn(d.income.items, month);
   return (
     <section className="mod tiles" aria-label="Income">
@@ -463,7 +473,16 @@ function Income({ d, month }: { d: FinanceData; month: string }) {
         go={{ label: "Income →", to: to.page("income", month) }}
       />
       {charges.length === 0 ? (
-        <p className="q3">{d.income.count === 0 ? "Nothing recorded. Add rows to the note tagged #income." : `Nothing expected in ${monthWord(month)}.`}</p>
+        d.income.count === 0 ? (
+          <div className="mnone">
+            <p className="q3">Nothing recorded yet.</p>
+            <Button size="sm" icon="plus" onClick={() => onEdit({ kind: "line", ledger: "income" })}>
+              Add income
+            </Button>
+          </div>
+        ) : (
+          <p className="q3">Nothing expected in {monthWord(month)}.</p>
+        )
       ) : (
         charges.map(({ day, item }) => (
           <a key={`${day}-${item.service}`} className="row mrow" {...link(lineTo(d, "income", item, month))}>

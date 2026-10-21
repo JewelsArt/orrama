@@ -263,7 +263,7 @@
 
 ### `apps/web/src/Finance.tsx`
 - **Exports**: rowKeys, Money
-- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ./api.js, ./DocViewer.js, ./storage.js, ./ui/controls.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./money/Category.js, ./money/Documents.js, ./money/format.js, ./money/hooks.js, ./money/Ledger.js, ./money/links.js, ./money/Merchant.js, ./money/model.js, ./money/Overview.js, ./money/palette.js, ./money/Savings.js, ./money/Spending.js, ./ui/shell/SectionBar.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ./api.js, ./DocViewer.js, ./storage.js, ./ui/controls.js, ./money/Categories.js, ./money/LineSheet.js, ./money/OwnAccounts.js, ./money/PayslipSheet.js, ./money/writes.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./money/Category.js, ./money/Documents.js, ./money/format.js, ./money/hooks.js, ./money/Ledger.js, ./money/links.js, ./money/Merchant.js, ./money/model.js, ./money/Overview.js, ./money/palette.js, ./money/Savings.js, ./money/Spending.js, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/Gantt.tsx`
 - **Exports**: GanttProps, Gantt
@@ -543,9 +543,13 @@
 ### `apps/web/src/main.tsx`
 - **Imports**: react, react-dom/client, @orrama/ui/fonts.css, @orrama/ui/tokens.css, @orrama/ui/vision.css, @orrama/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, @orrama/ui/clay.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
 
+### `apps/web/src/money/Categories.tsx`
+- **Exports**: CategoriesSheet, ShopMove
+- **Imports**: @orrama/core/spending, @orrama/schema/responses, react, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./OwnAccounts.js, ./palette.js, ./writes.js
+
 ### `apps/web/src/money/Category.tsx`
 - **Exports**: pickMonth, CategoryPage
-- **Imports**: @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./hooks.js, ./links.js, ./model.js
+- **Imports**: @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./hooks.js, ./links.js, ./model.js, ./OwnAccounts.js, ./writes.js, @orrama/core/spending
 
 ### `apps/web/src/money/Chart.tsx`
 - **Exports**: ColumnState, Column, Columns, Stack, StackedColumns
@@ -557,15 +561,27 @@
 
 ### `apps/web/src/money/Ledger.tsx`
 - **Exports**: LEDGER_LABEL, LedgerPage
-- **Imports**: @orrama/core/dates, @orrama/schema/responses, ../ui/controls.js, ../ui/fields.js, ../ui/router.js, ../ui/states.js, ./format.js, ./hooks.js, ./links.js, ./model.js, ./Overview.js, ../storage.js, react
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, ../ui/controls.js, ../ui/fields.js, ../ui/router.js, ../ui/states.js, ./format.js, ./hooks.js, ./links.js, ./model.js, ./writes.js, ./Overview.js, ../storage.js, react
+
+### `apps/web/src/money/LineSheet.tsx`
+- **Exports**: LineKind, LineValues, lineValues, LineSheet
+- **Imports**: @orrama/core/dates, @orrama/core/subscriptions, react, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ../ui/writes.js, ./links.js, ./writes.js
 
 ### `apps/web/src/money/Merchant.tsx`
 - **Exports**: MerchantPage
-- **Imports**: @orrama/schema/responses, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js
+- **Imports**: @orrama/schema/responses, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js, ./writes.js, ../ui/controls.js
 
 ### `apps/web/src/money/Overview.tsx`
 - **Exports**: shownMonth, Overview, aheadOfTypical, Found, default
-- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js, ../ui/CountUp.js
+- **Imports**: @orrama/core/dates, @orrama/schema/responses, react, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/states.js, ../ui/router.js, ./format.js, ./links.js, ./model.js, ./palette.js, ../ui/CountUp.js, ./writes.js
+
+### `apps/web/src/money/OwnAccounts.tsx`
+- **Exports**: wordLabel, OwnAccounts, OwnAccountSheet
+- **Imports**: @orrama/core/spending, @orrama/schema/responses, react, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./format.js, ./writes.js
+
+### `apps/web/src/money/PayslipSheet.tsx`
+- **Exports**: PayslipSheet
+- **Imports**: @orrama/core/money, react, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./format.js, ./writes.js
 
 ### `apps/web/src/money/Savings.tsx`
 - **Exports**: SavingsPage
@@ -573,10 +589,10 @@
 
 ### `apps/web/src/money/Spending.tsx`
 - **Exports**: SpendingPage, MonthPage
-- **Imports**: @orrama/core/spending, @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js, ./palette.js, ./hooks.js
+- **Imports**: @orrama/core/spending, @orrama/schema/responses, react, ../ui/controls.js, ../ui/layout.js, ../ui/router.js, ../ui/states.js, ./Chart.js, ./format.js, ./links.js, ./palette.js, ./hooks.js, ./writes.js
 
 ### `apps/web/src/money/format.ts`
-- **Exports**: eur, perCurrency, axisEur, monthName, monthShort, monthLong, monthWord, dayLabel, weekday, kb, plural, niceTicks, monthPace, projectedSpend, daysIn, chargeDays, StatementRead, statementFlash, notCounted, FINANCE_FILES_DIR
+- **Exports**: eur, perCurrency, axisEur, monthName, monthShort, monthLong, monthWord, dayLabel, weekday, kb, plural, niceTicks, monthPace, projectedSpend, daysIn, chargeDays, StatementRead, statementFlash, notCounted
 - **Imports**: @orrama/core/subscriptions, @orrama/schema/responses, ../ui/dates.js
 
 ### `apps/web/src/money/hooks.ts`
@@ -594,6 +610,10 @@
 ### `apps/web/src/money/palette.ts`
 - **Exports**: UNCATEGORISED, COLOURED, OTHER_COLOUR, colouredCategories, paletteFor, iconFor
 - **Imports**: react, ../icons.js
+
+### `apps/web/src/money/writes.ts`
+- **Exports**: LedgerId, RowAt, addRow, changeRow, removeRow, moveCategory, fileShop, rowAt, changedCells, CADENCE_WORDS, EditReq
+- **Imports**: @orrama/schema/responses, @orrama/core/subscriptions, ../api.js
 
 ### `apps/web/src/newNote.ts`
 - **Exports**: createNote, blankNote, ContactFields, contactNote, CompanyFields, companyNote
@@ -793,7 +813,7 @@
 
 ### `apps/web/src/today/AddMoneyRow.tsx`
 - **Exports**: AddMoneyRow
-- **Imports**: react, @orrama/core/dates, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js
+- **Imports**: ../money/LineSheet.js
 
 ### `apps/web/src/today/Timetable.tsx`
 - **Exports**: Link, Timetable

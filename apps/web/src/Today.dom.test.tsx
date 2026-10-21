@@ -354,15 +354,18 @@ describe("Today: Customise, the header, New", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a subscription" })).toBeNull());
   });
 
-  it("New → Income without an #income note says how to make one, instead of a form", async () => {
-    stubToday();
+  it("New → Income with no income note yet is the same form: the first add makes the note (1G)", async () => {
+    const { sent } = stubToday({ "POST /api/finance/income": { ok: true } });
     const user = userEvent.setup();
     await shown();
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(await screen.findByRole("menuitem", { name: "Income" }));
     const dialog = await screen.findByRole("dialog", { name: "Add income" });
-    expect(within(dialog).getByText("No note is tagged #income yet.")).toBeTruthy();
-    expect(within(dialog).queryByRole("textbox")).toBeNull();
+    expect(within(dialog).queryByText(/tagged/)).toBeNull();
+    await user.type(within(dialog).getByRole("textbox", { name: "Source" }), "Fictive BV");
+    await user.type(within(dialog).getByRole("textbox", { name: "Amount" }), "2000");
+    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(sent.find((r) => r.url === "/api/finance/income")?.body).toMatchObject({ service: "Fictive BV", amount: "2000", cadence: "monthly" }));
   });
 });
 

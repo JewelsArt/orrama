@@ -16,11 +16,12 @@ import { dayLabel, eur, monthLong, monthName, monthShort, plural, weekday } from
 import { link, to } from "./links.js";
 import { colouredCategories, OTHER_COLOUR, paletteFor, UNCATEGORISED } from "./palette.js";
 import { useGrain, useMonthKeys } from "./hooks.js";
+import type { EditReq } from "./writes.js";
 
 /** The neutral band every category without a colour of its own shares. */
 const REST = "Other";
 
-export function SpendingPage({ d, onOpenNote }: { d: FinanceData; onOpenNote: (id: string) => void }) {
+export function SpendingPage({ d, onEdit }: { d: FinanceData; onEdit: (r: EditReq) => void }) {
   const [hot, setHot] = useState<string | null>(null);
   const [grain, setGrain] = useGrain();
   const [year, setYear] = useState<string | null>(null);
@@ -125,19 +126,14 @@ export function SpendingPage({ d, onOpenNote }: { d: FinanceData; onOpenNote: (i
         <div className="mh">
           <h2>Every category</h2>
           <span className="c">{plural(cats.forecast.length, "category", "categories")}</span>
-          {cats.noteId && (
-            <a
-              className="go"
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                onOpenNote(cats.noteId!);
-              }}
-            >
-              Edit the rules →
-            </a>
-          )}
+          <span className="msp" />
+          <Button size="sm" icon="pen" onClick={() => onEdit({ kind: "categories" })}>
+            Edit categories
+          </Button>
         </div>
+        {cats.forecast.length === 0 && (
+          <p className="q3">{(d.tables.categories?.rows.length ?? 0) === 0 ? "No categories yet. Add some, with the words that bring a shop into each: groceries, eating out, transport." : "Each category shows here once it has a complete month of spending."}</p>
+        )}
         <div className="mcatlist">
           {cats.forecast.map((f) => {
             const delta = f.last !== null ? f.last - f.typical : null;
@@ -264,7 +260,11 @@ export function MonthPage({ month, d, colourOf }: { month: string; d: MonthDetai
             total, and restated here for what it is. */}
         {(d.movedOut > 0 || d.refunded > 0) && (
           <p className="q3">
-            {d.movedOut > 0 && <>{eur(d.movedOut)} moved out (rent, tuition, transfers: not counted as spending). </>}
+            {d.movedOut > 0 && (
+              <>
+                {eur(d.movedOut)} moved out (rent, tuition, transfers, <a {...link(to.page("savings"))}>your own accounts</a>: not counted as spending).{" "}
+              </>
+            )}
             {d.refunded > 0 && <>{eur(d.refunded)} refunded, already off the total.</>}
           </p>
         )}

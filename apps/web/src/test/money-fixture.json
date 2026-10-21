@@ -26,7 +26,8 @@
       "duo"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 9
     },
     {
      "service": "Internship allowance",
@@ -40,7 +41,8 @@
       "kade social"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 10
     }
    ],
    "count": 2,
@@ -102,7 +104,8 @@
       "woonstichting"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 9
     },
     {
      "service": "Adobe CC",
@@ -116,7 +119,8 @@
       "adobe"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 10
     },
     {
      "service": "Spotify",
@@ -130,7 +134,8 @@
       "spotify"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 11
     },
     {
      "service": "Netflix",
@@ -144,7 +149,8 @@
       "netflix"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 12
     },
     {
      "service": "iCloud+",
@@ -158,7 +164,8 @@
       "apple.com"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 13
     },
     {
      "service": "Phone",
@@ -172,7 +179,8 @@
       "vodafone"
      ],
      "category": "",
-     "note": ""
+     "note": "",
+     "line": 14
     }
    ],
    "count": 6,
@@ -291,7 +299,8 @@
     "hours": 96,
     "rate": null,
     "file": "",
-    "effectiveNet": 6.77
+    "effectiveNet": 6.77,
+    "line": 9
    },
    {
     "month": "2026-08",
@@ -301,7 +310,8 @@
     "hours": 96,
     "rate": null,
     "file": "",
-    "effectiveNet": 6.77
+    "effectiveNet": 6.77,
+    "line": 10
    },
    {
     "month": "2026-09",
@@ -311,7 +321,8 @@
     "hours": 96,
     "rate": null,
     "file": "",
-    "effectiveNet": 6.77
+    "effectiveNet": 6.77,
+    "line": 11
    }
   ],
   "savings": {
@@ -734,7 +745,312 @@
     "ext": ".csv"
    }
   ],
-  "ledgerConflicts": []
+  "ledgerConflicts": [],
+  "tables": {
+   "subscriptions": {
+    "noteId": "n-mv3sxcsd05ghuf",
+    "version": "v-ghuf",
+    "fields": [
+     "service",
+     "amount",
+     "cadence",
+     "next",
+     "match",
+     "category",
+     "note"
+    ],
+    "rows": [
+     {
+      "index": 0,
+      "line": 9,
+      "name": "Rent",
+      "cells": {
+       "service": "Rent",
+       "amount": "745.00",
+       "cadence": "monthly",
+       "next": "2026-11-01",
+       "match": "woonstichting",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 1,
+      "line": 10,
+      "name": "Adobe CC",
+      "cells": {
+       "service": "Adobe CC",
+       "amount": "19.66",
+       "cadence": "monthly",
+       "next": "2026-11-08",
+       "match": "adobe",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 2,
+      "line": 11,
+      "name": "Spotify",
+      "cells": {
+       "service": "Spotify",
+       "amount": "11.99",
+       "cadence": "monthly",
+       "next": "2026-10-11",
+       "match": "spotify",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 3,
+      "line": 12,
+      "name": "Netflix",
+      "cells": {
+       "service": "Netflix",
+       "amount": "13.99",
+       "cadence": "monthly",
+       "next": "2026-10-12",
+       "match": "netflix",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 4,
+      "line": 13,
+      "name": "iCloud+",
+      "cells": {
+       "service": "iCloud+",
+       "amount": "2.99",
+       "cadence": "monthly",
+       "next": "2026-10-18",
+       "match": "apple.com",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 5,
+      "line": 14,
+      "name": "Phone",
+      "cells": {
+       "service": "Phone",
+       "amount": "18.37",
+       "cadence": "monthly",
+       "next": "2026-10-28",
+       "match": "vodafone",
+       "category": "",
+       "note": ""
+      }
+     }
+    ]
+   },
+   "income": {
+    "noteId": "n-mv3sxcsd01jq9y",
+    "version": "v-jq9y",
+    "fields": [
+     "service",
+     "amount",
+     "cadence",
+     "next",
+     "match",
+     "category",
+     "note"
+    ],
+    "rows": [
+     {
+      "index": 0,
+      "line": 9,
+      "name": "Study grant",
+      "cells": {
+       "service": "Study grant",
+       "amount": "980.00",
+       "cadence": "monthly",
+       "next": "2026-10-24",
+       "match": "duo",
+       "category": "",
+       "note": ""
+      }
+     },
+     {
+      "index": 1,
+      "line": 10,
+      "name": "Internship allowance",
+      "cells": {
+       "service": "Internship allowance",
+       "amount": "650.00",
+       "cadence": "monthly",
+       "next": "2026-10-26",
+       "match": "kade social",
+       "category": "",
+       "note": ""
+      }
+     }
+    ]
+   },
+   "payslips": {
+    "noteId": "n-mv3sxcsd03x5pd",
+    "version": "v-slips",
+    "fields": [
+     "month",
+     "gross",
+     "net",
+     "tax",
+     "hours",
+     "rate",
+     "file"
+    ],
+    "rows": [
+     {
+      "index": 0,
+      "line": 9,
+      "name": "2026-07",
+      "cells": {
+       "month": "2026-07",
+       "gross": "720.00",
+       "net": "650.00",
+       "tax": "",
+       "file": ""
+      }
+     },
+     {
+      "index": 1,
+      "line": 10,
+      "name": "2026-08",
+      "cells": {
+       "month": "2026-08",
+       "gross": "720.00",
+       "net": "650.00",
+       "tax": "",
+       "file": ""
+      }
+     },
+     {
+      "index": 2,
+      "line": 11,
+      "name": "2026-09",
+      "cells": {
+       "month": "2026-09",
+       "gross": "720.00",
+       "net": "650.00",
+       "tax": "",
+       "file": ""
+      }
+     }
+    ]
+   },
+   "categories": {
+    "noteId": "n-mv3sxcsd09cats",
+    "version": "v-cats",
+    "fields": [
+     "category",
+     "matches"
+    ],
+    "rows": [
+     {
+      "index": 0,
+      "line": 9,
+      "name": "Rent",
+      "cells": {
+       "category": "Rent",
+       "matches": "woonstichting"
+      }
+     },
+     {
+      "index": 1,
+      "line": 10,
+      "name": "Groceries",
+      "cells": {
+       "category": "Groceries",
+       "matches": "albert heijn, jumbo, =ah"
+      }
+     },
+     {
+      "index": 2,
+      "line": 11,
+      "name": "Eating out",
+      "cells": {
+       "category": "Eating out",
+       "matches": "thuisbezorgd"
+      }
+     },
+     {
+      "index": 3,
+      "line": 12,
+      "name": "Transport",
+      "cells": {
+       "category": "Transport",
+       "matches": "ns, gvb"
+      }
+     },
+     {
+      "index": 4,
+      "line": 13,
+      "name": "Subscriptions",
+      "cells": {
+       "category": "Subscriptions",
+       "matches": "spotify, netflix"
+      }
+     },
+     {
+      "index": 5,
+      "line": 14,
+      "name": "Shopping",
+      "cells": {
+       "category": "Shopping",
+       "matches": "uniqlo"
+      }
+     },
+     {
+      "index": 6,
+      "line": 15,
+      "name": "Going out",
+      "cells": {
+       "category": "Going out",
+       "matches": "pathe"
+      }
+     },
+     {
+      "index": 7,
+      "line": 16,
+      "name": "Health",
+      "cells": {
+       "category": "Health",
+       "matches": "apotheek"
+      }
+     },
+     {
+      "index": 8,
+      "line": 17,
+      "name": "Education",
+      "cells": {
+       "category": "Education",
+       "matches": "hogeschool"
+      }
+     }
+    ]
+   },
+   "own-accounts": {
+    "noteId": "n-mv3sxcsd10ownd",
+    "version": "v-own",
+    "fields": [
+     "account",
+     "matches"
+    ],
+    "rows": [
+     {
+      "index": 0,
+      "line": 9,
+      "name": "Broker",
+      "cells": {
+       "account": "Broker",
+       "matches": "brokerly"
+      }
+     }
+    ]
+   }
+  }
  },
  "month": {
   "month": "2026-09",
@@ -1343,6 +1659,11 @@
    "first": "2026-07-20",
    "last": "2026-09-20",
    "allTime": 89.97
+  },
+  "filing": {
+   "category": "Shopping",
+   "commitment": null,
+   "own": null
   }
  }
 }

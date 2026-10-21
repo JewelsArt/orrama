@@ -20,6 +20,11 @@ import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
 import { readJson, writeKey } from "./storage.js";
 import { Button, Tabs } from "./ui/controls.js";
+import { CategoriesSheet, ShopMove } from "./money/Categories.js";
+import { LineSheet } from "./money/LineSheet.js";
+import { OwnAccounts, OwnAccountSheet } from "./money/OwnAccounts.js";
+import { PayslipSheet } from "./money/PayslipSheet.js";
+import { rowAt, type EditReq } from "./money/writes.js";
 import { toast } from "./ui/overlays.js";
 import { navigate, useRoute } from "./ui/router.js";
 import { Notice, Skeleton } from "./ui/states.js";
@@ -64,7 +69,7 @@ function useFinance() {
 }
 
 /** One category's year. Kept while the next year loads, so the page does not blank. */
-function useCategory(name: string | null, year: string | null) {
+function useCategory(name: string | null, year: string | null, rev: number) {
   const [got, setGot] = useState<{ name: string; d: CategoryDetail } | null>(null);
   useEffect(() => {
     if (!name) return;
@@ -72,12 +77,12 @@ function useCategory(name: string | null, year: string | null) {
     const q = year ? `?year=${encodeURIComponent(year)}` : "";
     void api<CategoryDetail>("GET", `/api/finance/category/${encodeURIComponent(name)}${q}`, undefined, { signal: ac.signal }).then((d) => setGot({ name, d }), unlessAborted);
     return () => ac.abort();
-  }, [name, year]);
+  }, [name, year, rev]);
   return got && got.name === name ? got.d : null;
 }
 
 /** One month in full, optionally narrowed to one category. */
-function useMonth(month: string | null, category: string | null) {
+function useMonth(month: string | null, category: string | null, rev: number) {
   const [got, setGot] = useState<{ key: string; d: MonthDetail } | null>(null);
   const key = `${month}|${category ?? ""}`;
   useEffect(() => {
@@ -86,12 +91,12 @@ function useMonth(month: string | null, category: string | null) {
     const q = category ? `?category=${encodeURIComponent(category)}` : "";
     void api<MonthDetail>("GET", `/api/finance/month/${month}${q}`, undefined, { signal: ac.signal }).then((d) => setGot({ key: `${month}|${category ?? ""}`, d }), unlessAborted);
     return () => ac.abort();
-  }, [month, category]);
+  }, [month, category, rev]);
   return got && got.key === key ? got.d : null;
 }
 
 /** One shop's year. */
-function useMerchant(name: string | null, year: string | null) {
+function useMerchant(name: string | null, year: string | null, rev: number) {
   const [got, setGot] = useState<{ name: string; d: MerchantDetail } | null>(null);
   useEffect(() => {
     if (!name) return;
@@ -99,7 +104,7 @@ function useMerchant(name: string | null, year: string | null) {
     const q = year ? `?year=${encodeURIComponent(year)}` : "";
     void api<MerchantDetail>("GET", `/api/finance/merchant/${encodeURIComponent(name)}${q}`, undefined, { signal: ac.signal }).then((d) => setGot({ name, d }), unlessAborted);
     return () => ac.abort();
-  }, [name, year]);
+  }, [name, year, rev]);
   return got && got.name === name ? got.d : null;
 }
 
@@ -136,7 +141,11 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
   const { d, failed, load } = useFinance();
 
   const [busy, setBusy] = useState<string | null>(null);
-  const [flash, setFlash] = useState<{ text: string; ok: boolean } | null>(null);
+  const [flash, setFlash] = useState<{ text: string; ok: boolean; slip?: { month: string | null; file: string } } | null>(null);
+  /** The sheet or dialog a page asked for, drawn over it. */
+  const [edit, setEdit] = useState<EditReq | null>(null);
+  /** Bumped by every change, so the page open below refetches what it shows. */
+  const [rev, setRev] = useState(0);
   const [reading, setReading] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(() => new Set(readJson<string[]>(NOT_RECURRING_KEY, [])));
@@ -151,11 +160,22 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
   // A category or shop's year: the tab you picked, else the year of the month you came in on.
   const [year, setYear] = useState<{ of: string; year: string } | null>(null);
   const yearOf = (of: string | null) => (of && year?.of === of ? year.year : of && at.month ? at.month.slice(0, 4) : null);
-  const cat = useCategory(category, yearOf(category));
+  const cat = useCategory(category, yearOf(category), rev);
   const catMonth = cat ? pickMonth(cat, at.month) : null;
-  const shop = useMerchant(merchant, yearOf(merchant));
+  const shop = useMerchant(merchant, yearOf(merchant), rev);
   const overviewMonth = d && tab === "overview" ? (shownMonth(d, at.month) ?? monthKey(new Date())) : null;
-  const detail = useMonth(monthPage ?? (category ? catMonth : overviewMonth), category);
+  const detail = useMonth(monthPage ?? (category ? catMonth : overviewMonth), category, rev);
+
+  /* ---- changes: a sheet over the page, then the figures again ---- */
+  const changed = async () => {
+    setRev((r) => r + 1);
+    await load();
+  };
+  const saved = async (said: string) => {
+    setEdit(null);
+    toast(said);
+    await changed();
+  };
 
   /* ---- uploads ---- */
   const upload = async (files: FileList | null) => {
@@ -170,13 +190,15 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
         const left = res.statement !== undefined ? !!res.statement?.reason : !res.filed;
         setFlash({
           ok: !left,
+          // A payslip kept but not read: its figures can be typed instead.
+          slip: res.statement === undefined && res.stored && !res.filed ? { month: res.parsed?.month ?? null, file: res.name } : undefined,
           text:
             res.statement !== undefined
               ? statementFlash(res.name, res.statement)
               : res.filed
                 ? `Filed the payslip for ${res.parsed?.month ? monthLong(res.parsed.month) : file.name}.`
                 : res.stored
-                  ? `Stored ${res.name}, but the figures were not filed: ${res.reason ?? "no reason given"}.`
+                  ? `Kept ${res.name}, but its figures could not be read${res.reason === "unfamiliar payslip layout" ? " from this kind of payslip" : ""}. Type them instead.`
                   : `Not stored: ${res.reason ?? "no reason given"}.`,
         });
       } catch (e) {
@@ -201,19 +223,18 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
     setDismissed(next);
     writeKey(NOT_RECURRING_KEY, JSON.stringify([...next]));
   };
-  /** Write the charge into the #subscriptions note, dated from the last time it was charged. */
+  /** Open the commitment sheet filled in from the charge, dated from the last time it was charged. */
   const add = async (r: Recurring) => {
     setAdding(r.merchant);
     try {
       const seen = await api<MerchantDetail>("GET", `/api/finance/merchant/${encodeURIComponent(r.merchant)}`);
       const last = seen.transactions.find((t) => !t.refund && Math.abs(t.amount - r.amount) < 0.005)?.date ?? null;
       const row = recurringRow(r, last);
-      if (!row) return;
-      await api("POST", "/api/finance/subscriptions", row);
-      toast(`${r.merchant} is in your commitments now.`);
-      await load();
-    } catch (e) {
-      setFlash({ ok: false, text: e instanceof Error ? `Could not add ${r.merchant}: ${e.message}` : `Could not add ${r.merchant}.` });
+      if (row) setEdit({ kind: "line", ledger: "subscriptions", prefill: row, shop: r.merchant });
+    } catch {
+      // Not knowing the last charge only costs the date: the sheet opens without it.
+      const row = recurringRow(r, null);
+      if (row) setEdit({ kind: "line", ledger: "subscriptions", prefill: row, shop: r.merchant });
     } finally {
       setAdding(null);
     }
@@ -246,13 +267,47 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
       title={flash.ok ? "Added" : "Not added to the figures"}
       text={flash.text}
       actions={
-        <Button size="sm" kind="quiet" onClick={() => setFlash(null)}>
-          Dismiss
-        </Button>
+        <>
+          {flash.slip && (
+            <Button size="sm" onClick={() => setEdit({ kind: "payslip", month: flash.slip!.month, file: flash.slip!.file })}>
+              Type the figures
+            </Button>
+          )}
+          <Button size="sm" kind="quiet" onClick={() => setFlash(null)}>
+            Dismiss
+          </Button>
+        </>
       }
     />
   );
   const reader = reading && <DocViewer base="/api/finance/files" name={reading} onClose={() => setReading(null)} />;
+  const read = (file: string) => {
+    setEdit(null);
+    setReading(file);
+  };
+  const sheet =
+    edit &&
+    d &&
+    (edit.kind === "line" ? (
+      <LineSheet kind={edit.ledger} at={rowAt(d.tables[edit.ledger], edit.line)} prefill={edit.prefill} shop={edit.shop} onClose={() => setEdit(null)} onSaved={(s) => void saved(s)} />
+    ) : edit.kind === "categories" ? (
+      <CategoriesSheet d={d} focus={edit.focus} onClose={() => setEdit(null)} onChanged={changed} onOpenNote={onOpenNote} />
+    ) : edit.kind === "payslip" ? (
+      <PayslipSheet at={rowAt(d.tables.payslips, edit.line)} start={{ month: edit.month, file: edit.file }} onRead={read} onClose={() => setEdit(null)} onSaved={(s) => void saved(s)} />
+    ) : edit.kind === "account" ? (
+      <OwnAccountSheet d={d} line={edit.line} onClose={() => setEdit(null)} onSaved={(s) => void saved(s)} />
+    ) : (
+      <ShopMove
+        shop={edit.shop}
+        current={edit.current}
+        categories={(d.tables.categories?.rows ?? []).map((r) => r.name)}
+        onClose={() => setEdit(null)}
+        onMoved={async (s) => {
+          toast(s);
+          await changed();
+        }}
+      />
+    ));
 
   /* ---- the drill-down: a shop, a category, a month ---- */
   if (!tab)
@@ -261,7 +316,7 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
         {input}
         {flashNotice}
         {merchant ? (
-          <MerchantPage name={merchant} category={at.category} d={shop} onYear={(y) => setYear({ of: merchant, year: y })} />
+          <MerchantPage name={merchant} category={at.category} d={shop} onYear={(y) => setYear({ of: merchant, year: y })} onEdit={setEdit} />
         ) : category ? (
           <CategoryPage
             name={category}
@@ -269,6 +324,8 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
             month={catMonth}
             detail={detail}
             colour={colourOf(category)}
+            words={d?.tables.categories?.rows.find((r) => r.name === category)?.cells["matches"] ?? null}
+            onEdit={setEdit}
             onYear={(y) => {
               setYear({ of: category, year: y });
               navigate(to.category(category), { replace: true });
@@ -278,6 +335,7 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
           <MonthPage month={monthPage!} d={detail} colourOf={colourOf} />
         )}
         {reader}
+        {sheet}
       </div>
     );
 
@@ -365,10 +423,11 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
             onAdd={(r) => void add(r)}
             adding={adding}
             onUpload={pick}
+            onEdit={setEdit}
           />
         ) : null
       ) : tab === "spending" ? (
-        <SpendingPage d={d} onOpenNote={onOpenNote} />
+        <SpendingPage d={d} onEdit={setEdit} />
       ) : tab === "subscriptions" || tab === "income" ? (
         <LedgerPage
           kind={tab}
@@ -381,13 +440,18 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
           onUndismiss={(r) => dismiss(r, false)}
           onAdd={(r) => void add(r)}
           adding={adding}
+          onEdit={setEdit}
         />
       ) : tab === "savings" ? (
-        <SavingsPage d={d} />
+        <>
+          <SavingsPage d={d} />
+          <OwnAccounts d={d} onEdit={(line) => setEdit({ kind: "account", line })} onOpenNote={onOpenNote} />
+        </>
       ) : (
         <DocumentsPage d={d} onRead={setReading} onUpload={pick} />
       )}
       {reader}
+      {sheet}
     </div>
   );
 }

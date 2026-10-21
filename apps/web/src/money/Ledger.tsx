@@ -18,6 +18,7 @@ import { chargeDays, dayLabel, eur, monthLong, monthName, perCurrency, plural } 
 import { useMonthKeys } from "./hooks.js";
 import { link, to } from "./links.js";
 import { recurringKey, recurringRow } from "./model.js";
+import type { EditReq } from "./writes.js";
 import { Found } from "./Overview.js";
 import { readKey, writeKey } from "../storage.js";
 import { useState } from "react";
@@ -38,6 +39,7 @@ export function LedgerPage({
   onUndismiss,
   onAdd,
   adding,
+  onEdit,
 }: {
   kind: "subscriptions" | "income";
   d: FinanceData;
@@ -49,6 +51,7 @@ export function LedgerPage({
   onUndismiss: (r: Recurring) => void;
   onAdd: (r: Recurring) => void;
   adding: string | null;
+  onEdit: (r: EditReq) => void;
 }) {
   const [both, setBoth] = useState(() => readKey(OVERLAY_KEY) === "1");
   const month = asked && /^\d{4}-\d{2}$/.test(asked) ? asked : monthKey(new Date());
@@ -75,7 +78,7 @@ export function LedgerPage({
 
   return (
     <>
-      <UnreadableRows ledger={ledger} noteId={noteId} onOpenNote={onOpenNote} />
+      <UnreadableRows ledger={ledger} noteId={noteId} onOpenNote={onOpenNote} onFix={(line) => onEdit({ kind: "line", ledger: kind, line })} />
 
       <section className="mod" aria-label={`${LEDGER_LABEL[kind]}, ${monthLong(month)}`}>
         <div className="mh mcalh">
@@ -120,7 +123,7 @@ export function LedgerPage({
         {ledger.count > 0 ? (
           <ChargeCalendar month={month} series={series} merchantFor={merchantFor} />
         ) : (
-          <p className="q3">Nothing recorded. Add rows to the note tagged {income ? "#income" : "#subscriptions"}.</p>
+          <p className="q3">Nothing recorded yet.</p>
         )}
       </section>
 
@@ -128,13 +131,13 @@ export function LedgerPage({
         <section className="mod" aria-label="Looks recurring">
           <div className="mh">
             <h2>Looks recurring</h2>
-            <span className="c">{d.recurring.length} not in the note</span>
+            <span className="c">{d.recurring.length} not in your commitments</span>
           </div>
-          <p className="q3">The same amount, on a rhythm, from a shop no line of the note claims.</p>
+          <p className="q3">The same amount, on a rhythm, from a shop none of your commitments claims.</p>
           {d.recurring.map((r) => {
             const off = dismissed.has(recurringKey(r));
             if (r.active && !off)
-              return <Found key={recurringKey(r)} r={r} canAdd={!!d.notes.subscriptions && recurringRow(r, null) !== null} busy={adding === r.merchant} onAdd={() => onAdd(r)} onDismiss={() => onDismiss(r)} />;
+              return <Found key={recurringKey(r)} r={r} canAdd={recurringRow(r, null) !== null} busy={adding === r.merchant} onAdd={() => onAdd(r)} onDismiss={() => onDismiss(r)} />;
             // A row, not a link: Undo sits in it, and a button inside a link is no button. The
             // shop's name is the way to the shop.
             return (
@@ -174,32 +177,41 @@ export function LedgerPage({
           <span className="c">
             {plural(ledger.count, income ? "source" : "line")} · {perCurrency(ledger.totals)} a month
           </span>
-          {noteId && (
-            <a
-              className="go"
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                onOpenNote(noteId);
-              }}
-            >
-              Open the note →
-            </a>
-          )}
+          <span className="msp" />
+          <Button size="sm" icon="plus" onClick={() => onEdit({ kind: "line", ledger: kind })}>
+            {income ? "Add income" : "Add a commitment"}
+          </Button>
         </div>
-        {lines.length === 0 && <p className="q3">Nothing recorded yet.</p>}
+        {lines.length === 0 && <p className="q3">Nothing recorded yet. Rent, a gym, a phone plan: anything that comes back.</p>}
         {lines.map((m) => (
-          <Line key={m.service} m={m} ledger={ledger} to={merchantFor(m)} />
+          <Line key={`${m.line}-${m.service}`} m={m} ledger={ledger} onOpen={() => onEdit({ kind: "line", ledger: kind, line: m.line, shop: merchantFor(m) })} />
         ))}
+        {noteId && <OpenNote id={noteId} onOpenNote={onOpenNote} />}
       </section>
 
-      {income && <Payslips slips={d.payslips} noteId={d.notes.payslips} onOpenNote={onOpenNote} onRead={onRead} />}
+      {income && <Payslips d={d} onEdit={onEdit} onOpenNote={onOpenNote} onRead={onRead} />}
     </>
   );
 }
 
-/** One ledger line: what it costs, how long it has run, and what the statement saw of it. */
-function Line({ m, ledger, to: shop }: { m: MoneyItem; ledger: Ledger; to: string | null }) {
+/** "Open the note": the quiet way into the table itself, never the only one. */
+function OpenNote({ id, onOpenNote }: { id: string; onOpenNote: (id: string) => void }) {
+  return (
+    <a
+      className="mquiet"
+      href="#"
+      onClick={(e) => {
+        e.preventDefault();
+        onOpenNote(id);
+      }}
+    >
+      Open the note
+    </a>
+  );
+}
+
+/** One ledger line: what it costs, how long it has run, and what the statement saw of it. It opens its sheet. */
+function Line({ m, ledger, onOpen }: { m: MoneyItem; ledger: Ledger; onOpen: () => void }) {
   const act = ledger.activity[m.service];
   // What arrived, against what was expected to. A catch-up payment is real money and not a
   // raise, so it is named as extra rather than averaged into the figure above (FIN-004).
@@ -234,12 +246,10 @@ function Line({ m, ledger, to: shop }: { m: MoneyItem; ledger: Ledger; to: strin
       <span className="r">{eur(m.amount, m.currency)}</span>
     </>
   );
-  return shop ? (
-    <a className="row mline" title={`Open ${shop}`} {...link(to.merchant(shop))}>
+  return (
+    <button type="button" className="row mline" onClick={onOpen} aria-label={`${m.service}, ${eur(m.amount, m.currency)} ${m.cadence}: change or remove`}>
       {body}
-    </a>
-  ) : (
-    <div className="row mline static">{body}</div>
+    </button>
   );
 }
 
@@ -335,7 +345,7 @@ function ChargeCalendar({ month, series, merchantFor }: { month: string; series:
 }
 
 /** The rows a ledger left out of its totals, by name, line and cell: a row the parser cannot read must not simply vanish from the sum (FIN-005/006). */
-function UnreadableRows({ ledger, noteId, onOpenNote }: { ledger: Ledger; noteId: string | null; onOpenNote: (id: string) => void }) {
+function UnreadableRows({ ledger, noteId, onOpenNote, onFix }: { ledger: Ledger; noteId: string | null; onOpenNote: (id: string) => void; onFix: (line: number) => void }) {
   const rows = ledger.unreadable;
   if (rows.length === 0) return null;
   return (
@@ -348,20 +358,26 @@ function UnreadableRows({ ledger, noteId, onOpenNote }: { ledger: Ledger; noteId
             ? `“${r.text}” is not a cadence this ledger knows (weekly, every 2 weeks, 4-weekly, monthly, quarterly, half-yearly, yearly).`
             : r.text
               ? `“${r.text}” is not one amount.`
-              : "no amount."}
+              : "no amount."}{" "}
+          <Button size="sm" onClick={() => onFix(r.line)}>
+            Fix it
+          </Button>
         </span>
       ))}
-      actions={noteId ? <Button size="sm" onClick={() => onOpenNote(noteId)}>Open the note</Button> : undefined}
+      actions={noteId ? <Button size="sm" kind="quiet" onClick={() => onOpenNote(noteId)}>Open the note</Button> : undefined}
     />
   );
 }
 
 /**
  * Payslips: what landed, month by month. The headline is the last month's take-home — never a
- * month in progress, which would read as a pay cut — the months before it as bars, each opening
- * its own payslip, and the year totalled underneath.
+ * month in progress, which would read as a pay cut — then every payslip as a bar, each opening its
+ * figures to change or remove, and the year totalled underneath. A PDF kept but not read (its
+ * layout was unfamiliar) is listed with a way to type its figures.
  */
-function Payslips({ slips, noteId, onOpenNote, onRead }: { slips: PayslipRow[]; noteId: string | null; onOpenNote: (id: string) => void; onRead: (file: string) => void }) {
+function Payslips({ d, onEdit, onOpenNote, onRead }: { d: FinanceData; onEdit: (r: EditReq) => void; onOpenNote: (id: string) => void; onRead: (file: string) => void }) {
+  const slips = d.payslips;
+  const noteId = d.notes.payslips;
   const withNet = slips.filter((r) => r.net !== null);
   const latest = withNet[withNet.length - 1];
   const before = withNet[withNet.length - 2];
@@ -372,72 +388,86 @@ function Payslips({ slips, noteId, onOpenNote, onRead }: { slips: PayslipRow[]; 
   const average = thisYear.length ? ytdNet / thisYear.length : 0;
   const kept = ytdGross > 0 ? Math.round((ytdNet / ytdGross) * 1000) / 10 : null;
   const change = latest && before ? latest.net! - before.net! : null;
-  const shown = withNet.slice(-8);
-  const maxNet = Math.max(1, ...shown.map((r) => r.net!));
+  const shown = slips.slice(-12);
+  const maxNet = Math.max(1, ...shown.map((r) => r.net ?? 0));
+  const filed = new Set(slips.map((r) => r.file).filter(Boolean));
+  const unfiled = d.files.filter((f) => f.ext === ".pdf" && !filed.has(f.name));
 
   return (
     <section className="mod" aria-label="Payslips">
       <div className="mh">
         <h2>Payslips</h2>
-        <span className="c">{plural(withNet.length, "payslip")}</span>
-        {noteId && (
-          <a
-            className="go"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpenNote(noteId);
-            }}
-          >
-            Open the note →
-          </a>
-        )}
+        <span className="c">{plural(slips.length, "payslip")}</span>
+        <span className="msp" />
+        <Button size="sm" icon="plus" onClick={() => onEdit({ kind: "payslip" })}>
+          Add a payslip
+        </Button>
       </div>
-      {!latest ? (
-        <p className="q3">No payslips yet. Add one with “Add a bank export”: a PDF payslip is read and filed.</p>
+      {unfiled.map((f) => (
+        <div key={f.name} className="row mline static">
+          <span className="x">
+            <span className="t">{f.name}</span>
+            <span className="m">kept, its figures not read</span>
+          </span>
+          <span className="end">
+            <Button size="sm" kind="quiet" onClick={() => onRead(f.name)}>
+              Open
+            </Button>
+            <Button size="sm" onClick={() => onEdit({ kind: "payslip", file: f.name })}>
+              Type the figures
+            </Button>
+          </span>
+        </div>
+      ))}
+      {!latest && slips.length === 0 ? (
+        <p className="q3">No payslips yet. Add a PDF payslip with “Add a bank export” and it is read and filed, or type its figures with Add a payslip.</p>
       ) : (
         <>
-          <div className="mbig sm">
-            <b>{eur(latest.net!)}</b>
-            <span>
-              earned in {monthName(latest.month)}
-              {change !== null && change !== 0 && (
-                <>
-                  {" · "}
-                  {change > 0 ? "+" : "−"}
-                  {eur(Math.abs(change))} on {monthName(before!.month)}
-                </>
-              )}
-            </span>
-          </div>
-          {shown.length > 1 &&
-            [...shown].reverse().map((r) => (
-              <button key={r.month} type="button" className="row mpay" onClick={() => r.file && onRead(r.file)} disabled={!r.file} title={r.file ? `Open ${r.file}` : "No document filed for this month"}>
-                <span className="x">
-                  <span className="t">{monthName(r.month)}</span>
-                </span>
-                <span className="ui-bar">
-                  <i style={{ width: `${(r.net! / maxNet) * 100}%` }} />
-                </span>
-                <span className="r">{eur(r.net!)}</span>
-              </button>
-            ))}
-          <div className="marith mytd">
-            <span>Take-home {year}</span>
-            <b>
-              {eur(ytdNet)} <em>{plural(thisYear.length, "payslip")}</em>
-            </b>
-            <span>Average month</span>
-            <b>
-              {eur(Math.round(average * 100) / 100)} <em>across {year}</em>
-            </b>
-            <span>Kept after tax</span>
-            <b>
-              {kept !== null ? `${kept}%` : "—"} <em>{ytdGross > 0 ? `${eur(ytdGross - ytdNet)} withheld` : "no gross recorded"}</em>
-            </b>
-          </div>
+          {latest && (
+            <div className="mbig sm">
+              <b>{eur(latest.net!)}</b>
+              <span>
+                earned in {monthName(latest.month)}
+                {change !== null && change !== 0 && (
+                  <>
+                    {" · "}
+                    {change > 0 ? "+" : "−"}
+                    {eur(Math.abs(change))} on {monthName(before!.month)}
+                  </>
+                )}
+              </span>
+            </div>
+          )}
+          {[...shown].reverse().map((r) => (
+            <button key={`${r.line}-${r.month}`} type="button" className="row mpay" onClick={() => onEdit({ kind: "payslip", line: r.line })} aria-label={`${monthName(r.month)}, ${r.net !== null ? eur(r.net) : "no net"}: change or remove`}>
+              <span className="x">
+                <span className="t">{monthName(r.month)}</span>
+              </span>
+              <span className="ui-bar">
+                <i style={{ width: `${((r.net ?? 0) / maxNet) * 100}%` }} />
+              </span>
+              <span className="r">{r.net !== null ? eur(r.net) : "—"}</span>
+            </button>
+          ))}
+          {latest && (
+            <div className="marith mytd">
+              <span>Take-home {year}</span>
+              <b>
+                {eur(ytdNet)} <em>{plural(thisYear.length, "payslip")}</em>
+              </b>
+              <span>Average month</span>
+              <b>
+                {eur(Math.round(average * 100) / 100)} <em>across {year}</em>
+              </b>
+              <span>Kept after tax</span>
+              <b>
+                {kept !== null ? `${kept}%` : "—"} <em>{ytdGross > 0 ? `${eur(ytdGross - ytdNet)} withheld` : "no gross recorded"}</em>
+              </b>
+            </div>
+          )}
         </>
       )}
+      {noteId && <OpenNote id={noteId} onOpenNote={onOpenNote} />}
     </section>
   );
 }

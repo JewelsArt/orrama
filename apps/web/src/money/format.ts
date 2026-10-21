@@ -102,6 +102,3 @@ export function statementFlash(name: string, st: StatementRead | null): string {
 
 /** " · 2 rows not counted", or nothing: the overview's half of FIN-006. */
 export const notCounted = (l: Ledger) => (l.unreadable.length ? ` · ${plural(l.unreadable.length, "row")} not counted` : "");
-
-/** Where uploads live, said once so the Documents page and the empty state cannot disagree with the server. */
-export const FINANCE_FILES_DIR = "02-Areas/finance/files";

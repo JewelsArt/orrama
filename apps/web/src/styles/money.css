@@ -218,6 +218,45 @@
 .money .mcal-day li a:hover { text-decoration: underline; }
 .money .mcal-day li.more { color: var(--ink-3); }
 
+/* ---- changing the ledgers: Add on the pages, a sheet per row (1G) ----------------------- */
+.money .mquiet, .msheet .mquiet { align-self: flex-start; margin-top: 8px; font-size: 13px; color: var(--ink-3); text-decoration: none; }
+.money .mquiet:hover, .msheet .mquiet:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.money .mnone { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.money .mnone .q3 { margin: 0; }
+.money .mwords { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: -4px 0 0; }
+.money .mshoprow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; }
+.money .mshoprow + .mshoprow { border-top: 1px solid var(--line); }
+.money .mshoprow > .row { margin-right: 0; }
+.money .mshoprow > .row::before { display: none; }
+.money .mline .end .btn { align-self: center; }
+
+/* The sheets float over the page (portalled), so they are scoped by their own class. */
+.msheet .form { gap: 14px; }
+.msheet .acts .mleft { margin-right: auto; }
+.msheet .q3 { margin: 0; font-size: 13px; line-height: 19px; color: var(--ink-2); }
+.msheet .q3 b { color: var(--ink); font-weight: 650; }
+.msheet .mform-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.msheet .mform-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.msheet .msp { flex: 1; }
+.mcats-sheet .ui-sheet-body { display: flex; flex-direction: column; gap: 12px; }
+.mcatedit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mcatedit > li { padding: 10px 0 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.mcatedit > li:first-child { border-top: 0; }
+.mcatedit > li.on { box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; }
+.mce-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mce-head .sw { width: 14px; height: 14px; border-radius: 4px; background: var(--cc); flex: none; }
+.mce-head b { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mce-head .m { color: var(--ink-3); font-size: 12.5px; white-space: nowrap; }
+.mce-words { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-left: 22px; }
+.mword { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 2px 0 10px; border-radius: var(--r-1); border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; font-weight: 550; color: var(--ink); max-width: 100%; }
+.mword button { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 5px; background: none; color: var(--ink-3); cursor: pointer; }
+.mword button:hover { color: var(--ink); background: var(--hover); }
+.mword button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.mce-add { display: inline-flex; align-items: center; gap: 6px; }
+.mce-add input { height: 28px; width: 150px; font-size: 13px; }
+.mce-foot { display: flex; align-items: center; gap: 8px; }
+.mce-foot .mquiet { margin-top: 0; }
+
 /* ---- the phone: one column, the drill-down as stacked screens (§2.9) -------------------- */
 @media (max-width: 760px) {
   .money { padding: 0 12px 24px; gap: 12px; }
@@ -251,6 +290,10 @@
   .money .mcal-day ul, .money .mcal-head span { font-size: 10.5px; }
   .money .mcal-day ul { display: none; }
   .money .mcal-day .sums { font-size: 10.5px; }
+  .msheet .mform-row { grid-template-columns: 1fr; }
+  .mce-add { width: 100%; }
+  .mce-add input { flex: 1; width: auto; }
+  .mce-words { padding-left: 0; }
 }
 
 /* ---- a narrower window (the page box, styles/shell.css): one column, so every box keeps the
