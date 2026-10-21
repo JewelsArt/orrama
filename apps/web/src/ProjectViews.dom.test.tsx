@@ -198,6 +198,9 @@ describe("Add a step with the card's fields (1B)", () => {
 
   it("a step with none of them is its words alone", async () => {
     render(<AddStepDialog w={w} onClose={() => {}} onAdded={vi.fn(async () => {})} />);
+    // Where it goes, in words: never the note's file name (stage 1: the ontology stays invisible).
+    expect(document.body.textContent).toContain("It goes under “Tasks” in the project's note.");
+    expect(document.body.textContent).not.toMatch(/\.md\b/);
     fireEvent.change(screen.getByLabelText("The step"), { target: { value: "  Book the room " } });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Add the step" }));

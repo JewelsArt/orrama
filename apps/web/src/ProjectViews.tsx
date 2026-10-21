@@ -157,7 +157,7 @@ export function AddStepDialog({ w, due, onClose, onAdded }: { w: ProjectWorkspac
         <Field label="Key deadline">
           <Switch label="Key deadline" checked={key} onChange={setKey} />
         </Field>
-        <p className="q3 pj-hint">It goes under “Tasks” in {w.path.split("/").pop()}.</p>
+        <p className="q3 pj-hint">It goes under “Tasks” in the project's note.</p>
         {failed && <Notice title="Not added" text="The note could not be written. Try again." />}
         <button type="submit" hidden />
       </form>
