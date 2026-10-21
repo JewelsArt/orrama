@@ -15,6 +15,7 @@ import { LoginLimiter } from "../loginLimit.js";
 import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
 import { RETIRED_USERNAME, usernameRetired } from "../usernames.js";
 import { env } from "../env.js";
+import { firstRunPending, markFirstRunPending } from "../firstRun.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 
 /**
@@ -187,6 +188,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
           createdAt: Date.now(),
         })
         .run();
+      // The founder chooses where the notes are next (Setup.tsx); until then the app asks.
+      if (first) markFirstRunPending(tx);
       return teams;
     });
     for (const teamId of teamIds) {
@@ -245,11 +248,13 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
    * Is this an empty install? The web app asks before rendering anything, so a
    * fresh server shows "create your account" instead of a login form nobody can
    * satisfy. Deliberately unauthenticated and deliberately minimal: it answers
-   * one boolean and never reveals who exists once setup is done.
+   * two booleans and never reveals who exists once setup is done.
    */
   app.get("/api/auth/status", async () => {
     const userCount = db.select().from(tables.users).all().length;
-    return { needsSetup: userCount === 0 };
+    // `chooseNotes`: the account exists but its notes folder was never settled (the window
+    // closed on the chooser). Says nothing `needsSetup: false` does not already say.
+    return { needsSetup: userCount === 0, chooseNotes: userCount > 0 && firstRunPending(db) };
   });
 
   // ── Quick unlock (passcode / Touch ID) ───────────────────────────────────────

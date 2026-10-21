@@ -59,14 +59,15 @@ afterAll(async () => {
 
 describe("first run", () => {
   it("reports an empty install, then stops reporting it", async () => {
-    expect((await api("GET", "/api/auth/status")).json).toEqual({ needsSetup: true });
+    expect((await api("GET", "/api/auth/status")).json).toEqual({ needsSetup: true, chooseNotes: false });
     const created = await api("POST", "/api/auth/register", CREDS);
     expect(created.status).toBe(200);
     // The first account founds the workspace, so it must own it - nobody else can
     // grant that later.
     expect(created.json.user.isOwner).toBe(true);
     token = created.session;
-    expect((await api("GET", "/api/auth/status")).json).toEqual({ needsSetup: false });
+    // …but asks where the notes are until the founder settles it (first run, 1A).
+    expect((await api("GET", "/api/auth/status")).json).toEqual({ needsSetup: false, chooseNotes: true });
   });
 
   it("will not let a second account in without an invite", async () => {

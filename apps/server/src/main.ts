@@ -8,7 +8,7 @@ import websocket from "@fastify/websocket";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { createDb, tables } from "./db.js";
-import { assertProductionSecrets, assertValidEnv, env } from "./env.js";
+import { assertProductionSecrets, assertValidEnv, env, vaultDir } from "./env.js";
 import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
@@ -107,8 +107,12 @@ export function allowedHost(host: string | undefined, publicOrigins: string[]): 
   });
 }
 
-/** `logStream` lets a test read exactly what the real app logs. */
-export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = {}) {
+/**
+ * `logStream` lets a test read exactly what the real app logs. `restart` is how the server
+ * reads another notes folder (Settings → Notes, first run): the entry point below closes this
+ * build and makes a new one in the same process.
+ */
+export async function buildServer(opts: { logStream?: NodeJS.WritableStream; restart?: () => void } = {}) {
   assertValidEnv();
   assertProductionSecrets();
   const db = createDb();
@@ -302,7 +306,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
   await icsRoutes(app, db, store);
   await mailRoutes(app, db);
   await integrationRoutes(app, db, store);
-  await settingsRoutes(app, store);
+  await settingsRoutes(app, db, store, calendar, opts.restart);
   await notesHomeRoutes(app, store);
   initWebhooks(db, store);
 
@@ -360,7 +364,32 @@ if (isEntry(import.meta.url, process.argv[1])) {
   // and never rotated: tighten it, and keep it under a cap (logging.ts).
   const rotated = rotateLogIfLarge();
   const tightened = privateLogFiles();
-  const { app } = await buildServer();
+  // A restart (another notes folder chosen in the app) closes this build and listens with a
+  // new one, in this process: the database, the store, its watcher and every route are made
+  // afresh from the folder now stored (env.ts `vaultDir`). Requests in between are refused,
+  // and the page waits for /api/health.
+  let restarting = false;
+  const restart = () => {
+    if (restarting || closing) return;
+    restarting = true;
+    app.log.info("restarting to read the notes folder chosen in the app");
+    void app
+      .close()
+      .then(async () => {
+        ({ app } = await buildServer({ restart }));
+        await app.listen({ port: env.port, host: env.host });
+        app.log.info(`reading ${vaultDir()}`);
+      })
+      .catch((err) => {
+        console.error("restart failed", err);
+        process.exit(1); // launchd (or the desktop app) starts it again
+      })
+      .finally(() => {
+        restarting = false;
+      });
+  };
+  let closing = false;
+  let { app } = await buildServer({ restart });
   if (rotated) app.log.info("log rotated: the previous one is server.log.1");
   if (tightened.length) app.log.info(`log file made owner-only (fd ${tightened.join(", ")})`);
   const rotateTimer = setInterval(() => {
@@ -373,7 +402,6 @@ if (isEntry(import.meta.url, process.argv[1])) {
   // Close properly — stop the watcher, finish in-flight requests, close the
   // database so its WAL is checkpointed — instead of dying mid-write. A close
   // that hangs is cut off, because launchd will SIGKILL us anyway.
-  let closing = false;
   for (const signal of ["SIGTERM", "SIGINT"] as const) {
     process.on(signal, () => {
       if (closing) return;

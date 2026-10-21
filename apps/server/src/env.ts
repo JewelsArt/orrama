@@ -227,5 +227,36 @@ export function assertValidEnv(e: NodeJS.ProcessEnv = process.env): void {
   if (problems.length) throw new Error(`Refusing to start — the environment is not valid:\n  - ${problems.join("\n  - ")}`);
 }
 
-export const vaultDir = () => env.vaultDir ?? path.join(env.dataDir, "vault");
+/** Orrama's own notes folder, inside the data folder: where "Start empty" and the example go. */
+export const ownNotesFolder = (dataDir = env.dataDir) => path.join(dataDir, "vault");
+
+/**
+ * The notes folder chosen in the app (first run, Settings → Notes), kept in the data folder
+ * beside the database: `{ "folder": "/abs/path" }`. Read at boot when ORRAMA_VAULT_DIR is not
+ * set; when it is set (Jules's launchd agent), the variable wins. A file that is not readable,
+ * not an absolute path, or names a folder that is gone is ignored (Orrama's own folder is read
+ * instead, and the boot log says why), never a crash at boot.
+ */
+export const NOTES_FOLDER_FILE = "notes-folder.json";
+export function storedNotesFolder(dataDir = env.dataDir): string | null {
+  const file = path.join(dataDir, NOTES_FOLDER_FILE);
+  let raw: string;
+  try {
+    raw = fs.readFileSync(file, "utf8");
+  } catch {
+    return null; // none chosen
+  }
+  try {
+    const folder = (JSON.parse(raw) as { folder?: unknown }).folder;
+    if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("no absolute folder in it");
+    if (!fs.statSync(folder).isDirectory()) throw new Error(`${folder} is not a folder`);
+    return path.resolve(folder);
+  } catch (err) {
+    console.error(`[env] ${file} ignored: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/** Where the notes are: ORRAMA_VAULT_DIR, else the folder chosen in the app, else Orrama's own. */
+export const vaultDir = () => env.vaultDir ?? storedNotesFolder() ?? ownNotesFolder();
 export const dbPath = () => path.join(env.dataDir, "basalt.db");

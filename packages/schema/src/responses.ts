@@ -85,7 +85,7 @@ export const meResponse = o({
   teams: z.array(teamSchema),
 });
 
-export const authStatusResponse = o({ needsSetup: z.boolean() });
+export const authStatusResponse = o({ needsSetup: z.boolean(), chooseNotes: z.boolean() });
 
 /**
  * What every way in answers (sign-up, password, passcode, Touch ID, the switch from a stored
@@ -107,7 +107,29 @@ export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nst
 export const membersResponse = z.array(o({ id: z.string(), username: z.string(), displayName: z.string(), isOwner: z.boolean(), avatar: z.string() }));
 
 /** Settings → Notes: the folder the notes are read from (home as ~), how many, the version. Owners only. */
-export const serverSettingsResponse = o({ notesFolder: z.string(), notes: z.number(), version: z.string() });
+export const serverSettingsResponse = o({
+  notesFolder: z.string(),
+  notes: z.number(),
+  version: z.string(),
+  /** Set where Orrama starts (ORRAMA_VAULT_DIR): shown, not changed in the app. */
+  fixed: z.boolean(),
+  /** Orrama's own folder is the one being read. */
+  own: z.boolean(),
+  /** How many of the example's notes are here (Remove the example). */
+  example: z.number(),
+});
+
+/** `POST /api/settings/notes-folder/look`: a folder, looked at before it is chosen. */
+export const folderLookResponse = o({
+  folder: z.string(),
+  problem: nstr,
+  notes: z.number(),
+  more: z.boolean(),
+  unstamped: z.number(),
+  ontology: z.boolean(),
+  current: z.boolean(),
+});
+export const startResponse = o({ ontology: z.enum(["written", "there"]), example: z.number() });
 
 export const aiConfigResponse = o({
   provider: nstr,
@@ -990,6 +1012,7 @@ export type SessionInfo = z.infer<typeof sessionsResponse>[number];
 export type AiConfig = z.infer<typeof aiConfigResponse>;
 export type Member = z.infer<typeof membersResponse>[number];
 export type ServerSettings = z.infer<typeof serverSettingsResponse>;
+export type FolderLook = z.infer<typeof folderLookResponse>;
 export type Health = z.infer<typeof healthResponse>;
 export type DashboardData = z.infer<typeof dashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
