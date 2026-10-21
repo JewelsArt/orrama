@@ -143,7 +143,8 @@ describe("the people picker links the note it was given (COR-017)", () => {
 
     expect((await api("DELETE", `/api/projects/people/people/${jan}`)).json).toEqual({ ok: true });
     expect(onDisk("04-Projects/people.md")).toContain("## People\n- [[Some Company]]\n");
-    expect(onDisk("04-Projects/people.md")).not.toContain("jan");
+    // No link to Jan left. The bare substring is no test: the note's random id can hold "jan".
+    expect(onDisk("04-Projects/people.md")).not.toMatch(/\[\[[^\]]*jan/i);
     expect((await api("GET", "/api/projects/people")).json.people).toEqual([]);
   });
 
