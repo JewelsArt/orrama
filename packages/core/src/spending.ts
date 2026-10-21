@@ -6,7 +6,7 @@
  * life does, and it should be editable in Obsidian without a deploy. This
  * module only knows how to apply rules and how to summarise the result.
  */
-import { cells, isRule, mapHeader } from "./table.js";
+import { appendRow, cells, changeRow, isRule, mapHeader, moveRow, readLedgerTable, removeRow, type LedgerSpec, type LedgerTable, type RowRef, type RowWrite } from "./table.js";
 import type { StatementRow } from "./statement.js";
 
 export interface CategoryRule {
@@ -517,4 +517,83 @@ export function merchantsByCategory(
     out[cat] = [...bucket.values()].sort((a, b) => b.total - a.total).slice(0, limit);
   }
   return out;
+}
+
+/* ---- the categories, changed from a screen ----------------------------------
+   The categories note stays the truth: a screen adds, renames, removes and
+   reorders its rows and edits each row's words, one line at a time. */
+
+const CATEGORY_LEDGER: LedgerSpec = { headers: HEADERS, accepts: (m) => m.includes("category") && m.includes("matches"), key: "category" };
+
+/** The columns of a categories note the app makes itself. */
+export const CATEGORY_COLUMNS = ["Category", "Matches"] as const;
+
+/** Every row of the categories note, as written, a category with no words yet included. */
+export const categoryTable = (content: string): LedgerTable => readLedgerTable(content, CATEGORY_LEDGER);
+export const changeCategoryRow = (content: string, ref: RowRef, set: { category?: string; matches?: string }): RowWrite => changeRow(content, CATEGORY_LEDGER, ref, set);
+export const removeCategoryRow = (content: string, ref: RowRef): RowWrite => removeRow(content, CATEGORY_LEDGER, ref);
+/** Move a category to where category `to` is: the order is the colours' order. */
+export const moveCategoryRow = (content: string, ref: RowRef, to: number): RowWrite => moveRow(content, CATEGORY_LEDGER, ref, to);
+/** A new category at the end, or null when the note has no categories table. */
+export const appendCategoryRow = (content: string, row: { category: string; matches: string }): string | null => appendRow(content, HEADERS, ["category", "matches"], row);
+
+/** A Matches cell as its words, as written (case kept). */
+export const termsOf = (cell: string): string[] =>
+  cell
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+/** Words back into a Matches cell. */
+export const termsCell = (terms: readonly string[]): string => terms.join(", ");
+
+/** Two words are the same word when they match the same: accents and case folded, `=` kept. */
+const sameTerm = (a: string, b: string) => fold(a).trim() === fold(b).trim();
+
+/** Under this many letters a shop's name is matched as the whole description (`=ns`), not inside others. */
+const SHORT_NAME = 5;
+
+/** The word that files a shop: its name as the bank writes it, lower-cased; `=name` when the name is short. */
+export function shopTerm(shop: string): string {
+  const name = shop.trim().replace(/\s+/g, " ").toLowerCase();
+  return name.length < SHORT_NAME ? `=${name}` : name;
+}
+
+/**
+ * File every row of one shop under `category`, returning the note's new text:
+ * the shop's own word is added to that category (the row is made when the
+ * category is new) and taken off any other category that has the very same
+ * word. Longest word wins (ruleFor), so the shop's whole name beats a shorter
+ * word elsewhere ("albert" in Shopping) without touching it; only an equal
+ * word would tie, and a tie goes to the earlier category.
+ */
+export function fileShopUnder(content: string, shop: string, category: string): { ok: true; content: string; term: string } | { ok: false; status: 422; reason: string } {
+  const term = shopTerm(shop);
+  const bare = term.replace(/^=/, "");
+  const wanted = category.trim();
+  if (!wanted) return { ok: false, status: 422, reason: "Name the category." };
+  let text = content;
+  // Rows change one at a time, each against the text the last change left.
+  for (;;) {
+    const table = categoryTable(text);
+    const row = table.rows.find((r) => r.name.toLowerCase() !== wanted.toLowerCase() && termsOf(r.cells["matches"] ?? "").some((t) => sameTerm(t.replace(/^=/, ""), bare)));
+    if (!row) break;
+    const kept = termsOf(row.cells["matches"] ?? "").filter((t) => !sameTerm(t.replace(/^=/, ""), bare));
+    const out = changeCategoryRow(text, { index: row.index, name: row.name, version: table.version }, { matches: termsCell(kept) });
+    if (!out.ok) return { ok: false, status: 422, reason: out.reason };
+    text = out.content;
+  }
+  const table = categoryTable(text);
+  const target = table.rows.find((r) => r.name.toLowerCase() === wanted.toLowerCase());
+  if (target) {
+    const words = termsOf(target.cells["matches"] ?? "");
+    if (!words.some((t) => sameTerm(t, term))) {
+      const out = changeCategoryRow(text, { index: target.index, name: target.name, version: table.version }, { matches: termsCell([...words, term]) });
+      if (!out.ok) return { ok: false, status: 422, reason: out.reason };
+      text = out.content;
+    }
+    return { ok: true, content: text, term };
+  }
+  const added = appendCategoryRow(text, { category: wanted, matches: term });
+  if (added === null) return { ok: false, status: 422, reason: "There is no categories list to add to." };
+  return { ok: true, content: added, term };
 }

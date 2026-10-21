@@ -17,7 +17,7 @@
  */
 
 import { parseMoneyWithCurrency } from "./money.js";
-import { appendRow, cells, isRule, mapHeader } from "./table.js";
+import { appendRow, cells, changeRow, isRule, mapHeader, readLedgerTable, removeRow, type LedgerSpec, type LedgerTable, type RowRef, type RowWrite } from "./table.js";
 
 /**
  * How often a charge repeats. Each is a whole number of weeks or of months
@@ -77,6 +77,8 @@ export interface Subscription {
    */
   category: string;
   note: string;
+  /** 1-based line of its row in the note: how a screen finds the row again (`moneyTable`). */
+  line: number;
 }
 
 /**
@@ -364,6 +366,7 @@ export function parseLedger(content: string, today: string): { items: Subscripti
         .filter(Boolean),
       category: get("category"),
       note: get("note"),
+      line: i + 1,
     });
   }
   return { items: out, unreadable };
@@ -394,3 +397,21 @@ export function monthlyTotals(subs: Subscription[]): { currency: string; monthly
   for (const s of subs) by.set(s.currency, (by.get(s.currency) ?? 0) + s.monthly);
   return [...by].map(([currency, monthly]) => ({ currency, monthly: Math.round(monthly * 100) / 100 })).sort((a, b) => b.monthly - a.monthly);
 }
+
+/* ---- changing a row from a screen ------------------------------------------ */
+
+/** The money ledgers (subscriptions and income) as the row writers see them: a table naming a service and an amount. */
+const MONEY_LEDGER: LedgerSpec = { headers: HEADERS, accepts: (m) => m.includes("service") && m.includes("amount"), key: "service" };
+
+/** The columns of a ledger the app makes itself, when there is no note yet. */
+export const MONEY_COLUMNS = {
+  subscriptions: ["Service", "Amount", "Every", "Next", "Note"],
+  income: ["Source", "Amount", "Every", "Next", "Note"],
+} as const;
+
+/** Every row of a subscriptions or income ledger, as written, with the version a change names. */
+export const moneyTable = (content: string): LedgerTable => readLedgerTable(content, MONEY_LEDGER);
+/** Change cells of one row (`service`, `amount`, `cadence`, `next`, `note`, …). */
+export const changeMoneyRow = (content: string, ref: RowRef, set: Record<string, string>): RowWrite => changeRow(content, MONEY_LEDGER, ref, set);
+/** Remove one row. */
+export const removeMoneyRow = (content: string, ref: RowRef): RowWrite => removeRow(content, MONEY_LEDGER, ref);

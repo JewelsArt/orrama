@@ -596,6 +596,8 @@ export const moneyItemSchema = o({
   match: z.array(z.string()),
   category: z.string(),
   note: z.string(),
+  /** 1-based line of the row in the note: which row of `table` this line is. */
+  line: z.number(),
 });
 const totals = z.array(o({ currency: z.string(), monthly: z.number() }));
 
@@ -630,6 +632,8 @@ export const payslipRowSchema = o({
   rate: nnum,
   file: z.string(),
   effectiveNet: nnum,
+  /** 1-based line of the row in the note. */
+  line: z.number(),
 });
 
 export const savingsSchema = o({

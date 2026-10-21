@@ -15,7 +15,7 @@
  */
 
 import { parseMoney } from "./money.js";
-import { appendRow, cells, isRule, mapHeader } from "./table.js";
+import { appendRow, cells, changeRow, isRule, mapHeader, readLedgerTable, removeRow, type LedgerSpec, type LedgerTable, type RowRef, type RowWrite } from "./table.js";
 
 export interface Payslip {
   /** `YYYY-MM` — the period the payslip covers, not the run date. */
@@ -138,6 +138,8 @@ export interface PayslipRow {
   file: string;
   /** net ÷ hours — recomputed on read so a hand-edited row stays consistent. */
   effectiveNet: number | null;
+  /** 1-based line of its row in the note: how a screen finds the row again (`payslipTable`). */
+  line: number;
 }
 
 /**
@@ -153,7 +155,8 @@ export function parsePayslipTable(content: string): PayslipRow[] {
   const out: PayslipRow[] = [];
   let cols: string[] | null = null;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (!line.trim().startsWith("|")) {
       cols = null;
       continue;
@@ -182,6 +185,7 @@ export function parsePayslipTable(content: string): PayslipRow[] {
       rate: plain(get("rate")),
       file: get("file"),
       effectiveNet: net !== null && hours ? Math.round((net / hours) * 100) / 100 : null,
+      line: i + 1,
     });
   }
   return out.sort((a, b) => a.month.localeCompare(b.month));
@@ -199,4 +203,26 @@ export function appendPayslipRow(content: string, p: Payslip, file: string): str
     rate: n(p.hourlyRate),
     file,
   });
+}
+
+/* ---- a payslip's row, typed or changed on a screen ---------------------------- */
+
+const PAYSLIP_LEDGER: LedgerSpec = { headers: HEADERS, accepts: (m) => m.includes("month") && (m.includes("gross") || m.includes("net")), key: "month" };
+
+/** The columns of a payslips note the app makes itself. */
+export const PAYSLIP_COLUMNS = ["Month", "Gross", "Net", "Tax", "Hours", "Rate", "File"] as const;
+
+/** Every row of the payslips note, as written. */
+export const payslipTable = (content: string): LedgerTable => readLedgerTable(content, PAYSLIP_LEDGER);
+export const changePayslipRow = (content: string, ref: RowRef, set: Record<string, string>): RowWrite => changeRow(content, PAYSLIP_LEDGER, ref, set);
+export const removePayslipRow = (content: string, ref: RowRef): RowWrite => removeRow(content, PAYSLIP_LEDGER, ref);
+
+/**
+ * Gross and net typed by hand for a month (a payslip whose layout was not
+ * read, or one with no PDF at all), as the figures a read payslip files.
+ * Withheld is gross − net, as parsePayslip works it out.
+ */
+export function typedPayslip(month: string, gross: number | null, net: number | null): Payslip {
+  const tax = gross !== null && net !== null ? Math.round((gross - net) * 100) / 100 : null;
+  return { month, gross, net, tax, hours: null, hourlyRate: null, effectiveNet: null, holidayPay: null, ytd: { gross: null, net: null, hours: null } };
 }

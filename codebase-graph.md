@@ -970,7 +970,7 @@
 - **Imports**: ./table.js
 
 ### `packages/core/src/ownAccounts.ts`
-- **Exports**: OwnAccount, parseOwnAccounts, markOwnAccounts, ownSavedByMonth
+- **Exports**: OwnAccount, parseOwnAccounts, markOwnAccounts, ownSavedByMonth, OWN_ACCOUNT_COLUMNS, ownAccountTable, changeOwnAccountRow, removeOwnAccountRow, appendOwnAccountRow
 - **Imports**: ./spending.js, ./statement.js, ./table.js
 
 ### `packages/core/src/parse.ts`
@@ -978,7 +978,7 @@
 - **Imports**: ./frontmatter.js, ./types.js
 
 ### `packages/core/src/payslip.ts`
-- **Exports**: Payslip, parsePayslip, payslipUsable, PayslipRow, parsePayslipTable, appendPayslipRow
+- **Exports**: Payslip, parsePayslip, payslipUsable, PayslipRow, parsePayslipTable, appendPayslipRow, PAYSLIP_COLUMNS, payslipTable, changePayslipRow, removePayslipRow, typedPayslip
 - **Imports**: ./money.js, ./table.js
 
 ### `packages/core/src/recurring.ts`
@@ -1000,7 +1000,7 @@
 - **Imports**: ./parse.js
 
 ### `packages/core/src/spending.ts`
-- **Exports**: CategoryRule, CategoryMonth, CategoryForecast, UNCATEGORISED, parseCategoryRules, categoryOf, ruleFor, matchesTerms, costOf, settleRefunds, monthlyByCategory, median, outflowByMonth, YearTotal, rollUpYears, TYPICAL_WINDOW, recentMonths, monthsAround, completeMonths, forecast, typicalMonth, CategoryMerchant, merchantsByCategory
+- **Exports**: CategoryRule, CategoryMonth, CategoryForecast, UNCATEGORISED, parseCategoryRules, categoryOf, ruleFor, matchesTerms, costOf, settleRefunds, monthlyByCategory, median, outflowByMonth, YearTotal, rollUpYears, TYPICAL_WINDOW, recentMonths, monthsAround, completeMonths, forecast, typicalMonth, CategoryMerchant, merchantsByCategory, CATEGORY_COLUMNS, categoryTable, changeCategoryRow, removeCategoryRow, moveCategoryRow, appendCategoryRow, termsOf, termsCell, shopTerm, fileShopUnder
 - **Imports**: ./table.js, ./statement.js
 
 ### `packages/core/src/statement.ts`
@@ -1008,11 +1008,11 @@
 - **Imports**: ./money.js, ./spending.js
 
 ### `packages/core/src/subscriptions.ts`
-- **Exports**: CADENCES, Cadence, Subscription, readCadence, advanceBy, advance, chargesExpected, chargeDates, nextCharge, UnreadableRow, parseSubscriptions, parseLedger, appendMoneyRow, monthlyTotals
+- **Exports**: CADENCES, Cadence, Subscription, readCadence, advanceBy, advance, chargesExpected, chargeDates, nextCharge, UnreadableRow, parseSubscriptions, parseLedger, appendMoneyRow, monthlyTotals, MONEY_COLUMNS, moneyTable, changeMoneyRow, removeMoneyRow
 - **Imports**: ./money.js, ./table.js
 
 ### `packages/core/src/table.ts`
-- **Exports**: cells, isRule, mapHeader, findTable, appendRow
+- **Exports**: cells, isRule, mapHeader, findTable, appendRow, LedgerSpec, LedgerRow, LedgerTable, RowRef, RowWrite, readLedgerTable, changeRow, removeRow, moveRow, tableHead
 - **Imports**: ./parse.js
 
 ### `packages/core/src/tasks.ts`

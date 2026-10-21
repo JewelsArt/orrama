@@ -21,7 +21,7 @@
  */
 import { ruleFor, type CategoryRule } from "./spending.js";
 import type { StatementRow } from "./statement.js";
-import { cells, isRule, mapHeader } from "./table.js";
+import { appendRow, cells, changeRow, isRule, mapHeader, readLedgerTable, removeRow, type LedgerSpec, type LedgerTable, type RowRef, type RowWrite } from "./table.js";
 
 export interface OwnAccount {
   account: string;
@@ -111,3 +111,17 @@ export function ownSavedByMonth(rows: StatementRow[]): Map<string, number> {
   }
   return months;
 }
+
+/* ---- the list, changed from a screen ---------------------------------------- */
+
+const OWN_LEDGER: LedgerSpec = { headers: HEADERS, accepts: (m) => m.includes("account") && m.includes("matches"), key: "account" };
+
+/** The columns of an own-accounts note the app makes itself. */
+export const OWN_ACCOUNT_COLUMNS = ["Account", "Matches"] as const;
+
+/** Every row of the own-accounts note, as written. */
+export const ownAccountTable = (content: string): LedgerTable => readLedgerTable(content, OWN_LEDGER);
+export const changeOwnAccountRow = (content: string, ref: RowRef, set: { account?: string; matches?: string }): RowWrite => changeRow(content, OWN_LEDGER, ref, set);
+export const removeOwnAccountRow = (content: string, ref: RowRef): RowWrite => removeRow(content, OWN_LEDGER, ref);
+/** A new account at the end, or null when the note has no such table. */
+export const appendOwnAccountRow = (content: string, row: { account: string; matches: string }): string | null => appendRow(content, HEADERS, ["account", "matches"], row);
