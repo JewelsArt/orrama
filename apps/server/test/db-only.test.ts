@@ -54,8 +54,8 @@ describe("the DB-only list in CLAUDE.md", () => {
     expect(dbOnly).toMatch(/project's hidden flag/); // projects: rebuilt, except this
   });
 
-  it("says plainly that history is API-only, and how to read it", () => {
-    expect(dbOnly).toMatch(/API-only/);
+  it("says plainly where history is seen (the note's History, 1C) and how to read it over the API", () => {
+    expect(dbOnly).toMatch(/note's ⋯ →\s+History/);
     expect(dbOnly).toMatch(/\/api\/vault\/note\/:id\/history/);
   });
 });

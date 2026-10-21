@@ -9,6 +9,30 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- First run asks where your notes are: start with a small example, start empty, or use a
+  folder of notes you already have (Orrama says how many notes it holds and what it adds before
+  you choose). A new install also gets the note that says what things are
+  (`Orrama/What things are.md`), so people, companies and projects are related from the start
+  and Orr noticed has something to check.
+- Settings → Notes → Change… picks another notes folder; Orrama restarts to read it. Remove the
+  example puts the example's notes in the trash.
+- Change your password in Settings → You. This device stays signed in; every other device is
+  signed out.
+- A step's card changes the step: its words, due and start dates (typed), priority, key
+  deadline and status, each written into its line in the note. Move a step to another
+  project's section or to your inbox from its card (booked time follows a step that has some),
+  or delete it after a confirm that names it. Add a step takes a priority and the key-deadline
+  tag too.
+- Notes can be renamed, moved and put in the trash from the note's ⋯ and the tree's ⋯; links
+  that name a renamed note follow it. Folders can be made, renamed, moved and put in the trash,
+  and a note or folder dragged onto another folder on a desktop.
+- The Trash (Notes → Trash, `/notes/trash`): everything put in the trash, kept in the notes
+  folder's `.trash`, with Restore and Empty trash.
+- A note's History (its ⋯): earlier versions, what changed since each, Restore this version.
+- Money's ledgers are edited on screen. Add, change and remove subscriptions, income lines and
+  payslips; add, rename, remove and reorder spending categories and the words that file shops
+  under them; put a shop in another category from its page; keep a list of your own accounts on
+  Savings. On an empty vault the first add makes the ledger's note in the finance area.
 - Projects: a Reader tab shows a project's .html documents (saved claude.ai artifacts,
   reports) as the pages they are, with their own scripts, one at a time beside the list, and
   "Open on claude.ai" when the project note links the file to its artifact. The tab is there
@@ -146,6 +170,13 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- In a step's card, a day alone now sets the step's due date (it used to plan it for a day
+  nothing showed).
+- A Notes folder with no notes says "No notes yet" with New note, instead of pointing at a
+  Settings part that couldn't change the folder.
+- "Looks recurring → Add it" opens the commitment filled in, to check before adding.
+- Today's New → Subscription and Income use Money's sheet, with all eight rhythms, and say what
+  Money says ("Spotify is in your commitments.").
 - This machine's install no longer carries the Obsidian or Basalt name: the vault is
   `~/Orrama Vault`, the launchd agents are `dev.orrama.server` and `dev.orrama.vault-backup`, and
   logs go to `~/.orrama-run` (the server rotates `~/.orrama-run/server.log`). The plist template
@@ -319,6 +350,9 @@ one is in CLAUDE.md, "Releases".
 
 ### Removed
 
+- "How to change it?" and "also by Obsidian" in Settings → Notes; the terminal lesson for the
+  password in Settings → You.
+- Money's sentences that explained ledger tables and tags.
 - The 2 October audit's write-up and tickets (`docs/audit/`) are no longer in the
   repository.
 - Plus Jakarta Sans and JetBrains Mono (loaded from Google Fonts).
@@ -358,6 +392,13 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- The Projects board loads on a new install (it no longer needs a team).
+- A new project starts as Planned, without the "No status yet" banner or an `active` tag.
+- A step ticked on Today or on a person's page can be unticked (Undo in the toast).
+- On a person's page, a step card's "from the note" opens the note.
+- On a phone, switches were drawn as a large blob.
+- Moving a note whose front matter couldn't be stamped kept its id (it got a new one, and lost
+  its tasks and history).
 - A narrower desktop window (roughly 800–1100 px) no longer breaks pages: Money goes to one
   column, Today to two, Projects keeps each project's name (the key deadline and people
   columns go), Planning's week keeps its seven days readable (the next three weeks go), box
@@ -847,6 +888,9 @@ one is in CLAUDE.md, "Releases".
 
 ### Upgrading
 
+- Stage 1 wave 1: nothing to do. An existing database never sees the notes chooser (no
+  first-run row), and with `ORRAMA_VAULT_DIR` set the notes folder is shown as fixed. Nothing is
+  written into an existing vault until someone chooses in the app.
 - Rename every `BASALT_` variable to `ORRAMA_` (same value) in the launchd
   plist, Docker's `.env` and the MCP server's config before starting this
   version. Browsers keep you signed in: what they stored under `basalt-…`

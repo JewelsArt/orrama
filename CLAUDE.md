@@ -61,14 +61,15 @@ this). **Still DB-only** — gone for good if the database is deleted, so never
 passkeys (Touch ID), invites and API tokens; the workspace's AI settings and
 key, the mail account and the ChatGPT sign-in (`meta`); task comments and
 descriptions, an assignee set through `PATCH /api/tasks/:id` over the line's
-`@user`, the legacy `planned_date`; a project's hidden flag; retired usernames (`meta`,
+`@user`, the legacy `planned_date` (nothing in the app writes it any more); a project's hidden flag; retired usernames (`meta`,
 `usernames.ts`: a removed or renamed account's name is never handed out again,
 since `Personal/<name>/` answers to it); staged mail drafts;
 webhooks and calendar feeds; and **note history** (`ydoc_updates`, the Yjs log),
-the only copy of a note's text before it was overwritten. History has no screen
-and no MCP tool: it is API-only (`GET /api/vault/note/:id/history?content=1`,
-`…/history/:seq`, for anyone who can read the note, with a session or an API
-token) — that is how text lost to a bad write is recovered today. `test/db-only.test.ts` holds this list against the
+the only copy of a note's text before it was overwritten. History is the note's ⋯ →
+History (versions, a diff against now, Restore this version as a normal save);
+MCP has no tool for it, and the API is `GET /api/vault/note/:id/history?content=1`,
+`…/history/:seq` (for anyone who can read the note, with a session or an API
+token). `test/db-only.test.ts` holds this list against the
 tables in `db.ts`. `pnpm --dir apps/server export`
 (`src/export.ts`) writes all of it out: a restorable `basalt.db` snapshot, a
 readable `export.json` with every secret left out, and a README — to
@@ -83,14 +84,15 @@ readable `export.json` with every secret left out, and a README — to
 | `packages/core/src/sections.ts` | `##` headings as addressable slots (`readSection`/`writeSection`/`appendToSection`) — how the project workspace stores goals, prompt, decisions, inbox |
 | `packages/core/src/acl.ts` | **THE permission implementation.** `canRead`/`canEdit`/`validateEdit`/`filterReadable` + `personalOwner`. Never filter anywhere else |
 | `packages/core/src/vault.ts` | `VaultIndex`: link resolution, backlinks, tag index, project progress, search |
-| `packages/core/src/tasks.ts` | Text transforms: toggle checkbox, promote (`^t-xxxxxx` block id), append |
+| `packages/core/src/tasks.ts` | Text transforms: toggle checkbox, promote (`^t-xxxxxx` block id), append, and the card's edit / take out / place of a step's line |
 | `packages/core/src/related.ts` | "Suggested links" TF-IDF scorer (embeddings will replace scorer, same interface) |
 | `packages/core/src/ontology.ts` | The vault's ontology as data: parses the `#vault-ontology` tables; `typeOfNote` |
 | `packages/core/src/graph.ts` | `buildGraph`: typed facts with provenance, inverses, derived relations, warnings. Pure index; takes a `readable` filter that restricts BOTH ends of a fact |
 | `packages/sync/` | Y.Doc helpers, splice diffs, `computeManifest` (partial checkout) |
 | `packages/schema/` | Zod API schemas (`api.ts`) + Drizzle tables (`db.ts`) |
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
-| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, projects (the project workspace, its files and board), finance (Money), mail, graph (the knowledge graph), contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder for Settings → Notes), notesHome (Notes home's pins and counts), noticed (every graph warning by note, with what its fix needs, for Orr noticed) — one file each |
+| `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, projects (the project workspace, its files and board), finance (Money), mail, graph (the knowledge graph), contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder: Settings → Notes and first run), notesHome (Notes home's pins and counts), noticed (every graph warning by note, with what its fix needs, for Orr noticed) — one file each |
+| `apps/server/src/firstRun.ts` | First run: the notes folder look and store, the ontology note, the example and its removal, the first-run flag |
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner when the event fires and again when a debounced delivery goes out (ACL-007) |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ui/shell/SectionBar.tsx` (a page's sections: in place, or in Clay's top bar), `ui/wavy.ts` (Clay's reveal), `ui/CountUp.tsx` (a hero figure that counts up in Clay), `ws.ts` |
@@ -253,7 +255,7 @@ it (`agentWrites.ts`).
 
 ## Projects are bound by tag, not by folder
 
-A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project's note is `VaultStore.projectNote(key)`: `04-Projects/<slug>.md`, else the note the registration row is anchored to (`projects.note_id`, set to the note that registered the key) while it still carries the tag; the `projectNoteFor` ranking only anchors a row that has none or whose note is gone or untagged, and the choice is stored. It is never chosen from the notes the caller can read: a tag is free text, and that made any folder editor the owner of another team's project (audit ACL-002). Every other tagged note only joins the project. A project is named by that note's `title:`, else by the name it was registered under. `store.projects(user)` lists only projects whose note (or, for a folder project, folder) the reader can read; a registration no note carries any more is the owners'. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals. The Projects board reads only existing endpoints: the steps from `/api/dashboard/<team>`, each project's note and dates from `/api/projects`, the area from `/api/vault/tree`, the people from the links between the project note and contact or company notes in `/api/vault/graph`, and the graph's warnings per project only when `/api/graph/schema` has any.
+A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project's note is `VaultStore.projectNote(key)`: `04-Projects/<slug>.md`, else the note the registration row is anchored to (`projects.note_id`, set to the note that registered the key) while it still carries the tag; the `projectNoteFor` ranking only anchors a row that has none or whose note is gone or untagged, and the choice is stored. It is never chosen from the notes the caller can read: a tag is free text, and that made any folder editor the owner of another team's project (audit ACL-002). Every other tagged note only joins the project. A project is named by that note's `title:`, else by the name it was registered under. `store.projects(user)` lists only projects whose note (or, for a folder project, folder) the reader can read; a registration no note carries any more is the owners'. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals. The Projects board reads only existing endpoints: the steps from `/api/dashboard` (no team: every project the requester can see; `/api/dashboard/<team>` stays for MCP's `get_dashboard`), each project's note and dates from `/api/projects`, the area from `/api/vault/tree`, the people from the links between the project note and contact or company notes in `/api/vault/graph`, and the graph's warnings per project only when `/api/graph/schema` has any.
 
 ## The vault is a folder other editors share
 
@@ -276,6 +278,16 @@ a second name for notes that have one and is left out everywhere; a write
 through one is a 400 (`linksIntoVault`, diskPath.ts). One file is one note: a
 second name for a file the index holds under a name that still exists is not
 indexed.
+
+**The notes folder can be chosen in the app** (first run, Settings → Notes →
+Change…; `routes/settings.ts`, `firstRun.ts`). It is kept in
+`<data>/notes-folder.json` and read at boot by `vaultDir()` (env.ts) when
+`ORRAMA_VAULT_DIR` is not set; when it is set, the variable wins and Settings
+shows the folder as fixed. A stored folder that is gone is ignored with a log
+line (Orrama's own `<data>/vault` is read), never a crash loop. Choosing another
+folder restarts the server in place (`buildServer({ restart })`, the entry point
+in main.ts): the store's root is fixed at construction and everything holds the
+store, so the whole build is made again.
 
 On this machine the server runs as a launchd agent
 (`~/Library/LaunchAgents/dev.orrama.server.plist`, `KeepAlive`), which is where
@@ -307,6 +319,17 @@ registered with `claude mcp add --scope user`, which keeps the token in
 file. `test/vault-untouched.test.ts` boots against a vault and compares every
 byte.
 
+First run writes two things, and only when the person chooses (`POST
+/api/settings/start`): `Orrama/What things are.md` (core `ONTOLOGY_TEMPLATE`
+said for anyone, `starterOntology`) when no note is tagged `vault-ontology`, and
+the example (`exampleFiles`: Garden studio, Sam Rivera at Oakline Builders, a
+site visit this week) when asked, create-only. Its note ids and event are kept
+in `meta` (`first-run-example`); Settings → Notes → Remove the example takes
+the event away and puts exactly those notes in the trash. The founder's sign-up
+sets `first-run-pending` in `meta`, and `/api/auth/status` says `chooseNotes`
+until start clears it. An existing database has no such row, so it never sees
+the chooser and nothing is written.
+
 **One id, one file.** A note copied outside Orrama (Obsidian's "Make a copy",
 Finder's Duplicate, `cp`, a sync conflict copy) carries the original's id. The
 file that already owns the id keeps it; the copy is given its own, stamped into
@@ -317,6 +340,23 @@ notes table's path wins, then the file created first, then the older mtime,
 then path order (`apps/server/src/noteIds.ts`); a path that was overwritten by
 a copy gets its old id back. `VaultIndex.upsert` holds one path per id, so a
 stale path can never delete the note it used to name.
+
+**The trash is `.trash/` in the notes folder** (Jules, 21 Oct 2026, as Obsidian
+keeps one). A note or folder put in the trash keeps its path under it
+(`.trash/Ideas/x.md`; a name taken there becomes `x (2).md`) and leaves the
+index, so every surface loses it; its id, history and task objects stay in the
+database and restoring brings the same note back (its front-matter id, or the
+notes table's for one that couldn't be stamped). Nothing in it is ever indexed:
+the walk and the watcher skip dot names and `resolvePath`/`resolveFolder`
+refuse it, so no write, create or move reaches it. The trash lists, restores and
+empties by the ACL of the place each file came from (its folder and its own
+tags); Empty trash is the only permanent delete and removes only files under
+`.trash/`, links as links. A `.trash` that is not a plain folder is refused.
+Routes: `POST /api/vault/trash`, `GET /api/vault/trash`, `POST
+/api/vault/trash/restore`, `POST /api/vault/trash/empty`, `GET
+/api/vault/folders`, `POST /api/vault/folder`, `/folder/move`, `/folder/trash`
+(`Personal/` and `Personal/<u>/` themselves never move).
+`test/note-actions.test.ts` holds the leak test.
 
 ## The Finance area
 
@@ -347,6 +387,22 @@ reads a lone separator before three digits as grouping and every minus sign),
 or a cadence it does not know. Cadences are `CADENCES` (a whole number of weeks
 or months each; an empty cell is monthly, "bimonthly" is deliberately not
 read).
+
+**Screens change a ledger one row at a time** (1G). Each table's writer sits
+beside its parser (`moneyTable`/`changeMoneyRow`/`removeMoneyRow`,
+`categoryTable`…`moveCategoryRow`, `ownAccountTable`…, `payslipTable`…, on
+`readLedgerTable`/`changeRow`/`removeRow`/`moveRow` in `table.ts`). A row is
+named by its index among the ledger's rows, its name cell and the version of the
+tables it was read at (`GET /api/finance` sends `tables`); a table changed since
+is a 409, never a write to whichever row slid into place. Only that line is
+rewritten: unknown columns keep their cells, unreadable rows stay, and a cell
+sent back as written is no change. The first add of a ledger with no note makes
+`02-Areas/finance/<Name>.md` (`ensureLedgerNote`, create-only through the
+store); `ledgerNote`'s ranking is unchanged. Putting a shop in a category
+(`fileShopUnder`) adds the shop's whole name as a word (`=name` under five
+letters) and takes the same word off any other category. Every commitment or
+income line, wherever it is added (Money's pages, "Looks recurring", Today's
+New), is one sheet, `money/LineSheet.tsx`.
 
 **Own accounts** (`packages/core/src/ownAccounts.ts`) are Jules's money held
 elsewhere — Capital.com, a savings pot. A statement row matching the
@@ -427,9 +483,9 @@ spending-categories note lists them and `--c-other` after the fifth
 exceptions of its own: it is the shared system (`styles/money.css`). The pages
 only arrange the server's figures: `money/model.ts` groups and orders them, and
 each grouping says what it adds up to (a month's shops must sum to the server's
-total, or the page shows the year's instead). "Looks recurring" adds a line
-through `POST /api/finance/subscriptions`, named as the bank names it and dated
-from its last charge; "It's not recurring" is remembered on the device
+total, or the page shows the year's instead). "Looks recurring" opens the
+commitment sheet prefilled, named as the bank names it and dated from its last
+charge; "It's not recurring" is remembered on the device
 (`orrama-money-not-recurring`).
 
 ## The Planning tab
@@ -538,7 +594,7 @@ them without a migration:
 
 Orrama started multi-tenant and is now Jules's assistant: the rail has no Admin
 tab, Planning has no team lanes or people picker, the Overview board has no
-"who's on what" panel and no owner column, and the account card says "your
+"who's on what" panel, no owner column and needs no team (`/api/dashboard`), and the account card says "your
 vault". The team machinery underneath (`teams`, `memberships`, folder grants,
 the whole §5 ACL) is untouched and still enforced — the permission tests are
 release-blocking regardless — it simply has no UI. Re-adding a collaborator is a
@@ -677,7 +733,10 @@ credential. A browser sees a refused handshake only as a 1006 close, so `ws.ts`
 asks `GET /api/me` once when a socket closes before it opened: a 401 there
 signs out (`api.ts`), anything else is retried. Frames from a client are capped
 at 16 KiB (`WS_MAX_FRAME`, `main.ts`): a client only sends presence pings, and
-an auth frame from an app older than the cookie is ignored.
+an auth frame from an app older than the cookie is ignored. A note leaving the
+index (trash, a delete outside Orrama) and a folder made, moved or trashed are
+sent as `note-changed` to whoever could read it (`note-removed` and
+`folder-changed`, routes/ws.ts); a folder's has no note id.
 
 ## Conventions & gotchas
 
@@ -761,6 +820,17 @@ an auth frame from an app older than the cookie is ignored.
   /api/tasks/blocks`, the agent's `schedule_block` and (through that route)
   MCP's. Dates have one, `applyTaskDates` (routes/tasks.ts), used by
   `/api/tasks/dates` and the agent.
+- **A step is changed in its card** (`TaskCard.tsx`, `GET /api/tasks/card`,
+  `POST /api/tasks/edit`, `/move`, `/delete` in routes/tasks.ts). Each change is
+  core `editTaskLine` / `removeTaskLine` / `placeTaskLine` on its own line: a
+  token replaced or cleared where it stands, a new one after the words, the
+  block id last, every other byte kept. A move to another note writes the
+  destination first, then a promoted step's task object (`noteId`) and the
+  calendar rows booked on it (`[[note#^t-id]]`) follow, then the source loses the
+  line: a crash between leaves it in both, never in neither, and a re-run finds a
+  promoted step already there. Priority reads None/High/Medium/Low (`steps.ts`).
+  The card no longer writes `planned_date`; `/api/tasks/schedule` stays for old
+  data and MCP.
 - **Time blocks and events are Markdown** — one note per person per month,
   `01-Me/Calendar/2026-10.md` (`Personal/<u>/Calendar/` for a user who cannot
   edit 01-Me, or whose 01-Me another account could read — owners aside; a row in
@@ -874,11 +944,15 @@ an auth frame from an app older than the cookie is ignored.
   [app.authenticate], config: sessionOnly("why") }` (`routes/auth.ts`), and
   `authenticate` refuses the token with that reason. Today: passcode, Touch ID,
   logout and sessions, revoke-all, tokens, webhooks, mail send and mail account,
-  the ICS feed token, all of `/api/admin/*`. `test/token-gate.test.ts` lists
+  the ICS feed token, the notes folder (look, choose, start, remove the
+  example), the password change, all of `/api/admin/*`. `test/token-gate.test.ts` lists
   them; a new credential route opts in and gets a row there. A password change
-  and Settings → Sign out everywhere end every session, token and Touch ID
-  device and clear the passcode and feed link (`revokeEverything`,
-  `sessions.ts`). An API token is the only credential sent as
+  (Settings → You, `POST /api/auth/password`, or the `account` command) and
+  Settings → Sign out everywhere end every session, token and Touch ID device
+  and clear the passcode and feed link (`revokeEverything`, `sessions.ts`).
+  Settings' password change keeps the session that made it
+  (`revokeEverything(…, keep)`); a wrong current password is a 403, never a 401
+  (the page reads a 401 as the session ending), counted before Argon2. An API token is the only credential sent as
   `Authorization: Bearer`; a session is the cookie (see **A session is a row**).
 - **Attempts are counted before they are checked.** Five wrong passwords from
   one address inside 15 minutes → 429 until the oldest ages out, even for the
@@ -890,7 +964,10 @@ an auth frame from an app older than the cookie is ignored.
   password only). An unknown address is verified against a dummy hash, so
   timing does not say who has an account. Anything new that checks a secret
   counts first, then verifies.
-- **The door** (`Login.tsx`, `Lock.tsx`, `Setup.tsx`, `door/`): before the
+- **The door** (`Login.tsx`, `Lock.tsx`, `Setup.tsx`, `door/`; first run is three
+  steps: the account, Where are your notes? (`door/NotesChoice.tsx`, also
+  Settings → Notes' Change…), and the count and gather; a signed-in founder with
+  `chooseNotes` gets step 2 again, `resume`): before the
   server says yes it shows nothing of the vault, not a name, not a count; the
   halo's 520 dots are a fixed number. Once in, `door/shape.ts` asks the tree,
   projects and contacts for the gather's slices, and `useEnter` opens the app
@@ -987,6 +1064,16 @@ an auth frame from an app older than the cookie is ignored.
 - Team **slugs** (not ids) are the `TeamId` in core ACL and what `#only/#share` match.
 - Note ids live in front-matter (`id: n-…`), assigned on first index; renames are
   metadata ops so links never break. `VaultStore.write` preserves the existing id.
+- **A rename takes its links** (`POST /api/vault/move` with `links: true`,
+  `renameNote`; `apps/server/src/linkRename.ts`): the file, its `title:` line
+  when the name changes, and every exact wiki link (`[[Old]]`, `[[folder/Old]]`,
+  `[[Old.md]]`, with `#…` and `|…` kept) in the notes the caller can edit that
+  named it by what changed — body and front matter, never code or a saved
+  conversation. Markdown links and links in notes the caller can't edit are
+  counted (`GET …/linkers`) and left. Front matter that can't be read is a 409
+  first. The web app's one client for this is `apps/web/src/noteActions.ts` with
+  its dialogs in `notes/actions.tsx`; a page that renames, moves or trashes a
+  note uses them.
 - A link resolves among the notes the reader can read (`resolveLink(…, among)`;
   backlinks and graph edges too): one whose only target is unreadable is the
   author's text alone, exactly like a link to nothing — `locked` is always false
@@ -1156,7 +1243,8 @@ only colours and counts. Without the note, only the PARA folders are known.
 
 **The vault is also a knowledge graph**, defined by the vault itself: a note
 tagged `#vault-ontology` holds Types / Relations / Statuses / Rules tables
-(`packages/core/src/ontology.ts`; without it nothing is typed). `buildGraph`
+(`packages/core/src/ontology.ts`; without it nothing is typed; a new install
+gets one at first run). `buildGraph`
 (`graph.ts`) reads typed facts off the notes every time — front matter, `key::
 value` fields, the `## People` section and `project/<key>` tags — with
 provenance, inverses, derived relations and constraint warnings; nothing is
