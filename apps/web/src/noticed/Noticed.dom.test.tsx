@@ -3,7 +3,7 @@
  * one fix, nothing written until a fix is clicked, and the graph at a glance. Plain on a vault
  * without an ontology. Fictional notes only.
  */
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const server = vi.hoisted(() => ({ calls: [] as { method: string; url: string; body: unknown }[], typed: true }));
@@ -81,8 +81,10 @@ afterEach(cleanup);
 const show = async () => {
   render(<Noticed me={me} />);
   await screen.findByRole("heading", { level: 1, name: "Orr noticed" });
-  // Every request has answered (each answer can start the next).
-  for (let i = 0; i < 6; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
+  // The page has loaded when its placeholders are gone: the warnings and the schema have answered
+  // and rendered. Their effects can run late on a loaded machine, so this waits, never a fixed
+  // number of ticks.
+  await waitFor(() => expect(screen.queryAllByRole("status", { name: "Loading" })).toEqual([]));
 };
 
 describe("Orr noticed", () => {
