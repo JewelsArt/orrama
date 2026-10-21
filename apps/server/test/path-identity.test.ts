@@ -70,8 +70,8 @@ const indexPaths = (prefix: string) =>
     .sort();
 
 beforeAll(async () => {
-  // On disk before boot, so the first index holds it: waiting for the watcher instead failed
-  // when every package's tests ran at once, and macOS delivered the event 25 s late.
+  // On disk before boot, so the first index holds it. (Waiting for the watcher used to fail
+  // under load: the event was lost, not late. VaultStore.reconcileLater, watch-lost-events.test.ts.)
   fs.mkdirSync(path.dirname(abs(NFD)), { recursive: true });
   fs.writeFileSync(abs(NFD), "---\ntitle: R\u00e9sum\u00e9\n---\nv1\n");
   b = await buildServer();
@@ -221,8 +221,9 @@ describe("API writes resolve to the note on disk (ACL-001)", () => {
   });
 });
 
-// Up to 25 s a step: with every package's tests running at once, macOS can deliver a file
-// event that late (a fixed 1.5 s failed there).
+// Up to 25 s a step, for a loaded machine. A step that waited this long before was an event
+// lost when the watcher's folder set changed (VaultStore.reconcileLater): it never came, and
+// now the vault is read again a second later.
 describe.runIf(CASE_INSENSITIVE)("a case-only rename outside Orrama (STO-012)", { timeout: 120_000 }, () => {
   /** Wait for the watcher to show `done`, then 1.5 s more for anything it would do after it
    *  (a restamp, a rewrite, the old spelling coming back). */

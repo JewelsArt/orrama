@@ -3,7 +3,8 @@
  * new folder first and attaches fs.watch to it only once the read is done
  * (`_handleDir` in its handler.js), so a file that lands between the two
  * raises no event — the note stayed out of the index until something else in
- * that folder changed, or the server restarted.
+ * that folder changed, or the server restarted. The store now reads the vault
+ * again a moment after any folder appears (VaultStore.reconcileLater).
  *
  * The gap is microseconds wide, so the test opens it on purpose: `fs.watch` is
  * wrapped to write into a "Gap…" folder just before chokidar attaches to it.
@@ -35,9 +36,8 @@ const db = createDb();
 const { VaultStore } = await import("../src/vaultStore.js");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-// Up to 20 s: FSEvents can take seconds to report a new folder while every
-// package's tests run at once (pnpm ship, a loaded Mac). Without the fix the
-// late note is never indexed, so the wait still ends red, only later.
+// Up to 20 s, for a loaded machine. Without the re-read the late note is
+// never indexed, so the wait still ends red, only later.
 const until = async (ok: () => boolean) => {
   for (let i = 0; i < 400 && !ok(); i++) await sleep(50);
 };

@@ -40,9 +40,14 @@ import { writeFileAtomic } from "./atomicWrite.js";
 import { AmbiguousPathError, linksIntoVault, listedExactly, onDisk, sameFile, throughVaultLink } from "./diskPath.js";
 import { unportableName } from "./portableName.js";
 
-/** How long after a folder appears it is read again (lookAgainLater). The
- *  gap it covers is microseconds wide; this is margin for a busy event loop. */
-const NEW_FOLDER_LOOK_AGAIN_MS = 1000;
+/** How long after the watcher's folder set changes the vault is read again
+ *  (reconcileLater): past the moment Node rebuilds its FSEvents stream, which
+ *  comes after chokidar has read the new folder; under load that took ~200 ms. */
+const RECONCILE_MS = 1000;
+/** A stream of folder changes postpones the re-read at most this long. */
+const RECONCILE_MAX_WAIT_MS = 10_000;
+/** reconcileLater's key in watchTimeouts: no note path holds a NUL. */
+const RECONCILE_KEY = "\0reconcile";
 
 export const hash = (s: string) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
 
@@ -80,6 +85,15 @@ function readNote(abs: string): { content: string; utf8: boolean } {
 function isFolder(abs: string): boolean {
   try {
     return fs.statSync(abs).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a path is a file once links are followed (false if it is gone). */
+function isFile(abs: string): boolean {
+  try {
+    return fs.statSync(abs).isFile();
   } catch {
     return false;
   }
@@ -145,6 +159,12 @@ export class VaultStore {
    */
   private inFlightWrites = new Map<string, string>();
   private watchTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+  /** When the pending re-read of the vault is due (reconcileLater). */
+  private reconcileDue = 0;
+  /** Folders reconcile() handed to chokidar, each once: a handed folder
+   *  chokidar did not list as watched would otherwise be handed, and the
+   *  vault read again, every second. Forgotten when chokidar reports it gone. */
+  private handedDirs = new Set<string>();
   private watcher: FSWatcher | null = null;
   /** Set when close() starts: from then on no watcher event schedules work. */
   private closing = false;
@@ -194,42 +214,12 @@ export class VaultStore {
   /** Scan the vault folder, assign missing front-matter ids, hydrate index + notes table. */
   load(): void {
     fs.mkdirSync(this.root, { recursive: true });
-    const entries = (dir: string): fs.Dirent[] => {
-      try {
-        return fs.readdirSync(dir, { withFileTypes: true });
-      } catch (err) {
-        // Same reason as the per-file guard below: a folder we cannot read
-        // must cost that folder, not the whole boot.
-        console.error(`[vault] ${path.relative(this.root, dir) || "."}: folder skipped at boot — ${err instanceof Error ? err.message : String(err)}`);
-        return [];
-      }
-    };
-    // A folder linked in from elsewhere is part of the vault (audit STO-010):
-    // Obsidian follows it, the watcher follows it and resolvePath writes
-    // through it, and a walk that took only real directories (a symlink's
-    // Dirent is not one) dropped its notes at every restart. A link back into
-    // the vault is a second name for notes it already has and is skipped
-    // (linksIntoVault); each real folder is walked once besides.
     this.realRoot = fs.realpathSync(this.root);
-    const walked = new Set<string>();
-    const walk = (dir: string): string[] => {
-      let real: string;
-      try {
-        real = fs.realpathSync(dir);
-      } catch {
-        return [];
-      }
-      if (walked.has(real)) return [];
-      walked.add(real);
-      return entries(dir).flatMap((e) => {
-        if (e.name.startsWith(".")) return [];
-        if (dir === this.root && e.name === "CLAUDE.md") return [];
-        const full = path.join(dir, e.name);
-        if (e.isSymbolicLink() && linksIntoVault(this.realRoot, full)) return [];
-        if (e.isDirectory() || (e.isSymbolicLink() && isFolder(full))) return walk(full);
-        return e.name.toLowerCase().endsWith(".md") ? [full] : [];
-      });
-    };
+    // Same reason as the per-file guard below: a folder we cannot read
+    // must cost that folder, not the whole boot.
+    const { files: found } = this.walkVault((dir, err) =>
+      console.error(`[vault] ${path.relative(this.root, dir) || "."}: folder skipped at boot — ${err instanceof Error ? err.message : String(err)}`),
+    );
     // One file must not be able to stop the server booting. Under launchd's
     // KeepAlive a throw here is not an error page, it is a crash loop: the
     // agent restarts, meets the same file, and the whole app is down until
@@ -239,7 +229,7 @@ export class VaultStore {
     // Read everything first: which of two files carrying one id keeps it is
     // decided over the whole vault, not by whichever the walk reached last.
     const files: BootFile[] = [];
-    for (const abs of walk(this.root)) {
+    for (const abs of found) {
       const rel = path.relative(this.root, abs).split(path.sep).join("/");
       try {
         const { content, utf8 } = readNote(abs);
@@ -264,6 +254,7 @@ export class VaultStore {
     // changes into this store, and its timers fired into a closed database.
     // chokidar's close() detaches the listeners at once; the rest settles alone.
     void this.watcher?.close().catch(() => {});
+    this.handedDirs.clear();
     const watcher = chokidar.watch(this.root, {
       ignored: (filePath: string, stats?: fs.Stats) => {
         const basename = path.basename(filePath);
@@ -273,7 +264,10 @@ export class VaultStore {
       },
       ignoreInitial: true,
     }).on("all", (event, absPath) => {
-      if (event === "addDir") return this.lookAgainLater(absPath);
+      // The watcher's folder set changes: on macOS that rebuilds the stream
+      // and can drop other events of that moment (reconcileLater).
+      if (event === "unlinkDir") this.handedDirs.delete(absPath);
+      if (event === "addDir" || event === "unlinkDir") return this.reconcileLater();
       if (!absPath.toLowerCase().endsWith(".md")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
       // No early return on "we wrote this": whether it is our echo is decided in
@@ -293,8 +287,16 @@ export class VaultStore {
       const absPath = path.basename(watched) === evPath ? watched : path.resolve(watched, evPath);
       if (!absPath.toLowerCase().endsWith(".md") || path.basename(absPath).startsWith(".")) return;
       const relPath = path.relative(this.root, absPath).split(path.sep).join("/");
-      if (relPath.startsWith("..") || !this.index.getByPath(relPath) || listedExactly(this.root, relPath)) return;
-      this.settleLater("unlink", relPath, absPath);
+      if (relPath.startsWith("..")) return;
+      const held = !!this.index.getByPath(relPath);
+      const listed = listedExactly(this.root, relPath);
+      if (held && !listed) return this.settleLater("unlink", relPath, absPath);
+      if (this.watchTimeouts.has(relPath)) return; // chokidar's own event is settling it
+      // And the other way: a name the folder lists that the index lacks.
+      // After reconcile() mended a dropped event, chokidar's own picture of
+      // that folder is stale — a case-only rename back to the spelling it
+      // still holds reads as "nothing changed" — so it reports no "add".
+      if (!held && listed && !isRootGuide(this.root, absPath) && isFile(absPath)) this.settleLater("add", relPath, absPath);
     });
     // Without a listener, chokidar's "error" (EACCES on a folder or file the
     // server may not read) is thrown inside its own walk: an unhandled
@@ -306,6 +308,9 @@ export class VaultStore {
     });
     this.watcher = watcher;
     this.watching = new Promise((resolve) => watcher.once("ready", () => resolve()));
+    // Ready means chokidar has called fs.watch on every folder, not that
+    // events flow: on macOS the stream starts later, from "now" (reconcileLater).
+    watcher.once("ready", () => this.reconcileLater());
   }
 
   /** Debounce the watcher's events per path: the last one settles it, 300ms on. */
@@ -320,47 +325,117 @@ export class VaultStore {
   }
 
   /**
-   * A second look at a folder that just appeared. chokidar reads a new folder
-   * and only then attaches fs.watch to it (`_handleDir` in its handler.js), so
-   * a note — or a subfolder — that lands between the two raises no event and
-   * stays unindexed until something else in that folder changes. On Linux
-   * (inotify reports nothing from before the watch) that is a real miss; on
-   * macOS FSEvents happens to deliver it. By the time this runs the watch is
-   * attached: a note the index does not have is taken in, a subfolder chokidar
-   * never saw is handed to it and looked at the same way.
+   * Read the whole vault again, a moment after the watcher's set of folders
+   * changed, and settle whatever its events missed.
+   *
+   * On macOS, Node's fs.watch (libuv) serves every watched folder of the
+   * process from ONE FSEvents stream, and each time a folder watch is added
+   * or closed it throws that stream away and starts a new one "since now".
+   * Events FSEvents had not yet delivered to the old stream are lost, for
+   * every folder — a note created, renamed or moved in at that moment, or a
+   * new folder, is never reported, and nothing reports it until that folder
+   * changes again. chokidar adds a watch for each new folder and closes one
+   * for each folder that goes, so this is any folder made or removed in the
+   * vault, by Orrama or by anything else; the first stream, at boot, starts
+   * after "ready" the same way. Under load the window grows from a few
+   * milliseconds to hundreds. (Measured 21 Oct 2026: a test's new folder
+   * dropped another folder's event, which never came.) Linux and Windows
+   * watch each folder on its own; the re-read also covers the moment between
+   * chokidar reading a new folder and watching it (`_handleDir` in its
+   * handler.js), where inotify reports nothing.
+   *
+   * Notes the folders list that the index lacks are taken in, notes the
+   * index holds that are no longer listed under that exact spelling are
+   * dropped, and a folder chokidar does not know is handed to it — which
+   * changes the folder set again, so one more read follows. Each goes
+   * through the same 300 ms settle as an event, which checks the disk again.
+   * The walk is a few milliseconds for a vault of hundreds of notes.
    */
-  private lookAgainLater(absDir: string): void {
+  private reconcileLater(): void {
     if (this.closing) return;
-    const key = `dir:${absDir}`;
-    const pending = this.watchTimeouts.get(key);
-    if (pending) clearTimeout(pending);
-    this.watchTimeouts.set(key, setTimeout(() => {
-      this.watchTimeouts.delete(key);
+    this.reconcileDue = Date.now() + RECONCILE_MS;
+    if (this.watchTimeouts.has(RECONCILE_KEY)) return;
+    const first = Date.now();
+    const fire = () => {
+      const wait = this.reconcileDue - Date.now();
+      if (wait > 0 && Date.now() - first < RECONCILE_MAX_WAIT_MS) {
+        this.watchTimeouts.set(RECONCILE_KEY, setTimeout(fire, wait));
+        return;
+      }
+      this.watchTimeouts.delete(RECONCILE_KEY);
+      this.reconcile();
+    };
+    this.watchTimeouts.set(RECONCILE_KEY, setTimeout(fire, RECONCILE_MS));
+  }
+
+  private reconcile(): void {
+    const watcher = this.watcher;
+    if (this.closing || !watcher) return;
+    const { files, dirs, complete } = this.walkVault();
+    const watched = watcher.getWatched();
+    let handed = false;
+    for (const dir of dirs) {
+      if (dir === this.root || this.handedDirs.has(dir) || watched[path.dirname(dir)]?.includes(path.basename(dir))) continue;
+      // add() is an initial add to chokidar: with ignoreInitial it reports
+      // nothing inside; the notes in it are taken in below.
+      watcher.add(dir);
+      this.handedDirs.add(dir);
+      handed = true;
+    }
+    const listed = new Set<string>();
+    for (const abs of files) {
+      const rel = path.relative(this.root, abs).split(path.sep).join("/");
+      listed.add(rel);
+      if (!this.index.getByPath(rel) && !this.watchTimeouts.has(rel)) this.settleLater("add", rel, abs);
+    }
+    // A folder we could not read lists nothing: its notes are not gone.
+    if (complete) {
+      for (const note of this.index.all()) {
+        if (!listed.has(note.path) && !this.watchTimeouts.has(note.path)) this.settleLater("unlink", note.path, path.join(this.root, note.path));
+      }
+    }
+    if (handed) this.reconcileLater();
+  }
+
+  /**
+   * Every note file and every folder of the vault, as boot and the watcher
+   * see it. A folder linked in from elsewhere is part of the vault (audit
+   * STO-010): Obsidian follows it, the watcher follows it and resolvePath
+   * writes through it, and a walk that took only real directories (a
+   * symlink's Dirent is not one) dropped its notes at every restart. A link
+   * back into the vault is a second name for notes it already has and is
+   * skipped (linksIntoVault); each real folder is walked once besides.
+   * `complete` is false when a folder could not be read.
+   */
+  private walkVault(unreadable: (dir: string, err: unknown) => void = () => {}): { files: string[]; dirs: string[]; complete: boolean } {
+    const files: string[] = [];
+    const dirs: string[] = [];
+    let complete = true;
+    const walked = new Set<string>();
+    const walk = (dir: string): void => {
+      let real: string;
       let entries: fs.Dirent[];
       try {
-        entries = fs.readdirSync(absDir, { withFileTypes: true });
-      } catch {
-        return; // gone again, or unreadable — chokidar reports those itself
+        real = fs.realpathSync(dir);
+        if (walked.has(real)) return;
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch (err) {
+        complete = false;
+        return unreadable(dir, err);
       }
-      const known = new Set(this.watcher?.getWatched()[absDir] ?? []);
+      walked.add(real);
+      dirs.push(dir);
       for (const e of entries) {
         if (e.name.startsWith(".")) continue;
-        const abs = path.join(absDir, e.name);
-        if (e.isDirectory()) {
-          // add() is an initial add to chokidar: with ignoreInitial it reports
-          // nothing inside, so this folder gets its own second look.
-          if (!known.has(e.name)) {
-            this.watcher?.add(abs);
-            this.lookAgainLater(abs);
-          }
-          continue;
-        }
-        if (!e.isFile() || !e.name.toLowerCase().endsWith(".md")) continue;
-        const rel = path.relative(this.root, abs).split(path.sep).join("/");
-        if (this.index.getByPath(rel) || this.watchTimeouts.has(rel)) continue;
-        this.handleExternalChange("add", rel, abs);
+        if (dir === this.root && e.name === "CLAUDE.md") continue;
+        const full = path.join(dir, e.name);
+        if (e.isSymbolicLink() && linksIntoVault(this.realRoot, full)) continue;
+        if (e.isDirectory() || (e.isSymbolicLink() && isFolder(full))) walk(full);
+        else if (e.name.toLowerCase().endsWith(".md")) files.push(full);
       }
-    }, NEW_FOLDER_LOOK_AGAIN_MS));
+    };
+    walk(this.root);
+    return { files, dirs, complete };
   }
 
   /**
