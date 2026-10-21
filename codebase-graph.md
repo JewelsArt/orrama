@@ -1012,8 +1012,8 @@
 - **Imports**: ./parse.js
 
 ### `packages/core/src/tasks.ts`
-- **Exports**: TaskLineRef, locateTask, setTaskChecked, setTaskStatus, TaskDates, setTaskDates, generateBlockId, promoteTaskLine, appendLine
-- **Imports**: ./parse.js, ./types.js
+- **Exports**: TaskLineRef, locateTask, setTaskChecked, setTaskStatus, TaskDates, setTaskDates, generateBlockId, promoteTaskLine, appendLine, taskWords, TaskEdit, editTaskLine, removeTaskLine, placeTaskLine
+- **Imports**: ./parse.js, ./sections.js, ./types.js
 
 ### `packages/core/src/types.ts`
 - **Exports**: NoteId, TeamId, UserId, Role, AclUser, FolderGrant, WikiLink, NoteTag, TaskPriority, TaskState, ParsedTask, Heading, ParsedNote, VaultFile, IndexedNote, Backlink, VaultTask, ProjectProgress

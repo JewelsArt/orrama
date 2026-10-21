@@ -4,7 +4,8 @@
  * call these and write the result back through the normal edit path.
  */
 import { noteLines, parseNote, spliceNoteLines, TASK_HEAD_RE, TASK_LINE_RE } from "./parse.js";
-import type { ParsedTask, TaskState } from "./types.js";
+import { appendToSection } from "./sections.js";
+import type { ParsedTask, TaskPriority, TaskState } from "./types.js";
 
 const MARK: Record<TaskState, string> = { todo: " ", "in-progress": "/", blocked: "b", done: "x" };
 
@@ -143,4 +144,111 @@ export function appendLine(content: string, line: string): string {
   if (content === "") return line + "\n";
   const nl = noteLines(content).eol + "\n";
   return content.endsWith("\n") ? `${content}${line}${nl}` : `${content}${nl}${line}${nl}`;
+}
+
+/** The tokens a step's card sets, as the parser reads them (parse.ts): dates, priority, the key-deadline tag. */
+const TOKEN = {
+  due: /(^|\s)due:\d{4}-\d{2}-\d{2}(?=\s|$)/g,
+  start: /(^|\s)start:\d{4}-\d{2}-\d{2}(?=\s|$)/g,
+  priority: /(^|\s)!p[123]\b/g,
+  key: /(^|\s)#deadline(?![\w/-])/gi,
+} as const;
+const ANY_TOKEN = /(^|\s)(due:\d{4}-\d{2}-\d{2}(?=\s|$)|start:\d{4}-\d{2}-\d{2}(?=\s|$)|!p[123]\b|#deadline(?![\w/-]))/gi;
+const BLOCK_SUFFIX = /\s\^[\w-]+\s*$/;
+
+/** A task line cut into what an edit keeps (`head`: indent, marker, box; `suffix`: the block id) and its `body`. */
+function cutLine(line: string): { head: string; mark: string; body: string; suffix: string } {
+  const m = TASK_LINE_RE.exec(line)!;
+  let body = m[3]!.slice(2);
+  const bm = BLOCK_SUFFIX.exec(body);
+  const suffix = bm ? body.slice(bm.index) : "";
+  if (bm) body = body.slice(0, bm.index);
+  return { head: m[1]!, mark: m[2]!, body, suffix };
+}
+
+/**
+ * A step's words as a person types them: its line without the checkbox, the block id and the
+ * tokens its card sets (due, start, priority, `#deadline`). Inline Markdown, links, other tags
+ * and an `@name` stay: they are the person's words. What the card's title field edits.
+ */
+export function taskWords(raw: string): string {
+  if (!TASK_LINE_RE.test(raw)) return "";
+  return cutLine(raw).body.replace(ANY_TOKEN, "$1").replace(/\s+/g, " ").trim();
+}
+
+/** What the card changes on a step. `undefined` leaves a part as it is; `null` removes it. */
+export interface TaskEdit {
+  /** New words (see taskWords): the tokens and the block id are kept, in their order, after them. */
+  words?: string;
+  due?: string | null;
+  start?: string | null;
+  priority?: TaskPriority | null;
+  /** The key-deadline tag, `#deadline`. */
+  key?: boolean;
+  status?: TaskState;
+}
+
+/** One token set, cleared or replaced where it stands; a new one goes at the end of the words. */
+function setToken(body: string, re: RegExp, value: string | null): string {
+  let placed = false;
+  const out = body.replace(new RegExp(re.source, re.flags), (_, pre: string) => {
+    if (value === null || placed) return "";
+    placed = true;
+    return `${pre}${value}`;
+  });
+  if (value === null || placed) return out;
+  return `${out.replace(/\s+$/, "")} ${value}`;
+}
+
+/**
+ * Rewrite one step's line the way a person would: the words, a date, the priority, the
+ * key-deadline tag or the box, each on its own, and nothing else on the line or in the note
+ * (CRLF kept, the block id last). Returns null when `ref` names no task in `content` as it is
+ * now (the caller answers 409), and throws on words that are no step (empty, several lines).
+ */
+export function editTaskLine(content: string, ref: TaskLineRef, edit: TaskEdit): string | null {
+  const task = locateTask(content, ref);
+  if (!task) return null;
+  const { head, mark, suffix, body: before } = cutLine(noteLines(content).lines[task.line]!);
+  let body = before;
+  if (edit.words !== undefined) {
+    const words = edit.words.replace(/\s+/g, " ").trim();
+    if (words === "" || /[\r\n]/.test(edit.words)) throw new Error("a step needs its words, on one line");
+    if (words !== taskWords(`- [ ] ${body}`)) {
+      const tokens = [...body.matchAll(ANY_TOKEN)].map((m) => m[2]!);
+      body = [words, ...tokens].join(" ");
+    }
+  }
+  if (edit.due !== undefined) body = setToken(body, TOKEN.due, edit.due === null ? null : `due:${edit.due}`);
+  if (edit.start !== undefined) body = setToken(body, TOKEN.start, edit.start === null ? null : `start:${edit.start}`);
+  if (edit.priority !== undefined) body = setToken(body, TOKEN.priority, edit.priority === null ? null : `!p${edit.priority}`);
+  // A tag already there stays as it was written (`#Deadline` too).
+  if (edit.key !== undefined && edit.key !== new RegExp(TOKEN.key.source, "i").test(body)) body = setToken(body, TOKEN.key, edit.key ? "#deadline" : null);
+  const box = edit.status === undefined ? mark : edit.status === "done" && mark === "X" ? "X" : MARK[edit.status];
+  if (body === before && box === mark) return content;
+  const line = `${head}${box}] ${body.replace(/\s+$/, "")}${suffix}`;
+  return spliceNoteLines(content, task.line, task.line + 1, [line]);
+}
+
+/**
+ * Take a step's line out of its note: the content without it, the step as it was, and the line
+ * as it goes elsewhere (`- [ ] words tokens ^id`: no indent, no quote, the box and the rest kept),
+ * or null when `ref` names no task. The lines around it keep their bytes.
+ */
+export function removeTaskLine(content: string, ref: TaskLineRef): { content: string; task: ParsedTask; line: string } | null {
+  const task = locateTask(content, ref);
+  if (!task) return null;
+  const { mark, body, suffix } = cutLine(noteLines(content).lines[task.line]!);
+  return { content: spliceNoteLines(content, task.line, task.line + 1, []), task, line: `- [${mark}] ${body.trim()}${suffix}` };
+}
+
+/**
+ * A step's line (from removeTaskLine) put into a note: last under `## section`, made at the end
+ * of the note when it has none, or at the end of the note without a section. Null when the
+ * note already holds another step with the line's block id: two lines may not share one.
+ */
+export function placeTaskLine(content: string, line: string, section?: string): string | null {
+  const id = BLOCK_SUFFIX.exec(line)?.[0].trim().slice(1);
+  if (id && parseNote(content).tasks.some((t) => t.blockId === id)) return null;
+  return section ? appendToSection(content, section, line) : appendLine(content, line);
 }
