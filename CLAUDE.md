@@ -138,14 +138,14 @@ readable `export.json` with every secret left out, and a README — to
 
 A row on the Projects board opens `Project.tsx`, the project page, at
 `/projects/<slug>`; its tabs are addresses too (`…/timeline`, `…/documents`,
-`…/todo`), and App keys the page by project, so a tab switch keeps what it
+`…/todo`, `…/reader`), and App keys the page by project, so a tab switch keeps what it
 loaded. The board's links open the tab used last (`orrama-proj-view`). The
 header is the entity page's (`entity/EntityHeader`): the progress ring, status
 as a menu, dates as text, the days left, the area, the steps, Add a step and a ⋯
 menu. **Overview** (`ProjectOverview.tsx`) is one scroll: the note in the live
 editor on the left; Decisions, the Inbox, Next steps, Goals, People & companies,
 Conversations, Documents and the prompt on the right. **Timeline**,
-**Documents** and **To-do** live in `ProjectViews.tsx`:
+**Documents** and **To-do** live in `ProjectViews.tsx`, **Reader** in `ProjectReader.tsx`:
 
 - *Timeline* — one column per week, a card per dated step in the project's area
   colour, its section named under it, `#deadline` cards solid red. Dragging a
@@ -155,6 +155,20 @@ Conversations, Documents and the prompt on the right. **Timeline**,
 - *To-do* — steps grouped by the project note's own `##` sections. The server
   sends each task's `section` (nearest `##` above it, or the note title for a
   step in another project note), so reordering the note regroups the list.
+- *Reader* — the project's .html documents (saved claude.ai artifacts, reports),
+  one at a time, the list beside it (`?page=<file>`); the tab shows only when
+  there is one. Each runs in `HtmlPage`'s frame from `GET …/files/:name/page`,
+  served under `PAGE_CSP` (`apps/server/src/pageSandbox.ts`): a `sandbox`
+  without `allow-same-origin`, so the page's scripts run in an opaque origin
+  with no session (the cookie is SameSite=Strict), no storage and no reach into
+  Orrama; scripts only from the page itself and the five artifact CDNs (`eval`
+  allowed, for Babel); framed by Orrama only; `no-cache` + Last-Modified, since
+  a canvas copy is 70 MB. The frame's `sandbox` attribute must equal the
+  server's list (`HtmlPage.dom.test.tsx`). "Open on claude.ai" comes from the
+  note: a line naming the file in bold beside a claude.ai artifact link
+  (`projectPages.ts`). DocViewer opens a project's .html the same way. The
+  Claude desktop browser pane refuses frames sandboxed like this
+  (ERR_BLOCKED_BY_CLIENT); check pages in WebKit or Chrome instead.
 - *Documents* — the project's files as cards on a board, in boxes, joined by
   links. Stored as **JSON Canvas** in `04-Projects/<slug>/documents.canvas`
   (`GET/PUT /api/projects/:slug/board`, rules in `apps/server/src/board.ts`):
@@ -202,7 +216,8 @@ Obsidian and travel with a vault backup. They sit outside `VaultStore.write`
 (whose `resolvePath` only accepts `.md`), so `routes/projects.ts` guards them
 itself: the filename is validated as sent (a `../` anywhere is a 400, not
 something `basename()` quietly flattens), reads require read on the project
-note, writes require edit, and nothing scriptable is ever served inline.
+note, writes require edit, and nothing scriptable is ever served inline
+except an .html on its page route, sandboxed (Reader, above).
 
 A person or company in the project's panel opens their own page
 (`/people/<slug>`, `/companies/<slug>`, by file name; someone the graph names but
@@ -668,7 +683,8 @@ an auth frame from an app older than the cookie is ignored.
 
 - **Every non-API response carries a Content-Security-Policy** (`CSP` in
   `main.ts`): scripts from our own origin only, so markup that slips past the
-  .docx/mail scrubbers still cannot run. Adding anything loaded from another
+  .docx/mail scrubbers still cannot run. The one exception is a project's
+  .html page route, which sends its own sandboxed policy (`pageSandbox.ts`). Adding anything loaded from another
   host (a font, a CDN script, an API called from the browser) means adding it
   there, or it is silently blocked in the built app — vite dev (:4625) sends no
   CSP, so it will look fine while iterating. The mail iframe *inherits* this

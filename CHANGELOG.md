@@ -9,6 +9,11 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Projects: a Reader tab shows a project's .html documents (saved claude.ai artifacts,
+  reports) as the pages they are, with their own scripts, one at a time beside the list, and
+  "Open on claude.ai" when the project note links the file to its artifact. The tab is there
+  only when a project has such a page. The pages also open from Documents. Each runs sealed
+  off from Orrama: it sees no sign-in, none of Orrama's storage and nothing of the app around it.
 - Projects: one area at a time is split into groups, a box each (Work: Scooperz, Websites,
   Personal branding…), the biggest first and projects without one under Other. A project's
   group is its note's `group:` front matter, set from the project page's header: pick a group
