@@ -89,6 +89,23 @@ export const noteWriteSchema = z.object({
 export const noteMoveSchema = z.object({
   fromPath: z.string().regex(/^(?!\/)(?!.*\.\.).+\.md$/),
   toPath: z.string().regex(/^(?!\/)(?!.*\.\.).+\.md$/),
+  /** Rewrite the exact `[[links]]` that name the note by what changes (linkRename.ts). */
+  links: z.boolean().optional(),
+});
+
+/** A note to put in the trash. */
+export const noteTrashSchema = z.object({
+  path: z.string().max(512).regex(/^(?!\/)(?!.*\.\.)[^\0]+\.md$/),
+});
+
+/** A folder in the notes folder: vault-relative, no traversal (resolveFolder judges it). */
+const folderPath = z.string().min(1).max(512).regex(/^(?!\/)(?!.*\.\.)[^\0]+$/, "vault-relative folder, no traversal");
+export const folderSchema = z.object({ folder: folderPath });
+export const folderMoveSchema = z.object({ from: folderPath, to: folderPath });
+
+/** Something in the trash, by its path there (`.trash/…`). */
+export const trashRestoreSchema = z.object({
+  path: z.string().max(600).regex(/^\.trash\/(?!.*\.\.)[^\0]+$/i),
 });
 
 /**

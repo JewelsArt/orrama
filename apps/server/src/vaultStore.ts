@@ -17,14 +17,18 @@ import {
   canEdit,
   canRead,
   filterReadable,
+  foldPath,
   generateNoteId,
+  parseFrontmatter,
   parseNote,
+  personalOwner,
   projectName,
   projectNoteFor,
   projectSlugOf,
   PROJECTS_DIR,
   stampId,
   titleFromPath,
+  updateFrontmatter,
   validateEdit,
   type AclUser,
   type EditValidation,
@@ -39,6 +43,8 @@ import { carriedId, chooseIdOwner } from "./noteIds.js";
 import { writeFileAtomic } from "./atomicWrite.js";
 import { AmbiguousPathError, linksIntoVault, listedExactly, onDisk, sameFile, throughVaultLink } from "./diskPath.js";
 import { unportableName } from "./portableName.js";
+import { numbered } from "./uploads.js";
+import { retarget, rewriteLinks, type Renaming } from "./linkRename.js";
 
 /** How long after the watcher's folder set changes the vault is read again
  *  (reconcileLater): past the moment Node rebuilds its FSEvents stream, which
@@ -64,6 +70,14 @@ export interface NoteChangedEvent {
   noteId: string;
   path: string;
   authorId: string | null;
+}
+
+/** A note left the index (deleted, moved out of the vault, put in the trash). `note` is how it
+ *  was, so a listener can still ask who could read it. */
+export interface NoteRemovedEvent {
+  noteId: string;
+  path: string;
+  note: IndexedNote;
 }
 
 /** A caller's own check on one write: throws (an HttpError) to refuse it. `path` is canonical, `content` already merged. */
@@ -100,6 +114,134 @@ function isFile(abs: string): boolean {
 }
 
 const NOT_UTF8 = "is not UTF-8 text, so Orrama reads it but will not write to it. Save it as UTF-8 to edit it here.";
+
+/**
+ * The notes folder's trash, `.trash/` at its root, as Obsidian keeps one (Jules, 21 Oct
+ * 2026: recoverable in Finder, travels with a backup, emptied by hand). Nothing in it is ever
+ * indexed: the boot walk and the watcher skip every name starting with a dot, and
+ * resolvePath refuses it, so no write, create or move can put a note there or reach one in it.
+ */
+export const TRASH_DIR = ".trash";
+
+function refuseTrash(rel: string): void {
+  if (foldPath(rel.split("/")[0] ?? "") === TRASH_DIR) throw new HttpError(400, "That's the trash. Put the note back first.");
+}
+
+/** `Personal/` and each person's own folder in it hold the path-based ACL (§5.3) and the
+ *  capture inbox: they are never renamed, moved or trashed as folders. */
+function refusePersonalRoot(rel: string): void {
+  const parts = rel.split("/");
+  if (personalOwner(rel) !== null && parts.length <= 2) throw new HttpError(400, "Personal folders can't be renamed, moved or put in the trash.");
+}
+
+/** A folder as the ACL judges it, with no tags of its own. */
+const asFolder = (folder: string) => ({ folder, onlyTeams: [] as string[], shareTeams: [] as string[] });
+
+/** Whether anything holds this name, a dangling link included (existsSync follows links). */
+function present(abs: string): boolean {
+  try {
+    fs.lstatSync(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isRealDir(abs: string): boolean {
+  try {
+    return fs.lstatSync(abs).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function isPlainFile(abs: string): boolean {
+  try {
+    return fs.lstatSync(abs).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Every file under `dir`, never following a link; with `links`, links are listed as files. */
+function filesIn(dir: string, opts: { links?: boolean } = {}): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.isFile() || (opts.links && e.isSymbolicLink())) out.push(full);
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+/**
+ * Move `src` (a file or a folder) to `dst`. A folder meeting a folder merges into it, entry by
+ * entry; a file meeting a taken name takes the next free `name (n).ext`. Returns where `src`
+ * itself ended up.
+ */
+function moveInto(src: string, dst: string): string {
+  if (!present(dst)) {
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.renameSync(src, dst);
+    return dst;
+  }
+  if (isRealDir(src) && isRealDir(dst)) {
+    for (const e of fs.readdirSync(src)) moveInto(path.join(src, e), path.join(dst, e));
+    fs.rmdirSync(src);
+    return dst;
+  }
+  let next = dst;
+  for (let n = 2; present(next); n++) next = path.join(path.dirname(dst), numbered(path.basename(dst), n));
+  fs.renameSync(src, next);
+  return next;
+}
+
+/** Remove empty folders from `dir` up to (not including) `stop`; with `all`, every empty
+ *  folder below `dir` too, `dir` included. */
+function pruneEmpty(dir: string, stop: string, opts: { all?: boolean } = {}): void {
+  if (opts.all && isRealDir(dir)) for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory()) pruneEmpty(path.join(dir, e.name), dir, { all: true });
+  for (let d = dir; d !== stop && d.startsWith(stop); d = path.dirname(d)) {
+    try {
+      if (!isRealDir(d) || fs.readdirSync(d).length > 0) return;
+      fs.rmdirSync(d);
+    } catch {
+      return;
+    }
+  }
+}
+
+/** A folder appeared, moved or went (live sync tells whoever may read it). */
+export interface FolderChangedEvent {
+  folder: string;
+  authorId: string;
+}
+
+/** A note whose exact links follow a rename (VaultStore.linkPlan). */
+interface LinkPlanItem {
+  id: string;
+  path: string;
+  title: string;
+  links: number;
+  canEdit: boolean;
+  /** The link targets, folded, that name the note in this one. */
+  targets: Set<string>;
+}
+
+/** One file in the trash, as GET /api/vault/trash lists it. */
+export interface TrashItem {
+  /** Its path in the notes folder now, under `.trash/` — what restore takes. */
+  path: string;
+  /** Where it came from (and goes back to). */
+  from: string;
+  title: string;
+  kind: "note" | "file";
+  /** When it went in (the file's change time). */
+  at: number;
+  canRestore: boolean;
+}
 
 /** One vault file as boot reads it, before anything is indexed. */
 interface BootFile {
@@ -641,7 +783,7 @@ export class VaultStore {
     this.index.remove(relPath);
     this.db.update(tables.notes).set({ deleted: true, mtimeMs: Date.now() }).where(eq(tables.notes.id, existing.id)).run();
     this.db.update(tables.taskObjects).set({ status: "orphaned", updatedAt: Date.now() }).where(eq(tables.taskObjects.noteId, existing.id)).run();
-    this.events.emit("note-removed", { noteId: existing.id, path: relPath });
+    this.events.emit("note-removed", { noteId: existing.id, path: relPath, note: existing } satisfies NoteRemovedEvent);
   }
 
   /**
@@ -651,14 +793,14 @@ export class VaultStore {
    * calls it too when it finds the disk ahead of the index, so an edit is
    * recorded the same way whichever of the two notices it first.
    */
-  private ingest(relPath: string, absPath: string, content: string, utf8: boolean): void {
+  private ingest(relPath: string, absPath: string, content: string, utf8: boolean, knownId?: string): void {
     const parsed = parseNote(content, titleFromPath(relPath));
     if (parsed.id && this.sameNameElsewhere(parsed.id, relPath)) return;
     const owner = parsed.id ? this.ownerElsewhere(parsed.id, relPath) : undefined;
     // The id this path already has: a note that cannot be stamped keeps it
     // across every save (audit STO-003), and one whose id: line was removed
     // gets it back.
-    const pathId = this.index.getByPath(relPath)?.id;
+    const pathId = this.index.getByPath(relPath)?.id ?? (knownId && !this.index.get(knownId) ? knownId : undefined);
     if (owner && !utf8) {
       console.error(`[vault] ${relPath}: carries note id ${parsed.id}, which belongs to ${owner.path}, and ${NOT_UTF8} Not indexed.`);
       return;
@@ -1022,6 +1164,8 @@ export class VaultStore {
       if (err instanceof AmbiguousPathError) throw new HttpError(409, err.message);
       throw err;
     }
+    // Judged as the disk spells it: `.Trash/x.md` is the trash too.
+    refuseTrash(disk.rel);
     if (!opts.asNamed) return { rel: disk.rel, abs: path.join(this.root, disk.rel) };
     const cut = disk.rel.lastIndexOf("/");
     const rel = (cut === -1 ? "" : disk.rel.slice(0, cut + 1)) + given.slice(given.lastIndexOf("/") + 1);
@@ -1243,10 +1387,381 @@ export class VaultStore {
     this.markWritten(toPath, note.content);
     fs.renameSync(absFrom, absTo);
     this.index.remove(fromPath);
-    const moved = this.index.upsert({ path: toPath, content: note.content, mtimeMs: Date.now() });
+    // The id goes with it: a note whose front matter can't be stamped carries none, and
+    // without this a move gave it a new one, cutting its tasks and history loose.
+    const moved = this.index.upsert({ path: toPath, content: note.content, mtimeMs: Date.now(), id: note.id });
     this.syncNoteRow(moved);
     this.events.emit("note-changed", { noteId: moved.id, path: moved.path, authorId: user.id } satisfies NoteChangedEvent);
     return moved;
+  }
+
+  /**
+   * Which notes hold exact links to `note` that a move to `toPath` would leave naming nothing
+   * (linkRename.ts), each with the targets that resolve to it there — computed before the move,
+   * since afterwards they no longer resolve. `other` counts the links that won't follow:
+   * Markdown links, and links in notes the caller can't edit.
+   */
+  private linkPlan(user: AclUser, note: IndexedNote, toPath: string): { notes: LinkPlanItem[]; other: number; renaming: Renaming } {
+    const grants = this.grants();
+    const oldTitle = note.writtenTitle ?? note.title;
+    const renamed = titleFromPath(note.path) !== titleFromPath(toPath);
+    const renaming: Renaming = { from: { path: note.path, title: oldTitle }, to: { path: toPath, title: renamed ? titleFromPath(toPath) : oldTitle } };
+    // Among what the caller can read, as every link of theirs resolves (ACL-005).
+    const among = (n: IndexedNote) => n.id === note.id || canRead(user, n, grants);
+    const notes: LinkPlanItem[] = [];
+    let other = 0;
+    for (const src of this.readable(user)) {
+      // A saved conversation's text is a transcript: its links are quoted, never followed.
+      if (src.kind === "conversation") continue;
+      const targets = new Set<string>();
+      let count = 0;
+      // Every wiki link as the rewrite will see it — front matter (`company: "[[Acme]]"`)
+      // included, code left out — so what is counted is what follows.
+      rewriteLinks(src.content, (target) => {
+        if (this.index.resolveLink(target, undefined, among)?.id === note.id && retarget(target, renaming) !== null) {
+          targets.add(foldPath(target.trim()));
+          count++;
+        }
+        return null;
+      });
+      // A Markdown link to it doesn't follow (it is never rewritten).
+      if (note.path !== toPath) other += src.links.filter((l) => !l.raw.startsWith("[[") && this.index.resolveLinkOf(src, l, among)?.id === note.id).length;
+      if (count === 0) continue;
+      const editable = canEdit(user, src, grants);
+      if (!editable) other += count;
+      notes.push({ id: src.id, path: src.path, title: src.title, links: count, canEdit: editable, targets });
+    }
+    return { notes, other, renaming };
+  }
+
+  /** The linkers of a note for a move to `inputTo`, as GET …/linkers answers (nothing written). */
+  linkers(user: AclUser, noteId: string, inputTo: string): { notes: Omit<LinkPlanItem, "targets">[]; other: number } {
+    const note = this.requireReadable(user, noteId);
+    const { rel: toPath } = this.resolvePath(inputTo, { asNamed: true });
+    const plan = this.linkPlan(user, note, toPath);
+    return { notes: plan.notes.map(({ targets: _t, ...rest }) => rest), other: plan.other };
+  }
+
+  /**
+   * Rename or move a note the way a person means it: the file; its `title:` line when the
+   * name changes and it has one; and, with `links` (Jules, 21 Oct 2026), every exact link in
+   * the notes the caller can edit that named it by what changed. A title line that can't be
+   * rewritten (front matter that doesn't parse) is a 409 before anything moves.
+   */
+  renameNote(user: AclUser, inputFrom: string, inputTo: string, opts: { links?: boolean; guard?: WriteGuard } = {}): { note: IndexedNote; links: number; notes: number } {
+    const { rel: fromPath } = this.resolvePath(inputFrom);
+    const { rel: toPath } = this.resolvePath(inputTo, { asNamed: true });
+    const note = this.index.getByPath(fromPath);
+    if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
+    const renamed = titleFromPath(fromPath) !== titleFromPath(toPath);
+    let titled: string | null = null;
+    if (renamed) {
+      const fm = parseFrontmatter(note.content);
+      if (fm.malformed || fm.notMapping) throw new HttpError(409, "This note's properties can't be read, so it wasn't renamed. Fix them in the note first.");
+      if (Object.hasOwn(fm.data, "title")) {
+        titled = updateFrontmatter(note.content, (d) => ({ ...d, title: titleFromPath(toPath) }));
+        if (titled === note.content && fm.data["title"] !== titleFromPath(toPath)) throw new HttpError(409, "This note's title line can't be changed safely, so it wasn't renamed.");
+      }
+    }
+    const plan = opts.links ? this.linkPlan(user, note, toPath) : null;
+    let moved = this.move(user, fromPath, toPath);
+    if (titled !== null && titled !== moved.content) moved = this.write(user, moved.path, titled, undefined, undefined, { guard: opts.guard });
+    let links = 0;
+    let notes = 0;
+    for (const item of plan?.notes ?? []) {
+      if (!item.canEdit) continue;
+      const src = this.index.get(item.id);
+      if (!src) continue;
+      const next = rewriteLinks(src.content, (t) => (item.targets.has(foldPath(t)) ? retarget(t, plan!.renaming) : null));
+      if (next.count === 0) continue;
+      try {
+        const written = this.write(user, src.path, next.content, undefined, undefined, { guard: opts.guard });
+        if (written.id === moved.id) moved = written;
+        links += next.count;
+        notes++;
+      } catch (err) {
+        // One note refusing (an agent's standing instructions, a note changed under us) costs
+        // that note's links, not the rename.
+        console.warn(`[vault] ${src.path}: its links to ${moved.path} were left as they were — ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    return { note: moved, links, notes };
+  }
+
+  // ---- Folders and the trash (stage 1, 1C) ---------------------------------
+
+  /**
+   * A folder path, canonicalised as resolvePath does a note's (rule 6): no escape, never the
+   * vault itself or the trash, never through a link back into the vault, spelled as the disk
+   * spells it. `asNamed` keeps the last segment as given (a rename's new name). `found` says
+   * whether a folder is there now.
+   */
+  private resolveFolder(input: string, opts: { asNamed?: boolean } = {}): { rel: string; abs: string; found: boolean } {
+    const given = path.relative(this.root, path.resolve(this.root, input.replace(/\/+$/, ""))).split(path.sep).join("/");
+    if (given === "" || given === ".." || given.startsWith("../") || path.isAbsolute(given)) throw new HttpError(400, "invalid folder");
+    if (throughVaultLink(this.root, this.realRoot, given)) throw new HttpError(400, "that folder goes through a link to another part of the vault");
+    let disk: { rel: string; found: boolean };
+    try {
+      disk = onDisk(this.root, given);
+    } catch (err) {
+      if (err instanceof AmbiguousPathError) throw new HttpError(409, err.message);
+      throw err;
+    }
+    refuseTrash(disk.rel);
+    let rel = disk.rel;
+    if (opts.asNamed) {
+      const cut = disk.rel.lastIndexOf("/");
+      rel = (cut === -1 ? "" : disk.rel.slice(0, cut + 1)) + given.slice(given.lastIndexOf("/") + 1);
+    }
+    const abs = path.join(this.root, rel);
+    return { rel, abs, found: isFolder(abs) };
+  }
+
+  /** Every folder a new name would create must be one every disk holds (portableName.ts). */
+  private requirePortableFolder(rel: string): void {
+    const parts = rel.split("/");
+    for (let i = 0; i < parts.length; i++) {
+      if (present(path.join(this.root, ...parts.slice(0, i + 1)))) continue;
+      const why = unportableName(parts[i]!, "folder");
+      if (why) throw new HttpError(400, why);
+    }
+  }
+
+  /** The indexed notes under a folder (any depth). */
+  private notesUnder(rel: string): IndexedNote[] {
+    const prefix = `${rel}/`;
+    return this.index.all().filter((n) => n.path.startsWith(prefix));
+  }
+
+  /**
+   * Every folder the reader may see, empty ones included, so a folder made in Orrama shows
+   * before a note goes in it: the folders on disk the folder rules let them read, and every
+   * folder holding a note they can read (a #share note in a folder they can't). Never the
+   * trash or another hidden folder (the walk skips them).
+   */
+  folders(user: AclUser): string[] {
+    const grants = this.grants();
+    const out = new Set<string>();
+    for (const abs of this.walkVault().dirs) {
+      const rel = path.relative(this.root, abs).split(path.sep).join("/");
+      if (rel && canRead(user, asFolder(rel), grants)) out.add(rel);
+    }
+    for (const n of this.readable(user)) {
+      for (let f = n.folder; f !== ""; f = f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : "") out.add(f);
+    }
+    return [...out].sort((a, b) => a.localeCompare(b));
+  }
+
+  /** A new, empty folder. Needs edit there; a name already taken in any spelling is a 409. */
+  makeFolder(user: AclUser, input: string): string {
+    const { rel, abs } = this.resolveFolder(input);
+    if (!canEdit(user, asFolder(rel), this.grants())) throw new HttpError(403, "You can't make a folder there.");
+    if (present(abs)) throw new HttpError(409, "There's already a folder or a note with that name there.");
+    this.requirePortableFolder(rel);
+    fs.mkdirSync(abs, { recursive: true });
+    this.events.emit("folder-changed", { folder: rel, authorId: user.id } satisfies FolderChangedEvent);
+    return rel;
+  }
+
+  /**
+   * Rename or move a folder, everything in it going along (notes, files, folders). Each note
+   * in it must be one the caller can edit where it is and where it lands — the same rule as a
+   * note's move — and its files need edit on both folders. One rename on disk, then every
+   * note's path in the index, ids kept.
+   */
+  moveFolder(user: AclUser, inputFrom: string, inputTo: string): { path: string; notes: number } {
+    const grants = this.grants();
+    const from = this.resolveFolder(inputFrom);
+    refusePersonalRoot(from.rel);
+    const notes = this.notesUnder(from.rel);
+    if (!from.found || (!canRead(user, asFolder(from.rel), grants) && !notes.some((n) => canRead(user, n, grants)))) throw new HttpError(404, "folder not found");
+    const to = this.resolveFolder(inputTo, { asNamed: true });
+    refusePersonalRoot(to.rel);
+    if (foldPath(to.rel).startsWith(`${foldPath(from.rel)}/`)) throw new HttpError(400, "A folder can't go inside itself.");
+    const landing = (n: IndexedNote) => `${to.rel}${n.path.slice(from.rel.length)}`;
+    const folderOfPath = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
+    if (
+      !canEdit(user, asFolder(from.rel), grants) ||
+      !canEdit(user, asFolder(to.rel), grants) ||
+      notes.some((n) => !canEdit(user, n, grants) || !canEdit(user, { folder: folderOfPath(landing(n)), onlyTeams: n.onlyTeams, shareTeams: n.shareTeams }, grants))
+    ) {
+      throw new HttpError(403, "You need edit access to this folder, everything in it, and where it goes.");
+    }
+    if (to.rel === from.rel) return { path: from.rel, notes: 0 };
+    // Taken in any spelling, unless it is this very folder renamed only in case.
+    if (present(to.abs) && !(sameFile(to.abs, from.abs) && foldPath(to.rel) === foldPath(from.rel))) {
+      throw new HttpError(409, "There's already a folder or a note with that name there.");
+    }
+    this.requirePortableFolder(to.rel);
+    fs.mkdirSync(path.dirname(to.abs), { recursive: true });
+    for (const n of notes) {
+      this.markWritten(n.path, n.content);
+      this.markWritten(landing(n), n.content);
+    }
+    fs.renameSync(from.abs, to.abs);
+    for (const n of notes) {
+      this.index.remove(n.path);
+      const moved = this.index.upsert({ path: landing(n), content: n.content, mtimeMs: n.mtimeMs, id: n.id });
+      this.syncNoteRow(moved);
+      this.events.emit("note-changed", { noteId: moved.id, path: moved.path, authorId: user.id } satisfies NoteChangedEvent);
+    }
+    this.events.emit("folder-changed", { folder: to.rel, authorId: user.id } satisfies FolderChangedEvent);
+    this.events.emit("folder-changed", { folder: from.rel, authorId: user.id } satisfies FolderChangedEvent);
+    return { path: to.rel, notes: notes.length };
+  }
+
+  /** The trash folder, made when first needed. Refused when something other than a plain
+   *  folder holds its name: a link there would carry notes out of the vault. */
+  private trashDir(): string {
+    const abs = path.join(this.root, TRASH_DIR);
+    let st: fs.Stats | null = null;
+    try {
+      st = fs.lstatSync(abs);
+    } catch {
+      st = null;
+    }
+    if (st && !st.isDirectory()) throw new HttpError(409, "Your notes folder holds a .trash that isn't a plain folder, so nothing was moved to the trash.");
+    if (!st) fs.mkdirSync(abs);
+    return abs;
+  }
+
+  /**
+   * Move a note to the trash (Jules, 21 Oct 2026: a trash folder, not a delete). The file
+   * goes to `.trash/<its path>`, byte for byte, and leaves the index — so it is gone from
+   * every surface — while its id, history and task objects stay in the database: restoring
+   * it brings the same note back. Needs edit on the note.
+   */
+  trashNote(user: AclUser, input: string): { path: string; trashPath: string } {
+    const { rel, abs } = this.resolvePath(input);
+    const grants = this.grants();
+    const note = this.index.getByPath(rel);
+    if (!note || !canRead(user, note, grants)) throw new HttpError(404, "note not found");
+    if (!canEdit(user, note, grants)) throw new HttpError(403, "You can't change this note, so it stays where it is.");
+    const placed = moveInto(abs, path.join(this.trashDir(), ...rel.split("/")));
+    this.forget(rel);
+    return { path: rel, trashPath: path.relative(this.root, placed).split(path.sep).join("/") };
+  }
+
+  /** Move a folder and everything in it to the trash, keeping its place under `.trash/`.
+   *  The same rule as moving it: edit on the folder and on every note in it. */
+  trashFolder(user: AclUser, input: string): { path: string; notes: number } {
+    const grants = this.grants();
+    const from = this.resolveFolder(input);
+    refusePersonalRoot(from.rel);
+    const notes = this.notesUnder(from.rel);
+    if (!from.found || (!canRead(user, asFolder(from.rel), grants) && !notes.some((n) => canRead(user, n, grants)))) throw new HttpError(404, "folder not found");
+    if (!canEdit(user, asFolder(from.rel), grants) || notes.some((n) => !canEdit(user, n, grants))) {
+      throw new HttpError(403, "You need edit access to this folder and everything in it.");
+    }
+    moveInto(from.abs, path.join(this.trashDir(), ...from.rel.split("/")));
+    for (const n of notes) this.forget(n.path);
+    this.events.emit("folder-changed", { folder: from.rel, authorId: user.id } satisfies FolderChangedEvent);
+    return { path: from.rel, notes: notes.length };
+  }
+
+  /**
+   * What is in the trash that the reader could read where it came from: each file, with the
+   * place it came from (its path under `.trash/`), its title when it is a note, and when it
+   * went in. Judged as the note would be judged there — its folder and its own tags — so
+   * another person's trashed note is as invisible here as it was in the tree.
+   */
+  trash(user: AclUser): TrashItem[] {
+    const root = path.join(this.root, TRASH_DIR);
+    if (!isRealDir(root)) return [];
+    const grants = this.grants();
+    const out: TrashItem[] = [];
+    for (const abs of filesIn(root)) {
+      const from = path.relative(root, abs).split(path.sep).join("/");
+      const judged = this.judgeTrashed(abs, from);
+      if (!canRead(user, judged.acl, grants)) continue;
+      out.push({
+        path: `${TRASH_DIR}/${from}`,
+        from,
+        title: judged.title,
+        kind: judged.note ? "note" : "file",
+        at: Math.round(fs.lstatSync(abs).ctimeMs),
+        canRestore: canEdit(user, judged.acl, grants),
+      });
+    }
+    return out.sort((a, b) => b.at - a.at || a.from.localeCompare(b.from));
+  }
+
+  /** A trashed file as the ACL would see it where it came from. */
+  private judgeTrashed(abs: string, from: string): { acl: { folder: string; onlyTeams: string[]; shareTeams: string[] }; title: string; note: boolean } {
+    const folder = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "";
+    const name = from.slice(from.lastIndexOf("/") + 1);
+    if (!name.toLowerCase().endsWith(".md")) return { acl: asFolder(folder), title: name, note: false };
+    const parsed = parseNote(readNote(abs).content, titleFromPath(from));
+    return { acl: { folder, onlyTeams: parsed.onlyTeams, shareTeams: parsed.shareTeams }, title: parsed.title, note: true };
+  }
+
+  /**
+   * Put a trashed file back where it came from — beside it, `name (2).md`, when that place is
+   * taken now. A note comes back as the note it was: its id from its front matter (or, for
+   * one that couldn't be stamped, from the notes table), so its history and tasks are its own
+   * again. Needs edit where it lands.
+   */
+  restore(user: AclUser, input: string): { path: string; id: string | null } {
+    const root = path.join(this.root, TRASH_DIR);
+    const given = path.relative(this.root, path.resolve(this.root, input)).split(path.sep).join("/");
+    const [head, ...rest] = given.split("/");
+    if (foldPath(head ?? "") !== TRASH_DIR || rest.length === 0 || rest.includes("..") || given.startsWith("../")) throw new HttpError(400, "not a path in the trash");
+    const abs = path.join(root, ...rest);
+    if (!isRealDir(root) || !isPlainFile(abs)) throw new HttpError(404, "not in the trash");
+    const from = rest.join("/");
+    const grants = this.grants();
+    const judged = this.judgeTrashed(abs, from);
+    if (!canRead(user, judged.acl, grants)) throw new HttpError(404, "not in the trash");
+    if (!canEdit(user, judged.acl, grants)) throw new HttpError(403, "You can't put things back in that folder.");
+    // Where it lands, canonicalised like any write: a folder renamed in case since is that folder.
+    const folder = judged.acl.folder;
+    const dir = folder === "" ? { rel: "", abs: this.root } : this.resolveFolder(folder);
+    let name = from.slice(from.lastIndexOf("/") + 1);
+    const taken = (n: string) => present(path.join(dir.abs, n)) || !!this.index.getByPath(dir.rel ? `${dir.rel}/${n}` : n);
+    for (let i = 2; taken(name); i++) name = numbered(from.slice(from.lastIndexOf("/") + 1), i);
+    const rel = dir.rel ? `${dir.rel}/${name}` : name;
+    if (dir.rel) this.requirePortableFolder(dir.rel);
+    const target = path.join(dir.abs, name);
+    fs.mkdirSync(dir.abs, { recursive: true });
+    let id: string | null = null;
+    if (judged.note) {
+      const { content, utf8 } = readNote(abs);
+      this.markWritten(rel, content);
+      fs.renameSync(abs, target);
+      const known = this.db.select({ id: tables.notes.id }).from(tables.notes).where(and(eq(tables.notes.path, from), eq(tables.notes.deleted, true))).get()?.id;
+      this.ingest(rel, target, content, utf8, known);
+      id = this.index.getByPath(rel)?.id ?? null;
+    } else {
+      fs.renameSync(abs, target);
+    }
+    pruneEmpty(path.dirname(abs), root);
+    if (!judged.note) this.events.emit("folder-changed", { folder: dir.rel, authorId: user.id } satisfies FolderChangedEvent);
+    return { path: rel, id };
+  }
+
+  /**
+   * Empty the trash: the one permanent delete (behind a Confirm in the app). Only files under
+   * `.trash/`, and only the ones the caller could edit where they came from; a link in the
+   * trash is removed as a link, never followed.
+   */
+  emptyTrash(user: AclUser): { removed: number; kept: number } {
+    const root = path.join(this.root, TRASH_DIR);
+    if (!isRealDir(root)) return { removed: 0, kept: 0 };
+    const grants = this.grants();
+    let removed = 0;
+    let kept = 0;
+    for (const abs of filesIn(root, { links: true })) {
+      const from = path.relative(root, abs).split(path.sep).join("/");
+      const judged = isPlainFile(abs) ? this.judgeTrashed(abs, from) : { acl: asFolder(from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : "") };
+      if (!canEdit(user, judged.acl, grants)) {
+        kept++;
+        continue;
+      }
+      fs.unlinkSync(abs);
+      removed++;
+    }
+    pruneEmpty(root, path.dirname(root), { all: true });
+    return { removed, kept };
   }
 
   /**

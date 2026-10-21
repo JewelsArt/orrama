@@ -174,6 +174,41 @@ export const treeResponse = z.array(
   }),
 );
 
+/** GET /api/vault/folders: every folder the reader may see, empty ones too (1C). */
+export const foldersResponse = z.array(z.string());
+
+/** GET /api/vault/trash: what is in the trash that the reader could read where it came from (1C). */
+export const trashResponse = z.array(
+  o({
+    /** Its path now, under `.trash/`: what restore takes. */
+    path: z.string(),
+    /** Where it came from, and goes back to. */
+    from: z.string(),
+    title: z.string(),
+    kind: z.enum(["note", "file"]),
+    /** When it went in. */
+    at: z.number(),
+    canRestore: z.boolean(),
+  }),
+);
+
+/** GET /api/vault/note/:id/linkers?to=: the notes whose exact links follow a rename or move (1C). */
+export const linkersResponse = o({
+  notes: z.array(o({ id: z.string(), path: z.string(), title: z.string(), links: z.number(), canEdit: z.boolean() })),
+  /** Links to the note that won't follow: Markdown links, or ones in notes the reader can't edit. */
+  other: z.number(),
+});
+
+/** GET /api/vault/note/:id/history: the note's earlier versions, newest first. */
+export const historyResponse = o({
+  revisions: z.array(o({ seq: z.number(), at: z.number(), authorId: nstr, length: z.number(), content: z.string().optional() })),
+  nextBefore: nnum,
+  total: z.number(),
+});
+
+/** GET /api/vault/note/:id/history/:seq: one version's text. */
+export const revisionResponse = o({ seq: z.number(), at: z.number(), authorId: nstr, content: z.string() });
+
 /** GET /api/notes/overview: Notes home's pins and counts (routes/notesHome.ts, R7). */
 export const notesOverviewResponse = o({
   /** Ids of the readable notes whose front matter says `pinned: true`, by title. */
@@ -955,6 +990,10 @@ export type ServerSettings = z.infer<typeof serverSettingsResponse>;
 export type Health = z.infer<typeof healthResponse>;
 export type DashboardData = z.infer<typeof teamDashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
+export type TrashItem = z.infer<typeof trashResponse>[number];
+export type Linkers = z.infer<typeof linkersResponse>;
+export type NoteHistory = z.infer<typeof historyResponse>;
+export type Revision = z.infer<typeof revisionResponse>;
 export type NotesOverview = z.infer<typeof notesOverviewResponse>;
 export type GraphData = z.infer<typeof graphResponse>;
 export type NoteDetail = z.infer<typeof noteResponse>;

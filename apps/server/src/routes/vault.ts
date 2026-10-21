@@ -1,6 +1,8 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { computeManifest } from "@orrama/sync";
-import { noteMoveSchema, noteWriteSchema, quickCaptureSchema } from "@orrama/schema";
+import { folderMoveSchema, folderSchema, noteMoveSchema, noteTrashSchema, noteWriteSchema, quickCaptureSchema, trashRestoreSchema } from "@orrama/schema";
 import { appendLine, canEdit, canRead, categorizeNote, DEFAULT_VAULT_CATEGORY_RULES, describeNote, parseVaultCategoryRules, suggestRelated, type IndexedNote } from "@orrama/core";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
@@ -77,9 +79,82 @@ export async function vaultRoutes(app: FastifyInstance, db: Db, store: VaultStor
     if (req.viaToken && (isInstructionFile(body.fromPath) || isInstructionFile(body.toPath))) {
       throw new HttpError(403, "an API token may not move a note into or out of an agent's instructions (CLAUDE.md, AGENTS.md, .claude/)");
     }
+    // With `links`, a rename as a person means it: the title line and the exact links that
+    // named the note follow (renameNote). Without, the file alone, as before.
+    if (body.links) {
+      const done = store.renameNote(user, body.fromPath, body.toPath, { links: true, guard: req.viaToken ? tokenWriter : undefined });
+      return { id: done.note.id, path: done.note.path, links: done.links, notes: done.notes };
+    }
     const note = store.move(user, body.fromPath, body.toPath);
     return { id: note.id, path: note.path };
   });
+
+  /** Before a rename or move: which notes' links will follow it, and how many won't (1C). */
+  app.get<{ Params: { id: string }; Querystring: { to?: string } }>("/api/vault/note/:id/linkers", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    if (!req.query.to) throw new HttpError(400, "to: the path the note would move to");
+    return store.linkers(user, req.params.id, req.query.to);
+  });
+
+  // ---- Folders and the trash (stage 1, 1C: nothing could be renamed, moved or deleted) ----
+
+  /** Every folder the reader may see, empty ones included. */
+  app.get("/api/vault/folders", auth, async (req) => store.folders(store.aclUser(req.userId)));
+
+  app.post("/api/vault/folder", auth, async (req) => {
+    const body = folderSchema.parse(req.body);
+    return { path: store.makeFolder(store.aclUser(req.userId), body.folder) };
+  });
+
+  /** Rename or move a folder with everything in it. */
+  app.post("/api/vault/folder/move", auth, async (req) => {
+    const body = folderMoveSchema.parse(req.body);
+    const user = store.aclUser(req.userId);
+    if (req.viaToken) refuseInstructionsUnder(body.from);
+    return store.moveFolder(user, body.from, body.to);
+  });
+
+  app.post("/api/vault/folder/trash", auth, async (req) => {
+    const body = folderSchema.parse(req.body);
+    const user = store.aclUser(req.userId);
+    if (req.viaToken) refuseInstructionsUnder(body.folder);
+    return store.trashFolder(user, body.folder);
+  });
+
+  /** Move a note to the trash, `.trash/` in the notes folder (Jules, 21 Oct 2026). */
+  app.post("/api/vault/trash", auth, async (req) => {
+    const body = noteTrashSchema.parse(req.body);
+    if (req.viaToken && isInstructionFile(body.path)) throw new HttpError(403, "an API token may not put an agent's instructions (CLAUDE.md, AGENTS.md, .claude/) in the trash");
+    return store.trashNote(store.aclUser(req.userId), body.path);
+  });
+
+  app.get("/api/vault/trash", auth, async (req) => store.trash(store.aclUser(req.userId)));
+
+  app.post("/api/vault/trash/restore", auth, async (req) => {
+    const body = trashRestoreSchema.parse(req.body);
+    return store.restore(store.aclUser(req.userId), body.path);
+  });
+
+  /** The one permanent delete: files under `.trash/` the caller could edit where they came from. */
+  app.post("/api/vault/trash/empty", auth, async (req) => store.emptyTrash(store.aclUser(req.userId)));
+
+  /** A token moving or trashing a folder that holds an agent's standing instructions is refused,
+   *  as moving the file itself is (agentWrites.ts). */
+  const refuseInstructionsUnder = (folder: string) => {
+    // On disk, not the index: `.claude/` folders are never indexed.
+    const holds = (dir: string): boolean => {
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return false;
+      }
+      return entries.some((e) => isInstructionFile(e.name) || (e.isDirectory() && holds(path.join(dir, e.name))));
+    };
+    if (isInstructionFile(`${folder}/x`) || holds(path.resolve(store.vaultRoot, folder))) {
+      throw new HttpError(403, "an API token may not move a folder holding an agent's instructions (CLAUDE.md, AGENTS.md, .claude/)");
+    }
+  };
 
   app.get<{ Querystring: { q?: string } }>("/api/vault/search", auth, async (req) => {
     const user = store.aclUser(req.userId);

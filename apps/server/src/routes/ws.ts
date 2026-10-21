@@ -10,7 +10,7 @@ import { canRead } from "@orrama/core";
 import type { Db } from "../db.js";
 import { env } from "../env.js";
 import { sessionUser } from "../sessions.js";
-import type { NoteChangedEvent, VaultStore } from "../vaultStore.js";
+import type { FolderChangedEvent, NoteChangedEvent, NoteRemovedEvent, VaultStore } from "../vaultStore.js";
 import { fromOwnSite, sessionCookieOf } from "./auth.js";
 
 interface Client {
@@ -52,6 +52,25 @@ export async function wsRoutes(app: FastifyInstance, db: Db, store: VaultStore) 
       if (!canRead(user, note, grants)) continue;
       sendTo(client, { type: "note-changed", noteId: ev.noteId, path: ev.path, authorId: ev.authorId });
     }
+  });
+
+  // A note gone from the index (put in the trash, deleted outside Orrama) is said as a change,
+  // to whoever could read it as it was: every view refetches and finds it gone (1C). A folder
+  // made, moved or trashed in Orrama is said the same way, with no note, to whoever may read
+  // that folder, so an empty one shows in the other windows' trees.
+  const tell = (canSee: (user: NonNullable<ReturnType<typeof store.aclUserOrNull>>) => boolean, payload: unknown) => {
+    for (const client of clients) {
+      const user = store.aclUserOrNull(client.userId);
+      if (user && canSee(user)) sendTo(client, payload);
+    }
+  };
+  store.events.on("note-removed", (ev: NoteRemovedEvent) => {
+    const grants = store.grants();
+    tell((user) => canRead(user, ev.note, grants), { type: "note-changed", noteId: ev.noteId, path: ev.path, authorId: null });
+  });
+  store.events.on("folder-changed", (ev: FolderChangedEvent) => {
+    const grants = store.grants();
+    tell((user) => canRead(user, { folder: ev.folder, onlyTeams: [], shareTeams: [] }, grants), { type: "note-changed", noteId: "", path: "", authorId: ev.authorId });
   });
 
   /**

@@ -61,6 +61,10 @@
 - **Exports**: MAX_EXPAND_STEPS, VEvent, IcsDetails, IcsOccurrence, wallToUtc, MAX_DESCRIPTION, httpUrl, descriptionText, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
 - **Imports**: htmlparser2
 
+### `apps/server/src/linkRename.ts`
+- **Exports**: Renaming, retarget, rewriteLinks
+- **Imports**: @orrama/core
+
 ### `apps/server/src/logging.ts`
 - **Exports**: redactUrl, reqSerializer, errSerializer, privateLogFiles, LOG_ROTATE_BYTES, AGENT_LOG, rotateLogIfLarge
 - **Imports**: node:fs, node:os, node:path, fastify
@@ -183,7 +187,7 @@
 
 ### `apps/server/src/routes/vault.ts`
 - **Exports**: vaultRoutes
-- **Imports**: fastify, @orrama/sync, @orrama/schema, @orrama/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js
+- **Imports**: node:fs, node:path, fastify, @orrama/sync, @orrama/schema, @orrama/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js
 
 ### `apps/server/src/routes/ws.ts`
 - **Exports**: wsRoutes
@@ -218,8 +222,8 @@
 - **Imports**: drizzle-orm, ./db.js
 
 ### `apps/server/src/vaultStore.ts`
-- **Exports**: hash, HttpError, NoteChangedEvent, WriteGuard, isRootGuide, VaultStore
-- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @orrama/core, @orrama/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js, ./portableName.js
+- **Exports**: hash, HttpError, NoteChangedEvent, NoteRemovedEvent, WriteGuard, TRASH_DIR, FolderChangedEvent, TrashItem, isRootGuide, VaultStore
+- **Imports**: node:crypto, node:buffer, node:events, node:fs, node:path, chokidar, drizzle-orm, yjs, @orrama/core, @orrama/sync, ./db.js, ./env.js, ./noteIds.js, ./atomicWrite.js, ./diskPath.js, ./portableName.js, ./uploads.js, ./linkRename.js
 
 ### `apps/server/src/webhooks.ts`
 - **Exports**: WEBHOOK_EVENTS, WebhookEvent, TaskCompletedEvent, signPayload, WEBHOOK_SECRET_PREFIX, sealWebhookSecret, sealPlainWebhookSecrets, deliver, initWebhooks
@@ -250,8 +254,8 @@
 - **Imports**: @codemirror/autocomplete, @codemirror/commands, @codemirror/lang-markdown, @codemirror/language-data, @codemirror/language, @codemirror/state, @codemirror/view, @lezer/highlight, @orrama/sync/merge, @orrama/sync/client, react, ./livePreview.js
 
 ### `apps/web/src/FileTree.tsx`
-- **Exports**: sameTitleFilenames, filterNotes, FileTree
-- **Imports**: react, ./api.js, ./storage.js, ./ui/Icon.js, ./notes/read.js
+- **Exports**: TreeActions, sameTitleFilenames, filterNotes, FileTree
+- **Imports**: react, ./api.js, ./storage.js, ./ui/Icon.js, ./ui/overlays.js, ./notes/read.js
 
 ### `apps/web/src/Finance.tsx`
 - **Exports**: rowKeys, Money
@@ -279,7 +283,7 @@
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
-- **Imports**: react, @orrama/core, @orrama/schema/responses, @orrama/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
+- **Imports**: react, @orrama/core, @orrama/schema/responses, @orrama/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./Confirm.js, ./noteActions.js, ./notes/actions.js, ./FileTree.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
@@ -1004,7 +1008,7 @@
 - **Imports**: ./safeRegex.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, Grant
+- **Exports**: roleSchema, taskStatusSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, Grant
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`
@@ -1012,7 +1016,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, treeResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, Health, DashboardData, TreeNote, NotesOverview, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, treeResponse, foldersResponse, trashResponse, linkersResponse, historyResponse, revisionResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`

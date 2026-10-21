@@ -33,6 +33,7 @@ let b: Awaited<ReturnType<typeof buildServer>>;
 let ics: Awaited<ReturnType<typeof fx.serveIcs>>;
 let token = "";
 let noteId = "";
+let seq = 0;
 const call = async (method: string, url: string, payload?: unknown) => {
   const r = await b.app.inject({ method: method as "GET", url, headers: signedIn(token), payload: payload as object });
   return { status: r.statusCode, body: r.body ? (JSON.parse(r.body) as unknown) : null };
@@ -81,6 +82,11 @@ beforeAll(async () => {
   b.db.insert(tables.mailAccounts).values({ id: fx.uid("mail"), userId: me, email: "jules@example.com", imapHost: "imap.example.com", imapPort: 993, smtpHost: "smtp.example.com", smtpPort: 465, passwordEncrypted: encryptSecret("pw"), createdAt: Date.now(), lastCheckedAt: null, lastError: null }).run();
   b.db.insert(tables.mailDrafts).values({ id: fx.uid("draft"), userId: me, to: "x@example.com", subject: "Hi", body: "Hello", inReplyTo: null, references: null, createdBy: "agent", createdAt: Date.now() }).run();
   noteId = b.store.index.all().find((n) => n.path.includes("Atlas Roadmap"))!.id;
+  // Something in the trash, a folder with nothing in it, and a revision to read (1C).
+  await must("PUT", "/api/vault/note", { path: "Scratch/Thrown away.md", content: "# Thrown away\n" });
+  await must("POST", "/api/vault/trash", { path: "Scratch/Thrown away.md" });
+  await must("POST", "/api/vault/folder", { folder: "Scratch/Empty" });
+  seq = ((await must("GET", `/api/vault/note/${noteId}/history`))["revisions"] as { seq: number }[])[0]!.seq;
 }, 60_000);
 
 afterAll(async () => {
@@ -108,6 +114,11 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/vault/note/:x", () => `/api/vault/note/${noteId}`, R.noteResponse],
   ["/api/vault/note/:x/related", () => `/api/vault/note/${noteId}/related`, R.relatedResponse],
   ["/api/vault/search", () => "/api/vault/search?q=atlas", R.searchResponse],
+  ["/api/vault/folders", () => "/api/vault/folders", R.foldersResponse],
+  ["/api/vault/trash", () => "/api/vault/trash", R.trashResponse],
+  ["/api/vault/note/:x/linkers", () => `/api/vault/note/${noteId}/linkers?to=Engineering%2FRoadmap.md`, R.linkersResponse],
+  ["/api/vault/note/:x/history", () => `/api/vault/note/${noteId}/history`, R.historyResponse],
+  ["/api/vault/note/:x/history/:x", () => `/api/vault/note/${noteId}/history/${seq}`, R.revisionResponse],
   ["/api/plan", () => "/api/plan", R.planResponse],
   ["/api/plan?refined=1", () => "/api/plan?refined=1", R.planResponse],
   ["/api/events", () => "/api/events?from=2026-10-01&to=2026-10-31", R.eventsResponse],
