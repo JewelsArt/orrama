@@ -17,6 +17,7 @@ const good = {
   ORRAMA_SECRET_KEY: "b".repeat(64),
   ORRAMA_PUBLIC_ORIGINS: "http://localhost:4623,https://mac.example.ts.net",
   ORRAMA_VAULT_DIR: tmp,
+  ORRAMA_SOURCE_URL: "https://git.example.com/me/orrama",
 };
 
 describe("environment", () => {
@@ -39,6 +40,7 @@ describe("environment", () => {
       ORRAMA_ALLOW_DEV_SECRETS: "true",
       ORRAMA_JWT_SECRET: "short",
       ORRAMA_FETCH_ALLOW: "nas.local,100.64.0.0/10,10.0.0.0/99,http://x",
+      ORRAMA_SOURCE_URL: "github.com/me/orrama",
     });
     const has = (re: RegExp) => expect(problems.some((p) => re.test(p)), `${re} in ${JSON.stringify(problems)}`).toBe(true);
     has(/^PORT="abc"/);
@@ -52,6 +54,7 @@ describe("environment", () => {
     has(/^ORRAMA_JWT_SECRET is 5 characters/);
     has(/ORRAMA_FETCH_ALLOW: "10\.0\.0\.0\/99"/);
     has(/ORRAMA_FETCH_ALLOW: "http:\/\/x"/);
+    has(/^ORRAMA_SOURCE_URL must be an http\(s\) URL/);
     expect(problems.some((p) => /nas\.local|100\.64\.0\.0\/10/.test(p))).toBe(false);
     expect(problems.some((p) => p.includes("http://localhost:4623"))).toBe(false);
     expect(() => assertValidEnv({ PORT: "99999" })).toThrow(/Refusing to start[\s\S]*PORT="99999"/);

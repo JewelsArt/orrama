@@ -59,6 +59,13 @@ export function assertNoRenamedEnv(e: NodeJS.ProcessEnv = process.env): void {
 
 assertNoRenamedEnv();
 
+/**
+ * Where Orrama's source is (AGPL §13: whoever uses it over a network is offered
+ * it). Someone who runs a changed copy for others sets ORRAMA_SOURCE_URL to
+ * theirs; Settings links to it.
+ */
+export const DEFAULT_SOURCE_URL = "https://github.com/JewelsArt/Basalt-backup";
+
 export const env = {
   port: Number(process.env.PORT ?? (DEV ? DEV_PORT : 4623)),
   host: process.env.HOST ?? "127.0.0.1",
@@ -102,6 +109,8 @@ export const env = {
     .split(",")
     .map((o) => o.trim().replace(/\/+$/, ""))
     .filter(Boolean),
+  /** The source this server runs, linked from Settings (AGPL §13). */
+  sourceUrl: process.env.ORRAMA_SOURCE_URL || DEFAULT_SOURCE_URL,
 };
 
 /**
@@ -184,6 +193,7 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
   for (const o of (e["ORRAMA_PUBLIC_ORIGINS"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) origin("ORRAMA_PUBLIC_ORIGINS", o);
   if (e["ORRAMA_CORS_ORIGIN"]) origin("ORRAMA_CORS_ORIGIN", e["ORRAMA_CORS_ORIGIN"]);
   if (e["ORRAMA_OPENAI_BASE_URL"] && !/^https?:\/\/[^/]/.test(e["ORRAMA_OPENAI_BASE_URL"])) out.push("ORRAMA_OPENAI_BASE_URL must be an http(s) URL");
+  if (e["ORRAMA_SOURCE_URL"] && !/^https?:\/\/[^/\s]+\S*$/.test(e["ORRAMA_SOURCE_URL"])) out.push("ORRAMA_SOURCE_URL must be an http(s) URL");
   for (const entry of (e["ORRAMA_FETCH_ALLOW"] ?? "").split(",").map((s) => s.trim()).filter(Boolean)) {
     const [addr, prefix, extra] = entry.split("/");
     const v = net.isIP(addr!);

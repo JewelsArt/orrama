@@ -329,7 +329,8 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
     }
   };
 
-  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length, build: buildId() }));
+  // `source`: where this server's source is, for Settings' link (AGPL §13). Public, like the rest.
+  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length, build: buildId(), source: env.sourceUrl }));
 
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, {

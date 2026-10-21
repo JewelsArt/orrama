@@ -8,9 +8,13 @@
  * name, theme, colour vision and the palette editor, the AI provider, model, key and
  * instructions, calendars, mail, the published planning link, passcode and Touch ID, sessions,
  * API tokens, webhooks, sign out), and everything that cannot be undone asks first (WEB-017).
+ *
+ * Every account sees "Source code" at the foot: Orrama is under the AGPL, whose §13 asks that
+ * whoever uses it over a network is offered its source. The address is the server's
+ * (`/api/health`'s `source`, ORRAMA_SOURCE_URL).
  */
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import type { AiConfig, Feed, MailAccount, Member, ServerSettings } from "@orrama/schema/responses";
+import type { AiConfig, Feed, Health, MailAccount, Member, ServerSettings } from "@orrama/schema/responses";
 import { api, type Me, type SessionInfo } from "./api.js";
 import type { VisionProfile } from "./palette.js";
 import { AccessSection } from "./settings/Access.js";
@@ -63,9 +67,13 @@ export function Settings(props: SettingsProps) {
   const { me, section } = props;
   const [members, setMembers] = useState<Member[] | null>(null);
   const [server, setServer] = useState<ServerSettings | null>(null);
+  const [source, setSource] = useState<string | null>(null);
   const [q, setQ] = useState("");
 
   useEffect(() => {
+    api<Health>("GET", "/api/health")
+      .then((h) => setSource(h.source))
+      .catch(() => setSource(null));
     api<Member[]>("GET", "/api/members")
       .then(setMembers)
       .catch(() => setMembers([]));
@@ -133,13 +141,28 @@ export function Settings(props: SettingsProps) {
         )}
         <p className="set-foot">
           {server ? `Orrama ${server.version} · reading ${server.notes} notes in ${server.notesFolder}` : "Orrama"}
+          {source && (
+            <>
+              <br />
+              <SourceLink href={source} />
+            </>
+          )}
         </p>
       </nav>
 
       <div className="set-body">{known ? <Section {...props} id={shown} members={members ?? []} /> : <Skeleton rows={4} label="Loading Settings" />}</div>
 
-      {!section && <PhoneList {...props} visible={visible.map((s) => s.id)} server={server} />}
+      {!section && <PhoneList {...props} visible={visible.map((s) => s.id)} server={server} source={source} />}
     </div>
+  );
+}
+
+/** Where this server's source is (AGPL §13). */
+function SourceLink({ href }: { href: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      Source code
+    </a>
   );
 }
 
@@ -184,7 +207,7 @@ function Section({ id, members, ...p }: SettingsProps & { id: SettingsSection; m
  * The phone's Settings (§1.6): your Orr on top, then the sections in two groups, each row
  * saying where it stands (the theme, the model, how many notes…), and Sign out at the foot.
  */
-function PhoneList({ me, theme, look, onSignOut, visible, server }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null }) {
+function PhoneList({ me, theme, look, onSignOut, visible, server, source }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null; source: string | null }) {
   const [ai, setAi] = useState<AiConfig | null>(null);
   const [mail, setMail] = useState<MailAccount | null>(null);
   const [feeds, setFeeds] = useState<Feed[] | null>(null);
@@ -253,6 +276,11 @@ function PhoneList({ me, theme, look, onSignOut, visible, server }: SettingsProp
       <Button className="set-psignout" danger onClick={onSignOut}>
         Sign out of this device
       </Button>
+      {source && (
+        <p className="set-foot">
+          <SourceLink href={source} />
+        </p>
+      )}
     </div>
   );
 }

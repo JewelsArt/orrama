@@ -100,7 +100,8 @@ export const sessionsResponse = z.array(
 
 export const passkeysResponse = z.array(o({ id: z.string(), label: z.string(), createdAt: z.number(), lastUsedAt: nnum }));
 
-export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nstr });
+/** `source`: the repository this server's code comes from, linked from Settings (AGPL §13). */
+export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nstr, source: z.string() });
 
 /** The accounts on this server (Settings → Access, shown only when there is more than one). */
 export const membersResponse = z.array(o({ id: z.string(), username: z.string(), displayName: z.string(), isOwner: z.boolean(), avatar: z.string() }));
@@ -951,6 +952,7 @@ export type SessionInfo = z.infer<typeof sessionsResponse>[number];
 export type AiConfig = z.infer<typeof aiConfigResponse>;
 export type Member = z.infer<typeof membersResponse>[number];
 export type ServerSettings = z.infer<typeof serverSettingsResponse>;
+export type Health = z.infer<typeof healthResponse>;
 export type DashboardData = z.infer<typeof teamDashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
 export type NotesOverview = z.infer<typeof notesOverviewResponse>;

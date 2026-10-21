@@ -26,6 +26,7 @@ const ME = {
 const ROUTES: Record<string, unknown> = {
   "GET /api/members": [{ id: "u-1", username: "jules", displayName: "Jules", isOwner: true, avatar: "victorr" }],
   "GET /api/settings/server": { notesFolder: "~/Notes", notes: 12, version: "0.1.0" },
+  "GET /api/health": { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama" },
   "GET /api/calendar/feeds": [{ id: "f1", label: "School", host: "example.edu", createdAt: 1, lastSyncedAt: null, lastError: null }],
   "GET /api/mail/account": { connected: true, email: "jules@example.com", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null },
   "GET /api/me/ics-token": { token: "tok123" },
@@ -193,6 +194,28 @@ describe("the Settings page (structure.md §3)", () => {
     );
     await waitFor(() => expect(navLinks()).toContain("Developer"));
     expect(navLinks()).not.toContain("Orr & AI");
+  });
+
+  it("every account gets a link to the server's source (AGPL §13), on the desktop and the phone", async () => {
+    render(
+      <Settings
+        me={{ ...ME, isOwner: false } as Me}
+        theme="light"
+        shown="light"
+        onTheme={() => {}}
+        look="paper"
+        onLook={() => {}}
+        vision="none"
+        onVision={() => {}}
+        profiles={[]}
+        onProfiles={() => {}}
+        onUpdate={() => {}}
+        onSignOut={() => {}}
+      />,
+    );
+    const links = await screen.findAllByRole("link", { name: "Source code" });
+    expect(links).toHaveLength(2); // the nav's foot, and the phone's list
+    for (const a of links) expect(a.getAttribute("href")).toBe("https://git.example.com/orrama");
   });
 
   it("every section says where it lives", async () => {

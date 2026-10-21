@@ -176,6 +176,7 @@ All optional. Set them in the environment before starting the server.
 | `ORRAMA_SECRET_KEY` | dev placeholder | Encrypts stored AI and mail credentials at rest — **must be set** |
 | `ORRAMA_CORS_ORIGIN` | `false` | Allow specific cross-origin browsers |
 | `ORRAMA_ALLOW_DEV_SECRETS` | unset | `1` boots on placeholder secrets anyway |
+| `ORRAMA_SOURCE_URL` | the GitHub repository | Where Settings' "Source code" link points. Orrama is under the AGPL: if you run a changed copy for other people, point this at your copy's source |
 
 These were called `BASALT_*` before the rename to Orrama, and only the `ORRAMA_*` names
 are read now. An install set up before then must rename each one (same value) in the
