@@ -340,9 +340,15 @@ export function App() {
      write-back below only ever runs on a render where the two are consistent.
      With a ref it ran in the same effect flush as hydration, still holding the
      PRE-hydration local values — which it then dutifully pushed up, overwriting
-     the account with the very values it had just been told to replace. */
+     the account with the very values it had just been told to replace.
+
+     Hydration is a LAYOUT effect: it runs in the commit that brings the account, before the
+     page can be clicked. As a passive effect it could run after a click on Night or Clay in
+     the first moment (React runs pending effects before the click's update), and its
+     setTheme/setLook then undid the choice: the page showed it (wipeTo writes <html> itself)
+     while the state, this device's cache and the account kept the old one. */
   const [serverSnapshot, setServerSnapshot] = useState<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!me || serverSnapshot !== null) return;
     const a = me.appearance;
     if (!a) {
