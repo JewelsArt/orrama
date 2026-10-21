@@ -392,7 +392,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
         <NameDialog
           title="New project"
           label="What is it called?"
-          help="Orrama makes its note in 04-Projects/, tagged so it joins this board."
           placeholder="Graduation thesis"
           onSubmit={create}
           onClose={() => setCreating(false)}

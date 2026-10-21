@@ -2,7 +2,9 @@
  * A new install's Projects board loads (1A). The first account founds the workspace without a
  * team (routes/auth.ts), and the board used to ask for one: `/api/teams` answered `[]` and the
  * page said "The board could not be loaded" in a person's first minute. The board now reads
- * `/api/dashboard`, every project the requester can see, with no team at all.
+ * `/api/dashboard`, every project the requester can see, with no team at all. And the project a
+ * person makes there is born with a status (`planned`) and no `active` tag, so its page does not
+ * open on "No status yet" (projectNoteScaffold).
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -44,6 +46,16 @@ describe("an empty install's Projects board", () => {
     expect(body.team).toBeNull();
     expect(body.projects.map((p: { slug: string }) => p.slug)).toEqual(["kitchen-renovation"]);
     expect(body.projects[0].tasks.map((t: { text: string }) => t.text)).toEqual(["First step"]);
+  });
+
+  it("a new project is born clean: planned, no active tag, no Markdown lesson in its text", async () => {
+    const note = b.store.index.getByPath("04-Projects/kitchen-renovation.md")!;
+    expect(note.frontmatter["status"]).toBe("planned");
+    expect(note.tags.map((t) => t.tag).sort()).toEqual(["project", "project/kitchen-renovation"]);
+    expect(note.content).not.toMatch(/checkbox|Add .* below/i);
+    const session = sessionOf(await b.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "alex@example.test", password: "correct horse battery" } }));
+    const board = (await b.app.inject({ method: "GET", url: "/api/dashboard", headers: signedIn(session) })).json();
+    expect(board.projects[0].status).toBe("planned");
   });
 
   it("is a session's board: without one it is refused", async () => {

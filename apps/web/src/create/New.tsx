@@ -241,7 +241,7 @@ function NewProject({ ctx, onClose }: { ctx: NewContext; onClose: () => void }) 
         })();
       }}
     >
-      <Field label="What is it called?" help="Orrama makes its note in 04-Projects/, tagged so it joins the board.">
+      <Field label="What is it called?">
         <Input data-autofocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Graduation thesis" />
       </Field>
     </Making>

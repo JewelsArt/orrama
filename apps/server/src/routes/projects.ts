@@ -43,7 +43,14 @@ export const asDomain = (d: unknown): Domain | undefined => (DOMAINS.includes(d 
 export const GROUP_MAX = 60;
 export const asGroup = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v).replace(/\s+/g, " ").trim().slice(0, GROUP_MAX).trim() : "");
 
-/** The starter body for a new project note — carries the tags that put it on the board. */
+/**
+ * The starter body for a new project note: the tags that put it on the board, and a status.
+ * `planned`, the ontology's "not started": a project just made has no work behind it yet, and
+ * the person moves it to on track from the header when it starts. It used to carry an `active`
+ * tag and no status, so every new project opened on "No status yet: pick one", and picking one
+ * then made the tag and the status disagree (inventory §1). No line teaches Markdown: the
+ * first step is the example of a step.
+ */
 export function projectNoteScaffold(name: string, slug: string, domain?: Domain): string {
   return [
     "---",
@@ -51,13 +58,11 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain)
     "tags:",
     "  - project",
     `  - project/${slug}`,
-    "  - active",
+    "status: planned",
     ...(domain ? [`domain: ${domain}`] : []),
     "---",
     "",
     `# ${name}`,
-    "",
-    "> New project. Add checkbox tasks below — they flow to the board, planning, and dashboard.",
     "",
     "- [ ] First step",
     "",
