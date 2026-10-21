@@ -183,6 +183,29 @@ describe("Add a step", () => {
   });
 });
 
+describe("Add a step with the card's fields (1B)", () => {
+  it("takes a priority and the key-deadline tag at creation, written as a person types them", async () => {
+    render(<AddStepDialog w={w} onClose={() => {}} onAdded={vi.fn(async () => {})} />);
+    fireEvent.change(screen.getByLabelText("The step"), { target: { value: "Hand in the draft" } });
+    fireEvent.change(screen.getByLabelText("Due (optional)"), { target: { value: "30 Oct 2026" } });
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Priority" })).getByRole("radio", { name: "High" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Key deadline" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add the step" }));
+    });
+    expect(server.posts).toEqual([{ url: "/api/projects/thesis/capture", body: { text: "Hand in the draft due:2026-10-30 !p1 #deadline", task: true } }]);
+  });
+
+  it("a step with none of them is its words alone", async () => {
+    render(<AddStepDialog w={w} onClose={() => {}} onAdded={vi.fn(async () => {})} />);
+    fireEvent.change(screen.getByLabelText("The step"), { target: { value: "  Book the room " } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Add the step" }));
+    });
+    expect(server.posts).toEqual([{ url: "/api/projects/thesis/capture", body: { text: "Book the room", task: true } }]);
+  });
+});
+
 describe("a drag that didn't save (WEB-010)", () => {
   it("the Gantt bar goes back, a toast says why, and Retry sends the same dates", async () => {
     localStorage.setItem("orrama-proj-gantt", "thesis");

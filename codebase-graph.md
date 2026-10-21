@@ -314,7 +314,7 @@
 - **Imports**: react, @orrama/schema/responses, ./HtmlPage.js, ./projectPages.js, ./ui/controls.js, ./ui/Icon.js, ./ui/dates.js, ./ui/layout.js, ./ui/router.js, ./ui/states.js
 
 ### `apps/web/src/ProjectViews.tsx`
-- **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
+- **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, stepLine, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
 - **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./steps.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
 
 ### `apps/web/src/QuickCapture.tsx`

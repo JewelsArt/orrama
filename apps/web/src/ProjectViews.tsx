@@ -5,13 +5,13 @@ import { daysTo } from "./categories.js";
 import { DocViewer } from "./DocViewer.js";
 import { parseDateInput } from "./entity/index.js";
 import { Gantt } from "./Gantt.js";
-import { STATUS_MENU } from "./steps.js";
+import { PRIORITY_WORDS, STATUS_MENU } from "./steps.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
 import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, GroupNode, ProjectTask } from "@orrama/schema/responses";
 import { Bar, Button, Checkbox, Segmented, Tabs, type TaskState } from "./ui/controls.js";
 import { dateLabel, dayMonthLabel } from "./ui/dates.js";
-import { Field, Input, SearchField } from "./ui/fields.js";
+import { Field, Input, SearchField, Switch } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { HeadMark } from "./ui/orr/Orr.js";
 import { Dialog, Menu, toast } from "./ui/overlays.js";
@@ -99,11 +99,14 @@ export async function uploadProjectFiles(slug: string, files: FileList | File[],
 
 /**
  * Add a step: a `- [ ] …` line in the note's `## Tasks` (the capture route, as the Inbox's "as a
- * step"), with its `due:` when one is given. A date is typed, as in the header.
+ * step"), with the card's fields a step can be born with: a due date (typed, as in the header),
+ * a priority and the key-deadline tag. Everything else is changed in the step's card.
  */
 export function AddStepDialog({ w, due, onClose, onAdded }: { w: ProjectWorkspace; due?: string; onClose: () => void; onAdded: () => Promise<void> }) {
   const [text, setText] = useState("");
   const [when, setWhen] = useState(due ? dateLabel(due) : "");
+  const [priority, setPriority] = useState<(typeof PRIORITY_WORDS)[number]["id"]>("0");
+  const [key, setKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const parsed = parseDateInput(when);
@@ -112,8 +115,7 @@ export function AddStepDialog({ w, due, onClose, onAdded }: { w: ProjectWorkspac
     setBusy(true);
     setFailed(false);
     try {
-      const line = text.trim().replace(/\n/g, " ") + (parsed ? ` due:${parsed}` : "");
-      await api("POST", `/api/projects/${encodeURIComponent(w.slug)}/capture`, { text: line, task: true });
+      await api("POST", `/api/projects/${encodeURIComponent(w.slug)}/capture`, { text: stepLine(text, { due: parsed, priority: Number(priority), key }), task: true });
       await onAdded();
       onClose();
     } catch {
@@ -149,12 +151,23 @@ export function AddStepDialog({ w, due, onClose, onAdded }: { w: ProjectWorkspac
         <Field label="Due (optional)" help={parsed === null ? undefined : parsed ? dateLabel(parsed) : "No date"} error={parsed === null ? "Not a date yet: try 19 Oct" : null}>
           <Input value={when} onChange={(e) => setWhen(e.target.value)} placeholder="e.g. Fri 16 Oct" />
         </Field>
+        <Field label="Priority">
+          <Segmented label="Priority" items={PRIORITY_WORDS.map((p) => ({ id: p.id, label: p.label }))} value={priority} onChange={setPriority} />
+        </Field>
+        <Field label="Key deadline">
+          <Switch label="Key deadline" checked={key} onChange={setKey} />
+        </Field>
         <p className="q3 pj-hint">It goes under “Tasks” in {w.path.split("/").pop()}.</p>
         {failed && <Notice title="Not added" text="The note could not be written. Try again." />}
         <button type="submit" hidden />
       </form>
     </Dialog>
   );
+}
+
+/** A new step's words and the tokens it is born with, in the order a person types them. */
+export function stepLine(text: string, o: { due?: string | ""; priority?: number; key?: boolean }): string {
+  return [text.trim().replace(/\n/g, " "), o.due ? `due:${o.due}` : "", o.priority ? `!p${o.priority}` : "", o.key ? "#deadline" : ""].filter(Boolean).join(" ");
 }
 
 /* ---------------------------------------------------------------- Timeline */
