@@ -674,6 +674,13 @@ export const recurringSchema = o({
 
 const merchantTotal = o({ name: z.string(), total: z.number(), count: z.number() });
 
+/**
+ * A ledger's rows as written (core readLedgerTable): a row is changed by its index, its name and
+ * the version it was read at, and every known column's cell is there as typed.
+ */
+export const ledgerRowSchema = o({ index: z.number(), line: z.number(), name: z.string(), cells: z.record(z.string()) });
+const ledgerTable = o({ noteId: z.string(), version: z.string(), fields: z.array(z.string()), rows: z.array(ledgerRowSchema) }).nullable();
+
 export const financeResponse = o({
   notes: o({ income: nstr, subscriptions: nstr, payslips: nstr, area: nstr }),
   income: ledgerSchema,
@@ -725,6 +732,14 @@ export const financeResponse = o({
   files: z.array(fileEntry),
   /** Ledger tags carried by more than one note: the one used and the others. */
   ledgerConflicts: z.array(o({ tag: z.string(), using: z.string(), others: z.array(z.string()) })),
+  /** Every ledger's rows as written, for the screens that change them; null where there is no note yet. */
+  tables: o({
+    subscriptions: ledgerTable,
+    income: ledgerTable,
+    payslips: ledgerTable,
+    categories: ledgerTable,
+    "own-accounts": ledgerTable,
+  }),
 });
 
 export const financeCategoryResponse = o({
@@ -770,6 +785,8 @@ export const financeMonthResponse = o({
 
 export const financeMerchantResponse = o({
   merchant: z.string(),
+  /** Where its rows are filed, and what keeps a screen from moving them (a commitment, an own account). */
+  filing: o({ category: z.string(), commitment: nstr, own: nstr }),
   years: z.array(z.string()),
   year: nstr,
   /** Which way the money mostly goes here — a merchant is not always somewhere you spend. */
@@ -1083,6 +1100,8 @@ export type FinanceData = z.infer<typeof financeResponse>;
 export type CategoryDetail = z.infer<typeof financeCategoryResponse>;
 export type MonthDetail = z.infer<typeof financeMonthResponse>;
 export type MerchantDetail = z.infer<typeof financeMerchantResponse>;
+export type LedgerRowData = z.infer<typeof ledgerRowSchema>;
+export type LedgerTableData = NonNullable<FinanceData["tables"]["subscriptions"]>;
 export type HomeData = z.infer<typeof homeResponse>;
 export type AgendaItem = HomeData["agenda"][number];
 export type FocusItem = HomeData["focus"][number];

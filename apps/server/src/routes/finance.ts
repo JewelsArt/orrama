@@ -14,8 +14,35 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  appendCategoryRow,
   appendMoneyRow,
+  appendOwnAccountRow,
   appendPayslipRow,
+  CATEGORY_COLUMNS,
+  categoryTable,
+  changeCategoryRow,
+  changeMoneyRow,
+  changeOwnAccountRow,
+  changePayslipRow,
+  fileShopUnder,
+  UNCATEGORISED,
+  MONEY_COLUMNS,
+  moneyTable,
+  moveCategoryRow,
+  OWN_ACCOUNT_COLUMNS,
+  ownAccountTable,
+  PAYSLIP_COLUMNS,
+  payslipTable,
+  removeCategoryRow,
+  removeMoneyRow,
+  removeOwnAccountRow,
+  removePayslipRow,
+  ruleFor,
+  tableHead,
+  typedPayslip,
+  type LedgerTable,
+  type RowRef,
+  type RowWrite,
   monthlyTotals,
   parsePayslip,
   parsePayslipTable,
@@ -175,6 +202,87 @@ export function ledgerConflicts(store: VaultStore, user: Reader): { tag: string;
 /** The note carrying one side of the ledger, or undefined if none is tagged. */
 export function financeNote(store: VaultStore, user: Reader, kind: FinanceKind) {
   return ledgerNote(store, user, FINANCE_TAG[kind]);
+}
+
+/* ---- the ledgers as screens change them ------------------------------------
+   Money's screens add, change, remove and reorder rows; the core writer of
+   each table does the text, this says which note and which table. */
+
+/** Every ledger a screen writes, by the id its routes use. */
+export const LEDGERS = {
+  subscriptions: { tag: "subscriptions", title: "Subscriptions", columns: MONEY_COLUMNS.subscriptions, table: moneyTable, change: changeMoneyRow, remove: removeMoneyRow },
+  income: { tag: "income", title: "Income", columns: MONEY_COLUMNS.income, table: moneyTable, change: changeMoneyRow, remove: removeMoneyRow },
+  payslips: { tag: "payslips", title: "Payslips", columns: PAYSLIP_COLUMNS, table: payslipTable, change: changePayslipRow, remove: removePayslipRow },
+  categories: { tag: "spending-categories", title: "Spending categories", columns: CATEGORY_COLUMNS, table: categoryTable, change: changeCategoryRow, remove: removeCategoryRow },
+  "own-accounts": { tag: "own-accounts", title: "Own accounts", columns: OWN_ACCOUNT_COLUMNS, table: ownAccountTable, change: changeOwnAccountRow, remove: removeOwnAccountRow },
+} as const satisfies Record<
+  string,
+  {
+    tag: string;
+    title: string;
+    columns: readonly string[];
+    table: (content: string) => LedgerTable;
+    change: (content: string, ref: RowRef, set: Record<string, string>) => RowWrite;
+    remove: (content: string, ref: RowRef) => RowWrite;
+  }
+>;
+export type LedgerId = keyof typeof LEDGERS;
+const isLedger = (id: string): id is LedgerId => Object.hasOwn(LEDGERS, id);
+
+/** A ledger note as the app makes it: in the finance area, tagged, holding the table's header. */
+export const ledgerNoteText = (id: LedgerId): string =>
+  `---\ntags:\n  - ${LEDGERS[id].tag}\n---\n\n# ${LEDGERS[id].title}\n\n${tableHead(LEDGERS[id].columns).join("\n")}\n`;
+
+/**
+ * The reader's note for a ledger, made when there is none: the first add on
+ * an empty vault never asks anyone to make a note and type a table. It goes
+ * in the finance area, named after the ledger ("Subscriptions 2" when that
+ * name is taken by a note that is not the ledger), through the store, so the
+ * ACL decides and a note already there is never replaced.
+ */
+export function ensureLedgerNote(store: VaultStore, user: Reader, id: LedgerId): IndexedNote {
+  const had = ledgerNote(store, user, LEDGERS[id].tag);
+  if (had) return had;
+  for (let n = 1; n <= 20; n++) {
+    const at = `${FINANCE_DIR}/${LEDGERS[id].title}${n === 1 ? "" : ` ${n}`}.md`;
+    try {
+      return store.write(user, at, ledgerNoteText(id), undefined, undefined, { create: true });
+    } catch (err) {
+      if (err instanceof HttpError && err.statusCode === 409) continue;
+      throw err;
+    }
+  }
+  throw new HttpError(409, `Could not make a note for ${LEDGERS[id].title.toLowerCase()}: every name is taken.`);
+}
+
+/** The note's text with the ledger's table in it: a tagged note with none yet gets the header at its end. */
+function withTable(content: string, id: LedgerId): string {
+  if (LEDGERS[id].table(content).fields.length > 0) return content;
+  const gap = content === "" || content.endsWith("\n\n") ? "" : content.endsWith("\n") ? "\n" : "\n\n";
+  return `${content}${gap}${tableHead(LEDGERS[id].columns).join("\n")}\n`;
+}
+
+/** The note's text with a row added by `append`, the table made first when the note has none. */
+function withRow(content: string, id: LedgerId, append: (text: string) => string | null): string {
+  const out = append(withTable(content, id));
+  if (out === null) throw new HttpError(422, "That row could not be added.");
+  return out;
+}
+
+/** A writer's refusal, as the route answers it. */
+function written(out: RowWrite): string {
+  if (!out.ok) throw new HttpError(out.status, out.reason);
+  return out.content;
+}
+
+/** Every ledger's rows as written, for the screens that change them; null where there is no note yet. */
+export function ledgerTables(store: VaultStore, user: Reader) {
+  const out = {} as Record<LedgerId, (LedgerTable & { noteId: string }) | null>;
+  for (const id of Object.keys(LEDGERS) as LedgerId[]) {
+    const note = ledgerNote(store, user, LEDGERS[id].tag);
+    out[id] = note ? { noteId: note.id, ...LEDGERS[id].table(note.content) } : null;
+  }
+  return out;
 }
 
 /**
@@ -683,24 +791,172 @@ const rowSchema = z.object({
   note: z.string().trim().max(140).default(""),
 });
 
+/** A category's words, as a Matches cell: comma-separated, `=word` for a whole description. */
+const matchesCell = z.string().trim().max(2000).default("");
+const categoryAddSchema = z.object({ category: z.string().trim().min(1).max(60), matches: matchesCell });
+const ownAccountAddSchema = z.object({ account: z.string().trim().min(1).max(60), matches: z.string().trim().min(1).max(2000) });
+const money = z.union([z.number().finite(), z.null()]);
+const payslipAddSchema = z
+  .object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/), gross: money.default(null), net: money.default(null), file: z.string().trim().max(160).default("") })
+  .refine((p) => p.gross !== null || p.net !== null, "Type the gross or the net.");
+
+/** A row as the screen saw it (core RowRef, the index in the address). */
+const rowRefSchema = z.object({ version: z.string().min(1).max(64), name: z.string().max(200) });
+const rowChangeSchema = rowRefSchema.extend({ set: z.record(z.string().max(2000)) });
+const rowMoveSchema = rowRefSchema.extend({ to: z.number().int().min(0).max(10_000) });
+const shopMoveSchema = z.object({ merchant: z.string().trim().min(1).max(200), category: z.string().trim().min(1).max(60) });
+
+/** The index in a row's address. */
+function indexOf(raw: string): number {
+  if (!/^\d{1,5}$/.test(raw)) throw new HttpError(400, "a row is named by its number");
+  return Number(raw);
+}
+
+/** Which cells a change may set, per ledger, each checked as an add would check it. */
+const SETTABLE: Record<LedgerId, Record<string, z.ZodTypeAny>> = {
+  subscriptions: { service: rowSchema.shape.service, amount: rowSchema.shape.amount, cadence: rowSchema.shape.cadence, next: rowSchema.shape.next, note: rowSchema.shape.note },
+  income: { service: rowSchema.shape.service, amount: rowSchema.shape.amount, cadence: rowSchema.shape.cadence, next: rowSchema.shape.next, note: rowSchema.shape.note },
+  payslips: {
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+    gross: z.union([z.string().regex(/^\d{1,9}(\.\d{1,2})?$/), z.literal("")]),
+    net: z.union([z.string().regex(/^\d{1,9}(\.\d{1,2})?$/), z.literal("")]),
+    tax: z.union([z.string().regex(/^-?\d{1,9}(\.\d{1,2})?$/), z.literal("")]),
+  },
+  categories: { category: categoryAddSchema.shape.category, matches: matchesCell },
+  "own-accounts": { account: ownAccountAddSchema.shape.account, matches: ownAccountAddSchema.shape.matches },
+};
+
+/** The cells of a change, each checked; a field the ledger does not let a screen set is refused. */
+function setFor(id: LedgerId, set: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [field, value] of Object.entries(set)) {
+    const schema = SETTABLE[id][field];
+    if (!schema) throw new HttpError(400, `${field} is not something this list keeps`);
+    out[field] = String(schema.parse(value));
+  }
+  return out;
+}
+
 export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
 
-  app.post<{ Params: { kind: string } }>("/api/finance/:kind", auth, async (req) => {
-    const kind = req.params.kind;
-    if (kind !== "income" && kind !== "subscriptions") throw new HttpError(404, "unknown ledger");
-    const row = rowSchema.parse(req.body ?? {});
+  /**
+   * Add a row to a ledger. The note is made on the first add (ensureLedgerNote)
+   * and a tagged note with no table gets one, so nobody is sent to type a
+   * table. Subscriptions and income take a ledger line; the others their own
+   * fields.
+   */
+  app.post<{ Params: { ledger: string } }>("/api/finance/:ledger", auth, async (req) => {
+    const id = req.params.ledger;
+    if (!isLedger(id)) throw new HttpError(404, "unknown ledger");
     const user = store.aclUser(req.userId);
-
-    const note = financeNote(store, user, kind);
-    if (!note) throw new HttpError(404, `no note tagged #${FINANCE_TAG[kind]}`);
-
-    const next = appendMoneyRow(note.content, { ...row, service: row.service, note: row.note });
-    if (next === null) throw new HttpError(422, `${note.path} has no table with Name and Amount columns`);
-
+    let add: (text: string) => string | null;
+    if (id === "subscriptions" || id === "income") {
+      const row = rowSchema.parse(req.body ?? {});
+      add = (text) => appendMoneyRow(text, row);
+    } else if (id === "categories") {
+      const row = categoryAddSchema.parse(req.body ?? {});
+      const note = ledgerNote(store, user, LEDGERS.categories.tag);
+      if (note && categoryTable(note.content).rows.some((r) => r.name.trim().toLowerCase() === row.category.toLowerCase()))
+        throw new HttpError(409, `There is already a category called ${row.category}.`);
+      add = (text) => appendCategoryRow(text, row);
+    } else if (id === "own-accounts") {
+      const row = ownAccountAddSchema.parse(req.body ?? {});
+      add = (text) => appendOwnAccountRow(text, row);
+    } else {
+      const row = payslipAddSchema.parse(req.body ?? {});
+      const note = ledgerNote(store, user, LEDGERS.payslips.tag);
+      // Filing one month twice would count it twice in every average.
+      if (note && parsePayslipTable(note.content).some((r) => r.month === row.month)) throw new HttpError(409, `${row.month} is already filed.`);
+      add = (text) => appendPayslipRow(text, typedPayslip(row.month, row.gross, row.net), row.file);
+    }
+    const note = ensureLedgerNote(store, user, id);
     // Written through the store, so the ACL decides and the id is preserved.
+    const saved = store.write(user, note.path, withRow(note.content, id, add));
+    return { ok: true, noteId: saved.id, path: saved.path };
+  });
+
+  /**
+   * Change cells of one row, named as the screen saw it (rowRefSchema): its
+   * index, its name and the version of the table it read. A table changed
+   * since is a 409, never a change to whichever row is there now.
+   */
+  app.patch<{ Params: { ledger: string; index: string } }>("/api/finance/:ledger/:index", auth, async (req) => {
+    const id = req.params.ledger;
+    if (!isLedger(id)) throw new HttpError(404, "unknown ledger");
+    const { version, name, set } = rowChangeSchema.parse(req.body ?? {});
+    const user = store.aclUser(req.userId);
+    const note = ledgerNote(store, user, LEDGERS[id].tag);
+    if (!note) throw new HttpError(409, "This list changed since you opened it, so nothing was saved. Open it again and redo the change.");
+    // A cell sent back as it is written is no change, whatever it says: a hand-written
+    // "maandelijks" stays, and only what was changed is checked as new input.
+    const row = LEDGERS[id].table(note.content).rows.find((r) => r.index === indexOf(req.params.index));
+    const values = setFor(id, Object.fromEntries(Object.entries(set).filter(([k, v]) => row?.cells[k] !== v)));
+    // Withheld is gross − net, as a read payslip files it: a changed figure moves it too.
+    if (id === "payslips" && ("gross" in values || "net" in values) && !("tax" in values)) {
+      const fig = (k: string) => parseMoney(values[k] ?? row?.cells[k] ?? "");
+      const gross = fig("gross");
+      const net = fig("net");
+      if (row && "tax" in row.cells) values["tax"] = gross !== null && net !== null ? (Math.round((gross - net) * 100) / 100).toFixed(2) : "";
+    }
+    if (id === "payslips" && values["month"] && values["month"] !== name && parsePayslipTable(note.content).some((r) => r.month === values["month"]))
+      throw new HttpError(409, `${values["month"]} is already filed.`);
+    if (id === "categories" && values["category"] && categoryTable(note.content).rows.some((r) => r.name !== name && r.name.trim().toLowerCase() === values["category"]!.toLowerCase()))
+      throw new HttpError(409, `There is already a category called ${values["category"]}.`);
+    const next = written(LEDGERS[id].change(note.content, { index: indexOf(req.params.index), name, version }, values));
     const saved = store.write(user, note.path, next);
     return { ok: true, noteId: saved.id, path: saved.path };
+  });
+
+  /** Remove one row, named as the screen saw it. */
+  app.delete<{ Params: { ledger: string; index: string } }>("/api/finance/:ledger/:index", auth, async (req) => {
+    const id = req.params.ledger;
+    if (!isLedger(id)) throw new HttpError(404, "unknown ledger");
+    const { version, name } = rowRefSchema.parse(req.body ?? {});
+    const user = store.aclUser(req.userId);
+    const note = ledgerNote(store, user, LEDGERS[id].tag);
+    if (!note) throw new HttpError(409, "This list changed since you opened it, so nothing was saved. Open it again and redo the change.");
+    const saved = store.write(user, note.path, written(LEDGERS[id].remove(note.content, { index: indexOf(req.params.index), name, version })));
+    return { ok: true, noteId: saved.id, path: saved.path };
+  });
+
+  /** Move a category to where another one is: the order of the categories is the order of their colours. */
+  app.post<{ Params: { index: string } }>("/api/finance/categories/:index/move", auth, async (req) => {
+    const { version, name, to } = rowMoveSchema.parse(req.body ?? {});
+    const user = store.aclUser(req.userId);
+    const note = ledgerNote(store, user, LEDGERS.categories.tag);
+    if (!note) throw new HttpError(409, "This list changed since you opened it, so nothing was saved. Open it again and redo the change.");
+    const saved = store.write(user, note.path, written(moveCategoryRow(note.content, { index: indexOf(req.params.index), name, version }, to)));
+    return { ok: true, noteId: saved.id, path: saved.path };
+  });
+
+  /**
+   * Put a shop in a category: every row of it moves there. The shop's word is
+   * added to that category and taken off the one that had the same word
+   * (fileShopUnder); the answer says where it was, so the screen can say what
+   * moved. A shop one of the commitments claims stays a commitment, and money
+   * moved to an own account is not spending: both are refused with why.
+   */
+  app.post("/api/finance/categories/shop", auth, async (req) => {
+    const { merchant, category } = shopMoveSchema.parse(req.body ?? {});
+    const user = store.aclUser(req.userId);
+    const today = isoLocal();
+    const shop = merchant.replace(/\s+/g, " ").toUpperCase();
+    const subsNote = financeNote(store, user, "subscriptions");
+    const subscriptions = subsNote ? parseSubscriptions(subsNote.content, today) : [];
+    const txns = await txnsFor(store, user);
+    const descriptions = txns.map((t) => t.description);
+    const own = txns.find((t) => t.own && t.description.replace(/\s+/g, " ").toUpperCase() === shop)?.own;
+    if (own) throw new HttpError(422, `${shop} is your own account ${own}: money moved there is not spending.`);
+    const claimed = subscriptions.find((s) => matchesTerms(shop, termsFor(s, descriptions)));
+    if (claimed) throw new HttpError(422, `${shop} is your ${claimed.service} commitment, so it stays under ${claimed.category.trim() || COMMITTED_CATEGORY}.`);
+    const before = ledgerNote(store, user, LEDGERS.categories.tag);
+    const from = ruleFor(shop, before ? parseCategoryRules(before.content) : [])?.category ?? UNCATEGORISED;
+    const note = ensureLedgerNote(store, user, "categories");
+    const out = fileShopUnder(withTable(note.content, "categories"), shop, category);
+    if (!out.ok) throw new HttpError(out.status, out.reason);
+    const saved = out.content === note.content ? note : store.write(user, note.path, out.content);
+    return { ok: true, noteId: saved.id, path: saved.path, from, to: category.trim(), term: out.term };
   });
 
   /** Everything the Finance tab shows, in one call. */
@@ -994,6 +1250,8 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       files,
       /** Ledger tags on more than one note, and which one is used (ACL-011). */
       ledgerConflicts: ledgerConflicts(store, user),
+      /** Every ledger's rows as written, for the screens that change them. */
+      tables: ledgerTables(store, user),
     };
   });
 
@@ -1250,6 +1508,11 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const wanted = req.params.name.trim().toUpperCase(); // already decoded (FIN-013)
 
       const txns = await txnsFor(store, user);
+      const subsNote = financeNote(store, user, "subscriptions");
+      const subscriptions = subsNote ? parseSubscriptions(subsNote.content, isoLocal()) : [];
+      const rulesNote = ledgerNote(store, user, "spending-categories");
+      const rules = buildRules(rulesNote ? parseCategoryRules(rulesNote.content) : [], subscriptions, txns);
+      const descriptions = txns.map((t) => t.description);
 
       // Matched on the same normalisation the merchant lists are built with, so
       // what you clicked is exactly what comes back.
@@ -1303,6 +1566,16 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       const r2 = (n: number) => Math.round(n * 100) / 100;
       return {
         merchant: wanted,
+        /**
+         * Where this shop's rows are filed now, and why when a screen cannot
+         * move it: a commitment claims it (it stays under that commitment's
+         * category), or it is one of your own accounts (a move, not spending).
+         */
+        filing: {
+          category: categoryOfRow(wanted, rules),
+          commitment: subscriptions.find((s) => matchesTerms(wanted, termsFor(s, descriptions)))?.service ?? null,
+          own: mine.find((r) => r.own)?.own ?? null,
+        },
         years,
         year: year ?? null,
         /** Which way the money mostly goes here, so the page can say so. */
@@ -1372,15 +1645,16 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
     const parsed = parsePayslip(read.text);
     if (!payslipUsable(parsed)) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "unfamiliar payslip layout" };
 
-    const slipNote = ledgerNote(store, user, "payslips");
-    if (!slipNote) return { ok: true, name: keep(), stored: true, parsed, filed: false, reason: "no note tagged #payslips" };
     // Re-filing the same month would double-count it in every average.
-    if (parsePayslipTable(slipNote.content).some((r) => r.month === parsed!.month))
+    const had = ledgerNote(store, user, "payslips");
+    if (had && parsePayslipTable(had.content).some((r) => r.month === parsed!.month))
       return { ok: true, name, stored: false, parsed, filed: false, reason: `${parsed.month} is already filed` };
 
+    // The first payslip on an empty vault makes the payslips note, as any first add does.
+    const slipNote = ensureLedgerNote(store, user, "payslips");
     const stored = keep();
-    const next = appendPayslipRow(slipNote.content, parsed, stored);
-    if (next === null) return { ok: true, name: stored, stored: true, parsed, filed: false, reason: "the payslips note has no table" };
+    const next = appendPayslipRow(withTable(slipNote.content, "payslips"), parsed, stored);
+    if (next === null) return { ok: true, name: stored, stored: true, parsed, filed: false, reason: "the payslips list has no gross column" };
     store.write(user, slipNote.path, next);
     return { ok: true, name: stored, stored: true, parsed, filed: true };
   });
