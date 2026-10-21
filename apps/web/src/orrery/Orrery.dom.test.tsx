@@ -39,6 +39,9 @@ function Page({ onAsk = () => {} }: { onAsk?: () => void }) {
 const at = (href: string) => history.replaceState({ depth: 0 }, "", href);
 const path = () => location.pathname + location.search;
 const panel = () => screen.getByRole("complementary");
+/** The files are laid out: the panel counts them. The layout is real work (a page's first one is
+ *  cold, about half a second alone), so a loaded runner gets longer than findBy's 1 s. */
+const laidOut = () => within(panel()).findByText("16 files", {}, { timeout: 5_000 });
 
 beforeEach(() => {
   data = fixture();
@@ -51,7 +54,7 @@ describe("the whole vault", () => {
   it("reads the notes, then shows the vault with its life areas and what is in it", async () => {
     render(<Page />);
     expect(within(panel()).getByText("Reading your notes")).toBeTruthy();
-    expect(await within(panel()).findByText("16 files")).toBeTruthy();
+    expect(await laidOut()).toBeTruthy();
     expect(screen.getByText(/^16 files · 11 links · \d+ topics$/)).toBeTruthy();
     for (const a of ["School", "Work", "Claude & tools", "Personal", "Knowledge"]) expect(within(panel()).getByRole("button", { name: new RegExp(`^${a}`) })).toBeTruthy();
     expect(calls.sort()).toEqual(["/api/graph/schema", "/api/projects", "/api/vault/graph", "/api/vault/tree"]);
@@ -60,7 +63,7 @@ describe("the whole vault", () => {
   it("the reviews switch is remembered on this device", async () => {
     const user = userEvent.setup();
     render(<Page />);
-    await within(panel()).findByText("16 files");
+    await laidOut();
     const sw = within(panel()).getByRole("switch", { name: "Show reviews and templates" });
     expect(sw.getAttribute("aria-checked")).toBe("false");
     await user.click(sw);
@@ -71,7 +74,7 @@ describe("the whole vault", () => {
   it("an area's row goes to the area's address; its panel lists its topics and projects", async () => {
     const user = userEvent.setup();
     render(<Page />);
-    await within(panel()).findByText("16 files");
+    await laidOut();
     await user.click(within(panel()).getByRole("button", { name: /^Work/ }));
     expect(path()).toBe("/orrery?area=work");
     expect(await within(panel()).findByRole("heading", { name: "Work" })).toBeTruthy();
@@ -135,7 +138,7 @@ describe("Find", () => {
   it("finds names, best first, and picking one selects it", async () => {
     const user = userEvent.setup();
     render(<Page />);
-    await within(panel()).findByText("16 files");
+    await laidOut();
     await user.type(screen.getByRole("combobox", { name: "Find in the orrery" }), "kade");
     const options = screen.getAllByRole("option").map((o) => o.textContent);
     expect(options[0]).toMatch(/^Kade Social/);
@@ -146,7 +149,7 @@ describe("Find", () => {
   it("says so when nothing matches", async () => {
     const user = userEvent.setup();
     render(<Page />);
-    await within(panel()).findByText("16 files");
+    await laidOut();
     await user.type(screen.getByRole("combobox", { name: "Find in the orrery" }), "zzz");
     expect(screen.getByText("Nothing by that name.")).toBeTruthy();
   });
@@ -166,12 +169,12 @@ describe("empty and error", () => {
     expect(await screen.findByText("Can't read your notes folder")).toBeTruthy();
     data = fixture();
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await within(panel()).findByText("16 files")).toBeTruthy();
+    expect(await laidOut()).toBeTruthy();
   });
   it("a note changed elsewhere (live sync) reads the vault again, quietly", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     render(<Page />);
-    await within(panel()).findByText("16 files");
+    await laidOut();
     calls.length = 0;
     act(() => emitNoteChanged());
     await act(async () => {
