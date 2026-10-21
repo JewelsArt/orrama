@@ -55,7 +55,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
   const removeExample = () =>
     setAsk({
       title: "Remove the example?",
-      body: "This deletes Garden studio, Sam Rivera, Oakline Builders and the site visit, with anything you added to them. Your own notes stay.",
+      body: "Garden studio, Sam Rivera and Oakline Builders go to the trash, with anything you added to them, and the site visit leaves your calendar. Your own notes stay.",
       confirmLabel: "Remove the example",
       danger: true,
       failed: "The example wasn't removed.",

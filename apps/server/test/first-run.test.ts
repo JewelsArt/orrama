@@ -40,6 +40,8 @@ const files = (dir = vault, out: string[] = []) => {
   }
   return out.sort();
 };
+/** The notes folder as a person sees it: everything outside the trash. */
+const notesFiles = () => files().filter((f) => !f.startsWith(".trash/"));
 
 beforeAll(async () => {
   b = await buildServer();
@@ -117,10 +119,14 @@ describe("first run on an empty folder", () => {
     expect(files()).toEqual(before);
   });
 
-  it("Remove the example takes exactly its notes and its event away, and leaves the rest", async () => {
+  it("Remove the example puts exactly its notes in the trash, takes its event away, and leaves the rest", async () => {
     const r = await as("DELETE", "/api/settings/example");
     expect(r.json()).toEqual({ removed: 4 });
-    expect(files()).toEqual([ONTOLOGY_PATH, "04-Projects/kitchen-renovation.md"].sort());
+    expect(notesFiles()).toEqual([ONTOLOGY_PATH, "04-Projects/kitchen-renovation.md"].sort());
+    // In the trash, restorable, as any note put there (1C), not deleted for good.
+    const trashed = [...exampleFiles(new Date()).map((f) => f.path), `01-Me/Calendar/${new Date().toISOString().slice(0, 7)}.md`].sort();
+    expect(files().filter((f) => f.startsWith(".trash/"))).toEqual(trashed.map((f) => `.trash/${f}`));
+    expect(((await as("GET", "/api/vault/trash")).json() as { from: string }[]).map((t) => t.from).sort()).toEqual(trashed);
     expect(b.store.index.getByPath("Contacts/Sam Rivera.md")).toBeUndefined();
     expect(b.db.select().from(tables.events).all()).toEqual([]);
     expect((await as("GET", "/api/settings/server")).json()).toMatchObject({ example: 0 });
@@ -139,7 +145,7 @@ describe("first run on an empty folder", () => {
       payload: { email: "kim@example.test", username: "kim", displayName: "Kim", password: "correct horse battery", inviteToken: invite.json().token },
     });
     expect(r.statusCode).toBe(200);
-    expect(files()).toEqual(["04-Projects/kitchen-renovation.md"]);
+    expect(notesFiles()).toEqual(["04-Projects/kitchen-renovation.md"]);
     expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false });
     expect((await as("POST", "/api/settings/start", { example: false }, sessionOf(r))).statusCode).toBe(403);
   });

@@ -121,6 +121,6 @@ export async function settingsRoutes(app: FastifyInstance, db: Db, store: VaultS
   /** Remove the example: its notes and its event, nothing else. */
   app.delete("/api/settings/example", choosing, async (req) => {
     const user = owner(req.userId);
-    return { removed: await removeExample(db, store, calendar, user) };
+    return { removed: removeExample(db, store, calendar, user) };
   });
 }

@@ -348,11 +348,11 @@ export function startHere(db: Db, store: VaultStore, calendar: CalendarNotes, us
 
 /**
  * Take the example away: its event, and exactly the notes it wrote, wherever they are now and
- * whatever was added to them since (the Confirm says so). Deleted for good until the notes'
- * trash exists (1C); then they move there. A calendar note the example made keeps living when
- * it holds rows of the person's own.
+ * whatever was added to them since (the Confirm says so). The notes go to the trash, as any
+ * note put there does (restorable until Empty trash). A calendar note the example made keeps
+ * living when it holds rows of the person's own.
  */
-export async function removeExample(db: Db, store: VaultStore, calendar: CalendarNotes, user: AclUser): Promise<number> {
+export function removeExample(db: Db, store: VaultStore, calendar: CalendarNotes, user: AclUser): number {
   if (!user.isOwner) throw new HttpError(403, "workspace owner required");
   const rec = readExample(db);
   const notes = exampleNotes(db, store);
@@ -367,17 +367,14 @@ export async function removeExample(db: Db, store: VaultStore, calendar: Calenda
       if (!(err instanceof HttpError && err.statusCode === 404)) throw err; // already gone
     }
   }
-  const gone: string[] = [];
+  let gone = 0;
   for (const id of rec.notes) {
     const note = store.requireEditable(user, id);
     const keeps = note.path.split("/").includes("Calendar") && parseCalendarRows(user.username, note.content).length > 0;
     if (keeps) continue;
-    fs.rmSync(path.join(store.vaultRoot, ...note.path.split("/")), { force: true });
-    gone.push(note.path);
+    store.trashNote(user, note.path);
+    gone += 1;
   }
   writeExample(db, null);
-  // The watcher drops each one from the index; wait for it (bounded), so the answer and the
-  // next page agree.
-  for (let i = 0; i < 100 && gone.some((p) => store.index.getByPath(p)); i++) await new Promise((r) => setTimeout(r, 50));
-  return gone.length;
+  return gone;
 }
