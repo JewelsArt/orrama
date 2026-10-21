@@ -494,7 +494,7 @@
 - **Imports**: react, ./ui/icon-paths.js
 
 ### `apps/web/src/livePreview.ts`
-- **Exports**: WikiLinkSpan, wikiLinks, dueWords, InlineMarks, inlineMarks, frontmatterRange, livePreview
+- **Exports**: WikiLinkSpan, wikiLinks, dueWords, InlineMarks, inlineMarks, clickedMark, frontmatterRange, livePreview
 - **Imports**: @codemirror/state, @orrama/core/dates, @orrama/core, @codemirror/view
 
 ### `apps/web/src/mail/Composer.tsx`

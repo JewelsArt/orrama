@@ -2,8 +2,8 @@
  * The real editor, previewing (structure.md §2.3): what a reader sees off the line being
  * edited — no `**`, a bullet for a dash, due dates in words, a done task without a late mark.
  */
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { isoLocal } from "@orrama/core/dates";
 import { Editor } from "./Editor.js";
 
@@ -42,5 +42,18 @@ describe("the preview, off the line being edited", () => {
     expect(ls[6]!.querySelector(".cm-due")?.textContent).toBe("today");
     expect(container.textContent).not.toContain("due:");
     expect(ls[7]!.querySelector(".cm-task-done .cm-strong, .cm-strong")?.textContent).toBe("Done");
+  });
+});
+
+describe("a task's box, clicked in the editor (1B)", () => {
+  it("does what the To-do's box does: open, in progress and blocked become done; done is open again", () => {
+    const text = ["- [ ] open", "- [/] doing", "- [b] stuck", "- [x] done", "- [X] Done", "intro"].join("\n");
+    const onChange = vi.fn();
+    const { container } = render(<Editor noteId="n" content={text} readOnly={false} completions={{ titles: [], users: [], tags: [] }} onChange={onChange} />);
+    const boxes = [...container.querySelectorAll(".cm-task-box")];
+    expect(boxes).toHaveLength(5);
+    for (const b of boxes) fireEvent.mouseDown(b);
+    const last = onChange.mock.calls.at(-1)![0] as string;
+    expect(last.split("\n")).toEqual(["- [x] open", "- [x] doing", "- [x] stuck", "- [ ] done", "- [ ] Done", "intro"]);
   });
 });

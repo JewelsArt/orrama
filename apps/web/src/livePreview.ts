@@ -231,6 +231,14 @@ class RuleWidget extends WidgetType {
   }
 }
 
+/**
+ * What a click on a task's box writes: what the project To-do's box does (POST
+ * /api/tasks/check with `checked: !done`). An open, in-progress or blocked step becomes done
+ * (`[x]`); a done one (`[x]` or `[X]`) is open again (`[ ]`). In progress and blocked are set
+ * from the step's card or the To-do's menu, never by cycling the box.
+ */
+export const clickedMark = (mark: string): " " | "x" => (mark === "x" || mark === "X" ? " " : "x");
+
 class CheckboxWidget extends WidgetType {
   constructor(
     /** The character between the brackets: " ", "x", "X", "/" or "b". */
@@ -258,7 +266,7 @@ class CheckboxWidget extends WidgetType {
       box.addEventListener("mousedown", (e) => {
         e.preventDefault();
         view.dispatch({
-          changes: { from: this.pos, to: this.pos + 1, insert: this.checked ? " " : "x" },
+          changes: { from: this.pos, to: this.pos + 1, insert: clickedMark(this.mark) },
         });
       });
     }
