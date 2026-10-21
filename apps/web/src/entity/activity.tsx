@@ -12,7 +12,7 @@ import { Checkbox } from "../ui/controls.js";
 import { dateLabel, dateTimeLabel, minutesLabel } from "../ui/dates.js";
 import { Icon } from "../ui/Icon.js";
 import { Module, Row, RowList } from "../ui/layout.js";
-import { routeHref } from "../ui/router.js";
+import { navigate, routeHref } from "../ui/router.js";
 import { anchor, linkTo } from "./links.js";
 import { useLoad, type Load } from "./known.js";
 import { activityOf, type InboxItem, type Who } from "./model.js";
@@ -40,7 +40,8 @@ const ok = <T,>(l: Load<T>): T | null => (l.state === "ok" ? l.data : null);
 const boxOf = (s: DashboardTask["status"]) => (s === "done" ? "done" : s === "in-progress" ? "progress" : s === "blocked" ? "blocked" : "open");
 
 export function ActivityModule({ title, sources, who, onChanged }: { title: string; sources: Sources; who: Who; onChanged: () => void }) {
-  const card = useTaskCard(async () => onChanged(), () => {});
+  // The card's "from the note" opens the note, as everywhere else it is opened from.
+  const card = useTaskCard(async () => onChanged(), (id) => navigate({ kind: "notes", id }));
   const a = activityOf({ tasks: ok(sources.tasks), events: ok(sources.events), mail: ok(sources.inbox)?.messages ?? null }, who);
   const loading = sources.tasks.state === "loading" || sources.events.state === "loading";
   const empty = a.mail.length + a.events.length + a.tasks.length === 0;
