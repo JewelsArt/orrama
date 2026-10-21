@@ -105,20 +105,27 @@ export function guardStorage(win: Window = globalThis as unknown as Window): boo
 }
 
 /**
- * The keys were `basalt-…` until the rename to Orrama (R13): the session token (traded for the
- * cookie at boot since WEB-013, `adoptStoredSession` in api.ts), the theme, every
- * remembered tab, unsaved drafts (`basalt-draft:<id>`). Run first thing in main.tsx, before any
- * screen reads a key, this moves each one to its `orrama-…` name, so the first load of the
- * renamed app keeps you signed in and keeps everything this browser remembered. A move, not a
- * copy: nothing is left under the old name to come back later (a draft discarded under the new
- * name must stay discarded). If the new name already holds a value it wins, and the old one is
- * dropped. A key that cannot be written stays under its old name and is tried again next load.
+ * The keys were `basalt-…` until the rename to Orrama (R13): the theme, every remembered tab,
+ * unsaved drafts (`basalt-draft:<id>`). Run first thing in main.tsx, before any screen reads a
+ * key, this moves each one to its `orrama-…` name, so the first load of the renamed app keeps
+ * everything this browser remembered. A move, not a copy: nothing is left under the old name to
+ * come back later (a draft discarded under the new name must stay discarded). If the new name
+ * already holds a value it wins, and the old one is dropped. A key that cannot be written stays
+ * under its old name and is tried again next load.
+ *
+ * The session token the app kept before the cookie (WEB-013) is deleted, under either name,
+ * never moved or sent: the server no longer takes it as `Bearer`, but until its session ends it
+ * still signs in anyone who puts it in a cookie, so it must not sit in storage any script can read.
  */
+/** Where the app kept its session token before the cookie: before and after the rename (R13). */
+const OLD_SESSION_TOKEN_KEYS = ["basalt-token", "orrama-token"];
+
 export function migrateLegacyKeys(): number {
   let moved = 0;
   try {
     const s = store();
     if (!s) return 0;
+    for (const key of OLD_SESSION_TOKEN_KEYS) s.removeItem(key);
     const old: string[] = [];
     for (let i = 0; i < s.length; i++) {
       const key = s.key(i);

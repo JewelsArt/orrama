@@ -3,7 +3,7 @@
  * page kept in localStorage, where any script on the page could read it and use
  * it from another machine. Here: what the cookie looks like, that a write it
  * carries must come from one of our own pages, that signing out clears it, and
- * the one-time trade of a token a browser still holds from before.
+ * that a session token sent as Bearer, as the app sent it before, is refused.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -30,7 +30,6 @@ const { buildServer } = await import("../src/main.js");
 const { tables } = await import("../src/db.js");
 const { SESSION_COOKIE } = await import("../src/routes/auth.js");
 const { env } = await import("../src/env.js");
-const { rekeySession } = await import("../src/sessions.js");
 
 type Built = Awaited<ReturnType<typeof buildServer>>;
 let b: Built;
@@ -202,77 +201,26 @@ describe("signing out clears the cookie and ends the row", () => {
   });
 });
 
-describe("a token kept from before the cookie (this release only)", () => {
-  /** A session as the old app held it: the token, named in no cookie. */
-  const oldToken = async () => {
+describe("a session token sent as Bearer (what the app kept before the cookie)", () => {
+  it("is refused, read or write, while the same session as the cookie and an API token both work", async () => {
     const session = cookieValue(await login());
-    // The old app was handed exactly this kind of token: {sub, sid}, signed with the same key.
-    return session;
-  };
+    const made = await withCookie(session, "POST", "/api/tokens", { origin: OWN }, { label: "script" });
+    expect(made.statusCode).toBe(200);
+    const apiToken = made.json().token as string;
 
-  it("still works as Bearer, so an open window keeps working until it reloads", async () => {
-    const token = await oldToken();
-    expect((await bearer(token, "GET", "/api/me")).statusCode).toBe(200);
-  });
-
-  it("is traded for the cookie once: same session row, a new id, and the old token is dead after", async () => {
-    const token = await oldToken();
-    // Signed in ten days ago.
-    const DAY = 86_400_000;
-    b.db.update(tables.sessions).set({ createdAt: Date.now() - 10 * DAY }).where(eq(tables.sessions.id, sidOf(token))).run();
-    const before = sessionRow(sidOf(token))!;
-    const r = await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${token}`, origin: OWN } });
-    expect(r.statusCode).toBe(200);
-    expect(r.json()).toEqual({ user: expect.objectContaining({ email: EMAIL }) });
-    expect(JSON.stringify(r.json())).not.toContain(token);
-    const session = cookieValue(r);
-    expect(setCookie(r).split("; ")).toEqual(expect.arrayContaining(["HttpOnly", "SameSite=Strict", "Path=/"]));
-
-    // The same session (its sign-in time and label), under a new id.
-    const after = sessionRow(sidOf(session))!;
-    expect(after.id).not.toBe(before.id);
-    expect(after.createdAt).toBe(before.createdAt);
-    expect(after.label).toBe(before.label);
-    expect(sessionRow(before.id)).toBeUndefined();
-    // It still ends 30 days after it began, not 30 days after the trade: 20 days left.
-    const maxAge = Number(/Max-Age=(\d+)/.exec(setCookie(r))![1]);
-    expect(maxAge).toBeLessThanOrEqual(20 * 86_400);
-    expect(maxAge).toBeGreaterThan(20 * 86_400 - 60);
-    const exp = (b.app.jwt.decode(cookieValue(r)) as { exp: number }).exp * 1000;
-    expect(Math.abs(exp - (before.createdAt + 30 * DAY))).toBeLessThan(60_000);
+    expect((await bearer(session, "GET", "/api/me")).statusCode).toBe(401);
+    const write = await b.app.inject({ method: "PATCH", url: "/api/me", headers: { authorization: `Bearer ${session}`, origin: OWN }, payload: { displayName: "Not me" } });
+    expect(write.statusCode).toBe(401);
+    expect((await withCookie(session, "GET", "/api/me")).json().displayName).toBe("Owner");
 
     expect((await withCookie(session, "GET", "/api/me")).statusCode).toBe(200);
-    expect((await bearer(token, "GET", "/api/me")).statusCode).toBe(401);
-    const again = await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${token}` } });
-    expect(again.statusCode).toBe(401);
-    expect(setCookie(again)).toBe("");
+    expect((await bearer(apiToken, "GET", "/api/vault/tree")).statusCode).toBe(200);
   });
 
-  it("only for a live session: a signed-out one, a forged one or an API token gets nothing", async () => {
-    const token = await oldToken();
-    await bearer(token, "POST", "/api/auth/logout");
-    const owner = b.db.select().from(tables.users).all()[0]!;
-    for (const t of [token, b.app.jwt.sign({ sub: owner.id, sid: "s-made-up" }), b.app.jwt.sign({ sub: owner.id }), "bslt_nothing", "not-a-token"]) {
-      const r = await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${t}` } });
-      expect(r.statusCode).toBe(401);
-      expect(setCookie(r)).toBe("");
-    }
-  });
-
-  it("a session revoked between the check and the trade stays revoked (rekeySession)", async () => {
-    const token = await oldToken();
-    const sid = sidOf(token);
-    const owner = b.db.select().from(tables.users).all()[0]!;
-    b.db.update(tables.sessions).set({ revokedAt: Date.now() }).where(eq(tables.sessions.id, sid)).run();
-    expect(rekeySession(b.db, owner.id, sid)).toBeNull();
-    expect(sessionRow(sid)?.revokedAt).not.toBeNull();
-  });
-
-  it("not for a page on another site", async () => {
-    const token = await oldToken();
-    const r = await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${token}`, origin: "https://evil.example" } });
-    expect(r.statusCode).toBe(403);
+  it("cannot be traded for the cookie: /api/auth/exchange is gone", async () => {
+    const session = cookieValue(await login());
+    const r = await b.app.inject({ method: "POST", url: "/api/auth/exchange", headers: { authorization: `Bearer ${session}`, origin: OWN } });
+    expect(r.statusCode).toBe(404);
     expect(setCookie(r)).toBe("");
-    expect((await bearer(token, "GET", "/api/me")).statusCode).toBe(200); // and nothing was spent
   });
 });

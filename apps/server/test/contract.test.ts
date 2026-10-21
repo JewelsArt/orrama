@@ -167,12 +167,6 @@ describe("every way in answers with the account, and the session only in its coo
     await must("POST", "/api/auth/passcode", { passcode: "2468" });
     check(await signIn("/api/auth/unlock", { email: "jules@orrama.dev", passcode: "2468" }));
   });
-
-  it("POST /api/auth/exchange", async () => {
-    // A token as the app before the cookie kept it: {sub, sid} for a live session.
-    const fresh = sessionOf(await signIn("/api/auth/login", { email: "jules@orrama.dev", password: "orrama-demo" }));
-    check(await signIn("/api/auth/exchange", {}, { authorization: `Bearer ${fresh}` }));
-  });
 });
 
 describe("every GET the web app reads matches its schema", () => {

@@ -52,25 +52,6 @@ export function sessionUser(db: Db, payload: { sub?: unknown; sid?: unknown }, n
   return row.userId;
 }
 
-/**
- * Give a live session a new id, for the switch from a stored token to the cookie (WEB-013,
- * `POST /api/auth/exchange`). The row stays the same session — its label, its sign-in time, its
- * place in Settings — but every token naming the old id stops working, so the token a browser
- * kept in its storage can be traded in once, and a copy of it is worth nothing after. Returns
- * the new id and when the session began (it still ends 30 days after that), or null when the
- * old id names no live session of `userId`'s.
- */
-export function rekeySession(db: Db, userId: string, sessionId: string): { id: string; createdAt: number } | null {
-  const id = `s-${crypto.randomUUID()}`;
-  const row = db
-    .update(tables.sessions)
-    .set({ id })
-    .where(and(eq(tables.sessions.id, sessionId), eq(tables.sessions.userId, userId), isNull(tables.sessions.revokedAt)))
-    .returning({ id: tables.sessions.id, createdAt: tables.sessions.createdAt })
-    .get();
-  return row ?? null;
-}
-
 /** Revoke one of `userId`'s sessions. False when it is not theirs or already ended. */
 export function revokeSession(db: Db, userId: string, sessionId: string, now = Date.now()): boolean {
   const res = db

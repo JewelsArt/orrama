@@ -3,8 +3,7 @@
  * sessions could be revoked there was no such thing; now a revoked device
  * would otherwise sit on a page of failing requests. And since WEB-013 the
  * session is a cookie the page never holds: what is left here is whether the
- * page counts itself signed in, and the one-time trade of a token kept from
- * before the cookie.
+ * page counts itself signed in.
  */
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,11 +17,9 @@ const win = new EventTarget();
 vi.stubGlobal("window", win);
 
 let status = 401;
-let down = false;
 const calls: { url: string; method: string; headers: Headers; credentials?: string }[] = [];
 vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
   calls.push({ url, method: init.method ?? "GET", headers: new Headers(init.headers), credentials: init.credentials });
-  if (down) throw new TypeError("Failed to fetch");
   return new Response(JSON.stringify(status === 200 ? { ok: true } : { error: "this session has ended" }), { status });
 });
 
@@ -33,7 +30,6 @@ beforeAll(async () => {
 beforeEach(() => {
   store.clear();
   calls.length = 0;
-  down = false;
   mod.sessionStarted();
 });
 
@@ -87,31 +83,5 @@ describe("signOut", () => {
     expect(calls.map((c) => [c.url, c.method])).toEqual([["/api/auth/logout", "POST"]]);
     status = 401;
     expect(await ended(() => mod.api("GET", "/api/vault/tree"))).toBe(0);
-  });
-});
-
-describe("a token kept from before the cookie (this release only)", () => {
-  it("is traded for the cookie once, then forgotten", async () => {
-    store.set("orrama-token", "t-old");
-    status = 200;
-    await mod.adoptStoredSession();
-    expect(calls.map((c) => [c.url, c.method, c.headers.get("authorization")])).toEqual([["/api/auth/exchange", "POST", "Bearer t-old"]]);
-    expect(store.has("orrama-token")).toBe(false);
-    await mod.adoptStoredSession(); // the next boot: nothing to trade
-    expect(calls).toHaveLength(1);
-  });
-
-  it("refused (that session is over), it is forgotten too", async () => {
-    store.set("orrama-token", "t-dead");
-    status = 401;
-    await mod.adoptStoredSession();
-    expect(store.has("orrama-token")).toBe(false);
-  });
-
-  it("with the server away, it is kept for the next boot", async () => {
-    store.set("orrama-token", "t-old");
-    down = true;
-    await mod.adoptStoredSession();
-    expect(store.get("orrama-token")).toBe("t-old");
   });
 });

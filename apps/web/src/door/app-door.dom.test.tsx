@@ -40,25 +40,19 @@ describe("the door in the app", () => {
     expect(screen.queryByTestId("view")?.dataset.view).toBe("login");
   });
 
-  it("a token kept from before the cookie is traded for it first, so the switch signs no one out (WEB-013)", async () => {
+  it("a token kept from before the cookie is never sent: the cookie alone signs in (WEB-013)", async () => {
     const asked: string[] = [];
-    serve({
-      // The cookie only exists once the trade is done: before it, nobody is signed in.
-      "GET /api/me": () => (asked.includes("POST /api/auth/exchange") ? ME : new Response("{}", { status: 401 })),
-      "POST /api/auth/exchange": { user: ME },
-    });
+    serve();
     const served = fetch;
     vi.stubGlobal("fetch", async (url: string, init: { method?: string; headers?: Record<string, string> } = {}) => {
-      asked.push(`${init.method ?? "GET"} ${url}`);
-      if (url === "/api/auth/exchange") expect(init.headers?.authorization).toBe("Bearer t-kept");
+      asked.push(`${init.method ?? "GET"} ${url} ${JSON.stringify(init.headers ?? {})}`);
       return served(url, init as RequestInit);
     });
     localStorage.setItem("orrama-token", "t-kept");
     at("/today");
     render(<App />);
     expect((await screen.findByTestId("view")).dataset.view).toBe("today");
-    expect(asked.indexOf("POST /api/auth/exchange")).toBeLessThan(asked.indexOf("GET /api/me"));
-    expect(localStorage.getItem("orrama-token")).toBeNull();
+    expect(asked.filter((a) => a.includes("t-kept") || a.includes("/api/auth/exchange"))).toEqual([]);
   });
 
   it("signed in by the cookie at boot, a 401 from any request later goes back to the door", async () => {

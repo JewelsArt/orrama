@@ -238,20 +238,19 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
       db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();
       return;
     }
-    // A session is the HttpOnly cookie (WEB-013, auth.ts). A session token sent as
-    // `Bearer` is what a browser kept before the cookie, accepted for this one
-    // release so nobody is signed out by the switch (the app trades it for the
-    // cookie at boot, /api/auth/exchange); the next stage drops it.
-    const verified = (token: string | null): { sub?: unknown; sid?: unknown } | null => {
-      if (!token) return null;
+    // A session is the HttpOnly cookie and nothing else (WEB-013, auth.ts). The only
+    // credential sent as `Bearer` is an API token, above: a session token sent that
+    // way (what a browser kept before the cookie) is refused, so one lifted from
+    // an old browser's storage is not a way in.
+    const cookie = sessionCookieOf(req.headers.cookie);
+    let payload: { sub?: unknown; sid?: unknown } | null = null;
+    if (cookie) {
       try {
-        return app.jwt.verify(token);
+        payload = app.jwt.verify(cookie);
       } catch {
-        return null;
+        payload = null;
       }
-    };
-    const fromCookie = verified(sessionCookieOf(req.headers.cookie));
-    const payload = fromCookie ?? verified(header.startsWith("Bearer ") ? header.slice(7) : null);
+    }
     if (!payload) return reply.code(401).send({ error: "authentication required" });
     // A valid signature is not enough: the session must still be open
     // (sessions.ts) — signed out, revoked from Settings, or from before
@@ -261,7 +260,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream } = 
     // The browser attaches the cookie by itself, so a write it carries must come
     // from one of our own pages. SameSite=Strict already keeps other sites'
     // requests from carrying it; this is the second lock (auth.ts `fromOwnSite`).
-    if (fromCookie && !SAFE_METHODS.has(req.method) && !fromOwnSite(req.headers, env.publicOrigins)) {
+    if (!SAFE_METHODS.has(req.method) && !fromOwnSite(req.headers, env.publicOrigins)) {
       return reply.code(403).send({ error: "this request came from another site" });
     }
     req.userId = userId;

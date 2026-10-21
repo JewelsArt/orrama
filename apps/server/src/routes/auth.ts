@@ -12,7 +12,7 @@ import {
 import { appearanceSchema, loginSchema, passcodeSchema, registerSchema, unlockSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
-import { listSessions, openSession, rekeySession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
+import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
 import { RETIRED_USERNAME, usernameRetired } from "../usernames.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -534,39 +534,6 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     store.events.emit("session-revoked", { sessionId: id });
     if (id === req.sessionId) clearSessionCookie(req, reply);
     return { ok: true };
-  });
-
-  /**
-   * The switch to the cookie, for a browser that still holds a session token from before it
-   * (WEB-013): the desktop window, the phone, an open tab. The app sends that token here once,
-   * as `Bearer`, and forgets it; the session moves into the cookie under a new id (`rekeySession`),
-   * so it works once, only while the session is live, and the old token is dead after — a copy
-   * of it taken from the browser's storage included. The session keeps its 30 days from when it
-   * began. No live-sync socket can be open on the old id: a socket signs in from the cookie,
-   * and no cookie ever held a token from before it. Goes with the `Bearer <session token>`
-   * path in `authenticate`: both leave next stage.
-   */
-  app.post("/api/auth/exchange", async (req, reply) => {
-    const header = String(req.headers.authorization ?? "");
-    const refuse = () => reply.code(401).send({ error: "this session has ended — sign in again" });
-    if (!header.startsWith("Bearer ") || header.startsWith("Bearer bslt_")) return refuse();
-    // A page on another site cannot set this header, but it could still be made to send it:
-    // the cookie this answers with is only ever for one of our own pages.
-    if (req.headers.origin !== undefined && !fromOwnSite(req.headers, env.publicOrigins)) {
-      return reply.code(403).send({ error: "this request came from another site" });
-    }
-    let payload: { sub?: unknown; sid?: unknown };
-    try {
-      payload = app.jwt.verify(header.slice(7));
-    } catch {
-      return refuse();
-    }
-    const userId = sessionUser(db, payload);
-    if (!userId) return refuse();
-    const moved = rekeySession(db, userId, payload.sid as string);
-    if (!moved) return refuse(); // traded in by another request meanwhile
-    setSession(req, reply, userId, moved.id, (moved.createdAt + SESSION_DAYS * 86_400_000 - Date.now()) / 1000);
-    return reply.send({ user: publicUser(db, store, userId) });
   });
 }
 

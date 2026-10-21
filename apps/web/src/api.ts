@@ -18,7 +18,7 @@ export type {
   TreeNote,
 } from "@orrama/schema/responses";
 import type { Me, SignedIn } from "@orrama/schema/responses";
-import { readKey, removeKey, writeKey } from "./storage.js";
+import { readKey, writeKey } from "./storage.js";
 
 /**
  * The session is a cookie this page cannot read (WEB-013): the server sets it at sign-in,
@@ -33,27 +33,6 @@ let signedIn = false;
 export const sessionStarted = (): void => void (signedIn = true);
 /** Signed out, or the server ended the session. */
 export const sessionOver = (): void => void (signedIn = false);
-
-/** Where the app before the cookie kept its token (`basalt-token` before R13, moved by migrateLegacyKeys). */
-const LEGACY_TOKEN_KEY = "orrama-token";
-
-/**
- * Trade a token kept from before the cookie for the cookie, once, at boot, then forget it
- * (`POST /api/auth/exchange`): the desktop window, the phone and every open tab held one, and
- * the switch must not sign anyone out. Forgotten too when the server refuses it (that session
- * is over anyway); kept when the server could not be reached, to try again next time.
- * The next release drops this and the server's side of it.
- */
-export async function adoptStoredSession(): Promise<void> {
-  const old = readKey(LEGACY_TOKEN_KEY);
-  if (!old) return;
-  try {
-    const res = await fetch("/api/auth/exchange", { method: "POST", headers: { authorization: `Bearer ${old}` } });
-    if (res.ok || res.status === 401) removeKey(LEGACY_TOKEN_KEY);
-  } catch {
-    // Offline or restarting: the token stays for the next boot.
-  }
-}
 
 /**
  * The last address that signed in on this device. Only a convenience: it decides

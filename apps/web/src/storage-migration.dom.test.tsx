@@ -1,8 +1,8 @@
 /**
  * The rename to Orrama (R13) renamed every key this browser keeps, basalt-… to orrama-…. The
- * first load of the renamed app moves them before anything reads one, so nobody is signed out
- * and nothing remembered is lost: the session token (then traded for the cookie, WEB-013), the
- * theme, the remembered tabs, the unsaved drafts.
+ * first load of the renamed app moves them before anything reads one, so nothing remembered is
+ * lost: the theme, the remembered tabs, the unsaved drafts. The session token the app kept before
+ * the cookie (WEB-013) is deleted instead, under either name.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -28,8 +28,8 @@ describe("the move from basalt-… keys", () => {
     localStorage.setItem("basalt-ask-history", "[]");
     localStorage.setItem("dh-order", "[]"); // someone else's key: untouched
     const { migrateLegacyKeys } = await import("./storage.js");
-    expect(migrateLegacyKeys()).toBe(4);
-    expect(localStorage.getItem("orrama-token")).toBe("t-live");
+    expect(migrateLegacyKeys()).toBe(3);
+    expect(localStorage.getItem("orrama-token")).toBeNull();
     expect(localStorage.getItem("orrama-theme")).toBe("command");
     expect(localStorage.getItem("orrama-draft:n-1")).toBe('{"content":"typed"}');
     expect(localStorage.getItem("orrama-ask-history")).toBe("[]");
@@ -41,17 +41,17 @@ describe("the move from basalt-… keys", () => {
     expect(localStorage.getItem("orrama-draft:n-1")).toBeNull();
   });
 
-  it("the moved token is the one the app trades for the session cookie (WEB-013)", async () => {
-    localStorage.setItem("basalt-token", "t-live");
-    localStorage.setItem("basalt-last-email", "ines@example.com");
-    (await import("./storage.js")).migrateLegacyKeys();
-    const fetched = vi.fn(async () => new Response(JSON.stringify({ user: {} }), { status: 200 }));
+  it("the session token kept before the cookie is deleted under either name, never sent (WEB-013)", async () => {
+    localStorage.setItem("basalt-token", "t-old");
+    localStorage.setItem("orrama-token", "t-live");
+    localStorage.setItem("orrama-last-email", "ines@example.com");
+    const fetched = vi.fn();
     vi.stubGlobal("fetch", fetched);
-    const api = await import("./api.js");
-    await api.adoptStoredSession();
-    expect(fetched).toHaveBeenCalledWith("/api/auth/exchange", { method: "POST", headers: { authorization: "Bearer t-live" } });
+    (await import("./storage.js")).migrateLegacyKeys();
+    expect(localStorage.getItem("basalt-token")).toBeNull();
     expect(localStorage.getItem("orrama-token")).toBeNull();
-    expect(api.lastEmail()).toBe("ines@example.com");
+    expect((await import("./api.js")).lastEmail()).toBe("ines@example.com");
+    expect(fetched).not.toHaveBeenCalled();
   });
 
   it("a value already under the new name wins", async () => {
@@ -63,16 +63,16 @@ describe("the move from basalt-… keys", () => {
   });
 
   it("a key that cannot be written stays under its old name, to be tried again", async () => {
-    localStorage.setItem("basalt-token", "t-live");
+    localStorage.setItem("basalt-theme", "command");
     const { migrateLegacyKeys } = await import("./storage.js");
     const setItem = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("full", "QuotaExceededError");
     });
     expect(migrateLegacyKeys()).toBe(0);
-    expect(localStorage.getItem("basalt-token")).toBe("t-live");
+    expect(localStorage.getItem("basalt-theme")).toBe("command");
     setItem.mockRestore();
     expect(migrateLegacyKeys()).toBe(1);
-    expect(localStorage.getItem("orrama-token")).toBe("t-live");
+    expect(localStorage.getItem("orrama-theme")).toBe("command");
   });
 
   it("storage that refuses outright is not an error", async () => {

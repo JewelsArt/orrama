@@ -56,13 +56,9 @@ describe("storage.ts", () => {
 });
 
 describe("with storage refused", () => {
-  it("api.ts still imports, with nothing to trade and no address", async () => {
+  it("api.ts still imports, with no address", async () => {
     refuseStorage();
-    const fetched = vi.fn();
-    vi.stubGlobal("fetch", fetched);
     const api = await import("./api.js");
-    await api.adoptStoredSession();
-    expect(fetched).not.toHaveBeenCalled();
     expect(api.lastEmail()).toBe("");
   });
 

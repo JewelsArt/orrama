@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { adoptStoredSession, api, lastEmail, SESSION_ENDED, sessionOver, sessionStarted, signOut, type Me } from "./api.js";
+import { api, lastEmail, SESSION_ENDED, sessionOver, sessionStarted, signOut, type Me } from "./api.js";
 import { Notes } from "./Notes.js";
 import { Noticed } from "./noticed/Noticed.js";
 import { EntityPage } from "./entity/EntityPage.js";
@@ -317,10 +317,8 @@ export function App() {
   useEffect(() => {
     // Both answers are needed before anything renders: the session cookie might
     // still be good (straight into the app), and an empty install must offer
-    // Setup rather than a sign-in form no one can satisfy. A token kept from
-    // before the cookie is traded for it first, so the switch signs no one out.
-    adoptStoredSession()
-      .then(() => api<Me>("GET", "/api/me"))
+    // Setup rather than a sign-in form no one can satisfy.
+    api<Me>("GET", "/api/me")
       .then((m) => {
         sessionStarted();
         setMe(m);
