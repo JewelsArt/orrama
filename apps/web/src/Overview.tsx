@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, isAbort, type DashboardData, type DashboardTask, type Me, type Team } from "./api.js";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { api, isAbort, type DashboardData, type DashboardTask, type Me } from "./api.js";
 import { CATEGORIES } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
@@ -33,7 +33,7 @@ interface Loaded {
  * opened at its own address (`/projects?shelf=done`). Every step, percentage and date is a view
  * over the checkboxes in the notes; status and dates are the notes' front matter.
  *
- * What it reads, all existing endpoints: the board's steps (`/api/dashboard/<team>`), each
+ * What it reads, all existing endpoints: the board's steps (`/api/dashboard`, no team), each
  * project's note and dates (`/api/projects`), the areas (`/api/vault/tree`), the people a project
  * note links to (`/api/vault/graph`), and, when the vault has an ontology, the graph's warnings
  * about each project (`/api/graph/relations`).
@@ -49,18 +49,11 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const [creating, setCreating] = useState(false);
   const [version, setVersion] = useState(0);
   const areas = useNoteAreas(version);
-  const teamRef = useRef<string | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      if (!teamRef.current) {
-        const teams = await api<Team[]>("GET", "/api/teams", undefined, { signal });
-        const saved = readKey("orrama-team");
-        teamRef.current = (teams.find((t) => t.slug === saved) ?? teams[0])?.slug ?? null;
-      }
-      if (!teamRef.current) return setFailed(true);
       const [dashboard, list, graph, schema] = await Promise.all([
-        api<DashboardData>("GET", `/api/dashboard/${teamRef.current}`, undefined, { signal }),
+        api<DashboardData>("GET", "/api/dashboard", undefined, { signal }),
         api<ProjectListRow[]>("GET", "/api/projects", undefined, { signal }),
         api<GraphData>("GET", "/api/vault/graph", undefined, { signal }),
         api<GraphSchema>("GET", "/api/graph/schema", undefined, { signal }).catch(() => null),

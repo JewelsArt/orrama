@@ -157,6 +157,9 @@ export const teamDashboardResponse = o({
   orphaned: z.array(o({ id: z.string(), noteId: z.string(), blockId: z.string(), updatedAt: z.number() })),
 });
 
+/** `/api/dashboard`: the same board with no team, every project the requester can see (the Projects board). */
+export const dashboardResponse = teamDashboardResponse.extend({ team: z.null() });
+
 // ---------- vault ----------
 
 export const treeResponse = z.array(
@@ -988,7 +991,7 @@ export type AiConfig = z.infer<typeof aiConfigResponse>;
 export type Member = z.infer<typeof membersResponse>[number];
 export type ServerSettings = z.infer<typeof serverSettingsResponse>;
 export type Health = z.infer<typeof healthResponse>;
-export type DashboardData = z.infer<typeof teamDashboardResponse>;
+export type DashboardData = z.infer<typeof dashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];
 export type TrashItem = z.infer<typeof trashResponse>[number];
 export type Linkers = z.infer<typeof linkersResponse>;

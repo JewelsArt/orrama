@@ -12,12 +12,14 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
 export async function dashboardRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
 
-  app.get<{ Params: { teamSlug: string } }>("/api/dashboard/:teamSlug", auth, async (req) => {
-    const user = store.aclUser(req.userId);
-    const team = db.select().from(tables.teams).where(eq(tables.teams.slug, req.params.teamSlug)).get();
-    if (!team) throw new HttpError(404, "team not found");
-    if (!user.isOwner && !user.teams.includes(team.slug)) throw new HttpError(404, "team not found");
-
+  /**
+   * The board of `team`, or with no team every project the requester can see: one person's
+   * Orrama has no team at all (the first account founds the workspace without one), and a
+   * board that needed one did not load on a new install. Teams come back with a second
+   * person (stage 5); until then the Projects board reads `/api/dashboard`.
+   */
+  const boardFor = (userId: string, team: typeof tables.teams.$inferSelect | null) => {
+    const user = store.aclUser(userId);
     const grants = store.grants();
     // The projects the requester can see at all (store.projects): a tag
     // project whose note they cannot read, or a folder project whose folder
@@ -29,7 +31,7 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const rowByKey = new Map(db.select().from(tables.projects).all().map((p) => [p.key, p]));
     const projectDefs = store.projects(user).filter((d) => {
       const row = rowByKey.get(d.key);
-      return !!row && (row.teamId === team.id || row.teamId === null);
+      return !!row && (team === null || row.teamId === team.id || row.teamId === null);
     });
     const teamProjects = projectDefs.map((d) => rowByKey.get(d.key)!);
     const readable = store.readable(user);
@@ -74,12 +76,14 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     }));
 
     // Who's working on what: team members, their open/in-progress tasks, last edit.
-    const memberRows = db
-      .select({ user: tables.users })
-      .from(tables.memberships)
-      .innerJoin(tables.users, eq(tables.memberships.userId, tables.users.id))
-      .where(eq(tables.memberships.teamId, team.id))
-      .all();
+    const memberRows = team
+      ? db
+          .select({ user: tables.users })
+          .from(tables.memberships)
+          .innerJoin(tables.users, eq(tables.memberships.userId, tables.users.id))
+          .where(eq(tables.memberships.teamId, team.id))
+          .all()
+      : [];
     const lastEdits = store.lastEdits();
     const members = memberRows.map(({ user: m }) => {
       const open = tasks.filter((t) => !t.checked && t.assignee === m.username);
@@ -121,6 +125,16 @@ export async function dashboardRoutes(app: FastifyInstance, db: Db, store: Vault
     const projects = [...byProject, ...emptyProjects].sort((a, b) => a.project.localeCompare(b.project));
 
     return { team, projects, members, orphaned };
+  };
+
+  app.get("/api/dashboard", auth, async (req) => boardFor(req.userId, null));
+
+  app.get<{ Params: { teamSlug: string } }>("/api/dashboard/:teamSlug", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    const team = db.select().from(tables.teams).where(eq(tables.teams.slug, req.params.teamSlug)).get();
+    if (!team) throw new HttpError(404, "team not found");
+    if (!user.isOwner && !user.teams.includes(team.slug)) throw new HttpError(404, "team not found");
+    return boardFor(req.userId, team);
   });
 
   /** Teams the requester can open dashboards for (left rail). */
