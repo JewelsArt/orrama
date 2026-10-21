@@ -62,3 +62,13 @@
 @media (max-width: 760px) {
   .ui-sheet.doc-reader { width: 100%; }
 }
+
+/* An .html document as a page (HtmlPage.tsx): a frame filling its box, "Opening…" over it
+   until the page has loaded. The page brings its own look; nothing of ours goes inside. White,
+   not a token: it is a web page's own default canvas, and a page that sets no background was
+   made on white, so night blue behind it would put dark text on dark. */
+.html-page { position: relative; flex: 1; min-height: 0; background: #fff; }
+.html-page > iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; background: #fff; }
+.html-page-wait { position: absolute; inset: 0; margin: 0; padding: 24px; color: var(--ink-3); font-size: 14px; background: var(--surface); }
+.html-page:has(> iframe) .html-page-wait { z-index: 1; pointer-events: none; }
+.doc-body > .html-page.doc-page { height: 100%; }

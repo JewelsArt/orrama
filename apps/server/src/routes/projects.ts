@@ -12,6 +12,7 @@ import { appendToSection, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
+import { isPageName, PAGE_CSP } from "../pageSandbox.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { DOCX_CAPS, officeRefusal, readOfficeFile, XLSX_CAPS } from "../zip.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -593,6 +594,33 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       .header("x-content-type-options", "nosniff")
       .header("content-disposition", contentDisposition(INLINE_OK.has(ext) ? "inline" : "attachment", name))
       .send(fs.createReadStream(abs));
+  });
+
+  /**
+   * An .html document as the page it is, for the reader's frame: a saved
+   * claude.ai artifact, a report. Its own scripts run, inside the sandbox
+   * `pageSandbox.ts` describes (an opaque origin: no session, no reach into
+   * Orrama). Read access as for the raw file; nothing but .html/.htm.
+   *
+   * `no-cache` plus Last-Modified, so the reader revalidates instead of
+   * fetching again: a canvas copy with its screenshots inlined is 70 MB.
+   */
+  app.get<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name/page", auth, async (req, reply) => {
+    openProject(req.userId, req.params.slug); // readable project = readable documents
+    const name = safeName(req.params.name);
+    if (!isPageName(name)) throw new HttpError(400, "only .html opens as a page");
+    const dir = filesDirFor(store.vaultRoot, req.params.slug);
+    const abs = path.join(dir, name);
+    if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
+    const modified = new Date(Math.floor(fs.statSync(abs).mtimeMs / 1000) * 1000);
+    reply
+      .header("content-security-policy", PAGE_CSP)
+      .header("cache-control", "private, no-cache")
+      .header("last-modified", modified.toUTCString())
+      .header("referrer-policy", "no-referrer");
+    const since = Date.parse(String(req.headers["if-modified-since"] ?? ""));
+    if (!Number.isNaN(since) && since >= modified.getTime()) return reply.code(304).send();
+    return reply.header("content-type", "text/html; charset=utf-8").send(fs.createReadStream(abs));
   });
 
   /**

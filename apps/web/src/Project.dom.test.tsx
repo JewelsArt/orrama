@@ -8,7 +8,7 @@
  * vocabulary, written as the ontology's id. Its tabs are addresses. A person or company on it
  * opens their own page, and is taken off the project from the row's ⋯ menu (F2).
  */
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup as cleanupRender, fireEvent, render, screen, within } from "@testing-library/react";
 import { Toaster } from "./ui/overlays.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,6 +53,8 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
+// happy-dom would really fetch a frame's src (the page route): these tests check the frame, not a page.
+(window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }).happyDOM.settings.disableIframePageLoading = true;
 const { Project } = await import("./Project.js");
 const me = { id: "u-1", username: "jules", displayName: "Jules", isOwner: true } as never;
 const SOURCE = "- [x] Pick a supervisor\n- [ ] Defend in January\n  - book the room\n\nDone means: signed off.";
@@ -200,6 +202,62 @@ describe("tabs are addresses", () => {
     });
     expect(location.pathname).toBe("/projects/thesis/timeline");
     expect(localStorage.getItem("orrama-proj-view")).toBe("todo");
+  });
+});
+
+describe("the Reader tab: the project's pages", () => {
+  const file = (name: string, size = 2048) => ({ name, size, mtimeMs: Date.parse("2026-10-21T09:00:00Z"), ext: name.slice(name.lastIndexOf(".")).toLowerCase() });
+  const tabs = () => within(screen.getByRole("tablist", { name: "Project views" })).getAllByRole("tab");
+
+  it("shows only when the project has an .html document, with how many", async () => {
+    server.workspace = { ...server.workspace, files: [file("brief.pdf")] };
+    await open();
+    expect(tabs().map((t) => t.textContent)).not.toContainEqual(expect.stringMatching(/^Reader/));
+    cleanupRender();
+    server.workspace = { ...server.workspace, files: [file("brief.pdf"), file("Map.html"), file("Plan.htm")] };
+    await open();
+    const reader = tabs().find((t) => t.textContent?.startsWith("Reader"));
+    expect(reader?.getAttribute("href")).toBe("/projects/thesis/reader");
+    expect(reader?.textContent).toBe("Reader2");
+  });
+
+  it("lists the pages and shows the one the address names, sealed off, with its live artifact", async () => {
+    server.workspace = {
+      ...server.workspace,
+      files: [file("brief.pdf"), file("Process map.html"), file("Canvas.html", 70 * 1024 * 1024)],
+      content: "## Documents\n\n- **Process map.html**: copy of the claude.ai artifact https://claude.ai/artifact/AbC123, copied 21 Oct 2026.\n",
+    };
+    render(<Project me={me} slug="thesis" tab="reader" page="Process map.html" onOpenNote={() => {}} />);
+    await act(async () => {});
+    const list = screen.getByRole("navigation", { name: "Pages" });
+    const rows = within(list).getAllByRole("link");
+    expect(rows.map((r) => r.textContent)).toEqual(["Canvas70.0 MB · Wed 21 Oct", "Process map2 KB · Wed 21 Oct"]);
+    expect(rows[1]!.getAttribute("href")).toBe("/projects/thesis/reader?page=Process+map.html");
+    expect(rows[1]!.className).toContain("on");
+
+    const frame = document.querySelector<HTMLIFrameElement>(".pj-reader-page iframe")!;
+    expect(frame.getAttribute("src")).toBe("/api/projects/thesis/files/Process%20map.html/page");
+    expect(frame.getAttribute("sandbox")?.split(" ")).not.toContain("allow-same-origin");
+    expect(screen.getByRole("link", { name: "Open on claude.ai" }).getAttribute("href")).toBe("https://claude.ai/artifact/AbC123");
+
+    await act(async () => {
+      fireEvent.click(rows[0]!);
+    });
+    expect(location.pathname + location.search).toBe("/projects/thesis/reader?page=Canvas.html");
+  });
+
+  it("opens the first page when the address names none, and says so when there are none", async () => {
+    server.workspace = { ...server.workspace, files: [file("b.html"), file("a.html")] };
+    render(<Project me={me} slug="thesis" tab="reader" onOpenNote={() => {}} />);
+    await act(async () => {});
+    expect(document.querySelector(".pj-reader-page iframe")?.getAttribute("src")).toBe("/api/projects/thesis/files/a.html/page");
+    expect(screen.queryByRole("link", { name: "Open on claude.ai" })).toBeNull();
+    cleanupRender();
+    server.workspace = { ...server.workspace, files: [] };
+    render(<Project me={me} slug="thesis" tab="reader" onOpenNote={() => {}} />);
+    await act(async () => {});
+    expect(screen.getByText("No pages in this project yet.")).toBeTruthy();
+    expect(document.querySelector("iframe")).toBeNull();
   });
 });
 

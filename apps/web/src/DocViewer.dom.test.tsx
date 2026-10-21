@@ -33,6 +33,8 @@ vi.mock("./api.js", async (orig) => {
   };
 });
 
+// happy-dom would really fetch a frame's src (the page route): these tests check the frame, not a page.
+(window as unknown as { happyDOM: { settings: { disableIframePageLoading: boolean } } }).happyDOM.settings.disableIframePageLoading = true;
 const { DocViewer } = await import("./DocViewer.js");
 const { ApiError } = await import("./api.js");
 const BASE = "/api/projects/thesis/files";
@@ -124,6 +126,26 @@ describe("the document reader", () => {
     await act(async () => net.held.get(`${BASE}/a.md`)!());
     await flush();
     expect(document.querySelector(".doc-text")?.textContent).toBe("second file");
+  });
+
+  it("a project's .html opens as the page it is, in a sealed frame, and nothing is fetched for it", async () => {
+    render(<DocViewer base={BASE} name="Process map.html" onClose={() => {}} />);
+    await flush();
+    const frame = document.querySelector<HTMLIFrameElement>(".doc-body iframe")!;
+    expect(frame.getAttribute("src")).toBe("/api/projects/thesis/files/Process%20map.html/page");
+    const sandbox = frame.getAttribute("sandbox")!.split(" ");
+    expect(sandbox).toContain("allow-scripts");
+    expect(sandbox).not.toContain("allow-same-origin");
+    expect(sandbox).not.toContain("allow-top-navigation");
+    expect(screen.queryByText(/No reader for/)).toBeNull();
+  });
+
+  it("Money's .html has no page route: it offers the download, as before", async () => {
+    net.replies.set("/api/finance/files/statement.html", "<p>bytes</p>");
+    render(<DocViewer base="/api/finance/files" name="statement.html" onClose={() => {}} />);
+    await flush();
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(screen.getByText(/No reader for .html yet/)).toBeTruthy();
   });
 
   it("Escape closes it, through the overlay stack", async () => {

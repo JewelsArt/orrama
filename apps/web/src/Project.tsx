@@ -7,6 +7,8 @@ import { slugOf } from "./orrery/model.js";
 import { areaOf, useNoteAreas } from "./projectArea.js";
 import { GroupMenu, useProjectGroups } from "./projectGroup.js";
 import { ProjectOverview } from "./ProjectOverview.js";
+import { isPage } from "./projectPages.js";
+import { ProjectReader } from "./ProjectReader.js";
 import { AddStepDialog, ProjectBoard, ProjectTimeline, ProjectTodo } from "./ProjectViews.js";
 import { writeKey } from "./storage.js";
 import { Button, ProgressRing, Tabs } from "./ui/controls.js";
@@ -20,10 +22,13 @@ import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "
 import { SectionBar } from "./ui/shell/SectionBar.js";
 export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
 
-/** The four tabs; Overview is the project's own address, the others sit under it. */
+/**
+ * The tabs; Overview is the project's own address, the others sit under it. Reader shows only
+ * when the project has a page to read (an .html document), or when its address is open.
+ */
 export type Tab = "overview" | ProjectTab;
-const TABS: Tab[] = ["overview", "timeline", "documents", "todo"];
-const TAB_LABEL: Record<Tab, string> = { overview: "Overview", timeline: "Timeline", documents: "Documents", todo: "To-do" };
+const TABS: Tab[] = ["overview", "timeline", "documents", "todo", "reader"];
+const TAB_LABEL: Record<Tab, string> = { overview: "Overview", timeline: "Timeline", documents: "Documents", todo: "To-do", reader: "Reader" };
 /** The tab used last: the board's links open a project on it (the address stays the truth). */
 export const LAST_TAB_KEY = "orrama-proj-view";
 
@@ -49,7 +54,7 @@ export function leftLabel(deadline: string): { text: string; late: boolean } | n
  * and the documents sit in `04-Projects/<slug>/files/` beside it. Nothing here is a database
  * row, so the page survives a re-index and the note still reads like a note anywhere else.
  */
-export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; slug: string; tab?: Tab; onOpenNote: (id: string) => void }) {
+export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: Me; slug: string; tab?: Tab; page?: string; onOpenNote: (id: string) => void }) {
   const [w, setW] = useState<ProjectWorkspace | null>(null);
   const [error, setError] = useState<{ missing: boolean } | null>(null);
   const [version, setVersion] = useState(0);
@@ -139,6 +144,7 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
   const pct = w.total === 0 ? 0 : Math.round((w.done / w.total) * 100);
   const status = statusOf(w.status);
   const area = areaOf(areas.get(w.noteId), w.domain);
+  const pages = w.files.filter((f) => isPage(f.name)).length;
   const left = w.deadline && status !== "completed" && status !== "archived" && status !== "cancelled" ? leftLabel(w.deadline) : null;
   const finished = w.total > 0 && w.done === w.total && shelfOf(w) === "completed" && status !== "completed" && status !== "archived";
   const setStatus = (id: StatusId) => void attempt("The status wasn't changed.", () => patch({ status: id }));
@@ -219,11 +225,11 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
           label="Project views"
           value={tab}
           onChange={(t) => navigate(tabHref(w.slug, t))}
-          items={TABS.map((t) => ({
+          items={TABS.filter((t) => t !== "reader" || pages > 0 || tab === "reader").map((t) => ({
             id: t,
             label: TAB_LABEL[t],
             href: tabHref(w.slug, t),
-            ...(t === "documents" ? { count: w.files.length } : t === "todo" ? { count: w.total } : {}),
+            ...(t === "documents" ? { count: w.files.length } : t === "todo" ? { count: w.total } : t === "reader" ? { count: pages } : {}),
           }))}
         />
       </SectionBar>
@@ -233,6 +239,7 @@ export function Project({ me, slug, tab = "overview", onOpenNote }: { me: Me; sl
         {tab === "timeline" && <ProjectTimeline w={w} lane={area?.color} onChanged={load} onOpenNote={onOpenNote} />}
         {tab === "todo" && <ProjectTodo w={w} lane={area?.color} onChanged={load} onOpenNote={onOpenNote} onAdd={() => setAdding(true)} />}
         {tab === "documents" && <ProjectBoard w={w} onChanged={load} />}
+        {tab === "reader" && <ProjectReader w={w} page={page} />}
       </div>
 
       {adding && <AddStepDialog w={w} onClose={() => setAdding(false)} onAdded={load} />}

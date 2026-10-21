@@ -84,6 +84,9 @@
 - **Exports**: carriedId, IdCandidate, chooseIdOwner
 - **Imports**: @orrama/core
 
+### `apps/server/src/pageSandbox.ts`
+- **Exports**: PAGE_SANDBOX, PAGE_CSP, isPageName
+
 ### `apps/server/src/pdfText.ts`
 - **Exports**: PDF_LIMITS, PdfText, readPdfText
 - **Imports**: node:worker_threads
@@ -168,7 +171,7 @@
 
 ### `apps/server/src/routes/projects.ts`
 - **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, projectRoutes
-- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
+- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
@@ -240,7 +243,7 @@
 
 ### `apps/web/src/DocViewer.tsx`
 - **Exports**: readerError, DocViewer
-- **Imports**: react, ./api.js, @orrama/schema/responses, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js
+- **Imports**: react, ./api.js, @orrama/schema/responses, ./HtmlPage.js, ./projectPages.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js
 
 ### `apps/web/src/Editor.tsx`
 - **Exports**: EditorProps, Editor
@@ -257,6 +260,10 @@
 ### `apps/web/src/Gantt.tsx`
 - **Exports**: GanttProps, Gantt
 - **Imports**: react, ./api.js, ./ui/Icon.js
+
+### `apps/web/src/HtmlPage.tsx`
+- **Exports**: PAGE_SANDBOX, pageUrl, HtmlPage
+- **Imports**: react
 
 ### `apps/web/src/Lock.tsx`
 - **Exports**: Lock
@@ -288,11 +295,15 @@
 
 ### `apps/web/src/Project.tsx`
 - **Exports**: default, Tab, LAST_TAB_KEY, tabHref, leftLabel, Project
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./projectGroup.js, ./ProjectOverview.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./projectGroup.js, ./ProjectOverview.js, ./projectPages.js, ./ProjectReader.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/ProjectOverview.tsx`
 - **Exports**: ProjectOverview, decisionOf
 - **Imports**: react, @orrama/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./entity/links.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses
+
+### `apps/web/src/ProjectReader.tsx`
+- **Exports**: ProjectReader
+- **Imports**: react, @orrama/schema/responses, ./HtmlPage.js, ./projectPages.js, ./ui/controls.js, ./ui/Icon.js, ./ui/dates.js, ./ui/layout.js, ./ui/router.js, ./ui/states.js
 
 ### `apps/web/src/ProjectViews.tsx`
 - **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
@@ -705,6 +716,10 @@
 ### `apps/web/src/projectGroup.tsx`
 - **Exports**: groupNames, useProjectGroups, GroupMenu
 - **Imports**: react, ./api.js, @orrama/schema/responses, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/writes.js
+
+### `apps/web/src/projectPages.ts`
+- **Exports**: isPage, pagesOf, pageTitle, artifactLinks
+- **Imports**: @orrama/schema/responses
 
 ### `apps/web/src/settings/Access.tsx`
 - **Exports**: AccessSection

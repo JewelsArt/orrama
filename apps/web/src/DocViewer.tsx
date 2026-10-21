@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, apiBlob, ApiError, isAbort } from "./api.js";
 import type { Deck, Sheet } from "@orrama/schema/responses";
+import { HtmlPage } from "./HtmlPage.js";
+import { isPage } from "./projectPages.js";
 import { Button, Tabs } from "./ui/controls.js";
 import { Sheet as SheetLayer } from "./ui/overlays.js";
 import { Notice } from "./ui/states.js";
@@ -13,7 +15,8 @@ import { Notice } from "./ui/states.js";
  * server — mammoth keeps headings, lists, tables and emphasis; exceljs returns
  * capped rows per sheet — so the browser only ever receives text. PPTX comes
  * back as slides of plain strings plus sniffed raster images, and is drawn here
- * with ordinary elements: no markup from the deck is ever injected. Anything
+ * with ordinary elements: no markup from the deck is ever injected. A project's
+ * .html runs as the page it is, sealed off in `HtmlPage`'s frame. Anything
  * else offers a download instead of pretending it can render it.
  *
  * It is a Sheet in the overlay stack (structure.md §1.4: "a thing you look at without
@@ -142,6 +145,9 @@ export function DocViewer({
   inline?: boolean;
 }) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+  // A project's .html runs as a page in its sealed frame (HtmlPage); Money's files have no page route.
+  const projectSlug = /^\/api\/projects\/([^/]+)\/files$/.exec(base)?.[1];
+  const page = isPage(name) && projectSlug !== undefined ? decodeURIComponent(projectSlug) : null;
   const [url, setUrl] = useState<string | null>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [text, setText] = useState<string | null>(null);
@@ -157,6 +163,7 @@ export function DocViewer({
     const { signal } = ac;
     void (async () => {
       try {
+        if (page !== null) return;
         if (ext === ".xlsx" || ext === ".xlsm") {
           const res = await api<{ sheets: Sheet[] }>(
             "GET",
@@ -199,7 +206,7 @@ export function DocViewer({
       ac.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [base, name, ext]);
+  }, [base, name, ext, page]);
 
   const download = async () => {
     const blob = await apiBlob(`${base}/${encodeURIComponent(name)}`);
@@ -211,6 +218,7 @@ export function DocViewer({
   };
 
   const readable =
+    page !== null ||
     ext === ".pdf" ||
     ext === ".docx" ||
     ext === ".pptx" ||
@@ -257,9 +265,10 @@ export function DocViewer({
           {book && book.length === 0 && <p className="doc-none">This workbook has no sheets.</p>}
           {deck && (deck.slides.length > 0 ? <DeckView deck={deck} /> : <p className="doc-none">This presentation has no slides.</p>)}
           {text !== null && <pre className="doc-text">{text}</pre>}
+          {page !== null && <HtmlPage className="doc-page" slug={page} name={name} />}
           {url && ext === ".pdf" && <iframe className="doc-frame" src={url} title={name} />}
           {url && ext.match(/\.(png|jpe?g|gif|webp)$/) && <img className="doc-img" src={url} alt={name} />}
-          {!error && readable && html === null && text === null && book === null && deck === null && !url && <p className="doc-none">Opening…</p>}
+          {!error && readable && page === null && html === null && text === null && book === null && deck === null && !url && <p className="doc-none">Opening…</p>}
         </div>
     </Frame>
   );

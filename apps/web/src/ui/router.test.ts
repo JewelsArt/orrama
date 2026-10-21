@@ -30,6 +30,8 @@ describe("addresses", () => {
     ["/projects/graduation-thesis/timeline", { kind: "project", slug: "graduation-thesis", tab: "timeline" }],
     ["/projects/graduation-thesis/documents", { kind: "project", slug: "graduation-thesis", tab: "documents" }],
     ["/projects/graduation-thesis/todo", { kind: "project", slug: "graduation-thesis", tab: "todo" }],
+    ["/projects/graduation-thesis/reader", { kind: "project", slug: "graduation-thesis", tab: "reader" }],
+    ["/projects/graduation-thesis/reader?page=Plan+%26+map.html", { kind: "project", slug: "graduation-thesis", tab: "reader", page: "Plan & map.html" }],
     ["/people", { kind: "people" }],
     ["/people?q=ines", { kind: "people", q: "ines" }],
     ["/people?q=ines&sector=University", { kind: "people", q: "ines", sector: "University" }],

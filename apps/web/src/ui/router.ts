@@ -25,7 +25,7 @@ export const PLACES: { place: Place; label: string; key: string }[] = [
 ];
 
 export type MoneyPage = "spending" | "documents" | "subscriptions" | "income" | "savings";
-export type ProjectTab = "timeline" | "documents" | "todo";
+export type ProjectTab = "timeline" | "documents" | "todo" | "reader";
 export type ProjectShelf = "paused" | "cancelled" | "done";
 export type SettingsSection = "you" | "appearance" | "ai" | "notes" | "connections" | "device" | "sessions" | "developer" | "access";
 
@@ -38,7 +38,8 @@ export type Route =
   | { kind: "orrery"; center?: string; area?: string; topic?: string }
   /** The board, filtered to one life area (`?area=school`), with a shelf open (`?shelf=done`). */
   | { kind: "projects"; area?: string; shelf?: ProjectShelf }
-  | { kind: "project"; slug: string; tab?: ProjectTab }
+  /** `page` is the document the Reader tab shows (`…/reader?page=<file>`). */
+  | { kind: "project"; slug: string; tab?: ProjectTab; page?: string }
   /** The search and the sector filter, so a filtered list is a link too. */
   | { kind: "people"; q?: string; sector?: string }
   | { kind: "person"; slug: string }
@@ -50,7 +51,7 @@ export type Route =
   | { kind: "settings"; section?: SettingsSection };
 
 const MONEY_PAGES = new Set<MoneyPage>(["spending", "documents", "subscriptions", "income", "savings"]);
-const PROJECT_TABS = new Set<ProjectTab>(["timeline", "documents", "todo"]);
+const PROJECT_TABS = new Set<ProjectTab>(["timeline", "documents", "todo", "reader"]);
 /** The shelves under the Projects board; Completed and Archived were one shelf each before Done. */
 const PROJECT_SHELVES = new Map<string, ProjectShelf>([
   ["paused", "paused"],
@@ -110,6 +111,7 @@ export function parseRoute(pathname: string, search = ""): Route | null {
         if (shelf) r.shelf = shelf;
         return r;
       }
+      if (rest[1] === "reader") return opt("page") ? { kind: "project", slug: rest[0], tab: "reader", page: opt("page") } : { kind: "project", slug: rest[0], tab: "reader" };
       return rest[1] && PROJECT_TABS.has(rest[1] as ProjectTab) ? { kind: "project", slug: rest[0], tab: rest[1] as ProjectTab } : { kind: "project", slug: rest[0] };
     case "people":
       if (rest[0]) return { kind: "person", slug: rest[0] };
@@ -165,7 +167,7 @@ export function routeHref(r: Route): string {
     case "projects":
       return `/projects${query({ area: r.area, shelf: r.shelf })}`;
     case "project":
-      return `/projects/${enc(r.slug)}${r.tab ? `/${r.tab}` : ""}`;
+      return `/projects/${enc(r.slug)}${r.tab ? `/${r.tab}` : ""}${r.tab === "reader" ? query({ page: r.page }) : ""}`;
     case "people":
       return `/people${query({ q: r.q, sector: r.sector })}`;
     case "person":

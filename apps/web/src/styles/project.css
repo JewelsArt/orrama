@@ -211,3 +211,31 @@
 .pj-open:focus-visible { outline: none; }
 .pj-open:focus-visible::after { box-shadow: var(--focus-ring); }
 .pj-trow > .cb, .pj-trow > .pj-tact, .pjs .st > .cb, .pjs .st > .sta { position: relative; z-index: 1; }
+
+/* ---- Reader: the project's pages (ProjectReader.tsx) -------------------------------------- */
+.pj-reader { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.pj-reader.one { grid-template-columns: minmax(0, 1fr); }
+.pj-reader-list { position: sticky; top: 12px; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); padding: 6px 14px; max-height: calc(100vh - 220px); overflow-y: auto; }
+.pj-reader-list .row { color: var(--ink); text-decoration: none; }
+.pj-reader-list .row .lead { color: var(--ink-3); }
+.pj-reader-list .row.on { background: var(--accent-wash); }
+.pj-reader-list .row.on .t { color: var(--accent); }
+.pj-reader-list .row.on .lead { color: var(--accent); }
+.pj-reader-page { display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r-3); box-shadow: var(--shadow-card); overflow: hidden; }
+.pj-reader-head { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 12px 8px 18px; border-bottom: 1px solid var(--line); }
+.pj-reader .pj-reader-head h2 { flex: 1; min-width: 0; margin: 0; font: 750 15px/22px var(--font); text-transform: none; letter-spacing: 0; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-reader-page .html-page { flex: none; height: max(520px, calc(100vh - 230px)); }
+
+@media (min-width: 761px) {
+  @container page (max-width: 980px) {
+    .pj-reader { grid-template-columns: 210px minmax(0, 1fr); }
+  }
+}
+@media (max-width: 760px) {
+  .pj-reader { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .pj-reader-list { position: static; max-height: 220px; }
+  .pj-reader-page { border-radius: var(--r-2); }
+  .pj-reader-head { flex-wrap: wrap; padding: 10px 12px; }
+  .pj-reader .pj-reader-head h2 { flex-basis: 100%; white-space: normal; }
+  .pj-reader-page .html-page { height: 72vh; }
+}

@@ -548,7 +548,7 @@ export function App() {
         ) : view.kind === "overview" ? (
           <Overview me={me} area={shown.kind === "projects" ? shown.area : undefined} onOpenNote={openNote} />
         ) : view.kind === "project" ? (
-          <Project me={me} slug={view.slug} tab={(shown.kind === "project" && shown.tab) || "overview"} onOpenNote={openNote} />
+          <Project me={me} slug={view.slug} tab={(shown.kind === "project" && shown.tab) || "overview"} page={shown.kind === "project" ? shown.page : undefined} onOpenNote={openNote} />
         ) : view.kind === "contacts" ? (
           <People me={me} onOpenNote={openNote} onAsk={() => setAskOpen(true)} />
         ) : view.kind === "mail" ? (
