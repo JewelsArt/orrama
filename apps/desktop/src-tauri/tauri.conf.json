@@ -25,7 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "copyright": "Copyright © 2026 Jules Timothy Sekelj. All rights reserved.",
+    "copyright": "Copyright © 2026 Jules Timothy Sekelj. Licensed under the GNU AGPL v3 or later.",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

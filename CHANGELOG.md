@@ -304,9 +304,11 @@ one is in CLAUDE.md, "Releases".
   the web dev server with a message naming it.
 - AI estimates are kept per task, so ticking or editing one step no longer
   re-estimates every step.
-- Orrama is no longer open source. It is proprietary (copyright Jules Timothy
-  Sekelj, all rights reserved) and used under the free Personal licence or the
-  Company licence (`docs/licence/`). The Apache 2.0 licence no longer applies.
+- Orrama's licence is the GNU Affero General Public License v3.0 or later
+  (`AGPL-3.0-or-later`, copyright Jules Timothy Sekelj), in place of Apache 2.0.
+  You may use, change and share it; a changed copy you share, or run for other
+  people over a network, must offer its source under the same licence. (The
+  proprietary Personal and Company licences of 16 October were never released.)
 - Live sync signs in when it connects, from the session cookie, and only from
   Orrama's own pages.
 

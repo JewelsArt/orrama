@@ -131,12 +131,10 @@ Honest state of things:
 
 ## Licence
 
-Orrama is proprietary: copyright © 2026 Jules Timothy Sekelj, all rights reserved. It is
-not open source. People use it under one of two licences:
-
-- the [Personal licence](docs/licence/PERSONAL.md), free, for one person's own use;
-- the [Company licence](docs/licence/COMPANY.md), for a named company and its people,
-  self-hosted (a draft, to be reviewed by a lawyer before any company pays).
-
-Neither allows changing, copying for others or reselling Orrama. The third-party software
-it includes keeps its own licences: see [NOTICE](NOTICE).
+Orrama is free software, copyright © 2026 Jules Timothy Sekelj, under the
+[GNU Affero General Public License v3.0](LICENSE) or any later version (SPDX
+`AGPL-3.0-or-later`). You may use, change and share it, for work too. If you share a
+changed copy, or run one for other people over a network, you must offer them its source
+under the same licence: Settings links to the source the server runs
+(`ORRAMA_SOURCE_URL`, see INSTALL.md). The third-party software Orrama includes keeps its
+own licences: see [NOTICE](NOTICE).

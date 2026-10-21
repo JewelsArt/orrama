@@ -2,7 +2,7 @@
   "name": "@orrama/desktop",
   "version": "0.1.0",
   "description": "Orrama desktop shell (Tauri 2): a native window on the local Orrama server.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {

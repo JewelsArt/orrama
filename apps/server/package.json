@@ -2,7 +2,7 @@
   "name": "@orrama/server",
   "version": "0.1.0",
   "description": "Orrama sync server: coordinator + permission gate, never the only copy of your notes.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {

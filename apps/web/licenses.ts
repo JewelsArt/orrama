@@ -15,10 +15,12 @@
  * of `apps/server` and `apps/mcp`, walked through `node_modules`
  * (`productionPackages`).
  *
- * Orrama is proprietary, so nothing it ships may be under a licence that would
- * force its code open (GPL, AGPL, SSPL, …). `licenceProblem` holds every
- * production dependency to `ALLOWED_LICENCES`; `licenses.test.ts` fails on any
- * other, naming the package.
+ * Orrama is under the GNU AGPL v3 or later (21 October 2026), so everything it
+ * ships must be something we may pass on under the AGPL: permissive licences,
+ * and the copyleft ones the AGPL can carry (LGPL, MPL-2.0, GPL-3.0, AGPL-3.0).
+ * GPL-2.0-only, SSPL, EPL-1.0, CDDL, source-available and unlicensed code are
+ * not. `licenceProblem` holds every production dependency to
+ * `ALLOWED_LICENCES`; `licenses.test.ts` fails on any other, naming the package.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -129,9 +131,13 @@ export function productionPackages(roots: string[]): Map<string, string> {
 }
 
 /**
- * Licences a dependency may carry: permissive ones, which ask for the notice
- * and nothing that would force Orrama's code open. A dual licence is fine when
- * one choice is here; `A AND B` needs both.
+ * Licences a dependency may carry: ones the FSF lists as compatible with the
+ * GPLv3, and so with the AGPLv3 Orrama is under. Permissive ones ask only for
+ * the notice. The LGPL and MPL-2.0 keep their own files under their own terms
+ * (an MPL file marked "Incompatible With Secondary Licenses" would not be: none
+ * is today). GPL-3.0 code may be combined with AGPL code (§13 of both).
+ * GPL-2.0-only may not, and neither may anything not listed here. A dual
+ * licence is fine when one choice is here; `A AND B` needs both.
  */
 export const ALLOWED_LICENCES = [
   "MIT",
@@ -146,10 +152,27 @@ export const ALLOWED_LICENCES = [
   "Unlicense",
   "Python-2.0",
   "CC0-1.0",
+  "CC-BY-4.0",
+  "LGPL-2.1-only",
+  "LGPL-2.1-or-later",
+  "LGPL-3.0-only",
+  "LGPL-3.0-or-later",
+  "MPL-2.0",
+  "GPL-2.0-or-later",
+  "GPL-3.0-only",
+  "GPL-3.0-or-later",
+  "AGPL-3.0-only",
+  "AGPL-3.0-or-later",
 ] as const;
 
 /** Old spellings of an allowed licence, as package.json files still carry them. */
-const SPELLINGS: Record<string, string> = { "MIT/X11": "MIT" };
+const SPELLINGS: Record<string, string> = {
+  "MIT/X11": "MIT",
+  "LGPL-2.1": "LGPL-2.1-only",
+  "LGPL-3.0": "LGPL-3.0-only",
+  "GPL-3.0": "GPL-3.0-only",
+  "AGPL-3.0": "AGPL-3.0-only",
+};
 
 /**
  * Packages whose package.json does not say a licence we can read, checked by
@@ -157,11 +180,6 @@ const SPELLINGS: Record<string, string> = { "MIT/X11": "MIT" };
  */
 export const ALLOWED_BY_NAME: Record<string, string> = {
   "duck@0.1.12": 'package.json says only "BSD"; its LICENSE file is the 2-clause BSD text (Michael Williamson, 2013).',
-  "buffers@0.1.1":
-    "states no licence anywhere (no field, no file; its repository, substack/node-buffers, is deleted). " +
-    "Reached only through exceljs → unzipper@0.10 → binary, which reads .xlsx statements and documents; " +
-    "every sibling package by the same author (binary, chainsaw, traverse) is MIT. Accepted as MIT-in-practice " +
-    "for now; the clean fix is an exceljs whose unzipper no longer needs it (unzipper 0.12 dropped binary).",
 };
 
 function allowedExpression(expr: string): boolean {

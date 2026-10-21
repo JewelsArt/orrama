@@ -1,12 +1,23 @@
 Orrama
-Copyright © 2026 Jules Timothy Sekelj. All rights reserved.
+Copyright © 2026 Jules Timothy Sekelj
 
-Orrama is proprietary software, used under the Personal or the Company
-licence (see LICENSE and docs/licence/).
+Orrama is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
 
-Orrama includes third-party software under its own licences. Nothing in
-Orrama's licences limits what those licences allow for that software. Each
-build lists every such package and font, with its version and licence text:
+Orrama is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details. You should have received a copy of it along with Orrama, in LICENSE.
+If not, see <https://www.gnu.org/licenses/>.
+
+If you run a changed copy of Orrama for other people to use over a network,
+the AGPL asks you to offer them its source. Settings shows a "Source code"
+link; point it at your copy with ORRAMA_SOURCE_URL (INSTALL.md).
+
+Orrama includes third-party software under its own licences. Each build lists
+every such package and font, with its version and licence text:
 
   - apps/web/dist/THIRD_PARTY_NOTICES.txt: the web app (what the server, the
     Docker image and the desktop app show in your browser or window);

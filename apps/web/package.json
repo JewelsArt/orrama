@@ -2,7 +2,7 @@
   "name": "@orrama/web",
   "version": "0.1.0",
   "description": "Orrama web client — the same workspace in the browser (spec §2).",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "scripts": {

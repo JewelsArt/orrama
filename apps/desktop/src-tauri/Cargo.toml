@@ -4,7 +4,8 @@
 name = "orrama-desktop"
 version = "0.1.0"
 edition = "2021"
-# Proprietary (LICENSE at the repository root); never published to crates.io.
+# GNU AGPL v3 or later (LICENSE at the repository root); never published to crates.io.
+license = "AGPL-3.0-or-later"
 publish = false
 
 [build-dependencies]

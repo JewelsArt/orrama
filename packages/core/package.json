@@ -2,7 +2,7 @@
   "name": "@orrama/core",
   "version": "0.1.0",
   "description": "Orrama vault engine: markdown parsing, link graph, tag index, task extraction, ACL. Runs identically on desktop, web, and server \u2014 one parser everywhere.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

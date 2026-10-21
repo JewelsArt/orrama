@@ -37,3 +37,11 @@ auditConfig:
     - GHSA-82fw-gwwq-j7x9
     - GHSA-5gmw-xhrv-c9v3
     - GHSA-85c8-ppgw-ccpr
+
+# exceljs 4.4.0 (its latest) pins unzipper 0.10, whose `binary` → `buffers@0.1.1`
+# states no licence at all, so Orrama could not pass it on under the AGPL.
+# unzipper 0.11 dropped `binary` and keeps the API exceljs's streaming reader
+# uses (0.12 breaks it: "reading 'sheets'"). Orrama itself reads workbooks with
+# `xlsx.load` (JSZip) and never reaches unzipper.
+overrides:
+  unzipper: 0.11.6

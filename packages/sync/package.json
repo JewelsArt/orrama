@@ -2,7 +2,7 @@
   "name": "@orrama/sync",
   "version": "0.1.0",
   "description": "Sync protocol logic: Yjs note docs, update encoding, partial-checkout manifests.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",

@@ -572,9 +572,9 @@ OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan*
 (`apps/server/src/chatgpt.ts`, from OpenAI's documented protocol; their DevKit
 is noncommercial-licensed, so none of its code is used). OpenAI offers ChatGPT
 plan usage to open-source projects, personal projects that run locally and
-selected private apps. Orrama is proprietary, so it covers Jules's own copy and
-nobody else's until OpenAI accepts Orrama's application (sent by Jules, 16 Oct
-2026); other people paste a key. Its rules shape the code:
+selected private apps. Orrama is under the AGPL (21 Oct 2026); until its
+repository is public it is a personal project, which covers Jules's own copy,
+and other people paste a key. Its rules shape the code:
 
 - The redirect is fixed to `http://127.0.0.1:<port>/callback`, a root route,
   so sign-in starts from a browser on this Mac; from anywhere else
@@ -1217,26 +1217,32 @@ old when one exists (`--config.minimum-release-age`).
 
 ## Licence
 
-Orrama is proprietary: copyright © 2026 Jules Timothy Sekelj, all rights
-reserved, not open source (since 16 October 2026). `LICENSE` is the notice, and
-people use the app under the free **Personal licence**
-(`docs/licence/PERSONAL.md`, one person's own use) or the **Company licence**
-(`docs/licence/COMPANY.md`, a named company and its Users, self-hosted, with a
-pilot clause; a draft until a lawyer has read it). Every `package.json` is
-`"license": "UNLICENSED"` and `"private": true`. Nothing written in the repo
-may call Orrama open source.
+Orrama is free software under the **GNU AGPL v3.0 or later** (since 21 October
+2026; Apache 2.0 before, and an unreleased proprietary licence for five days).
+`LICENSE` is the text exactly as gnu.org publishes it (the licence test checks
+its hash: never edit it), `NOTICE` holds the copyright line (© 2026 Jules
+Timothy Sekelj) and the AGPL notice, and every `package.json` and the desktop
+crate say `AGPL-3.0-or-later` (packages stay `"private": true`: nothing goes to
+npm). The repository is still private; going public waits for Jules.
 
-**Never add a copyleft dependency** (GPL, AGPL, LGPL, SSPL, MPL, EUPL and the
-like, unless dual-licensed with an allowed licence). `apps/web/src/licenses.test.ts`
+**AGPL §13: whoever uses Orrama over a network is offered its source.** Settings
+shows a "Source code" link, for every account, to `ORRAMA_SOURCE_URL` (default
+the GitHub repository, `DEFAULT_SOURCE_URL` in `env.ts`), sent by `/api/health`
+as `source`. Someone who runs a changed copy for others points it at theirs.
+
+**Every dependency must be one the AGPL can carry.** `apps/web/src/licenses.test.ts`
 walks every workspace package's production dependencies (`productionPackages`,
-`apps/web/licenses.ts`) and fails on any licence outside `ALLOWED_LICENCES`
-(MIT, ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, 0BSD, MIT-0, Zlib,
-Unlicense, Python-2.0, CC0-1.0, or a dual licence with one of them). A package
-whose `package.json` states no readable licence is checked by hand and added to
-`ALLOWED_BY_NAME` by name and version, with the reason. Today that means
-`duck@0.1.12` ("BSD", whose file is 2-clause) and `buffers@0.1.1` (no licence
-stated, reached through exceljs). Every web build writes the third-party
-notices: `dist/THIRD_PARTY_NOTICES.txt` for the bundle and
+`apps/web/licenses.ts`) and fails on any licence outside `ALLOWED_LICENCES`:
+permissive ones (MIT, ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, 0BSD,
+MIT-0, Zlib, Unlicense, Python-2.0, CC0-1.0, CC-BY-4.0) and the copyleft ones
+compatible with GPLv3 (LGPL-2.1/3.0, MPL-2.0, GPL-2.0-or-later, GPL-3.0,
+AGPL-3.0), or a dual licence with one of them. GPL-2.0-only, SSPL, EPL-1.0, CDDL,
+source-available and unlicensed code fail. A package whose `package.json` states
+no readable licence is checked by hand and added to `ALLOWED_BY_NAME` by name and
+version, with the reason: today only `duck@0.1.12` ("BSD", whose file is
+2-clause). `buffers@0.1.1` (no licence at all, under exceljs) is kept out by the
+`unzipper: 0.11.6` override in pnpm-workspace.yaml. Every web build writes the
+third-party notices: `dist/THIRD_PARTY_NOTICES.txt` for the bundle and
 `dist/THIRD_PARTY_NOTICES_SERVER.txt` for the server's and the MCP server's
 `node_modules`.
 

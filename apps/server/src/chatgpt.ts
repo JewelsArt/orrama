@@ -9,13 +9,13 @@
  * private apps (developers.openai.com/siwc, and the cookbook's "Sign in with
  * ChatGPT"); a paid or proprietary app needs OpenAI's OK first, through the
  * interest form (openai.com/form/sign-in-with-chatgpt-interest/). Orrama is
- * proprietary, so this covers Jules's own copy, a personal project on his own
- * Mac, and nobody else's until OpenAI accepts Orrama's application. Until
- * then other people use a key; hiding this option from them is stage 2's
+ * under the AGPL since 21 October 2026, but its repository is still private:
+ * until it is public this covers Jules's own copy, a personal project on his
+ * own Mac. Other people use a key; hiding this option from them is stage 2's
  * first run.
  *
  * Implemented from the documented protocol, not OpenAI's DevKit (that code is
- * under a noncommercial licence, and Orrama is proprietary, so none of it is
+ * under a noncommercial licence, which the AGPL cannot carry, so none of it is
  * used):
  *
  *   1. start   — a PKCE authorization-code request to auth.openai.com, with

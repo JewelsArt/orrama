@@ -1,10 +1,11 @@
 /**
  * The build ships third-party notices (audit OPS-011): every package a chunk
  * was built from, with its licence text, and the fonts' OFL; and every
- * production dependency of the server and the MCP server. Orrama is
- * proprietary, so every one of those dependencies must carry a licence on the
- * allowlist, and every package says it is private.
+ * production dependency of the server and the MCP server. Orrama is under the
+ * AGPL v3 or later, so every one of those dependencies must carry a licence the
+ * AGPL can carry, and every package and the LICENSE file say so.
  */
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -91,7 +92,10 @@ describe("third-party notices", () => {
     const names = [...found.keys()].map((k) => k.slice(0, k.lastIndexOf("@")));
     expect(names).toContain("yaml"); // through @orrama/core
     expect(names).toContain("yjs"); // through @orrama/sync
-    expect(names).toContain("buffers"); // exceljs → unzipper → binary → buffers
+    expect(names).toContain("unzipper"); // exceljs → unzipper
+    // unzipper 0.10's binary → buffers@0.1.1 states no licence; the override in
+    // pnpm-workspace.yaml keeps it out.
+    expect(names).not.toContain("buffers");
     expect(names.some((n) => n.startsWith("@orrama/"))).toBe(false);
     expect(names).not.toContain("vitest"); // a dev dependency
   });
@@ -101,34 +105,37 @@ describe("third-party notices", () => {
     expect(problems).toEqual([]);
   });
 
-  it("refuses a copyleft or unknown licence, naming the package", () => {
+  it("refuses a licence the AGPL cannot carry, or none, naming the package", () => {
     const at = (license: string, name = "x") => licenceProblem({ name, version: "1.0.0", license, text: null });
-    for (const bad of ["GPL-3.0-only", "AGPL-3.0-or-later", "SSPL-1.0", "LGPL-2.1", "MPL-2.0", "UNKNOWN", "MIT AND GPL-2.0", "BSD"]) {
-      expect(at(bad, "copyleft-thing")).toBe(`copyleft-thing@1.0.0: ${bad}`);
+    for (const bad of ["GPL-2.0-only", "SSPL-1.0", "EPL-1.0", "CDDL-1.0", "BUSL-1.1", "CC-BY-NC-4.0", "UNLICENSED", "UNKNOWN", "MIT AND GPL-2.0-only", "BSD"]) {
+      expect(at(bad, "bad-thing")).toBe(`bad-thing@1.0.0: ${bad}`);
     }
-    for (const ok of ["MIT", "(MIT OR GPL-3.0-or-later)", "(MIT AND Zlib)", "MIT/X11", "BlueOak-1.0.0", "(AFL-2.1 OR BSD-3-Clause)"]) {
+    for (const ok of ["MIT", "LGPL-3.0-or-later", "LGPL-2.1", "MPL-2.0", "GPL-3.0-only", "AGPL-3.0-or-later", "(MIT OR GPL-2.0-only)", "(MIT AND Zlib)", "MIT/X11", "(AFL-2.1 OR BSD-3-Clause)"]) {
       expect(at(ok)).toBeNull();
     }
     // Allowed by name only at the version that was checked.
-    expect(Object.keys(ALLOWED_BY_NAME)).toContain("buffers@0.1.1");
-    expect(licenceProblem({ name: "buffers", version: "0.1.1", license: "UNKNOWN", text: null })).toBeNull();
-    expect(licenceProblem({ name: "buffers", version: "0.2.0", license: "UNKNOWN", text: null })).toBe("buffers@0.2.0: UNKNOWN");
+    expect(Object.keys(ALLOWED_BY_NAME)).toEqual(["duck@0.1.12"]);
+    expect(licenceProblem({ name: "duck", version: "0.1.12", license: "BSD", text: null })).toBeNull();
+    expect(licenceProblem({ name: "duck", version: "0.2.0", license: "BSD", text: null })).toBe("duck@0.2.0: BSD");
+    // A package with no licence at all is flagged, as buffers@0.1.1 would be.
+    expect(licenceProblem({ name: "buffers", version: "0.1.1", license: "UNKNOWN", text: null })).toBe("buffers@0.1.1: UNKNOWN");
   });
 
-  it("every package is private and unlicensed, and the licence is Orrama's own", () => {
+  it("every package, the desktop crate and LICENSE say AGPL-3.0-or-later", () => {
     for (const p of [repo, ...workspaces]) {
       const pkg = JSON.parse(fs.readFileSync(path.join(p, "package.json"), "utf8")) as { name: string; license?: string; private?: boolean };
-      expect({ name: pkg.name, license: pkg.license, private: pkg.private }).toEqual({ name: pkg.name, license: "UNLICENSED", private: true });
+      expect({ name: pkg.name, license: pkg.license, private: pkg.private }).toEqual({ name: pkg.name, license: "AGPL-3.0-or-later", private: true });
     }
-    const licence = fs.readFileSync(path.join(repo, "LICENSE"), "utf8");
-    expect(licence).not.toMatch(/apache/i);
-    expect(licence).toMatch(/All rights reserved/);
-    expect(licence).toContain("docs/licence/PERSONAL.md");
-    expect(licence).toContain("docs/licence/COMPANY.md");
+    // The text as gnu.org publishes it (https://www.gnu.org/licenses/agpl-3.0.txt), unedited.
+    const licence = fs.readFileSync(path.join(repo, "LICENSE"));
+    expect(crypto.createHash("sha256").update(licence).digest("hex")).toBe("0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0");
     const notice = fs.readFileSync(path.join(repo, "NOTICE"), "utf8");
+    expect(notice).toContain("Copyright © 2026 Jules Timothy Sekelj");
+    expect(notice).toContain("terms of the GNU Affero General Public License as published by the Free\nSoftware Foundation, either version 3 of the License, or (at your option) any\nlater version.");
     expect(notice).toContain(NOTICES_FILE);
     expect(notice).toContain(SERVER_NOTICES_FILE);
-    expect(fs.readFileSync(path.join(repo, "apps/desktop/src-tauri/Cargo.toml"), "utf8")).not.toMatch(/^license\s*=/m);
+    expect(fs.existsSync(path.join(repo, "docs/licence"))).toBe(false);
+    expect(fs.readFileSync(path.join(repo, "apps/desktop/src-tauri/Cargo.toml"), "utf8")).toMatch(/^license = "AGPL-3\.0-or-later"$/m);
   });
 
   it("says so when a package ships no licence file", () => {

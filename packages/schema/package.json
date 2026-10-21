@@ -2,7 +2,7 @@
   "name": "@orrama/schema",
   "version": "0.1.0",
   "description": "Zod API schemas + Drizzle table definitions shared by server and clients.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
