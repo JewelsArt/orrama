@@ -40,7 +40,8 @@ describe("NameDialog", () => {
       throw new Error("A note already has that path.");
     });
     await user.keyboard("Ideas{Enter}");
-    expect(screen.getByRole("alert").textContent).toBe("A note already has that path.");
+    // The refusal comes back from onSubmit's promise, so it is said a moment after Enter.
+    expect((await screen.findByRole("alert")).textContent).toBe("A note already has that path.");
     const field = screen.getByRole("textbox", { name: "Path" });
     expect(field.getAttribute("aria-invalid")).toBe("true");
     expect((field as HTMLInputElement).value).toBe("Ideas");
