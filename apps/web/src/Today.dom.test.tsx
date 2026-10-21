@@ -343,6 +343,7 @@ describe("Today: Customise, the header, New", () => {
   it("New → Subscription adds a row to the ledger note, and says where", async () => {
     const { sent } = stubToday({ "POST /api/finance/subscriptions": { ok: true } });
     const user = userEvent.setup();
+    render(<Toaster />);
     await shown();
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(await screen.findByRole("menuitem", { name: "Subscription" }));
@@ -352,11 +353,15 @@ describe("Today: Customise, the header, New", () => {
     await user.click(within(dialog).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(sent.find((r) => r.url === "/api/finance/subscriptions")?.body).toMatchObject({ service: "Spotify", amount: "10.99", cadence: "monthly", next: "2026-10-08" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a subscription" })).toBeNull());
+    // The sheet's own sentence, the same as on Money's pages; no word about a note.
+    expect(await screen.findByText("Spotify is in your commitments.")).toBeTruthy();
+    expect(screen.queryByText(/added to its note/)).toBeNull();
   });
 
   it("New → Income with no income note yet is the same form: the first add makes the note (1G)", async () => {
     const { sent } = stubToday({ "POST /api/finance/income": { ok: true } });
     const user = userEvent.setup();
+    render(<Toaster />);
     await shown();
     await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(await screen.findByRole("menuitem", { name: "Income" }));
@@ -366,6 +371,8 @@ describe("Today: Customise, the header, New", () => {
     await user.type(within(dialog).getByRole("textbox", { name: "Amount" }), "2000");
     await user.click(within(dialog).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(sent.find((r) => r.url === "/api/finance/income")?.body).toMatchObject({ service: "Fictive BV", amount: "2000", cadence: "monthly" }));
+    expect(await screen.findByText("Fictive BV is in your income.")).toBeTruthy();
+    expect(screen.queryByText(/added to its note/)).toBeNull();
   });
 });
 

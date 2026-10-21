@@ -16,6 +16,7 @@ import { api } from "./api.js";
 import { DOMAIN_COLOR } from "./categories.js";
 import { New } from "./create/New.js";
 import { addressOf } from "./mail/people.js";
+import { LineSheet } from "./money/LineSheet.js";
 import { readJson, writeKey } from "./storage.js";
 import { tickStep } from "./steps.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
@@ -27,7 +28,6 @@ import { PageHeader } from "./ui/layout.js";
 import { Popover, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type Route } from "./ui/router.js";
 import { Skeleton } from "./ui/states.js";
-import { AddMoneyRow } from "./today/AddMoneyRow.js";
 import { minuteOf, poseAt, type DayItem } from "./today/day.js";
 import { comingUp, dueGroups, moneyPace, peopleToday, projectsInMotion, relationLine, taskKey, type ComingRow } from "./today/model.js";
 import { itemsOf } from "./noticed/model.js";
@@ -478,13 +478,12 @@ export function Today({ me }: { me?: { displayName: string } } = {}) {
         />
       )}
       {adding && (
-        <AddMoneyRow
+        <LineSheet
           kind={adding}
-          noteMissing={!(adding === "income" ? ok(home)?.finance.in.noteId : ok(home)?.finance.out.noteId)}
           onClose={() => setAdding(null)}
-          onSaved={() => {
+          onSaved={(said) => {
             setAdding(null);
-            toast(adding === "income" ? "Income added to its note." : "Subscription added to its note.");
+            toast(said);
             reload();
           }}
         />

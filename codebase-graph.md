@@ -335,7 +335,7 @@
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./storage.js, ./steps.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/AddMoneyRow.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ui/shell/SectionBar.js, ./ws.js
+- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./money/LineSheet.js, ./storage.js, ./steps.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ui/shell/SectionBar.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -810,10 +810,6 @@
 
 ### `apps/web/src/storage.ts`
 - **Exports**: readKey, writeKey, removeKey, readJson, guardStorage, migrateLegacyKeys
-
-### `apps/web/src/today/AddMoneyRow.tsx`
-- **Exports**: AddMoneyRow
-- **Imports**: ../money/LineSheet.js
 
 ### `apps/web/src/today/Timetable.tsx`
 - **Exports**: Link, Timetable

@@ -1,8 +1,8 @@
 /**
  * One commitment or one income line, in a sheet: add it, or change its name, amount, rhythm, next
  * date and note, or remove it. The same sheet opens from the Subscriptions and Income pages, from
- * a found charge ("Looks recurring → Add", prefilled), and from Today's New menu
- * (`today/AddMoneyRow.tsx`). What it writes is a row of the ledger's table, through the server;
+ * a found charge ("Looks recurring → Add", prefilled), and from Today's New menu.
+ * What it writes is a row of the ledger's table, through the server;
  * the first one on an empty vault makes the note.
  */
 import { isoLocal } from "@orrama/core/dates";
