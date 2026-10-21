@@ -5,6 +5,7 @@ import { daysTo } from "./categories.js";
 import { DocViewer } from "./DocViewer.js";
 import { parseDateInput } from "./entity/index.js";
 import { Gantt } from "./Gantt.js";
+import { STATUS_MENU } from "./steps.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
 import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, GroupNode, ProjectTask } from "@orrama/schema/responses";
@@ -240,7 +241,7 @@ export function ProjectTimeline({ w, lane, onChanged, onOpenNote }: { w: Project
           ]}
         />
         <span className="sp" />
-        <span className="pj-hint">{w.canEdit ? "Drag a step to another week, or open it and type a date." : "Open a step for the detail."}</span>
+        <span className="pj-hint">{w.canEdit ? "Drag a step to another week, or open it and type its due date." : "Open a step for the detail."}</span>
       </div>
       {dated.length === 0 && tasks.length === 0 ? (
         <div className="card pj-empty">
@@ -391,12 +392,6 @@ const HINTS: Record<Filter, string> = {
   soon: "Due in the next three weeks.",
   all: "Every step; done ones sink to the bottom.",
 };
-const STATUS_MENU: { id: string; label: string }[] = [
-  { id: "todo", label: "To do" },
-  { id: "in-progress", label: "In progress" },
-  { id: "blocked", label: "Blocked" },
-  { id: "done", label: "Done" },
-];
 
 export function ProjectTodo({ w, lane, onChanged, onOpenNote, onAdd }: { w: ProjectWorkspace; lane?: string; onChanged: () => Promise<void>; onOpenNote: (id: string) => void; onAdd: () => void }) {
   const tasks = w.tasks as ProjectTask[];

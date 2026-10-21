@@ -315,7 +315,7 @@
 
 ### `apps/web/src/ProjectViews.tsx`
 - **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
-- **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
+- **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./steps.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
 
 ### `apps/web/src/QuickCapture.tsx`
 - **Exports**: QuickCapture
@@ -331,7 +331,7 @@
 
 ### `apps/web/src/TaskCard.tsx`
 - **Exports**: PlannableTask, TaskCard
-- **Imports**: react, @orrama/schema/responses, ./api.js, ./calendarMath.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/overlays.js, react-dom
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./calendarMath.js, ./entity/dateInput.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./steps.js, react-dom
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
@@ -783,6 +783,10 @@
 ### `apps/web/src/settings/parts.tsx`
 - **Exports**: Where, WhereMark, SectionMeta, SECTIONS, SECOND_GROUP, SectionIcon, SectionHead, StateLine, SubHead, SETTINGS_INDEX, findSettings, said
 - **Imports**: react, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/router.js
+
+### `apps/web/src/steps.ts`
+- **Exports**: STATUS_MENU, TaskStatus, PRIORITY_WORDS, tickStep
+- **Imports**: ./api.js, ./ui/overlays.js, ./ui/writes.js
 
 ### `apps/web/src/storage.ts`
 - **Exports**: readKey, writeKey, removeKey, readJson, guardStorage, migrateLegacyKeys

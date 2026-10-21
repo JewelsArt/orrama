@@ -209,9 +209,9 @@
 
   /* Give every interactive control a real touch target — but only the ones
      whose height is free to grow. A blanket rule stretched the round task
-     checkbox into an ellipse and bloated inline labels, so anything with a
+     checkbox (and the switch) into an ellipse and bloated inline labels, so anything with a
      fixed shape or an inline role opts out and gets the treatment below. */
-  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj):not(.cb),
+  button:not(.lock-key):not(.dh-grip):not(.dh-radio):not(.dh-task-proj):not(.cb):not(.ui-sw),
   select,
   summary,
   [role="button"] {
