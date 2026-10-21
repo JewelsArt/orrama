@@ -143,14 +143,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+// The heading comes with the lists; what the page asks for next (relations, the note, the path,
+// activity) lands a moment later, after effects React may run late on a loaded machine. So a
+// test finds what it is about (findBy…), never reads it at once after the heading.
 const show = async (route: Parameters<typeof EntityPage>[0]["route"]) => {
   render(<EntityPage me={me} route={route} />);
   await screen.findByRole("heading", { level: 1 });
-  // Every request the page makes has answered: the mocked server answers at once, but each
-  // answer starts the next (lists → the page → its relations, warnings, path, activity).
-  for (let i = 0; i < 8; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
 };
-const relationRow = (word: string) => screen.getByText(word, { selector: ".ent-rel-row .k" }).closest(".ent-rel-row") as HTMLElement;
+const relationRow = async (word: string) => (await screen.findByText(word, { selector: ".ent-rel-row .k" })).closest(".ent-rel-row") as HTMLElement;
 const linkNamed = (name: string, within_: HTMLElement = document.body) => within(within_).getByRole("link", { name: new RegExp(name) });
 
 describe("a person", () => {
@@ -160,38 +160,38 @@ describe("a person", () => {
     const facts = document.querySelector(".ent-facts") as HTMLElement;
     expect(within(facts).getByText("Works at")).toBeTruthy();
     expect(linkNamed("Westerdok", facts).getAttribute("href")).toBe("/companies/westerdok");
-    expect(within(facts).getByText("Last in touch")).toBeTruthy();
+    expect(await within(facts).findByText("Last in touch")).toBeTruthy();
     expect(screen.getAllByRole("link", { name: "Show in the Orrery" })[0]!.getAttribute("href")).toBe("/orrery?center=ines-vermaat");
   });
 
   it("relates in words, both directions, each note once under its strongest word", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    expect(linkNamed("Graduation thesis", relationRow("supervises")).getAttribute("href")).toBe("/projects/graduation-thesis");
-    expect(screen.queryByText("involved in", { selector: ".ent-rel-row .k" })).toBeNull(); // said as "supervises"
-    expect(linkNamed("Westerdok", relationRow("works at")).getAttribute("href")).toBe("/companies/westerdok");
-    const ww = relationRow("works with");
+    expect(linkNamed("Graduation thesis", await relationRow("supervises")).getAttribute("href")).toBe("/projects/graduation-thesis");
+    expect(screen.queryByText("involved in", { selector: ".ent-rel-row .k" })).toBeNull(); // said as "supervises", from the same answer
+    expect(linkNamed("Westerdok", await relationRow("works at")).getAttribute("href")).toBe("/companies/westerdok");
+    const ww = await relationRow("works with");
     expect(linkNamed("Thijs Brouwer", ww).getAttribute("href")).toBe("/people/thijs-brouwer");
     expect(ww.textContent).toContain("both on Graduation thesis");
-    expect(linkNamed("Kade drinks", relationRow("mentioned in")).getAttribute("href")).toBe("/notes/Shared/Kade%20drinks");
+    expect(linkNamed("Kade drinks", await relationRow("mentioned in")).getAttribute("href")).toBe("/notes/Shared/Kade%20drinks");
   });
 
   it("says how you know them when the path is short and not direct", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    const path = screen.getByRole("region", { name: "How you know Ines Vermaat" });
+    const path = await screen.findByRole("region", { name: "How you know Ines Vermaat" });
     expect(path.textContent).toMatch(/Jules Demo.*works at.*Kade Social.*Graduation thesis.*Ines Vermaat/);
     expect(server.calls.some((c) => c.url === "/api/graph/path?from=n-jules&to=n-ines")).toBe(true);
   });
 
   it("lists what is going on with them: an event and a step that name them", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    const act_ = screen.getByRole("region", { name: "With Ines" });
-    expect(linkNamed("Supervision with Ines Vermaat", act_).getAttribute("href")).toBe("/planning/day/2026-10-21");
-    expect(within(act_).getByRole("checkbox", { name: "Done: Send Ines Vermaat the revised section 3" })).toBeTruthy();
+    const act_ = await screen.findByRole("region", { name: "With Ines" });
+    expect((await within(act_).findByRole("link", { name: /Supervision with Ines Vermaat/ })).getAttribute("href")).toBe("/planning/day/2026-10-21");
+    expect(await within(act_).findByRole("checkbox", { name: "Done: Send Ines Vermaat the revised section 3" })).toBeTruthy();
   });
 
   it("shows the note in the editor, below", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    expect(within(screen.getByRole("region", { name: "The note" })).getByTestId("editor").textContent).toContain("# Ines Vermaat");
+    expect((await within(await screen.findByRole("region", { name: "The note" })).findByTestId("editor")).textContent).toContain("# Ines Vermaat");
   });
 
   it("puts its own warning on top with the fix, and its own name is not a link to itself", async () => {
@@ -238,9 +238,11 @@ describe("on a vault without an ontology", () => {
   it("plain links instead of typed relations, no path, no warnings, no empty boxes", async () => {
     server.typed = false;
     await show({ kind: "person", slug: "ines-vermaat" });
+    expect(linkNamed("Kade drinks", await relationRow("mentioned in"))).toBeTruthy();
+    expect(linkNamed("Westerdok", await relationRow("links to")).getAttribute("href")).toBe("/companies/westerdok");
+    // Every request was asked in the same effect and answered at once, so by now relations,
+    // warnings and the path have answered too: what is absent is absent, not late.
     expect(screen.getByRole("region", { name: "How Ines relates" }).textContent).toContain("links in your notes");
-    expect(linkNamed("Kade drinks", relationRow("mentioned in"))).toBeTruthy();
-    expect(linkNamed("Westerdok", relationRow("links to")).getAttribute("href")).toBe("/companies/westerdok");
     expect(screen.queryByText("supervises", { selector: ".ent-rel-row .k" })).toBeNull();
     expect(screen.queryByRole("region", { name: /How you know/ })).toBeNull();
     expect(screen.queryByRole("note", { name: "Orr noticed" })).toBeNull();
@@ -250,7 +252,7 @@ describe("on a vault without an ontology", () => {
   it("a company still lists who works there, as People always has", async () => {
     server.typed = false;
     await show({ kind: "company", slug: "kade-social" });
-    const employs = relationRow("employs");
+    const employs = await relationRow("employs");
     expect(linkNamed("Thijs Brouwer", employs).getAttribute("href")).toBe("/people/thijs-brouwer");
     expect(linkNamed("Jules Demo", employs)).toBeTruthy();
   });
@@ -260,7 +262,7 @@ describe("a company", () => {
   it("says what it is, who works there and edits its card in a sheet", async () => {
     await show({ kind: "company", slug: "kade-social" });
     expect(screen.getByText("Social-media agency")).toBeTruthy();
-    expect(linkNamed("Thijs Brouwer", relationRow("employs"))).toBeTruthy();
+    expect(linkNamed("Thijs Brouwer", await relationRow("employs"))).toBeTruthy();
     fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
     expect(await screen.findByRole("dialog", { name: "Edit Kade Social" })).toBeTruthy();
   });
@@ -269,12 +271,12 @@ describe("a company", () => {
 describe("a conversation", () => {
   it("is its turns, never the **Jules:** markup, with what it's about", async () => {
     await show({ kind: "conversation", slug: "scoping-the-question" });
-    const talk = screen.getByRole("region", { name: "The conversation" });
+    const talk = await screen.findByRole("region", { name: "The conversation" });
     expect(within(talk).getAllByRole("listitem").map((li) => li.querySelector(".ent-who")!.textContent)).toEqual(["Jules", "Claude"]);
     expect(talk.textContent).not.toContain("**");
     expect(talk.textContent).not.toContain("Date:");
     expect(screen.getByRole("heading", { level: 1 }).parentElement!.textContent).toContain("with Claude");
-    expect(linkNamed("Graduation thesis", relationRow("about")).getAttribute("href")).toBe("/projects/graduation-thesis");
+    expect(linkNamed("Graduation thesis", await relationRow("about")).getAttribute("href")).toBe("/projects/graduation-thesis");
   });
 });
 
@@ -290,8 +292,8 @@ describe("a document", () => {
 
   it("a note that is a document: the project it is part of, then the note", async () => {
     await show({ kind: "document", path: "04-Projects/graduation-thesis/Chapter 1.md" });
-    expect(linkNamed("Graduation thesis", relationRow("part of"))).toBeTruthy();
-    expect(screen.getByTestId("editor")).toBeTruthy();
+    expect(linkNamed("Graduation thesis", await relationRow("part of"))).toBeTruthy();
+    expect(await screen.findByTestId("editor")).toBeTruthy();
   });
 
   it("a file that is not there says so", async () => {
