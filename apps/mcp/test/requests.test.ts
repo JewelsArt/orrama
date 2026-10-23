@@ -80,7 +80,7 @@ const ROWS: Record<string, Row> = {
     calls: [{ path: "/api/tasks/blocks", method: "POST", body: { ...task, date: "2026-10-21", startMin: 600, durationMin: 45 } }],
   },
   get_dashboard: { args: { teamSlug: "eng team" }, calls: [{ path: "/api/dashboard/eng%20team", method: "GET" }] },
-  get_contacts: { args: {}, calls: [{ path: "/api/members", method: "GET" }] },
+  get_contacts: { args: {}, calls: [{ path: "/api/contacts", method: "GET" }] },
   create_project: { args: { name: "Kitchen Garden", domain: "personal" }, calls: [{ path: "/api/projects", method: "POST", body: { name: "Kitchen Garden", domain: "personal" } }] },
   list_projects: { args: {}, calls: [{ path: "/api/projects", method: "GET" }] },
   get_project: { args: { slug: "thesis/../x" }, calls: [{ path: "/api/projects/thesis%2F..%2Fx", method: "GET" }] },

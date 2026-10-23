@@ -9,7 +9,7 @@
  * left alone; a Markdown link (`[text](Old.md)`) is counted as one that won't follow, never
  * rewritten. Links inside code (fences, inline spans) are text, as the parser reads them.
  */
-import { codeLines, foldPath, noteLines, parseFrontmatter, titleFromPath } from "@orrama/core";
+import { codeLines, foldPath, noteLines, parseFrontmatter, titleFromPath, updateFrontmatter } from "@orrama/core";
 
 /**
  * The parser's link grammar (core parse.ts LINK_RE): `[[target#heading|alias]]`, the alias
@@ -85,4 +85,47 @@ export function rewriteLinks(content: string, next: (target: string) => string |
   if (fm.bodyStart === 0 || fm.malformed || fm.notMapping) return all;
   const after = parseFrontmatter(all.content);
   return after.malformed || after.notMapping ? attempt(false) : all;
+}
+
+/**
+ * A relation property that names a note in plain text, or labels its link with the note's
+ * old name, follows a rename too (stage 1, 1F): `company: Northwind` becomes `company:
+ * Northwind BV` and `company: "[[Contacts/Companies/Northwind|Northwind]]"` keeps its label
+ * true, `[[…|Northwind BV]]` (the link's target is rewriteLinks's). Only the properties
+ * `fields` names (the ontology's relation fields), only plain values `plain` gives a new name
+ * for, only labels `label` gives one for. Written by core's front-matter writer, every other
+ * line kept; front matter it can't edit faithfully is left as it is (count 0).
+ */
+export function rewriteNames(
+  content: string,
+  fields: Set<string>,
+  pick: { plain: (text: string) => string | null; label: (target: string, label: string) => string | null },
+): { content: string; count: number } {
+  const fm = parseFrontmatter(content);
+  if (fm.bodyStart === 0 || fm.malformed || fm.notMapping) return { content, count: 0 };
+  let count = 0;
+  const one = (v: string): string => {
+    if (v.includes("[[")) {
+      return v.replace(LINK_RE, (whole: string, target: string, heading: string | undefined, label: string | undefined) => {
+        if (label === undefined) return whole;
+        const next = pick.label(target.trim(), label.trim());
+        if (next === null) return whole;
+        count++;
+        return `[[${target}${heading !== undefined ? `#${heading}` : ""}|${next}]]`;
+      });
+    }
+    const next = v.trim() ? pick.plain(v.trim()) : null;
+    if (next === null) return v;
+    count++;
+    return next;
+  };
+  const data: Record<string, unknown> = { ...fm.data };
+  for (const [k, v] of Object.entries(data)) {
+    if (!fields.has(k.toLowerCase())) continue;
+    if (typeof v === "string") data[k] = one(v);
+    else if (Array.isArray(v) && v.every((x) => typeof x === "string")) data[k] = v.map((x: string) => one(x));
+  }
+  if (count === 0) return { content, count: 0 };
+  const next = updateFrontmatter(content, () => data);
+  return next === content ? { content, count: 0 } : { content: next, count };
 }

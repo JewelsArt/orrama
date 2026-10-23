@@ -148,6 +148,7 @@ const INES: Contact = {
   sector: "School",
   role: "Thesis supervisor",
   company: "Westerdok",
+  companyId: "n-westerdok",
   email: "i.vermaat@westerdok.example",
   phone: "",
   linkedin: "",

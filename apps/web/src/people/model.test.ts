@@ -1,7 +1,7 @@
 /** People's model: what a row says and how the lists are cut (structure.md §2.7). */
 import { describe, expect, it } from "vitest";
 import type { Company, Contact } from "@orrama/schema/responses";
-import { byRecent, bySlug, companiesWithoutNote, companyFor, groupsOf, keyRelation, linkText, matches, peopleAt, sectorsIn, slugOf, type Entry } from "./model.js";
+import { byRecent, bySlug, companiesWithoutNote, companyFor, companyName, groupsOf, keyRelation, linkText, matches, peopleAt, sectorsIn, slugOf, type Entry } from "./model.js";
 import { initials } from "../ui/controls.js";
 
 const person = (name: string, company = "", extra: Partial<Contact> = {}): Contact => ({
@@ -11,6 +11,7 @@ const person = (name: string, company = "", extra: Partial<Contact> = {}): Conta
   sector: "Other",
   role: "",
   company,
+  companyId: null,
   email: "",
   phone: "",
   linkedin: "",
@@ -47,11 +48,13 @@ describe("a row's words", () => {
     expect(initials("Femke de Graaf")).toBe("FG");
   });
 
-  it("finds a contact's company note whether the field links it or names it", () => {
+  it("finds a contact's company note by the server's one rule, never by matching names again", () => {
     const kade = firm("Kade Social");
-    expect(companyFor(person("Bram", "[[Kade Social]]"), [kade])).toBe(kade);
-    expect(companyFor(person("Noor", "kade social"), [kade])).toBe(kade);
-    expect(companyFor(person("Pieter", "Bakker & Zn"), [kade])).toBeUndefined();
+    expect(companyFor(person("Bram", "[[Kade|Old name]]", { companyId: kade.id }), [kade])).toBe(kade);
+    // A name the server found no note for is no company here, however close it reads.
+    expect(companyFor(person("Noor", "kade social"), [kade])).toBeUndefined();
+    expect(companyName(person("Bram", "[[Kade|Old name]]", { companyId: kade.id }), [kade])).toBe("Kade Social");
+    expect(companyName(person("Pieter", "[[Bakker & Zn]]"), [kade])).toBe("Bakker & Zn");
   });
 
   it("says the relation that speaks for a person, never their company twice", () => {
@@ -91,15 +94,15 @@ describe("the lists", () => {
   });
 
   it("names the companies people work at that have no note, once each", () => {
-    const people = [person("Pieter Bakker", "Bakker & Zn"), person("Anna Bakker", "[[Bakker & Zn]]"), person("Claire", "AMSIB (HvA)"), person("Yara")];
-    const ghosts = companiesWithoutNote(people, [firm("AMSIB")]);
+    const people = [person("Pieter Bakker", "Bakker & Zn"), person("Anna Bakker", "[[Bakker & Zn]]"), person("Claire", "AMSIB (HvA)", { companyId: "n-AMSIB" }), person("Yara")];
+    const ghosts = companiesWithoutNote(people);
     expect(ghosts).toHaveLength(1);
     expect(ghosts[0]!.name).toBe("Bakker & Zn");
     expect(ghosts[0]!.people.map((p) => p.name)).toEqual(["Pieter Bakker", "Anna Bakker"]);
   });
 
-  it("lists the people you know at a company as the old roster did", () => {
-    const people = [person("Claire", "AMSIB (HvA)"), person("Bram", "[[Kade Social]]"), person("Yara")];
+  it("lists the people at a company by the same rule read the other way", () => {
+    const people = [person("Claire", "AMSIB (HvA)", { companyId: "n-AMSIB" }), person("Bram", "[[Kade Social]]", { companyId: "n-Kade Social" }), person("Yara", "AMSIB")];
     expect(peopleAt(firm("AMSIB"), people).map((p) => p.name)).toEqual(["Claire"]);
     expect(peopleAt(firm("Kade Social"), people).map((p) => p.name)).toEqual(["Bram"]);
   });

@@ -74,7 +74,7 @@ export const HOME: HomeData = {
 
 export const EVENTS: CalEvent[] = [{ id: "ev-1", ownerId: "u1", username: "jules", mine: true, title: "Interview, Polder Capital", date: "2026-10-12", startMin: 660, durationMin: 60 }];
 
-const contact = (name: string, o: Partial<Contact> = {}): Contact => ({ id: `c-${name}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company: "", email: "", phone: "", linkedin: "", personal: false, ...o });
+const contact = (name: string, o: Partial<Contact> = {}): Contact => ({ id: `c-${name}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false, ...o });
 export const CONTACTS: Contact[] = [
   contact("Emma Jansen", { role: "Classmate", email: "emma@jansen.example" }),
   contact("Ines Vermaat", { role: "Supervisor", company: "[[Westerdok]]", email: "i.vermaat@westerdok.example" }),

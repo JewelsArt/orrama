@@ -26,40 +26,35 @@ export function bySlug<T extends { path: string }>(list: T[], slug: string): T |
   return [...list].sort((a, b) => (a.path < b.path ? -1 : 1)).find((x) => slugOf(x.path) === slug);
 }
 
-/** The company note a contact's `company:` names: the same name, link or plain text, folded. */
-export function companyFor(contact: Pick<Contact, "company">, companies: Company[]): Company | undefined {
-  const name = fold(linkText(contact.company));
-  if (!name) return undefined;
-  return companies.find((c) => fold(c.name) === name);
+/**
+ * Who works where, one rule everywhere (stage 1, 1F): the company note a person's `company:`
+ * names, as the server resolved it (`companyId`: a link, else the company of that name, else
+ * the one whose name holds it). Never matched again here, so People, the entity pages and
+ * Find can't disagree.
+ */
+export function companyFor(contact: Pick<Contact, "companyId">, companies: Company[]): Company | undefined {
+  return contact.companyId ? companies.find((c) => c.id === contact.companyId) : undefined;
 }
 
-/**
- * Everyone whose `company:` is this company, as "People you know here" always read it: the
- * name either way round inside the other ("AMSIB" and "AMSIB (HvA)"), links read as their text.
- */
-export function peopleAt(company: Pick<Company, "name">, contacts: Contact[]): Contact[] {
-  const needle = fold(company.name.trim());
-  return contacts.filter((c) => {
-    const at = fold(linkText(c.company));
-    return at !== "" && (at === needle || at.includes(needle) || needle.includes(at));
-  });
+/** Everyone who works at this company: the same rule read the other way. */
+export function peopleAt(company: Pick<Company, "id">, contacts: Contact[]): Contact[] {
+  return contacts.filter((c) => c.companyId === company.id);
+}
+
+/** Where someone works, in words: the company's name when it has a note, else what they wrote. */
+export function companyName(contact: Pick<Contact, "company" | "companyId">, companies: Company[]): string {
+  return companyFor(contact, companies)?.name ?? linkText(contact.company);
 }
 
 /**
  * Companies people work at that have no note: Orr's warning row, "No note yet: Pieter Bakker
  * works here". One per name, with whoever names it, sorted like the companies.
  */
-export function companiesWithoutNote(contacts: Contact[], companies: Company[]): { name: string; people: Contact[] }[] {
+export function companiesWithoutNote(contacts: Contact[]): { name: string; people: Contact[] }[] {
   const out = new Map<string, { name: string; people: Contact[] }>();
   for (const c of contacts) {
     const name = linkText(c.company);
-    if (!name) continue;
-    const known = companies.some((co) => {
-      const a = fold(co.name);
-      const b = fold(name);
-      return a === b || a.includes(b) || b.includes(a);
-    });
-    if (known) continue;
+    if (!name || c.companyId) continue;
     const key = fold(name);
     const row = out.get(key) ?? out.set(key, { name, people: [] }).get(key)!;
     row.people.push(c);

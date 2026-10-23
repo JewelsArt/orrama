@@ -19,6 +19,7 @@ const contact = (name: string, extra: Partial<Contact> = {}): Contact => ({
   sector: "Other",
   role: "",
   company: "",
+  companyId: null,
   email: "",
   phone: "",
   linkedin: "",
@@ -41,8 +42,8 @@ const company = (name: string, extra: Partial<Company> = {}): Company => ({
 });
 
 const CONTACTS = [
-  contact("Ines Vermaat", { role: "Thesis supervisor", company: "[[Westerdok]]", sector: "University", email: "ines@example.com" }),
-  contact("Bram de Wit", { role: "CEO", company: "[[Kade Social]]", sector: "Leadership" }),
+  contact("Ines Vermaat", { role: "Thesis supervisor", company: "[[Westerdok]]", companyId: "n-westerdok", sector: "University", email: "ines@example.com" }),
+  contact("Bram de Wit", { role: "CEO", company: "[[Kade Social]]", companyId: "n-kadesocial", sector: "Leadership" }),
   contact("Pieter Bakker", { role: "Owner", company: "Bakker & Zn" }),
 ];
 const COMPANIES = [company("Kade Social", { description: "Social-media agency", sector: "Marketing" }), company("Westerdok", { description: "Your school", sector: "University" })];

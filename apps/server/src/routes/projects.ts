@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, areaSlug, canEdit, catchAllOf, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
+import { appendToSection, areaSlug, canEdit, catchAllOf, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, parseFrontmatter, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
@@ -20,6 +20,7 @@ import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
 import { areaOf, areasFor } from "../lifeAreas.js";
+import { fieldText, namesIn } from "./contacts.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
 export { PROJECTS_DIR, projectNoteFor };
@@ -540,7 +541,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return { ok: true };
   });
 
-  /** Detach a person/company: drop their [[link]] line from ## People. */
+  /** Detach a person/company: drop their [[link]] line from ## People, and their name from `involves:`. */
   app.delete<{ Params: { slug: string; noteId: string } }>("/api/projects/:slug/people/:noteId", auth, async (req) => {
     const { user, note } = openProject(req.userId, req.params.slug);
     const target = store.requireReadable(user, req.params.noteId);
@@ -553,8 +554,26 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       .join("\n")
       .replace(/^(?:[ \t]*\n)+/, "")
       .replace(/(?:\n[ \t]*)+$/, "");
-    if (kept === body) return { ok: true, already: true };
-    store.write(user, note.path, writeSection(note.content, SEC.people, kept));
+    let next = kept === body ? note.content : writeSection(note.content, SEC.people, kept);
+    // `involves:` in the properties says it too (the ontology reads both): each value naming
+    // them goes, a list keeps the rest, the key goes with its last value (1F).
+    const names = (v: unknown) => namesIn(fieldText(v)).some((n) => store.index.resolveLink(n.target)?.id === target.id);
+    const had = note.frontmatter["involves"];
+    const list = Array.isArray(had) && !(had.length === 1 && Array.isArray(had[0])) ? had : had === undefined ? [] : [had];
+    const left = list.filter((v) => !names(v));
+    if (left.length < list.length) {
+      const fm = parseFrontmatter(next);
+      if (fm.malformed || fm.notMapping) throw new HttpError(409, "This project's properties can't be read, so they weren't taken off. Fix them in the note first.");
+      const changed = updateFrontmatter(next, (d) => {
+        if (left.length === 0 || !Array.isArray(had)) delete d["involves"];
+        else d["involves"] = left;
+        return d;
+      });
+      if (changed === next) throw new HttpError(409, "This project's properties can't be changed safely, so they weren't taken off. Fix them in the note first.");
+      next = changed;
+    }
+    if (next === note.content) return { ok: true, already: true };
+    store.write(user, note.path, next);
     return { ok: true };
   });
 

@@ -6,7 +6,7 @@
 import type { Company, Contact, GraphData, PeopleContext, ProjectRow, SearchHit, TreeNote } from "@orrama/schema/responses";
 import { STATUS_WORD, statusOf } from "../entity/status.js";
 import { notePath, slugOf } from "../entity/links.js";
-import { companyFor, keyRelation, linkText, peopleAt } from "../people/model.js";
+import { companyName, keyRelation, peopleAt } from "../people/model.js";
 import { folderName } from "../notes/read.js";
 import { dateLabel } from "../ui/dates.js";
 import { PLACES, type Place, type SettingsSection } from "../ui/router.js";
@@ -98,13 +98,12 @@ export function entityItems(words: string[], l: Lists): { items: Item[]; via: Re
   };
 
   const personItem = (c: Contact, score: number, via?: string): Item => {
-    const firm = companyFor(c, l.companies);
     const rel = keyRelation(entries.get(c.id), "person");
     return {
       key: `n:${c.id}`,
       type: "person",
       title: c.name,
-      meta: joined(c.role, firm?.name ?? linkText(c.company), rel && `${rel.phrase} ${rel.first.title}${rel.more ? ` and ${rel.more} more` : ""}`),
+      meta: joined(c.role, companyName(c, l.companies), rel && `${rel.phrase} ${rel.first.title}${rel.more ? ` and ${rel.more} more` : ""}`),
       lead: { kind: "ring", of: c.name },
       route: { kind: "person", slug: slugOf(c.path) },
       score,

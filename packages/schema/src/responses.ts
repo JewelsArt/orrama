@@ -438,13 +438,28 @@ export const contactsResponse = z.array(
     path: z.string(),
     sector: z.string(),
     role: z.string(),
+    /** `company:` as written (a link or a name). */
     company: z.string(),
+    /** The company note it names, or null: a name with no note yet (who works where, 1F). */
+    companyId: z.string().nullable(),
     email: z.string(),
     phone: z.string(),
     linkedin: z.string(),
     personal: z.boolean(),
   }),
 );
+
+/** GET /api/contacts/:id/projects: the projects a person supervises or is listed in (1F). */
+export const contactProjectsResponse = z.array(
+  o({
+    /** The project note's id. */
+    id: z.string(),
+    title: z.string(),
+    slug: z.string(),
+    relation: z.enum(["supervises", "involved"]),
+  }),
+);
+export type ContactProject = z.infer<typeof contactProjectsResponse>[number];
 
 export const companiesResponse = z.array(
   o({

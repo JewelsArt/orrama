@@ -19,7 +19,10 @@ import {
   filterReadable,
   foldPath,
   generateNoteId,
+  ONTOLOGY_TAG,
+  ONTOLOGY_TEMPLATE,
   parseFrontmatter,
+  parseOntology,
   parseNote,
   personalOwner,
   projectName,
@@ -44,7 +47,7 @@ import { writeFileAtomic } from "./atomicWrite.js";
 import { AmbiguousPathError, linksIntoVault, listedExactly, onDisk, sameFile, throughVaultLink } from "./diskPath.js";
 import { unportableName } from "./portableName.js";
 import { numbered } from "./uploads.js";
-import { retarget, rewriteLinks, type Renaming } from "./linkRename.js";
+import { retarget, rewriteLinks, rewriteNames, type Renaming } from "./linkRename.js";
 
 /** How long after the watcher's folder set changes the vault is read again
  *  (reconcileLater): past the moment Node rebuilds its FSEvents stream, which
@@ -228,6 +231,8 @@ interface LinkPlanItem {
   canEdit: boolean;
   /** The link targets, folded, that name the note in this one. */
   targets: Set<string>;
+  /** The plain names in its relation properties, folded, that name the note (`company: Acme`). */
+  names: Set<string>;
 }
 
 /** One file in the trash, as GET /api/vault/trash lists it. */
@@ -1419,8 +1424,9 @@ export class VaultStore {
    * since afterwards they no longer resolve. `other` counts the links that won't follow:
    * Markdown links, and links in notes the caller can't edit.
    */
-  private linkPlan(user: AclUser, note: IndexedNote, toPath: string): { notes: LinkPlanItem[]; other: number; renaming: Renaming } {
+  private linkPlan(user: AclUser, note: IndexedNote, toPath: string): { notes: LinkPlanItem[]; other: number; renaming: Renaming; fields: Set<string> } {
     const grants = this.grants();
+    const fields = this.relationFields();
     const oldTitle = note.writtenTitle ?? note.title;
     const renamed = titleFromPath(note.path) !== titleFromPath(toPath);
     const renaming: Renaming = { from: { path: note.path, title: oldTitle }, to: { path: toPath, title: renamed ? titleFromPath(toPath) : oldTitle } };
@@ -1442,22 +1448,47 @@ export class VaultStore {
         }
         return null;
       });
+      // A relation property naming it in plain text (`company: Acme`, what New person wrote)
+      // follows too (1F): counted as a link, rewritten by rewriteNames.
+      const names = new Set<string>();
+      for (const [k, v] of Object.entries(src.frontmatter)) {
+        if (!fields.has(k.toLowerCase())) continue;
+        for (const text of typeof v === "string" ? [v] : Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []) {
+          const t = text.trim();
+          if (!t || t.includes("[[")) continue;
+          if (this.index.resolveLink(t, undefined, among)?.id === note.id && retarget(t, renaming) !== null) {
+            names.add(foldPath(t));
+            count++;
+          }
+        }
+      }
       // A Markdown link to it doesn't follow (it is never rewritten).
       if (note.path !== toPath) other += src.links.filter((l) => !l.raw.startsWith("[[") && this.index.resolveLinkOf(src, l, among)?.id === note.id).length;
       if (count === 0) continue;
       const editable = canEdit(user, src, grants);
       if (!editable) other += count;
-      notes.push({ id: src.id, path: src.path, title: src.title, links: count, canEdit: editable, targets });
+      notes.push({ id: src.id, path: src.path, title: src.title, links: count, canEdit: editable, targets, names });
     }
-    return { notes, other, renaming };
+    return { notes, other, renaming, fields };
+  }
+
+  /**
+   * The front-matter keys that hold relations (`company`, `supervises`, `involves`…): the
+   * vault's ontology note's, or the template's when it has none, so a plain name follows a
+   * rename the same way on a vault that never wrote one.
+   */
+  private relationFields(): Set<string> {
+    const note = this.index.all().find((n) => n.tags.some((t) => t.tag === ONTOLOGY_TAG));
+    const ontology = parseOntology(note?.content ?? ONTOLOGY_TEMPLATE);
+    return new Set(ontology.relations.flatMap((r) => r.fields));
   }
 
   /** The linkers of a note for a move to `inputTo`, as GET …/linkers answers (nothing written). */
-  linkers(user: AclUser, noteId: string, inputTo: string): { notes: Omit<LinkPlanItem, "targets">[]; other: number } {
+  linkers(user: AclUser, noteId: string, inputTo: string): { notes: Omit<LinkPlanItem, "targets" | "names">[]; other: number } {
     const note = this.requireReadable(user, noteId);
     const { rel: toPath } = this.resolvePath(inputTo, { asNamed: true });
     const plan = this.linkPlan(user, note, toPath);
-    return { notes: plan.notes.map(({ targets: _t, ...rest }) => rest), other: plan.other };
+    return { notes: plan.notes.map(({ targets: _t, names: _n, ...rest }) => rest), other: plan.other };
   }
 
   /**
@@ -1490,8 +1521,16 @@ export class VaultStore {
       if (!item.canEdit) continue;
       const src = this.index.get(item.id);
       if (!src) continue;
-      const next = rewriteLinks(src.content, (t) => (item.targets.has(foldPath(t)) ? retarget(t, plan!.renaming) : null));
-      if (next.count === 0) continue;
+      // Names first: a label is checked against the link's old target, before it is rewritten.
+      const r = plan!.renaming;
+      const labelled = r.from.title !== r.to.title;
+      const named = rewriteNames(src.content, plan!.fields, {
+        plain: (t) => (item.names.has(foldPath(t)) ? retarget(t, r) : null),
+        label: (t, label) => (labelled && item.targets.has(foldPath(t)) && foldPath(label) === foldPath(r.from.title) ? r.to.title : null),
+      });
+      const linked = rewriteLinks(named.content, (t) => (item.targets.has(foldPath(t)) ? retarget(t, r) : null));
+      const next = { content: linked.content, count: linked.count + (item.names.size ? named.count : 0) };
+      if (next.content === src.content) continue;
       try {
         const written = this.write(user, src.path, next.content, undefined, undefined, { guard: opts.guard });
         if (written.id === moved.id) moved = written;

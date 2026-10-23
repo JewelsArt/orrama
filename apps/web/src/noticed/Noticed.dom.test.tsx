@@ -48,7 +48,7 @@ vi.mock("../api.js", async (orig) => {
         case "/api/notes/overview":
           return { pinned: [], notes: 60, conversations: 2, openTasks: 43, doneTasks: 19 };
         case "/api/contacts":
-          return [{ id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", sector: "", role: "", company: "", email: "", phone: "", linkedin: "", personal: false }];
+          return [{ id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false }];
         case "/api/companies":
           return [];
         case "/api/projects":

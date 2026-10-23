@@ -25,6 +25,7 @@ import {
   byRecent,
   companiesWithoutNote,
   companyFor,
+  companyName,
   groupsOf,
   letterOf,
   matches,
@@ -171,11 +172,11 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
   const at = (id: string) => entries.get(id)?.mention?.at;
 
   const shownPeople = useMemo(() => {
-    const list = people.filter((p) => (!sector || sameSector(p.sector, sector)) && matches(q, [p.name, p.role, p.company, p.sector, p.email, ...relatedTitles(p.id)]));
+    const list = people.filter((p) => (!sector || sameSector(p.sector, sector)) && matches(q, [p.name, p.role, companyName(p, firms), p.sector, p.email, ...relatedTitles(p.id)]));
     return sort.people === "recent" ? byRecent(list, (p) => p.name, (p) => at(p.id)) : byName(list, (p) => p.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people, q, sector, sort.people, entries]);
-  const ghosts = useMemo(() => (sector ? [] : companiesWithoutNote(people, firms).filter((g) => matches(q, [g.name, ...g.people.map((p) => p.name)]))), [people, firms, q, sector]);
+  }, [people, firms, q, sector, sort.people, entries]);
+  const ghosts = useMemo(() => (sector ? [] : companiesWithoutNote(people).filter((g) => matches(q, [g.name, ...g.people.map((p) => p.name)]))), [people, firms, q, sector]);
   const shownFirms = useMemo(() => {
     const list: ({ ghost: false; firm: Firm } | { ghost: true; name: string; people: Contact[] })[] = [
       ...firms.filter((c) => (!sector || sameSector(c.sector, sector)) && matches(q, [c.name, c.description, c.sector, c.location, ...c.positions, ...relatedTitles(c.id)])).map((firm) => ({ ghost: false as const, firm })),

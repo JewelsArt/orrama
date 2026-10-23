@@ -213,7 +213,7 @@ export const TOOLS = [
   },
   {
     name: "get_contacts",
-    description: "Get a list of workspace members",
+    description: "List the people in the vault (notes tagged #contact): name, role, company (as written, and the company note it names), email, phone, LinkedIn, sector. Use it to find someone before reading their note.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -436,7 +436,7 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     }
 
     case "get_contacts": {
-      const contacts = await api(`/api/members`);
+      const contacts = await api(`/api/contacts`);
       return { content: [{ type: "text", text: JSON.stringify(contacts, null, 2) }] };
     }
 

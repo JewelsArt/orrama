@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const server = vi.hoisted(() => ({ calls: [] as { method: string; url: string; body: unknown }[], hits: [] as { id: string; path: string; title: string }[] }));
 vi.mock("../ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
 
-const contact = (id: string, name: string, company: string, role = "") => ({ id, name, path: `Contacts/${name}.md`, sector: "", role, company, email: "", phone: "", linkedin: "", personal: false });
+const contact = (id: string, name: string, company: string, role = "", companyId: string | null = null) => ({ id, name, path: `Contacts/${name}.md`, sector: "", role, company, companyId, email: "", phone: "", linkedin: "", personal: false });
 vi.mock("../api.js", async (orig) => {
   const real = await orig<typeof import("../api.js")>();
   return {
@@ -20,7 +20,7 @@ vi.mock("../api.js", async (orig) => {
       if (method === "PUT" && path === "/api/vault/note") return { id: "n-new", path: (body as { path: string }).path };
       switch (path) {
         case "/api/contacts":
-          return [contact("n-thijs", "Thijs Brouwer", "[[Kade Social]]", "Data lead"), contact("n-ines", "Ines Vermaat", "[[Westerdok]]", "Thesis supervisor")];
+          return [contact("n-thijs", "Thijs Brouwer", "[[Kade Social]]", "Data lead", "n-kade"), contact("n-ines", "Ines Vermaat", "[[Westerdok]]", "Thesis supervisor")];
         case "/api/companies":
           return [{ id: "n-kade", name: "Kade Social", path: "Contacts/Companies/Kade Social.md", description: "Social-media agency", sector: "", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false }];
         case "/api/projects":

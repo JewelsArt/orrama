@@ -68,12 +68,12 @@ describe("groups", () => {
 
 /* ---- what is found ---------------------------------------------------------------------- */
 
-const contact = (name: string, company = "", extra: Partial<Contact> = {}): Contact => ({ id: `n-${name.toLowerCase().replace(/\W+/g, "")}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company, email: "", phone: "", linkedin: "", personal: false, ...extra });
+const contact = (name: string, company = "", extra: Partial<Contact> = {}): Contact => ({ id: `n-${name.toLowerCase().replace(/\W+/g, "")}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company, companyId: null, email: "", phone: "", linkedin: "", personal: false, ...extra });
 const company = (name: string, extra: Partial<Company> = {}): Company => ({ id: `n-${name.toLowerCase().replace(/\W+/g, "")}`, name, path: `Contacts/Companies/${name}.md`, description: "", sector: "", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false, ...extra });
 const project = (slug: string, name: string, noteId: string, extra: Partial<ProjectRow> = {}): ProjectRow => ({ slug, key: `project/${slug}`, name, domain: null, area: "work", noteId, total: 4, done: 1, status: "at-risk", start: null, deadline: null, group: null, nextDue: "2026-10-09", overdue: 0, ...extra });
 
 const LISTS: Lists = {
-  contacts: [contact("Thijs Brouwer", "[[Kade Social]]", { role: "Data lead" }), contact("Noor El Amrani", "[[Kade Social]]"), contact("Ines Vermaat", "[[Westerdok]]")],
+  contacts: [contact("Thijs Brouwer", "[[Kade Social]]", { role: "Data lead", companyId: "n-kadesocial" }), contact("Noor El Amrani", "[[Kade Social]]", { companyId: "n-kadesocial" }), contact("Ines Vermaat", "[[Westerdok]]", { companyId: "n-westerdok" })],
   companies: [company("Kade Social", { description: "Social-media agency", location: "Amsterdam" }), company("Westerdok")],
   projects: [project("reporting-dashboard", "Reporting dashboard", "n-dash"), project("graduation-thesis", "Graduation thesis", "n-thesis", { status: "on-track" })],
   nodes: [{ id: "n-talk", title: "Untangling the Kade labels", folder: "07-Claude", sector: null, tags: [], links: 0, tasks: 0, kind: "conversation", description: "" }],

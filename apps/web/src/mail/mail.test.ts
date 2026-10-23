@@ -61,12 +61,12 @@ describe("the tabs", () => {
   });
 });
 
-const contact = (over: Partial<Contact>): Contact => ({ id: "c1", name: "Ines Vermaat", path: "Contacts/Ines Vermaat.md", sector: "School", role: "", company: "", email: "", phone: "", linkedin: "", personal: false, ...over });
+const contact = (over: Partial<Contact>): Contact => ({ id: "c1", name: "Ines Vermaat", path: "Contacts/Ines Vermaat.md", sector: "School", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false, ...over });
 const company = (over: Partial<Company>): Company => ({ id: "co1", name: "Westerdok", path: "Contacts/Companies/Westerdok.md", description: "", sector: "School", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false, ...over });
 
 describe("who sent it", () => {
   it("finds the contact by address, whatever the case, and their company by name", () => {
-    const s = matchSender("I.Vermaat@Westerdok.example", "Ines", [contact({ email: "i.vermaat@westerdok.example", company: "[[Westerdok]]" })], [company({})]);
+    const s = matchSender("I.Vermaat@Westerdok.example", "Ines", [contact({ email: "i.vermaat@westerdok.example", company: "[[Contacts/Companies/Westerdok|Westerdok]]", companyId: "co1" })], [company({})]);
     expect(s.kind).toBe("person");
     expect(s.contact?.id).toBe("c1");
     expect(s.company?.id).toBe("co1");

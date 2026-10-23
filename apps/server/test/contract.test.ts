@@ -35,6 +35,7 @@ let token = "";
 let noteId = "";
 let seq = 0;
 let cardOf = "";
+let contactId = "";
 const call = async (method: string, url: string, payload?: unknown) => {
   const r = await b.app.inject({ method: method as "GET", url, headers: signedIn(token), payload: payload as object });
   return { status: r.statusCode, body: r.body ? (JSON.parse(r.body) as unknown) : null };
@@ -72,6 +73,8 @@ beforeAll(async () => {
   await must("POST", "/api/projects/atlas/capture", { text: "an idea" });
   const contact = (await must("GET", "/api/contacts"))[0] as { id: string };
   await must("POST", "/api/projects/atlas/people", { noteId: contact.id });
+  contactId = contact.id;
+  await must("POST", `/api/contacts/${contact.id}/supervises`, { projectId: ws["noteId"] });
   const board = await must("GET", "/api/projects/atlas/board");
   const files = (board["nodes"] as { id: string; type: string }[]).filter((n) => n.type === "file");
   await must("PUT", "/api/projects/atlas/board", { ...board, edges: [{ id: "e1", fromNode: files[0]!.id, toNode: files[1]!.id }] });
@@ -136,6 +139,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/graph/summaries", () => "/api/graph/summaries?type=conversation", R.graphSummariesResponse],
   ["/api/graph/warnings", () => "/api/graph/warnings", R.graphWarningsResponse],
   ["/api/contacts", () => "/api/contacts", R.contactsResponse],
+  ["/api/contacts/:x/projects", () => `/api/contacts/${contactId}/projects`, R.contactProjectsResponse],
   ["/api/companies", () => "/api/companies", R.companiesResponse],
   ["/api/people/context", () => "/api/people/context", R.peopleContextResponse],
   ["/api/projects", () => "/api/projects", R.projectsResponse],

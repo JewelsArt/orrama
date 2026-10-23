@@ -9,6 +9,7 @@
  * after their company is an organisation; anyone else is a person.
  */
 import type { Company, Contact, ProjectRow } from "@orrama/schema/responses";
+import { companyFor, linkText } from "../people/model.js";
 
 export interface Sender {
   kind: "person" | "company";
@@ -57,13 +58,14 @@ export function matchSender(from: string, fromName: string, contacts: Contact[],
     contacts.find((c) => c.email && c.email.split(/[,;\s]+/).some((e) => e.trim().toLowerCase() === address)) ??
     (name ? contacts.find((c) => norm(c.name) === name) : undefined);
   const domain = domainOf(address);
-  const byName = contact?.company ? companies.find((co) => norm(co.name) === norm(contact.company)) : undefined;
+  // Who works where is People's one rule (the server's `companyId`), never a second match here.
+  const byName = contact ? companyFor(contact, companies) : undefined;
   const byDomain = domain ? companies.find((co) => {
     const h = hostOf(co.website);
     return !!h && (domain === h || domain.endsWith(`.${h}`));
   }) : undefined;
   const company = byName ?? (contact?.company ? undefined : byDomain);
-  const companyName = !company && contact?.company ? contact.company.replace(/\[\[|\]\]/g, "").trim() : undefined;
+  const companyName = !company && contact?.company ? linkText(contact.company) : undefined;
   if (contact) return { kind: "person", contact, company, companyName };
   const org = ROLE_ADDRESS.test(address.split("@")[0] ?? "") || (!!company && !!name && name.includes(norm(company.name)));
   return { kind: org ? "company" : "person", company };

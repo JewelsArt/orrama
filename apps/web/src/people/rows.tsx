@@ -79,13 +79,13 @@ export function PersonRow({
 }: {
   person: Contact & { slug: string };
   /** The company note their `company:` names, when there is one. */
-  company: { route: Route } | null;
+  company: { name: string; route: Route } | null;
   entry: Entry | undefined;
   routeOf: RouteOf;
   /** The first row of a letter carries it, for the phone's A–Z rail. */
   letter?: string;
 }) {
-  const at = linkText(person.company);
+  const at = company?.name ?? linkText(person.company);
   const to: Route = { kind: "person", slug: person.slug };
   return (
     <div className="pp-wrap" data-letter={letter}>

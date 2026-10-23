@@ -20,10 +20,10 @@ vi.mock("../Editor.js", () => ({ Editor: (p: { content: string }) => <div data-t
 vi.mock("../DocViewer.js", () => ({ DocViewer: (p: { name: string; inline?: boolean }) => <div data-testid="reader">{`${p.inline ? "inline" : "sheet"}:${p.name}`}</div> }));
 vi.mock("../noteSync.js", () => ({ openNoteSync: () => null, retire: () => {} }));
 
-const ines = { id: "n-ines", name: "Ines Vermaat", path: "Contacts/Ines Vermaat.md", sector: "University", role: "Thesis supervisor", company: "[[Westerdok]]", email: "ines@westerdok.example", phone: "", linkedin: "", personal: false };
-const thijs = { ...ines, id: "n-thijs", name: "Thijs Brouwer", path: "Contacts/Thijs Brouwer.md", role: "Data lead", company: "[[Kade Social]]", email: "thijs@kadesocial.example", sector: "Other" };
-const jules = { ...ines, id: "n-jules", name: "Jules Demo", path: "Contacts/Jules Demo.md", role: "Student", company: "[[Kade Social]]", email: "jules@orrama.dev", sector: "Other" };
-const pieter = { ...ines, id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", role: "Owner", company: "Bakker & Zn", email: "", sector: "Other" };
+const ines = { id: "n-ines", name: "Ines Vermaat", path: "Contacts/Ines Vermaat.md", sector: "University", role: "Thesis supervisor", company: "[[Westerdok]]", companyId: "n-westerdok" as string | null, email: "ines@westerdok.example", phone: "", linkedin: "", personal: false };
+const thijs = { ...ines, id: "n-thijs", name: "Thijs Brouwer", path: "Contacts/Thijs Brouwer.md", role: "Data lead", company: "[[Kade Social]]", companyId: "n-kade", email: "thijs@kadesocial.example", sector: "Other" };
+const jules = { ...ines, id: "n-jules", name: "Jules Demo", path: "Contacts/Jules Demo.md", role: "Student", company: "[[Kade Social]]", companyId: "n-kade", email: "jules@orrama.dev", sector: "Other" };
+const pieter = { ...ines, id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", role: "Owner", company: "Bakker & Zn", companyId: null, email: "", sector: "Other" };
 const company = (id: string, name: string, extra = {}) => ({ id, name, path: `Contacts/Companies/${name}.md`, description: "", sector: "Marketing", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false, ...extra });
 const westerdok = company("n-westerdok", "Westerdok", { sector: "University" });
 const kade = company("n-kade", "Kade Social", { description: "Social-media agency", website: "kade.example" });

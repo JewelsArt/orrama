@@ -111,7 +111,7 @@ describe("Projects", () => {
 });
 
 describe("People today", () => {
-  const c = (name: string, email = ""): Contact => ({ id: `c-${name}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company: "", email, phone: "", linkedin: "", personal: false });
+  const c = (name: string, email = ""): Contact => ({ id: `c-${name}`, name, path: `Contacts/${name}.md`, sector: "", role: "", company: "", companyId: null, email, phone: "", linkedin: "", personal: false });
   const contacts = [c("Emma Jansen", "emma@example.com"), c("Ines Vermaat", "ines@westerdok.example"), c("Thijs Brouwer"), c("Emma")];
   it("are whole names in today's events and senders of today's unread mail, never a first name alone", () => {
     const people = peopleToday({
