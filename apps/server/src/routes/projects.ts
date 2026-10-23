@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
+import { appendToSection, areaSlug, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
@@ -19,6 +19,7 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
+import { areasFor } from "../lifeAreas.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
 export { PROJECTS_DIR, projectNoteFor };
@@ -51,15 +52,15 @@ export const asGroup = (v: unknown): string => (typeof v === "string" || typeof 
  * then made the tag and the status disagree (inventory §1). No line teaches Markdown: the
  * first step is the example of a step.
  */
-export function projectNoteScaffold(name: string, slug: string, domain?: Domain): string {
-  return [
+export function projectNoteScaffold(name: string, slug: string, domain?: Domain, area?: string): string {
+  const text = [
     "---",
     `title: ${name}`,
     "tags:",
     "  - project",
     `  - project/${slug}`,
     "status: planned",
-    ...(domain ? [`domain: ${domain}`] : []),
+    ...(domain && !area ? [`domain: ${domain}`] : []),
     "---",
     "",
     `# ${name}`,
@@ -67,6 +68,8 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain)
     "- [ ] First step",
     "",
   ].join("\n");
+  // The area as the header's menu writes it: the same YAML writer, quoting what needs it.
+  return area ? updateFrontmatter(text, (d) => ({ ...d, area })) : text;
 }
 
 const isProjectTag = (t: { line: number; tag: string }) => t.line === 0 && projectSlugOf(t.tag) !== null;
@@ -169,15 +172,16 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
 
   /** Scaffold a fresh project note under 04-Projects/ and put it on the board. */
   app.post("/api/projects", auth, async (req) => {
-    const body = (req.body ?? {}) as { name?: string; domain?: string };
+    const body = (req.body ?? {}) as { name?: string; domain?: string; area?: string };
     const name = body.name?.trim();
     if (!name || name.length > 120) throw new HttpError(400, "name required (max 120)");
     const slug = slugify(name);
     const relPath = `${PROJECTS_DIR}/${slug}.md`;
     const user = store.aclUser(req.userId);
+    const area = body.area === undefined ? undefined : areaNamed(user, body.area);
     // Create-only, so `04-Projects/Thesis.md` is not replaced by the scaffold
     // for "thesis" (slugify lower-cases; an exact-case check missed it).
-    const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(body.domain)), undefined, undefined, { create: true });
+    const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(body.domain), area), undefined, undefined, { create: true });
     return { ok: true, noteId: note.id, path: note.path, slug, key: `project/${slug}` };
   });
 
@@ -202,6 +206,14 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const saved = store.write(user, note.path, updated);
     return { ok: true, noteId: saved.id, key: `project/${slug}` };
   });
+
+  /** The name of the reader's life area `v` names (by name or id, any case), or a 400 saying so. */
+  const areaNamed = (user: ReturnType<typeof store.aclUser>, v: unknown): string => {
+    const id = typeof v === "string" ? areaSlug(v) : "";
+    const area = areasFor(store, user).areas.find((a) => a.id === id);
+    if (!area) throw new HttpError(400, "That life area doesn't exist.");
+    return area.name;
+  };
 
   // ---- The workspace ------------------------------------------------------
 
@@ -467,13 +479,21 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     if (body["prompt"] !== undefined) next = writeSection(next, SEC.prompt, section(body["prompt"]));
     if (body["goals"] !== undefined) next = writeSection(next, SEC.goals, section(body["goals"]));
     const fmFields = ["status", "start", "deadline", "domain"] as const;
-    if (fmFields.some((k) => body[k] !== undefined) || body["group"] !== undefined) {
+    // A life area is written by its name, and replaces the old `domain:` that stood for it (1D).
+    const area = body["area"] === undefined ? undefined : areaNamed(user, body["area"]);
+    if (fmFields.some((k) => body[k] !== undefined) || body["group"] !== undefined || area !== undefined) {
+      const before = next;
       next = updateFrontmatter(next, (d) => {
         for (const k of fmFields) if (body[k] !== undefined) d[k] = str(body[k]);
         // No group is no `group:` line, not an empty one.
         if (body["group"] !== undefined) d["group"] = asGroup(body["group"]) || undefined;
+        if (area !== undefined) {
+          d["area"] = area;
+          d["domain"] = undefined;
+        }
         return d;
       });
+      if (area !== undefined && next === before && note.frontmatter["area"] !== area) throw new HttpError(409, "The project's properties can't be read, so its area wasn't changed. Open the note to fix them.");
     }
     // The prompt is owner-authored: an API token may not change it, here or
     // through a heading slipped into the goals (agentWrites.ts).

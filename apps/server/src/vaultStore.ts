@@ -885,18 +885,25 @@ export class VaultStore {
    * Auto-register a project for each **front-matter** `project/<slug>` tag on the
    * note — so tagging a note is all it takes to put it on the board (the same way
    * every other surface is derived from the Markdown). Insert-if-absent: an
-   * existing row's name/domain/team/hidden overrides are preserved, and a project
+   * existing row's name/team/hidden overrides are preserved, and a project
    * the owner removed (hidden=1) is never resurrected. Body mentions of
-   * "project/…" (line ≠ 0) are ignored.
+   * "project/…" (line ≠ 0) are ignored. The row's `domain` follows the
+   * project's own note: it was written once and never again, so a project
+   * moved to another area kept its old one on Today (1D).
    */
   private syncProjectRow(note: IndexedNote, opts: { anchor: boolean } = { anchor: true }): void {
     // The one slug grammar (core projectSlugOf): a tag registered here is a
     // project every route can open (audit REG-017).
     const keys = note.tags.filter((t) => t.line === 0 && projectSlugOf(t.tag) !== null).map((t) => t.tag);
+    const domain = typeof note.frontmatter?.["domain"] === "string" ? (note.frontmatter["domain"] as string) : null;
     for (const key of keys) {
       const existing = this.db.select().from(tables.projects).where(eq(tables.projects.key, key)).get();
-      if (existing) continue;
-      const domain = typeof note.frontmatter?.["domain"] === "string" ? (note.frontmatter["domain"] as string) : null;
+      if (existing) {
+        // Only the project's own note speaks for it; a note that joins it does not.
+        const own = existing.noteId === note.id || note.path === `${PROJECTS_DIR}/${projectSlugOf(key)}.md`;
+        if (own && existing.domain !== domain) this.db.update(tables.projects).set({ domain }).where(eq(tables.projects.id, existing.id)).run();
+        continue;
+      }
       // The note that registered the key is the project (projectNote). At boot
       // the index is half-built and this is walk order, so the anchor is left
       // for projectNote to choose once everything is indexed.
@@ -933,6 +940,17 @@ export class VaultStore {
     const chosen = projectNoteFor(this.index.all(), key);
     if ((chosen?.id ?? null) !== row.noteId) this.db.update(tables.projects).set({ noteId: chosen?.id ?? null }).where(eq(tables.projects.id, row.id)).run();
     return chosen;
+  }
+
+  /** The ids of every registered project's own note (`projectNote`): the notes whose `area:` says their area. */
+  projectNoteIds(): Set<string> {
+    const out = new Set<string>();
+    for (const p of this.db.select().from(tables.projects).all()) {
+      if (p.hidden || p.kind !== "tag") continue;
+      const note = this.projectNote(p.key);
+      if (note) out.add(note.id);
+    }
+    return out;
   }
 
   doc(noteId: string): Y.Doc {

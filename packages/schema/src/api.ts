@@ -286,3 +286,19 @@ export type SetTaskStatus = z.infer<typeof setTaskStatusSchema>;
 export type TaskEdit = z.infer<typeof taskEditSchema>;
 export type TaskMove = z.infer<typeof taskMoveSchema>;
 export type Grant = z.infer<typeof grantSchema>;
+
+/** PUT /api/areas: the whole list, in order (routes/areas.ts, 1D). `was` is the id an area had, so a rename takes its projects. */
+export const lifeAreasWriteSchema = z.object({
+  areas: z
+    .array(
+      z.object({
+        name: z.string().max(200),
+        words: z.array(z.string().max(400)).max(200).default([]),
+        catchAll: z.boolean().default(false),
+        was: z.string().max(200).optional(),
+      }),
+    )
+    .max(100),
+  /** The areas note's hash as `GET /api/areas` sent it: a list changed since is a 409, never a write over it. */
+  baseHash: z.string().max(200).optional(),
+});

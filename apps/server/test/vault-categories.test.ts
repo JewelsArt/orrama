@@ -27,7 +27,7 @@ const tree = async (who: string) =>
   new Map(((await app.inject({ method: "GET", url: "/api/vault/tree", headers: signedIn(tok[who]) })).json() as { path: string; category: string }[]).map((n) => [n.path, n.category]));
 
 describe("tree categories", () => {
-  it("without a rules note, only the PARA defaults apply", async () => {
+  it("without a rules note, everything is in the catch-all", async () => {
     const t = await tree("jules");
     expect(t.get("Shared/Meeting Notes 2026-07-01.md")).toBe("personal");
   });

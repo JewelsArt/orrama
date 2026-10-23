@@ -254,6 +254,27 @@ export const historyResponse = o({
 /** GET /api/vault/note/:id/history/:seq: one version's text. */
 export const revisionResponse = o({ seq: z.number(), at: z.number(), authorId: nstr, content: z.string() });
 
+/** GET /api/areas: the life areas in order, each with how many notes and projects it holds (routes/areas.ts, 1D). */
+export const lifeAreasResponse = o({
+  areas: z.array(
+    o({
+      /** The name's slug: what a tree note's `category` says. */
+      id: z.string(),
+      name: z.string(),
+      /** "Also put notes here when their folder or tags contain…", as written. */
+      words: z.array(z.string()),
+      /** The area for everything no other area claims; exactly one. */
+      catchAll: z.boolean(),
+      notes: z.number(),
+      projects: z.number(),
+    }),
+  ),
+  /** The note that holds the list, or null while the vault has none (Settings makes it on the first change). */
+  note: o({ id: z.string(), path: z.string(), hash: z.string() }).nullable(),
+  /** Can this reader change the list? */
+  canEdit: z.boolean(),
+});
+
 /** GET /api/notes/overview: Notes home's pins and counts (routes/notesHome.ts, R7). */
 export const notesOverviewResponse = o({
   /** Ids of the readable notes whose front matter says `pinned: true`, by title. */
