@@ -529,7 +529,7 @@ describe("graph + plan + profile", () => {
   it("events: owner-only edit, and a range query returns only your own", async () => {
     const e = await api("POST", "/api/events", "mara", { title: "Acme kickoff call", date: "2026-07-07", startMin: 10 * 60, durationMin: 45 });
     expect(e.status).toBe(200);
-    expect(e.json.durationMin).toBe(60); // snapped to 30-min grid, min 30 → 45→60? (rounded)
+    expect(e.json.durationMin).toBe(45); // a typed length is kept, to five minutes (1H)
     // erin used to receive mara's calendar here (audit); now only mara does.
     const range = "/api/events?from=2026-07-06&to=2026-07-12";
     expect((await api("GET", range, "erin")).json.find((x: { id: string }) => x.id === e.json.id)).toBeUndefined();

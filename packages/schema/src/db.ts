@@ -179,6 +179,14 @@ export const events = sqliteTable("events", {
   createdAt: integer("created_at").notNull(),
   /** The calendar note this row was read from; the note is the truth. */
   calNoteId: text("cal_note_id"),
+  /** A day with no hours (start 0, 1440 minutes). */
+  allDay: integer("all_day", { mode: "boolean" }),
+  /** The note's Place cell. */
+  place: text("place"),
+  /** The note's Notes cell, line breaks restored. */
+  notes: text("notes"),
+  /** The note's Repeat cell as written (calendarNotes.ts `parseRepeat`). */
+  repeat: text("repeat"),
 });
 
 export const invites = sqliteTable("invites", {
@@ -202,6 +210,8 @@ export const icsFeeds = sqliteTable("ics_feeds", {
   createdAt: integer("created_at").notNull(),
   lastSyncedAt: integer("last_synced_at"),
   lastError: text("last_error"),
+  /** One of the category colours (`c1`…`c5`), or null for the plain dashed look. */
+  color: text("color"),
 });
 
 /** Sign-in sessions: a JWT is good only while its row here is (apps/server/src/sessions.ts). */

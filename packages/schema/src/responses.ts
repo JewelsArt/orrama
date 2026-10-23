@@ -394,8 +394,14 @@ export const calEventSchema = o({
   source: z.literal("ics").optional(),
   readonly: z.boolean().optional(),
   feedLabel: z.string().optional(),
+  /** A subscribed occurrence's feed and its colour (`c1`…`c5`, null: the plain dashed look). */
+  feedId: z.string().optional(),
+  color: z.string().nullable().optional(),
   allDay: z.boolean().optional(),
-  /** A subscribed occurrence's location, description (plain text) and links (http(s) only). */
+  /** On a day of your repeating event: how it repeats, and the series' id (the day's `id` is `<seriesId>@<date>`). */
+  repeat: o({ every: z.enum(["week", "month", "year"]), interval: z.number(), until: nstr }).optional(),
+  seriesId: z.string().optional(),
+  /** Where and what: a subscribed occurrence's location, description (plain text) and links (http(s) only); your event's place and notes. */
   details: o({
     location: z.string().optional(),
     description: z.string().optional(),
@@ -424,7 +430,7 @@ export const markersResponse = z.array(
 );
 
 export const feedsResponse = z.array(
-  o({ id: z.string(), label: z.string(), host: nstr, createdAt: z.number(), lastSyncedAt: nnum, lastError: nstr }),
+  o({ id: z.string(), label: z.string(), color: nstr, host: nstr, createdAt: z.number(), lastSyncedAt: nnum, lastError: nstr }),
 );
 
 export const icsTokenResponse = o({ token: nstr });

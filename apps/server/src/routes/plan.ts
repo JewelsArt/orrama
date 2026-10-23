@@ -9,6 +9,7 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { canEdit, isoLocal } from "@orrama/core";
 import type { AclUser, VaultTask } from "@orrama/core";
+import { ownEvents } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { aiConfig, completeText, type AiConfig } from "../aiProvider.js";
 import { icsEventsFor } from "./ics.js";
@@ -490,12 +491,7 @@ export async function planRoutes(app: FastifyInstance, db: Db, store: VaultStore
       add(b.date, b.startMin, b.durationMin);
       booked.set(b.date, (booked.get(b.date) ?? 0) + b.durationMin);
     }
-    for (const e of db
-      .select()
-      .from(tables.events)
-      .where(and(eq(tables.events.ownerId, user.id), gte(tables.events.date, from), lte(tables.events.date, to)))
-      .all())
-      add(e.date, e.startMin, e.durationMin);
+    for (const e of ownEvents(db, user.id, from, to)) if (!e.allDay) add(e.date, e.startMin, e.durationMin);
     for (const e of await icsEventsFor(db, user.id, user.username, from, to).catch(() => []))
       if (!e.allDay) add(e.date, e.startMin, e.durationMin);
 

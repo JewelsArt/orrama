@@ -14,6 +14,8 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { canRead } from "@orrama/core";
+import { feedPatchSchema } from "@orrama/schema";
+import { ownerOf, seriesOf } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { buildIcs, expandIcsReport, parseIcs, type IcsDetails, type IcsExportItem, type VEvent } from "../ics.js";
 import { decryptSecret, encryptSecret } from "../secrets.js";
@@ -86,6 +88,9 @@ export interface IcsCalItem {
   source: "ics";
   readonly: true;
   feedLabel: string;
+  /** The feed it came from, and the colour it is drawn in (null: the plain dashed look). */
+  feedId: string;
+  color: string | null;
   allDay: boolean;
   /** Where, what and the call, as the feed gave them (clean text and http(s) links only, `ics.ts`). */
   details?: IcsDetails;
@@ -115,6 +120,8 @@ export async function icsEventsFor(db: Db, userId: string, username: string, fro
           source: "ics",
           readonly: true,
           feedLabel: feed.label,
+          feedId: feed.id,
+          color: feed.color ?? null,
           allDay: o.allDay,
           ...(o.details && { details: o.details }),
         });
@@ -127,6 +134,7 @@ export async function icsEventsFor(db: Db, userId: string, username: string, fro
 const feedPublic = (f: FeedRow, host: string | null) => ({
   id: f.id,
   label: f.label,
+  color: f.color ?? null,
   host,
   createdAt: f.createdAt,
   lastSyncedAt: f.lastSyncedAt,
@@ -184,6 +192,7 @@ export async function icsRoutes(app: FastifyInstance, db: Db, store: VaultStore)
       createdAt: Date.now(),
       lastSyncedAt: Date.now(),
       lastError: null,
+      color: null,
     };
     db.insert(tables.icsFeeds).values(feed).run();
     return { ...feedPublic(feed, url.host), eventCount: count };
@@ -196,6 +205,19 @@ export async function icsRoutes(app: FastifyInstance, db: Db, store: VaultStore)
     const events = await feedEvents(db, feed, true);
     const fresh = db.select().from(tables.icsFeeds).where(eq(tables.icsFeeds.id, feed.id)).get()!;
     return { ...feedPublic(fresh, hostOf(fresh)), eventCount: events.length };
+  });
+
+  /** Rename a subscribed calendar, or give it a colour: what it is called and drawn in, here only. */
+  app.patch<{ Params: { id: string } }>("/api/calendar/feeds/:id", auth, async (req) => {
+    const body = feedPatchSchema.parse(req.body ?? {});
+    const feed = db.select().from(tables.icsFeeds).where(eq(tables.icsFeeds.id, req.params.id)).get();
+    if (!feed || feed.ownerId !== req.userId) throw new HttpError(404, "feed not found");
+    db.update(tables.icsFeeds)
+      .set({ ...(body.label !== undefined && { label: body.label }), ...(body.color !== undefined && { color: body.color }) })
+      .where(eq(tables.icsFeeds.id, feed.id))
+      .run();
+    const fresh = db.select().from(tables.icsFeeds).where(eq(tables.icsFeeds.id, feed.id)).get()!;
+    return feedPublic(fresh, hostOf(fresh));
   });
 
   app.delete<{ Params: { id: string } }>("/api/calendar/feeds/:id", auth, async (req) => {
@@ -241,15 +263,31 @@ export async function icsRoutes(app: FastifyInstance, db: Db, store: VaultStore)
 
     const items: IcsExportItem[] = [];
     for (const ev of db.select().from(tables.events).where(eq(tables.events.ownerId, user.id)).all()) {
-      items.push({ uid: ev.id, title: ev.title, date: ev.date, startMin: ev.startMin, durationMin: ev.durationMin });
+      // A series goes out as one event with its rule, as calendars write them.
+      const s = seriesOf(ev);
+      items.push({
+        uid: ev.id,
+        title: ev.title,
+        date: ev.date,
+        startMin: ev.startMin,
+        durationMin: ev.durationMin,
+        allDay: s.allDay,
+        rule: s.rule,
+        skip: s.skip,
+        ...(ev.place && { location: ev.place }),
+        ...(ev.notes && { description: ev.notes }),
+      });
     }
 
     const aclUser = store.aclUser(user.id);
     const grants = store.grants();
     const objects = new Map(db.select().from(tables.taskObjects).all().map((o) => [o.id, o]));
+    // Your calendar notes: time booked there is yours whoever the step names. Steps made from a
+    // project carry no `@you`, and keyed on the assignee alone they never reached the feed.
+    const mine = new Set(store.index.all().filter((n) => ownerOf(n) === user.username).map((n) => n.id));
     for (const block of db.select().from(tables.taskBlocks).all()) {
       const obj = objects.get(block.taskObjectId);
-      if (!obj || obj.assigneeId !== user.id) continue;
+      if (!obj || !(obj.assigneeId === user.id || (block.calNoteId !== null && mine.has(block.calNoteId)))) continue;
       const note = store.index.get(obj.noteId);
       if (!note || !canRead(aclUser, note, grants)) continue;
       const text = note.tasks.find((t) => t.blockId === obj.blockId)?.text ?? "Task";

@@ -77,12 +77,12 @@ CREATE INDEX IF NOT EXISTS task_blocks_date ON task_blocks (date);
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, title TEXT NOT NULL, date TEXT NOT NULL,
   start_min INTEGER NOT NULL, duration_min INTEGER NOT NULL, created_at INTEGER NOT NULL,
-  cal_note_id TEXT
+  cal_note_id TEXT, all_day INTEGER, place TEXT, notes TEXT, repeat TEXT
 );
 CREATE INDEX IF NOT EXISTS events_date ON events (date);
 CREATE TABLE IF NOT EXISTS ics_feeds (
   id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, label TEXT NOT NULL, url_encrypted TEXT NOT NULL,
-  created_at INTEGER NOT NULL, last_synced_at INTEGER, last_error TEXT
+  created_at INTEGER NOT NULL, last_synced_at INTEGER, last_error TEXT, color TEXT
 );
 CREATE TABLE IF NOT EXISTS mail_accounts (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL,
@@ -129,8 +129,11 @@ CREATE TABLE IF NOT EXISTS webhooks (
  *   4  — projects.note_id, the note a project's documents and board are
  *        authorised against; an older build would pick it from the caller's
  *        own notes again (audit ACL-002, Oct 2026).
+ *   5  — events.all_day, place, notes, repeat and ics_feeds.color; an older
+ *        build would write an event's row back without its place, notes or
+ *        repeat, and draw a series as its first day alone (1H, Oct 2026).
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** `ALTER TABLE … ADD COLUMN` for each column its table lacks; a failure throws with the statement. */
 export function addColumns(sqlite: Database.Database, columns: [table: string, column: string, decl: string][]): void {
@@ -188,6 +191,12 @@ export function createDb(file = dbPath()) {
       ["users", "passcode_hash", "TEXT"],
       ["users", "passcode_fails", "INTEGER NOT NULL DEFAULT 0"],
       ["users", "passcode_locked_until", "INTEGER"],
+      // What an event's row can say besides its time (calendarNotes.ts), and a feed's colour.
+      ["events", "all_day", "INTEGER"],
+      ["events", "place", "TEXT"],
+      ["events", "notes", "TEXT"],
+      ["events", "repeat", "TEXT"],
+      ["ics_feeds", "color", "TEXT"],
     ]);
   } catch (err) {
     sqlite.close();

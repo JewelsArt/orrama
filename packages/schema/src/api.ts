@@ -302,3 +302,38 @@ export const lifeAreasWriteSchema = z.object({
   /** The areas note's hash as `GET /api/areas` sent it: a list changed since is a 409, never a write over it. */
   baseHash: z.string().max(200).optional(),
 });
+
+/** How one of your events repeats (`POST`/`PATCH /api/events`): every week, two weeks, month or year, until a day or for ever. */
+export const eventRepeatSchema = z
+  .object({
+    every: z.enum(["week", "month", "year"]),
+    interval: z.number().int().min(1).max(52),
+    until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "until must be YYYY-MM-DD").nullable(),
+  })
+  .strict();
+
+/**
+ * One of your events, made or changed (`POST /api/events`, `PATCH /api/events/:id`). On a day of a
+ * repeating event (`<id>@<day>`), `scope` says whether the change is that day's alone or the series'.
+ */
+export const eventWriteSchema = z
+  .object({
+    title: z.string().trim().min(1, "title required (max 140)").max(140, "title required (max 140)").optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional(),
+    startMin: z.number({ invalid_type_error: "startMin must be a number of minutes" }).finite().min(0).max(24 * 60).optional(),
+    durationMin: z.number({ invalid_type_error: "durationMin must be a number of minutes" }).finite().positive().max(24 * 60).optional(),
+    allDay: z.boolean().optional(),
+    place: z.string().max(300).optional(),
+    notes: z.string().max(4000).optional(),
+    repeat: eventRepeatSchema.nullable().optional(),
+    scope: z.enum(["one", "all"]).optional(),
+  })
+  .strict();
+
+/** A subscribed calendar's name and colour (`PATCH /api/calendar/feeds/:id`); colour is a category colour or null. */
+export const feedPatchSchema = z
+  .object({
+    label: z.string().trim().min(1, "label required (max 60)").max(60, "label required (max 60)").optional(),
+    color: z.enum(["c1", "c2", "c3", "c4", "c5"]).nullable().optional(),
+  })
+  .strict();

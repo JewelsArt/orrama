@@ -736,6 +736,38 @@ export function expandIcsReport(events: VEvent[], from: string, to: string, maxS
   return { occurrences, truncated: budget.truncated, steps: maxSteps - Math.max(budget.left, 0) };
 }
 
+/* ---------- your own events, drawn as a feed's are ---------- */
+
+/** One of your events, as the calendar note holds it: a day, a time, and maybe a rule. */
+export interface OwnSeries {
+  uid: string;
+  title: string;
+  date: string; // YYYY-MM-DD, its first day
+  startMin: number;
+  durationMin: number;
+  allDay: boolean;
+  /** RRULE parts (FREQ, INTERVAL, UNTIL), or null for one day. */
+  rule: Record<string, string> | null;
+  /** Days left out of the series. */
+  skip: string[];
+  details?: IcsDetails;
+}
+
+/**
+ * An own event as a parsed feed event, so a repeating event of yours and a
+ * subscribed one go through the same expansion (`expandIcsReport`) and land
+ * on the same days. Server-local wall time, like the rest of the grid.
+ */
+export function ownVEvent(s: OwnSeries): VEvent {
+  const [y, mo, d] = s.date.split("-").map(Number) as [number, number, number];
+  const start: Wall = { y, mo, d, h: s.allDay ? 0 : Math.floor(s.startMin / 60), mi: s.allDay ? 0 : s.startMin % 60, tz: "local", allDay: s.allDay };
+  const exdates = s.skip.map((day) => {
+    const [sy, smo, sd] = day.split("-").map(Number) as [number, number, number];
+    return wallToUtc({ ...start, y: sy, mo: smo, d: sd });
+  });
+  return { uid: s.uid, title: s.title, start, durationMin: s.allDay ? 1440 : s.durationMin, rrule: s.rule, exdates, recurrenceId: null, cancelled: false, ...(s.details && { details: s.details }) };
+}
+
 /* ---------- outbound feed ---------- */
 
 export interface IcsExportItem {
@@ -744,6 +776,13 @@ export interface IcsExportItem {
   date: string; // YYYY-MM-DD, server-local
   startMin: number;
   durationMin: number;
+  /** A day with no hours: DTSTART;VALUE=DATE. */
+  allDay?: boolean;
+  /** RRULE parts (FREQ, INTERVAL, UNTIL as YYYYMMDD) and the days left out. */
+  rule?: Record<string, string> | null;
+  skip?: string[];
+  location?: string;
+  description?: string;
 }
 
 /**
@@ -790,18 +829,43 @@ export function buildIcs(calendarName: string, items: IcsExportItem[]): string {
     "CALSCALE:GREGORIAN",
     `X-WR-CALNAME:${escapeText(calendarName)}`,
   ];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const dayStamp = (iso: string) => iso.replace(/-/g, "");
+  /** Wall time in the server's own zone, named: a weekly 18:00 stays 18:00 across a clock change. */
+  const wallStamp = (iso: string, min: number) => `${dayStamp(iso)}T${pad(Math.floor(min / 60))}${pad(min % 60)}00`;
   for (const it of items) {
     const [y, mo, d] = it.date.split("-").map(Number);
-    // Server-local wall time → UTC instants (the grid is server-local by design).
-    const start = new Date(y!, mo! - 1, d!, Math.floor(it.startMin / 60), it.startMin % 60);
-    const end = new Date(start.getTime() + it.durationMin * 60_000);
+    const when: string[] = [];
+    if (it.allDay) {
+      const next = new Date(Date.UTC(y!, mo! - 1, d! + 1)).toISOString().slice(0, 10);
+      when.push(`DTSTART;VALUE=DATE:${dayStamp(it.date)}`, `DTEND;VALUE=DATE:${dayStamp(next)}`);
+    } else if (it.rule) {
+      // DURATION, not DTEND: an event to midnight would end at T240000, which is no time.
+      when.push(`DTSTART;TZID=${LOCAL_TZ}:${wallStamp(it.date, it.startMin)}`, `DURATION:PT${Math.floor(it.durationMin / 60)}H${it.durationMin % 60}M`);
+    } else {
+      // Server-local wall time → UTC instants (the grid is server-local by design).
+      const start = new Date(y!, mo! - 1, d!, Math.floor(it.startMin / 60), it.startMin % 60);
+      const end = new Date(start.getTime() + it.durationMin * 60_000);
+      when.push(`DTSTART:${utcStamp(start)}`, `DTEND:${utcStamp(end)}`);
+    }
+    if (it.rule) {
+      const rule = { ...it.rule };
+      // UNTIL is a UTC instant when DTSTART has a time: the end of that day, here.
+      if (rule["UNTIL"] && !it.allDay) {
+        const u = rule["UNTIL"];
+        rule["UNTIL"] = utcStamp(new Date(+u.slice(0, 4), +u.slice(4, 6) - 1, +u.slice(6, 8), 23, 59, 59));
+      }
+      when.push(`RRULE:${Object.entries(rule).map(([k, v]) => `${k}=${v}`).join(";")}`);
+      for (const day of it.skip ?? []) when.push(it.allDay ? `EXDATE;VALUE=DATE:${dayStamp(day)}` : `EXDATE;TZID=${LOCAL_TZ}:${wallStamp(day, it.startMin)}`);
+    }
     lines.push(
       "BEGIN:VEVENT",
       `UID:${it.uid}@basalt`,
       `DTSTAMP:${now}`,
-      `DTSTART:${utcStamp(start)}`,
-      `DTEND:${utcStamp(end)}`,
+      ...when,
       `SUMMARY:${escapeText(it.title)}`,
+      ...(it.location ? [`LOCATION:${escapeText(it.location)}`] : []),
+      ...(it.description ? [`DESCRIPTION:${escapeText(it.description)}`] : []),
       "END:VEVENT",
     );
   }

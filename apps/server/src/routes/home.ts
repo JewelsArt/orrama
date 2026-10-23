@@ -18,7 +18,7 @@ import {
   isoLocal,
   parsePayslipTable,
 } from "@orrama/core";
-import { ownerOf } from "../calendarNotes.js";
+import { ownerOf, ownEvents } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import type { VaultStore } from "../vaultStore.js";
 import { buildRules, financeNote, ledgerNote, netTotals, planSavings, statementsFor, typicalAround } from "./finance.js";
@@ -105,11 +105,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const todayKey = iso(today);
     const weekEndKey = iso(new Date(today.getTime() + 6 * 86_400_000));
     const rangeBlocks = myBlocks(todayKey, weekEndKey);
-    const rangeEvents = db
-      .select()
-      .from(tables.events)
-      .where(and(eq(tables.events.ownerId, user.id), gte(tables.events.date, todayKey), lte(tables.events.date, weekEndKey)))
-      .all();
+    const rangeEvents = ownEvents(db, user.id, todayKey, weekEndKey);
     // Subscribed calendars (Google et al) are expanded per request from the
     // stored ICS, exactly as routes/calendar.ts does for Planning — there is no
     // Google API here, just the secret .ics URL the user pasted into Settings.
@@ -137,7 +133,7 @@ export async function homeRoutes(app: FastifyInstance, db: Db, store: VaultStore
     });
 
     const agenda: AgendaRow[] = [
-      ...rangeEvents.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.startMin, durationMin: e.durationMin })),
+      ...rangeEvents.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.allDay ? null : e.startMin, durationMin: e.durationMin })),
       ...icsItems.map((e) => row({ kind: "event", date: e.date, title: e.title, startMin: e.allDay ? null : e.startMin, durationMin: e.durationMin, source: e.feedLabel ?? "calendar" })),
       ...rangeBlocks.map(({ block: b, obj }) => {
         const note = store.index.get(obj.noteId);

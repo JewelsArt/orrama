@@ -7,20 +7,22 @@
  * teammates who overlay your lane, like any shared work calendar.
  */
 import crypto from "node:crypto";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { chargeDates, isoLocal, parseSubscriptions, type AclUser } from "@orrama/core";
-import { taskPlaceSchema } from "@orrama/schema";
+import { eventWriteSchema, taskPlaceSchema } from "@orrama/schema";
 import type { z } from "zod";
-import type { CalendarNotes } from "../calendarNotes.js";
+import { ownEvents, parseRepeat, repeatCell, seriesOf, type CalendarNotes, type CalRow } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
+import { expandIcsReport, ownVEvent } from "../ics.js";
 import { icsEventsFor } from "./ics.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { promoteNamedTask } from "./tasks.js";
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 type TaskPlace = z.infer<typeof taskPlaceSchema>;
+type EventWrite = z.infer<typeof eventWriteSchema>;
 const SNAP = 30;
 export const DEFAULT_BLOCK_MIN = 120;
 
@@ -159,72 +161,165 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
 
   // ---- events (meetings etc.) ----------------------------------------------
 
-  app.post("/api/events", auth, async (req) => {
-    const body = (req.body ?? {}) as { title?: string; date?: string; startMin?: number; durationMin?: number };
-    if (typeof body.title !== "string" || !body.title.trim() || body.title.length > 140) throw new HttpError(400, "title required (max 140)");
-    if (!body.date || !DAY_RE.test(body.date)) throw new HttpError(400, "date must be YYYY-MM-DD");
-    const { start, duration } = clampSlot(mins(body.startMin, "startMin"), optMins(body.durationMin, "durationMin") ?? 60);
-    const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
-    calendar.put(store.aclUser(req.userId), { id, title: body.title.trim(), date: body.date, startMin: start, durationMin: duration, task: null });
+  /**
+   * Typed minutes kept inside the day, to five minutes: a typed 10:15 stays
+   * 10:15 (the hour grid's drag snaps to the half hour itself).
+   */
+  const fitEvent = (startMin: number, durationMin: number) => {
+    const start = Math.max(0, Math.min(Math.round(startMin / 5) * 5, 24 * 60 - 5));
+    const duration = Math.max(5, Math.min(Math.round(durationMin / 5) * 5, 24 * 60 - start));
+    return { start, duration };
+  };
+
+  /** The event's row as its calendar note holds it. */
+  const rowOf = (e: typeof tables.events.$inferSelect): CalRow => ({
+    id: e.id,
+    title: e.title,
+    date: e.date,
+    startMin: e.startMin,
+    durationMin: e.durationMin,
+    task: null,
+    ...(e.allDay && { allDay: true }),
+    ...(e.place && { place: e.place }),
+    ...(e.notes && { notes: e.notes }),
+    ...(e.repeat && { repeat: e.repeat }),
+  });
+
+  /** A row with `change` applied: what was sent replaces what was there; an emptied place or notes goes. */
+  const changed = (row: CalRow, change: EventWrite): CalRow => {
+    const allDay = change.allDay ?? !!row.allDay;
+    // An all-day event given hours again starts at 09:00 for an hour unless told otherwise.
+    const { start, duration } = allDay ? { start: 0, duration: 24 * 60 } : fitEvent(change.startMin ?? (row.allDay ? 9 * 60 : row.startMin), change.durationMin ?? (row.allDay ? 60 : row.durationMin));
+    const text = (v: string | undefined, was: string | undefined) => (v === undefined ? was : v.trim() || undefined);
+    const next: CalRow = { id: row.id, title: change.title ?? row.title, date: change.date ?? row.date, startMin: start, durationMin: duration, task: null };
+    if (allDay) next.allDay = true;
+    const place = text(change.place, row.place);
+    const notes = text(change.notes, row.notes);
+    if (place) next.place = place;
+    if (notes) next.notes = notes;
+    if (row.repeat) next.repeat = row.repeat;
+    return next;
+  };
+
+  /** The Repeat cell for `repeat` on a series that starts `date`, keeping the days already left out. */
+  const repeatFor = (repeat: EventWrite["repeat"], date: string, skip: string[] = []): string | undefined => {
+    if (!repeat) return undefined;
+    if (repeat.until && repeat.until < date) throw new HttpError(400, "the repeat ends before the event starts");
+    return repeatCell({ ...repeat, skip: skip.filter((d) => d > date && (!repeat.until || d <= repeat.until)) });
+  };
+
+  /** `ev-1a2b3c4d@2026-10-30` → the event and the day of it; a bare id has no day. */
+  const splitId = (raw: string): { id: string; day: string | null } => {
+    const at = raw.lastIndexOf("@");
+    return at > 0 && DAY_RE.test(raw.slice(at + 1)) ? { id: raw.slice(0, at), day: raw.slice(at + 1) } : { id: raw, day: null };
+  };
+
+  /** Your event by id (or a day of it), or a 404 / 403. */
+  const ownEvent = (raw: string, userId: string, verb: string) => {
+    const { id, day } = splitId(raw);
+    const event = db.select().from(tables.events).where(eq(tables.events.id, id)).get();
+    if (!event) throw new HttpError(404, "event not found");
+    if (event.ownerId !== userId) throw new HttpError(403, `only the owner can ${verb} an event`);
+    const series = parseRepeat(event.repeat);
+    // A day that is not one of the series' is no day of it (an old link, a skipped day).
+    if (day && series && !expandIcsReport([ownVEvent(seriesOf(event))], day, day).occurrences.some((o) => o.date === day)) throw new HttpError(404, "the event doesn't fall on that day");
+    return { event, day: series ? day : null, series };
+  };
+
+  const shiftDay = (iso: string, days: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  const daysFrom = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
+
+  const eventById = (id: string) => {
     const event = db.select().from(tables.events).where(eq(tables.events.id, id)).get();
     if (!event) throw new HttpError(409, "the event could not be put on your calendar");
     return event;
+  };
+
+  app.post("/api/events", auth, async (req) => {
+    const body = eventWriteSchema.parse(req.body ?? {});
+    if (!body.title) throw new HttpError(400, "title required (max 140)");
+    if (!body.date) throw new HttpError(400, "date must be YYYY-MM-DD");
+    if (!body.allDay && body.startMin === undefined) throw new HttpError(400, "startMin must be a number of minutes");
+    const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
+    const row = changed({ id, title: body.title, date: body.date, startMin: body.startMin ?? 9 * 60, durationMin: 60, task: null }, body);
+    const repeat = repeatFor(body.repeat, body.date);
+    calendar.put(store.aclUser(req.userId), { ...row, ...(repeat && { repeat }) });
+    return eventById(id);
   });
 
+  /**
+   * Change an event. On a day of a repeating one (`<id>@<day>`), `scope` "one" (the default:
+   * a drag moves the one you dragged) leaves that day out of the series and makes it an event
+   * of its own with the change; "all" changes the series, and a typed day moves every day of it
+   * by as many days. Jules, 23 Oct 2026: "this one" and "all" only, no "this and following".
+   */
   app.patch<{ Params: { id: string } }>("/api/events/:id", auth, async (req) => {
-    const body = (req.body ?? {}) as { title?: string; date?: string; startMin?: number; durationMin?: number };
-    const event = db.select().from(tables.events).where(eq(tables.events.id, req.params.id)).get();
-    if (!event) throw new HttpError(404, "event not found");
-    if (event.ownerId !== req.userId) throw new HttpError(403, "only the owner can edit an event");
-    const { start, duration } = clampSlot(optMins(body.startMin, "startMin") ?? event.startMin, optMins(body.durationMin, "durationMin") ?? event.durationMin);
-    calendar.put(store.aclUser(req.userId), {
-      id: event.id,
-      title: typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 140) : event.title,
-      date: body.date && DAY_RE.test(body.date) ? body.date : event.date,
-      startMin: start,
-      durationMin: duration,
-      task: null,
-    });
-    return db.select().from(tables.events).where(eq(tables.events.id, event.id)).get();
+    const body = eventWriteSchema.parse(req.body ?? {});
+    const { event, day, series } = ownEvent(req.params.id, req.userId, "edit");
+    const user = store.aclUser(req.userId);
+    const row = rowOf(event);
+    if (day && series && body.scope !== "all") {
+      const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
+      const one = changed({ ...row, id, date: day, repeat: undefined }, { ...body, repeat: undefined });
+      // The day of its own first, then out of the series: a crash between shows it twice, never not at all.
+      calendar.put(user, one);
+      calendar.put(user, { ...row, repeat: repeatCell({ ...series, skip: [...series.skip, day] }) });
+      return eventById(id);
+    }
+    if (day && series) {
+      const shift = body.date ? daysFrom(day, body.date) : 0;
+      const next = changed(row, { ...body, date: shiftDay(event.date, shift) });
+      const skip = series.skip.map((d) => shiftDay(d, shift));
+      const repeat = body.repeat === undefined ? repeatFor({ every: series.every, interval: series.interval, until: series.until }, next.date, skip) : repeatFor(body.repeat, next.date, skip);
+      calendar.put(user, { ...next, repeat });
+      return eventById(event.id);
+    }
+    const next = changed(row, body);
+    const repeat = body.repeat === undefined ? next.repeat : repeatFor(body.repeat, next.date, series?.skip);
+    calendar.put(user, { ...next, repeat });
+    return eventById(event.id);
   });
 
-  app.delete<{ Params: { id: string } }>("/api/events/:id", auth, async (req) => {
-    const event = db.select().from(tables.events).where(eq(tables.events.id, req.params.id)).get();
-    if (!event) throw new HttpError(404, "event not found");
-    if (event.ownerId !== req.userId) throw new HttpError(403, "only the owner can delete an event");
-    calendar.remove(store.aclUser(req.userId), event.id);
+  /** Delete an event; on a day of a repeating one, `?scope=one` (the default) leaves that day out, `all` deletes the series. */
+  app.delete<{ Params: { id: string }; Querystring: { scope?: string } }>("/api/events/:id", auth, async (req) => {
+    const { event, day, series } = ownEvent(req.params.id, req.userId, "delete");
+    const user = store.aclUser(req.userId);
+    if (day && series && req.query.scope !== "all") calendar.put(user, { ...rowOf(event), repeat: repeatCell({ ...series, skip: [...series.skip, day] }) });
+    else calendar.remove(user, event.id);
     return { ok: true };
   });
 
   /**
-   * Your events in a date range. Only yours: an event has no note and no team,
-   * so nothing in the ACL could say who else may see it, and this used to hand
-   * every account every other account's calendar (audit). The dashboard, the
-   * planner and the ICS feed already filtered by owner; this was the one that
+   * Your events in a date range, each repeating one expanded to its days (`ownEvents`). Only
+   * yours: an event has no note and no team, so nothing in the ACL could say who else may see
+   * it, and this used to hand every account every other account's calendar (audit). The
+   * dashboard, the planner and the ICS feed already filtered by owner; this was the one that
    * did not. `mine` stays for the client, and is now always true.
    */
   app.get<{ Querystring: { from?: string; to?: string } }>("/api/events", auth, async (req) => {
     const { from, to } = req.query;
     if (!from || !to || !DAY_RE.test(from) || !DAY_RE.test(to)) throw new HttpError(400, "from/to required (YYYY-MM-DD)");
-    const rows = db
-      .select({
-        id: tables.events.id,
-        title: tables.events.title,
-        date: tables.events.date,
-        startMin: tables.events.startMin,
-        durationMin: tables.events.durationMin,
-        ownerId: tables.events.ownerId,
-        username: tables.users.username,
-      })
-      .from(tables.events)
-      .innerJoin(tables.users, eq(tables.events.ownerId, tables.users.id))
-      .where(and(eq(tables.events.ownerId, req.userId), gte(tables.events.date, from), lte(tables.events.date, to)))
-      .all();
-    const own = rows.map((r) => ({ ...r, mine: r.ownerId === req.userId }));
+    const me = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
+    if (!me) return [];
+    const own = ownEvents(db, req.userId, from, to).map((o) => {
+      const details = { ...(o.place && { location: o.place }), ...(o.notes && { description: o.notes }) };
+      return {
+        id: o.id,
+        title: o.title,
+        date: o.date,
+        startMin: o.startMin,
+        durationMin: o.durationMin,
+        ownerId: req.userId,
+        username: me.username,
+        mine: true,
+        ...(o.allDay && { allDay: true }),
+        ...(Object.keys(details).length > 0 && { details }),
+        ...(o.repeat && { repeat: o.repeat, seriesId: o.seriesId! }),
+      };
+    });
     // Subscribed external calendars (Google/Outlook/uni ICS): read-only layer,
     // returned only to the feed's owner — an external calendar is personal.
-    const me = db.select().from(tables.users).where(eq(tables.users.id, req.userId)).get();
-    const ics = me ? await icsEventsFor(db, req.userId, me.username, from, to) : [];
+    const ics = await icsEventsFor(db, req.userId, me.username, from, to);
     return [...own, ...ics];
   });
 

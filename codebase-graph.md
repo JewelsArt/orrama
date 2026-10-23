@@ -22,8 +22,8 @@
 - **Exports**: CARD_W, CARD_H, FileNode, GroupNode, BoardNode, BoardEdge, Board, fileRef, normalizeBoard, placeMissing, defaultBoard
 
 ### `apps/server/src/calendarNotes.ts`
-- **Exports**: CAL_DIR, CalRow, parseCalendarRows, renderRow, placeRow, dropRow, ownerOf, CalendarNotes
-- **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./vaultStore.js
+- **Exports**: CAL_DIR, CalRow, Repeat, parseRepeat, repeatCell, parseCalendarRows, renderRow, placeRow, dropRow, ruleOf, seriesOf, OwnOccurrence, ownEvents, ownerOf, CalendarNotes
+- **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./ics.js, ./vaultStore.js
 
 ### `apps/server/src/chatgpt.ts`
 - **Exports**: SIWC, ChatGptCredentials, chatgptCredentials, hostId, startSignIn, setKeySetForTests, finishSignIn, chatgptAccessToken, ChatGptModel, listModels, disconnect
@@ -62,7 +62,7 @@
 - **Imports**: drizzle-orm, yjs, @orrama/sync, ./db.js
 
 ### `apps/server/src/ics.ts`
-- **Exports**: MAX_EXPAND_STEPS, VEvent, IcsDetails, IcsOccurrence, wallToUtc, MAX_DESCRIPTION, httpUrl, descriptionText, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
+- **Exports**: MAX_EXPAND_STEPS, VEvent, IcsDetails, IcsOccurrence, wallToUtc, MAX_DESCRIPTION, httpUrl, descriptionText, parseIcs, IcsExpansion, expandIcs, expandIcsReport, OwnSeries, ownVEvent, IcsExportItem, foldLine, buildIcs
 - **Imports**: htmlparser2
 
 ### `apps/server/src/lifeAreas.ts`
@@ -139,7 +139,7 @@
 
 ### `apps/server/src/routes/calendar.ts`
 - **Exports**: DEFAULT_BLOCK_MIN, clampSlot, DayMarker, bookTaskBlock, calendarRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./tasks.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ../ics.js, ./ics.js, ../vaultStore.js, ./tasks.js
 
 ### `apps/server/src/routes/contacts.ts`
 - **Exports**: fieldText, namesIn, fieldLink, companyOf, contactRoutes
@@ -163,7 +163,7 @@
 
 ### `apps/server/src/routes/ics.ts`
 - **Exports**: TRUNCATED, dropFeedCache, IcsCalItem, icsEventsFor, icsRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, ../db.js, ../ics.js, ../secrets.js, ../safeFetch.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, ../calendarNotes.js, ../db.js, ../ics.js, ../secrets.js, ../safeFetch.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/integrations.ts`
 - **Exports**: hashToken, integrationRoutes
@@ -187,7 +187,7 @@
 
 ### `apps/server/src/routes/plan.ts`
 - **Exports**: EstimateCache, EstimateRefiner, refiner, buildPlan, Proposal, planRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/core, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
+- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/core, ../calendarNotes.js, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
 
 ### `apps/server/src/routes/projects.ts`
 - **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, projectRoutes
@@ -1071,7 +1071,7 @@
 - **Imports**: ./safeRegex.js, ./parse.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema
+- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema, eventRepeatSchema, eventWriteSchema, feedPatchSchema
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`

@@ -378,7 +378,7 @@ describe("a write that didn't save (WEB-010)", () => {
 
 describe("states", () => {
   it("a calendar feed that failed is named, with Retry; the week still shows", async () => {
-    server.feeds = [{ id: "f1", label: "Westerdok", host: "example.org", createdAt: 0, lastSyncedAt: null, lastError: "timeout" }];
+    server.feeds = [{ id: "f1", label: "Westerdok", color: null, host: "example.org", createdAt: 0, lastSyncedAt: null, lastError: "timeout" }];
     await open();
     const alert = screen.getByRole("alert");
     expect(alert.textContent).toContain("The calendar “Westerdok” didn't update.");
