@@ -52,8 +52,8 @@ export function Noticed({ me }: { me: Me }) {
                 <Orr pose="search" size={60} />
               </div>
               <p>
-                Your notes have no ontology yet, so there is nothing for Orr to check. A note tagged <code>#vault-ontology</code> says what kinds of
-                things your notes are (people, companies, projects) and how they relate; until there is one, pages show plain links.
+                Orr doesn't know yet what kinds of things your notes are (people, companies, projects) or how they relate, so there is nothing
+                for him to check. Until he does, pages show plain links.
               </p>
             </div>
           )}
@@ -155,7 +155,7 @@ function Glance({ schema, warnings, overview }: { schema: Load<GraphSchema>; war
         {ont && (
           <p className="noti-src">
             Read from{" "}
-            <NameLink {...linkTo({ kind: "notes", path: notePath(ont.path) })}>{ont.title}</NameLink>, the note tagged <code>#vault-ontology</code>.
+            <NameLink {...linkTo({ kind: "notes", path: notePath(ont.path) })}>{ont.title}</NameLink>, the note that says what things are.
           </p>
         )}
       </Module>

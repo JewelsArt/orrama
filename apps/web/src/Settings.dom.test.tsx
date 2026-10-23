@@ -339,6 +339,9 @@ describe("the Settings page (structure.md §3)", () => {
     await screen.findByText("~/Notes");
     const sec = document.querySelector(".set-sec")!;
     expect(sec.textContent).not.toMatch(/Obsidian|How to change it|ORRAMA_VAULT_DIR/);
+    // Nothing teaches the notes Orrama reads by their tags or tables (1D).
+    await screen.findByText("Life areas");
+    expect(sec.textContent).not.toMatch(/#vault|tagged|\| ?Category|table/);
     await user.click(screen.getByRole("button", { name: "Change…" }));
     const dialog = screen.getByRole("dialog", { name: "Where are your notes?" });
     expect(within(dialog).getAllByRole("radio").map((r) => r.textContent?.split(/(?<=[a-z])(?=[A-Z])/)[0])).toEqual(["Start with an example", "Start empty", "Use notes I already have"]);

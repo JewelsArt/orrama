@@ -134,7 +134,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
           aside={
             ontologyNote && (
               <a className="set-link" href={routeHref(noteRoute(ontologyNote))} onClick={go(noteRoute(ontologyNote))}>
-                Open the ontology
+                Open the note
               </a>
             )
           }
@@ -147,7 +147,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
               <span>
                 <b>{plural(schema.types.length, "kind")} of thing</b>, {plural(schema.relations.length, "relation")}
               </span>
-              <small>from the note tagged #vault-ontology</small>
+              <small>from the note that says what things are</small>
             </div>
             <a className="set-fact link" href={routeHref({ kind: "notes-health" })} onClick={go({ kind: "notes-health" })}>
               <span>
@@ -158,8 +158,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
           </div>
         ) : (
           <p className="set-help">
-            Nothing is typed yet. A note tagged #vault-ontology, with Types, Relations, Statuses and Rules tables, lets Orr
-            answer from the graph and say what is missing.
+            Orr doesn't know yet what kinds of things your notes are, so there is nothing for him to check.
           </p>
         )}
       </div>

@@ -148,7 +148,7 @@ describe("Orr noticed", () => {
   it("on a vault without an ontology says there is nothing to check, plainly", async () => {
     server.typed = false;
     await show();
-    expect(screen.getByText(/Your notes have no ontology yet/)).toBeTruthy();
+    expect(screen.getByText(/Orr doesn't know yet what kinds of things your notes are/)).toBeTruthy();
     expect(screen.queryByRole("list", { name: "What needs a look" })).toBeNull();
     const glance = screen.getByRole("region", { name: "Your notes at a glance" }).textContent;
     expect(glance).not.toContain("Types");
