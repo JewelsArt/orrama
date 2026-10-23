@@ -24,7 +24,7 @@ import { dateLabel } from "./ui/dates.js";
 import { Input, SearchField, Textarea } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { Module, Row, RowList } from "./ui/layout.js";
-import { Menu } from "./ui/overlays.js";
+import { Menu, type MenuItem } from "./ui/overlays.js";
 import { navigate } from "./ui/router.js";
 import { Notice } from "./ui/states.js";
 import { attempt, useWrite } from "./ui/writes.js";
@@ -387,6 +387,10 @@ interface Person {
   sub: string;
   /** Linked from the note (`## People` or the text): Remove deletes that link. */
   linked: ProjectPerson | null;
+  /** Named in the project's `involves:`: Remove takes the name out of it too. */
+  involves: boolean;
+  /** Their own note says they supervise it (`supervises:`): taken off there. */
+  supervises: boolean;
 }
 
 type PoolEntry = { id: string; name: string; sub: string; kind: "person" | "company"; path: string };
@@ -406,12 +410,14 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
   // The note's links, then whoever the graph says is involved or supervises without a link
   // in the note (a supervisor's own `supervises:` field).
   const people = useMemo(() => {
+    const has = (rel: string, id: string) => (relations.by.get(rel) ?? []).some((r) => r.id === id);
     const out = new Map<string, Person>();
     for (const p of w.people)
-      out.set(p.id, { id: p.id, title: p.title, kind: p.kind === "company" ? "company" : "person", sub: plain([p.role, p.company].filter(Boolean).join(" · ")), linked: p });
+      out.set(p.id, { id: p.id, title: p.title, kind: p.kind === "company" ? "company" : "person", sub: plain([p.role, p.company].filter(Boolean).join(" · ")), linked: p, involves: has("involves", p.id), supervises: has("supervised_by", p.id) });
     for (const rel of ["supervised_by", "involves", "company_involved_in", "involves_company"])
       for (const r of relations.by.get(rel) ?? [])
-        if (!out.has(r.id) && (r.type === "person" || r.type === "company")) out.set(r.id, { id: r.id, title: r.title, kind: r.type, sub: "", linked: null });
+        if (!out.has(r.id) && (r.type === "person" || r.type === "company"))
+          out.set(r.id, { id: r.id, title: r.title, kind: r.type, sub: "", linked: null, involves: has("involves", r.id), supervises: has("supervised_by", r.id) });
     return [...out.values()];
   }, [w.people, relations.by]);
   // Someone the graph names but the note does not link: their page is found by the file name,
@@ -455,11 +461,29 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
     }
   };
 
+  /** "No longer supervises": the project comes out of their own `supervises:`. */
+  const unsupervise = (p: Person) =>
+    setConfirm({
+      title: `${p.title} no longer supervises ${w.name}?`,
+      body: `This takes ${w.name} out of what ${p.title} supervises, in their note. Nothing else changes.`,
+      confirmLabel: "Take it off",
+      danger: true,
+      onConfirm: async () => {
+        setFailed(null);
+        try {
+          await api("DELETE", `/api/contacts/${p.id}/supervises/${w.noteId}`);
+          await onChanged();
+        } catch {
+          setFailed("remove");
+        }
+      },
+    });
+
   const remove = (p: Person) =>
     setConfirm({
       title: `Take ${p.title} off ${w.name}?`,
       // Remove takes the link out of `## People` only: someone the note's text links too stays.
-      body: `This removes the link from the project note. Their own note stays as it is.${p.linked?.inText ? " They are still mentioned elsewhere in the project note, so they stay listed." : ""}`,
+      body: `This removes the link from the project note. Their own note stays as it is.${p.linked?.inText ? " They are still mentioned elsewhere in the project note, so they stay listed." : ""}${p.supervises ? " They still supervise it, so they stay listed." : ""}`,
       confirmLabel: "Take them off",
       danger: true,
       onConfirm: async () => {
@@ -484,7 +508,20 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
       {people.length > 0 && (
         <RowList label="People and companies">
           {people.map((p) => (
-            <PersonRow key={p.id} p={p} word={roles.get(p.id) ?? "involved"} link={linkOf(p)} onRemove={w.canEdit && p.linked ? () => remove(p) : undefined} />
+            <PersonRow
+              key={p.id}
+              p={p}
+              word={roles.get(p.id) ?? "involved"}
+              link={linkOf(p)}
+              actions={
+                w.canEdit
+                  ? [
+                      ...(p.linked || p.involves ? [{ label: "Remove from this project", danger: true, onSelect: () => remove(p) }] : []),
+                      ...(p.supervises && p.kind === "person" ? [{ label: "No longer supervises", danger: true, onSelect: () => unsupervise(p) }] : []),
+                    ]
+                  : []
+              }
+            />
           ))}
         </RowList>
       )}
@@ -513,9 +550,10 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
  * One person or company: the row is the link to their page, and the ⋯ beside it (never inside
  * it) holds Remove from this project. It shows on pointing or focus, always on a touch screen.
  */
-function PersonRow({ p, word, link, onRemove }: { p: Person; word: string; link: { href?: string; onOpen: () => void }; onRemove?: () => void }) {
+function PersonRow({ p, word, link, actions }: { p: Person; word: string; link: { href?: string; onOpen: () => void }; actions: MenuItem[] }) {
   const [menu, setMenu] = useState(false);
   const at = useRef<HTMLButtonElement>(null);
+  const onRemove = actions.length > 0;
   return (
     <div className={`pj-who${onRemove ? " has-act" : ""}${menu ? " open" : ""}`}>
       <Row
@@ -530,7 +568,7 @@ function PersonRow({ p, word, link, onRemove }: { p: Person; word: string; link:
       {onRemove && (
         <>
           <Button ref={at} kind="quiet" size="sm" icon="dots" className="pj-who-act" aria-label={`More for ${p.title}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />
-          {menu && <Menu anchor={at} align="end" label={p.title} onClose={() => setMenu(false)} items={[{ label: "Remove from this project", danger: true, onSelect: onRemove }]} />}
+          {menu && <Menu anchor={at} align="end" label={p.title} onClose={() => setMenu(false)} items={actions} />}
         </>
       )}
     </div>

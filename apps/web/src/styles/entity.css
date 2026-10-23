@@ -115,7 +115,9 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
    (a sideways scrollbar with Ask Orr open). */
 .ent-head .ent-acts [data-tip]::after { left: auto; right: 0; top: calc(100% + 6px); transform: none; }
 .ent-facts .ent-list { display: flex; flex-wrap: wrap; gap: 2px 12px; }
-.ent-facts select.ent-sector { height: 30px; margin-top: 1px; font-weight: 600; }
+/* Works at: the company, and Change (or Add) beside it (1F). */
+.ent-facts .ent-wa { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.ent-facts .ent-change { color: var(--accent); font-size: 13px; }
 .ent-fail { display: block; margin-top: 4px; color: var(--late); font-size: 12.5px; line-height: 17px; }
 
 /* a white block: relations, the path, the note, the conversation */
@@ -216,3 +218,20 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   .ent-turns li { grid-template-columns: 1fr; gap: 2px; }
   .doc-reader.inline .doc-frame { height: 70vh; }
 }
+
+/* ---- a person's projects (1F): the row opens the project; its ⋯ sits beside it, over the
+   relation's word while it shows (on pointing or focus; always on touch), as on the project page. */
+.ent-projects .rows { margin: 0 -8px; }
+.ent-proj { position: relative; }
+.ent-proj > a.row { color: inherit; text-decoration: none; }
+.ent-proj + .ent-proj > .row::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; border-top: 1px solid var(--line); }
+.ent-proj-act.btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); opacity: 0; }
+.ent-proj:hover .ent-proj-act, .ent-proj:focus-within .ent-proj-act, .ent-proj.open .ent-proj-act { opacity: 1; }
+.ent-proj.has-act:hover .r, .ent-proj.has-act:focus-within .r, .ent-proj.open .r { visibility: hidden; }
+@media (hover: none), (max-width: 760px) {
+  .ent-proj-act.btn { opacity: 1; }
+  .ent-proj.has-act > .row { padding-right: 48px; }
+  .ent-proj.has-act:hover .r, .ent-proj.has-act:focus-within .r, .ent-proj.open .r { visibility: visible; }
+}
+.ent-projects .ent-none { margin: 2px 0 6px; font-size: 13.5px; }
+.ent-adds { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px -8px 0; }

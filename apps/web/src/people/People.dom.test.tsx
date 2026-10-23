@@ -88,7 +88,7 @@ function stub(context: PeopleContext = TYPED, overrides: Record<string, () => Re
       if (method === "GET" && path === "/api/projects") return json(PROJECTS);
       if (method === "PATCH" && path.startsWith("/api/contacts/")) return json({ ok: true });
       if (method === "GET" && path.startsWith("/api/vault/note/")) return json({ id: "n-inesvermaat", path: "Contacts/Ines Vermaat.md", content: "---\nsector: University\n---\n# Ines\n", hash: "h" });
-      if (method === "PUT" && path === "/api/vault/note") return json({ id: "n-new", path: "Contacts/New.md" });
+      if (method === "PUT" && path === "/api/vault/note") return json({ id: "n-new", path: (JSON.parse(String(init!.body)) as { path: string }).path });
       return json({ error: `no fixture for ${method} ${path}` }, 404);
     }),
   );
@@ -109,7 +109,7 @@ afterEach(() => {
 describe("People: the rows", () => {
   it("says role, company and the relation that speaks for them, and when they were last mentioned", async () => {
     stub();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     const ines = await rowOf("Ines Vermaat");
     expect(ines.textContent).toContain("Thesis supervisor · Westerdok · supervises Graduation thesis");
     expect(ines.textContent).toContain("Kade drinks");
@@ -124,7 +124,7 @@ describe("People: the rows", () => {
 
   it("is plain on a vault without an ontology", async () => {
     stub(PLAIN);
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     const ines = await rowOf("Ines Vermaat");
     expect(ines.textContent).toContain("Thesis supervisor · Westerdok");
     expect(ines.textContent).not.toContain("supervises");
@@ -133,7 +133,7 @@ describe("People: the rows", () => {
   it("says when people work at a company that has no note, and the row creates it", async () => {
     stub();
     const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     const ghost = await rowOf("Bakker & Zn");
     expect(ghost.textContent).toContain("No note yet: Pieter Bakker works here");
     await user.click(ghost);
@@ -144,7 +144,7 @@ describe("People: the rows", () => {
   it("opens a person at their address, and a name inside a row opens its own thing instead", async () => {
     stub();
     const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     await user.click(await rowOf("Ines Vermaat"));
     expect(location.pathname).toBe("/people/ines-vermaat"); // her entity page (R11), App's to show
     history.replaceState(null, "", "/people");
@@ -158,7 +158,7 @@ describe("People: search and sector", () => {
   it("narrow both lists and write themselves into the address", async () => {
     stub();
     const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     await rowOf("Ines Vermaat");
     await user.type(screen.getAllByRole("searchbox", { name: "Find a person or a company" })[0]!, "kade");
     await waitFor(() => expect(location.search).toBe("?q=kade"));
@@ -177,32 +177,54 @@ describe("People: search and sector", () => {
   it("opens filtered when the address says so", async () => {
     history.replaceState(null, "", "/people?q=bram");
     stub();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     await rowOf("Bram de Wit");
     expect(within(section("People")).queryByRole("button", { name: starts("Ines Vermaat") })).toBeNull();
   });
 });
 
 describe("People: New", () => {
-  it("creates a person create-only and opens their note", async () => {
+  it("creates a person create-only, with the company picked from the list, and opens their page", async () => {
     const sent = stub();
-    const opened: string[] = [];
     const user = userEvent.setup();
-    render(<People me={me} onOpenNote={(id) => opened.push(id)} />);
+    render(<People me={me} />);
     await rowOf("Ines Vermaat");
     await user.click(screen.getAllByRole("button", { name: "Person" })[0]!);
     const dialog = await screen.findByRole("dialog", { name: "New person" });
     await user.type(within(dialog).getByRole("textbox", { name: "Name" }), "Emma Jansen");
+    await user.type(within(dialog).getByRole("searchbox", { name: "Company" }), "kade");
+    await user.click(await within(dialog).findByRole("button", { name: /^Kade Social/ }));
+    expect(within(dialog).getByText("Kade Social").closest(".pp-picked")).not.toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Add person" }));
-    await waitFor(() => expect(opened).toEqual(["n-new"]));
+    await waitFor(() => expect(location.pathname).toBe("/people/emma-jansen"));
     const put = sent.find((r) => r.method === "PUT")!;
     expect(put.body).toMatchObject({ path: "Contacts/Emma Jansen.md", create: true });
+    expect((put.body as { content: string }).content).toContain('\ncompany: "[[Contacts/Companies/Kade Social|Kade Social]]"\n');
+  });
+
+  it("makes a new company in place, with its name alone, and links the person to it", async () => {
+    const sent = stub();
+    const user = userEvent.setup();
+    render(<People me={me} />);
+    await rowOf("Ines Vermaat");
+    await user.click(screen.getAllByRole("button", { name: "Person" })[0]!);
+    const dialog = await screen.findByRole("dialog", { name: "New person" });
+    await user.type(within(dialog).getByRole("textbox", { name: "Name" }), "Emma Jansen");
+    await user.type(within(dialog).getByRole("searchbox", { name: "Company" }), "Oost Runners");
+    await user.click(await within(dialog).findByRole("button", { name: /^New company “Oost Runners”/ }));
+    await within(dialog).findByText("Oost Runners", { selector: "b" });
+    await user.click(within(dialog).getByRole("button", { name: "Add person" }));
+    await waitFor(() => expect(location.pathname).toBe("/people/emma-jansen"));
+    const puts = sent.filter((r) => r.method === "PUT").map((r) => r.body as { path: string; content: string });
+    expect(puts.map((p) => p.path)).toEqual(["Contacts/Companies/Oost Runners.md", "Contacts/Emma Jansen.md"]);
+    expect(puts[0]!.content).toContain("tags: [company]");
+    expect(puts[1]!.content).toContain('\ncompany: "[[Contacts/Companies/Oost Runners|Oost Runners]]"\n');
   });
 
   it("says a taken name in a Notice, keeps what was typed, and replaces nothing", async () => {
     stub(TYPED, { "PUT /api/vault/note": () => json({ error: "A note already exists at Contacts/Ines Vermaat.md." }, 409) });
     const user = userEvent.setup();
-    render(<People me={me} onOpenNote={() => {}} />);
+    render(<People me={me} />);
     await rowOf("Ines Vermaat");
     await user.click(screen.getAllByRole("button", { name: "Person" })[0]!);
     const dialog = await screen.findByRole("dialog", { name: "New person" });

@@ -17,6 +17,8 @@ const WARNINGS = [
   { code: "project-status-conflict", message: "m", note: note("n-oost", "Move to Oost", "project", "04-Projects/move-to-oost.md"), field: "at-risk", tags: ["paused"] },
   { code: "project-without-status", message: "m", note: note("n-inbox", "Inbox agent", "project", "04-Projects/inbox-agent.md") },
   { code: "document-orphan", message: "m", note: note("n-pitch", "Old pitch", "document", "Shared/Old pitch.md"), tag: "project/pitch-deck" },
+  { code: "person-without-company", message: "m", note: note("n-yara", "Yara Haddad", "person", "Contacts/Yara Haddad.md") },
+  { code: "unresolved-object", message: "m", note: note("n-noor", "Noor El Amrani", "person", "Contacts/Noor El Amrani.md"), relation: "works_at", target: "Clients/Polder Capital" },
 ];
 
 vi.mock("../api.js", async (orig) => {
@@ -25,6 +27,7 @@ vi.mock("../api.js", async (orig) => {
     ...real,
     api: async (method: string, url: string, body?: unknown) => {
       server.calls.push({ method, url, body });
+      if (method === "PUT" && url === "/api/vault/note") return { id: "n-made", path: (body as { path: string }).path };
       if (method !== "GET") return { ok: true };
       switch (url) {
         case "/api/graph/warnings":
@@ -48,9 +51,12 @@ vi.mock("../api.js", async (orig) => {
         case "/api/notes/overview":
           return { pinned: [], notes: 60, conversations: 2, openTasks: 43, doneTasks: 19 };
         case "/api/contacts":
-          return [{ id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false }];
+          return [
+            { id: "n-pieter", name: "Pieter Bakker", path: "Contacts/Pieter Bakker.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false },
+            { id: "n-yara", name: "Yara Haddad", path: "Contacts/Yara Haddad.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false },
+          ];
         case "/api/companies":
-          return [];
+          return [{ id: "n-kade", name: "Kade Social", path: "Contacts/Companies/Kade Social.md", description: "", sector: "", linkedin: "", website: "", careers: "", location: "", positions: [], personal: false }];
         case "/api/projects":
           return [
             { slug: "move-to-oost", noteId: "n-oost", name: "Move to Oost" },
@@ -96,6 +102,8 @@ describe("Orr noticed", () => {
       "Move to Oost is tagged paused but its status says at risk.",
       "Inbox agent has no status.",
       "Old pitch is tagged project/pitch-deck, but there's no project note for it.",
+      "Yara Haddad has no company.",
+      "Noor El Amrani works at Clients/Polder Capital, which has no note.",
     ]);
     expect(within(item(/Pieter/)).getByRole("link", { name: "Pieter Bakker" }).getAttribute("href")).toBe("/people/pieter-bakker");
     expect(within(item(/Oost/)).getByRole("link", { name: "Move to Oost" }).getAttribute("href")).toBe("/projects/move-to-oost");
@@ -133,6 +141,30 @@ describe("Orr noticed", () => {
     const dialog = await screen.findByRole("dialog", { name: "New company" });
     expect((within(dialog).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Bakker & Zn");
     expect(writes()).toEqual([]);
+  });
+
+  it("a person with no company opens the works-at picker, and a pick writes where they work", async () => {
+    await show();
+    fireEvent.click(within(item(/Yara/)).getByRole("button", { name: "Add where they work" }));
+    const dialog = await screen.findByRole("dialog", { name: "Where does Yara work?" });
+    expect(writes()).toEqual([]);
+    fireEvent.change(within(dialog).getByRole("searchbox", { name: "Company" }), { target: { value: "kade" } });
+    await act(async () => {
+      fireEvent.click(await within(dialog).findByRole("button", { name: /^Kade Social/ }));
+    });
+    expect(writes()).toEqual([{ method: "PATCH", url: "/api/contacts/n-yara", body: { companyId: "n-kade" } }]);
+  });
+
+  it("a company named by a path is made with its name, then the person points at it", async () => {
+    await show();
+    fireEvent.click(within(item(/Noor/)).getByRole("button", { name: "Create the note" }));
+    const dialog = await screen.findByRole("dialog", { name: "New company" });
+    expect((within(dialog).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Polder Capital");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Add company" }));
+    });
+    await waitFor(() => expect(writes().map((w) => `${w.method} ${w.url}`)).toEqual(["PUT /api/vault/note", "PATCH /api/contacts/n-noor"]));
+    expect(writes()[1]!.body).toEqual({ companyId: "n-made" });
   });
 
   it("shows the graph at a glance: counts, types that have notes, relations, statuses, the ontology note", async () => {

@@ -15,10 +15,15 @@ describe("Orr noticed's sentences", () => {
     expect(items[0]!.fixes).toEqual([{ kind: "create-company", label: "Create the note", name: "Bakker & Zn" }]);
   });
 
-  it("a person with no company at all opens the note to add one", () => {
+  it("a person with no company at all gets the works-at picker, not the note", () => {
     const [it0] = itemsOf([w("person-without-company", note("Yara Haddad"))]);
     expect(said(it0!.parts)).toBe("[Yara Haddad] has no company.");
-    expect(it0!.fixes[0]!.kind).toBe("open");
+    expect(it0!.fixes).toEqual([{ kind: "works-at", label: "Add where they work" }]);
+  });
+
+  it("a company named by a path is made with its name, and the person pointed at it", () => {
+    const [it0] = itemsOf([w("unresolved-object", pieter, { relation: "works_at", target: "Clients/Bakker & Zn.md" })]);
+    expect(it0!.fixes).toEqual([{ kind: "create-company", label: "Create the note", name: "Bakker & Zn", person: pieter.id }]);
   });
 
   it("any other name that is not a note is said with its relation, and opened by hand", () => {

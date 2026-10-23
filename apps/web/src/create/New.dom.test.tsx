@@ -1,4 +1,4 @@
-/** New: the menu and its four dialogs, each through the route that already makes its thing. */
+/** New: the menu and its six dialogs, each through the route that already makes its thing. */
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,13 +41,37 @@ const type = (label: string, value: string) => fireEvent.change(screen.getByRole
 const submit = async (dialog: string) => act(async () => fireEvent.submit(screen.getByRole("dialog", { name: dialog }).querySelector("form")!));
 
 describe("New", () => {
-  it("offers a task, a note, an event and a project, and closing the menu ends it", async () => {
+  it("offers a task, a note, an event, a project, a person and a company, and closing the menu ends it", async () => {
     const onDone = vi.fn();
     render(<Harness route={{ kind: "today" }} onDone={onDone} />);
     const menu = await screen.findByRole("menu", { name: "New" });
-    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project"]);
+    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project", "Person", "Company"]);
     fireEvent.keyDown(menu, { key: "Escape" });
     await waitFor(() => expect(onDone).toHaveBeenCalled());
+  });
+
+  it("a person is made create-only, as People makes one, and their page opens", async () => {
+    answers["GET /api/companies"] = () => Response.json([]);
+    answers["GET /api/me"] = () => Response.json({ id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true });
+    answers["PUT /api/vault/note"] = () => Response.json({ id: "n-emma", path: "Contacts/Emma Jansen.md" });
+    const onDone = await pick({ kind: "today" }, "Person");
+    type("Name", "Emma Jansen");
+    await submit("New person");
+    const put = sent.find((r) => r.method === "PUT")!;
+    expect(put.body).toMatchObject({ path: "Contacts/Emma Jansen.md", create: true });
+    expect(put.body.content).toContain("tags: [contact]");
+    await waitFor(() => expect(window.location.pathname).toBe("/people/emma-jansen"));
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+  });
+
+  it("a company is made create-only, and its page opens", async () => {
+    answers["GET /api/me"] = () => Response.json({ id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true });
+    answers["PUT /api/vault/note"] = () => Response.json({ id: "n-oost", path: "Contacts/Companies/Oost Runners.md" });
+    await pick({ kind: "today" }, "Company");
+    type("Name", "Oost Runners");
+    await submit("New company");
+    expect(sent.find((r) => r.method === "PUT")!.body).toMatchObject({ path: "Contacts/Companies/Oost Runners.md", create: true });
+    await waitFor(() => expect(window.location.pathname).toBe("/companies/oost-runners"));
   });
 
   it("a task goes to your inbox with its date, through Capture's route", async () => {

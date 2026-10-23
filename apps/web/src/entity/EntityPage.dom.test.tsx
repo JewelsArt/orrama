@@ -2,11 +2,12 @@
  * The entity page (structure.md §2.6): a person, a company, a conversation and a document at
  * their addresses, with facts, relations in words both ways, how you know them, what is going on
  * with them, then the note; Orr's own warnings on top with their fix. On a vault without an
- * ontology it still works: plain links, and no empty boxes. A person's sector is written by the
- * server, never by editing the note's text in the browser (WEB-022, moved here from People's
- * sheet). Fictional people only.
+ * ontology it still works: plain links, and no empty boxes. A person's facts, where they work and
+ * their projects are written by the server, never by editing the note's text in the browser
+ * (WEB-022; 1F): the Edit sheet, the works-at picker, the projects block, Rename and the trash
+ * from the ⋯. Fictional people only.
  */
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const server = vi.hoisted(() => ({
@@ -65,14 +66,26 @@ vi.mock("../api.js", async (orig) => {
       server.calls.push({ method, url, body });
       const path = url.replace(/\?.*$/, "");
       if (method === "PATCH" && server.patch) server.patch();
+      if (method === "POST" && path === "/api/vault/move") return { id: "n-ines", path: (body as { toPath: string }).toPath, links: 0, notes: 0 };
+      if (method === "POST" && path === "/api/vault/trash") return { path: (body as { path: string }).path, trashPath: `.trash/${(body as { path: string }).path}` };
       if (method !== "GET") return { ok: true };
+      if (path === "/api/contacts/n-ines/projects")
+        return [
+          { id: "n-thesis", title: "Graduation thesis", slug: "graduation-thesis", relation: "supervises" },
+          { id: "n-thesis", title: "Graduation thesis", slug: "graduation-thesis", relation: "involved" },
+        ];
+      if (path.endsWith("/projects") && path.startsWith("/api/contacts/")) return [];
+      if (path.endsWith("/linkers")) return { notes: [], other: 0 };
       switch (path) {
         case "/api/contacts":
           return [ines, thijs, jules, pieter];
         case "/api/companies":
           return [westerdok, kade];
         case "/api/projects":
-          return [{ slug: "graduation-thesis", noteId: "n-thesis", name: "Graduation thesis", key: "project/graduation-thesis", domain: "academic", total: 3, done: 1, status: "on-track", start: null, deadline: null, group: null, nextDue: null, overdue: 0 }];
+          return [
+            { slug: "graduation-thesis", noteId: "n-thesis", name: "Graduation thesis", key: "project/graduation-thesis", domain: "academic", total: 3, done: 1, status: "on-track", start: null, deadline: null, group: null, nextDue: null, overdue: 0 },
+            { slug: "pitch-deck", noteId: "n-pitch", name: "Pitch deck", key: "project/pitch-deck", domain: "professional", total: 0, done: 0, status: "", start: null, deadline: null, group: null, nextDue: null, overdue: 0 },
+          ];
         case "/api/vault/graph":
           return { nodes: TREE.map((n) => ({ id: n.id, title: n.title, folder: n.folder, sector: null, tags: [], links: 0, tasks: 0, kind: n.id === "n-talk" ? "conversation" : "note", description: "" })), edges: [] };
         case "/api/vault/tree":
@@ -164,15 +177,18 @@ describe("a person", () => {
     expect(screen.getAllByRole("link", { name: "Show in the Orrery" })[0]!.getAttribute("href")).toBe("/orrery?center=ines-vermaat");
   });
 
-  it("relates in words, both directions, each note once under its strongest word", async () => {
+  it("relates in words, both directions, each note once, and never repeats what its own controls say", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    expect(linkNamed("Graduation thesis", await relationRow("supervises")).getAttribute("href")).toBe("/projects/graduation-thesis");
-    expect(screen.queryByText("involved in", { selector: ".ent-rel-row .k" })).toBeNull(); // said as "supervises", from the same answer
-    expect(linkNamed("Westerdok", await relationRow("works at")).getAttribute("href")).toBe("/companies/westerdok");
     const ww = await relationRow("works with");
     expect(linkNamed("Thijs Brouwer", ww).getAttribute("href")).toBe("/people/thijs-brouwer");
     expect(ww.textContent).toContain("both on Graduation thesis");
     expect(linkNamed("Kade drinks", await relationRow("mentioned in")).getAttribute("href")).toBe("/notes/Shared/Kade%20drinks");
+    // Where she works is a fact, her projects a block of their own: not said again in words.
+    for (const word of ["supervises", "involved in", "works at"]) expect(screen.queryByText(word, { selector: ".ent-rel-row .k" })).toBeNull();
+    const projects = await screen.findByRole("region", { name: "Projects" });
+    await within(projects).findAllByRole("link", { name: /Graduation thesis/ });
+    expect(within(projects).getAllByRole("link", { name: /Graduation thesis/ }).map((a) => a.textContent)).toEqual(["Graduation thesissupervises", "Graduation thesisinvolved"]);
+    expect(within(projects).getAllByRole("link", { name: /Graduation thesis/ })[0]!.getAttribute("href")).toBe("/projects/graduation-thesis");
   });
 
   it("says how you know them when the path is short and not direct", async () => {
@@ -205,26 +221,114 @@ describe("a person", () => {
     expect(server.calls.filter((c) => c.method !== "GET")).toEqual([]); // nothing written until saved
   });
 
-  it("sets the sector through the server, never by writing the note (WEB-022)", async () => {
+  it("edits role, email, phone, LinkedIn and sector in a sheet, through the server (WEB-022)", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
+    fireEvent.click((await screen.findAllByRole("button", { name: "Edit" }))[0]!);
+    const sheet = await screen.findByRole("dialog", { name: "Edit Ines Vermaat" });
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Role" }), { target: { value: "Programme lead" } });
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Phone" }), { target: { value: "+31 6 1234 5678" } });
+    fireEvent.change(within(sheet).getByRole("combobox", { name: "Sector" }), { target: { value: "Research" } });
     await act(async () => {
-      fireEvent.change(screen.getByRole("combobox", { name: "Sector" }), { target: { value: "Finance" } });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     });
-    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "PATCH", url: "/api/contacts/n-ines", body: { sector: "Finance" } }]);
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([
+      { method: "PATCH", url: "/api/contacts/n-ines", body: { role: "Programme lead", email: "ines@westerdok.example", phone: "+31 6 1234 5678", linkedin: "", sector: "Research" } },
+    ]);
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Edit Ines Vermaat" })).toBeNull());
   });
 
-  it("says why when the server refuses the sector, and keeps the old one", async () => {
+  it("says the server's sentence when it refuses, and keeps the sheet and what was typed", async () => {
     const { ApiError } = await import("../api.js");
     server.patch = () => {
-      throw new ApiError(409, "this note's front matter could not be read, so its sector was not changed; fix it in the note");
+      throw new ApiError(409, "This note's properties can't be read, so the details wasn't changed. Fix them in the note first.");
     };
     await show({ kind: "person", slug: "ines-vermaat" });
-    const select = screen.getByRole("combobox", { name: "Sector" }) as HTMLSelectElement;
+    fireEvent.click((await screen.findAllByRole("button", { name: "Edit" }))[0]!);
+    const sheet = await screen.findByRole("dialog", { name: "Edit Ines Vermaat" });
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Role" }), { target: { value: "Programme lead" } });
     await act(async () => {
-      fireEvent.change(select, { target: { value: "Finance" } });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Save" }));
     });
-    expect((await screen.findByRole("alert")).textContent).toContain("front matter could not be read");
-    expect(select.value).toBe("University");
+    expect((await within(sheet).findByRole("alert")).textContent).toContain("properties can't be read");
+    expect((within(sheet).getByRole("textbox", { name: "Role" }) as HTMLInputElement).value).toBe("Programme lead");
+  });
+
+  it("picks where they work from the companies, and can take it away", async () => {
+    await show({ kind: "person", slug: "ines-vermaat" });
+    fireEvent.click(await screen.findByRole("button", { name: "Change where Ines works" }));
+    const dialog = await screen.findByRole("dialog", { name: "Where does Ines work?" });
+    expect(dialog.textContent).toContain("Now: Westerdok");
+    fireEvent.change(within(dialog).getByRole("searchbox", { name: "Company" }), { target: { value: "kade" } });
+    await act(async () => {
+      fireEvent.click(await within(dialog).findByRole("button", { name: /^Kade Social/ }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "PATCH", url: "/api/contacts/n-ines", body: { companyId: "n-kade" } }]);
+    server.calls = [];
+    fireEvent.click(await screen.findByRole("button", { name: "Change where Ines works" }));
+    const again = await screen.findByRole("dialog", { name: "Where does Ines work?" });
+    await act(async () => {
+      fireEvent.click(within(again).getByRole("button", { name: "Remove" }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "PATCH", url: "/api/contacts/n-ines", body: { companyId: null } }]);
+  });
+
+  it("adds a project they supervise or are in, picked from the list, and takes one off", async () => {
+    await show({ kind: "person", slug: "ines-vermaat" });
+    const projects = await screen.findByRole("region", { name: "Projects" });
+    fireEvent.click(within(projects).getByRole("button", { name: "Supervises a project" }));
+    const pick = await screen.findByRole("dialog", { name: "What does Ines supervise?" });
+    // What she supervises already is not offered again.
+    await within(pick).findByRole("button", { name: /^Pitch deck/ });
+    expect(within(pick).queryByRole("button", { name: /^Graduation thesis/ })).toBeNull();
+    await act(async () => {
+      fireEvent.click(within(pick).getByRole("button", { name: /^Pitch deck/ }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "POST", url: "/api/contacts/n-ines/supervises", body: { projectId: "n-pitch" } }]);
+
+    server.calls = [];
+    fireEvent.click(within(projects).getByRole("button", { name: "Add to a project" }));
+    const pick2 = await screen.findByRole("dialog", { name: "Which project is Ines in?" });
+    await act(async () => {
+      fireEvent.click(await within(pick2).findByRole("button", { name: /^Pitch deck/ }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "POST", url: "/api/projects/pitch-deck/people", body: { noteId: "n-ines" } }]);
+
+    server.calls = [];
+    fireEvent.click(within(projects).getAllByRole("button", { name: "More for Graduation thesis" })[0]!);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "No longer supervises" }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "DELETE", url: "/api/contacts/n-ines/supervises/n-thesis", body: undefined }]);
+    server.calls = [];
+    fireEvent.click(within(projects).getAllByRole("button", { name: "More for Graduation thesis" })[1]!);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Take off this project" }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "DELETE", url: "/api/projects/graduation-thesis/people/n-ines", body: undefined }]);
+  });
+
+  it("renames from the ⋯, its links following, and opens the new address", async () => {
+    await show({ kind: "person", slug: "ines-vermaat" });
+    fireEvent.click(await screen.findByRole("button", { name: "More for Ines Vermaat" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Rename note" });
+    const field = within(dialog).getByRole("textbox") as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Ines van Vermaat" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Rename" }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "POST", url: "/api/vault/move", body: { fromPath: "Contacts/Ines Vermaat.md", toPath: "Contacts/Ines van Vermaat.md", links: true } }]);
+    await waitFor(() => expect(location.pathname).toBe("/people/ines-van-vermaat"));
+  });
+
+  it("puts them in the trash from the ⋯ and goes back to People", async () => {
+    await show({ kind: "person", slug: "ines-vermaat" });
+    fireEvent.click(await screen.findByRole("button", { name: "More for Ines Vermaat" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Move to the trash" }));
+    });
+    await waitFor(() => expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "POST", url: "/api/vault/trash", body: { path: "Contacts/Ines Vermaat.md" } }]));
+    await waitFor(() => expect(location.pathname).toBe("/people"));
   });
 
   it("an address that names nobody says so, with the way back", async () => {

@@ -16,6 +16,8 @@ import type { PeopleContext, SearchHit } from "@orrama/schema/responses";
 import { api, unlessAborted, type Me } from "../api.js";
 import { useKnown, useLoad } from "../entity/known.js";
 import { blankNote, createNote } from "../newNote.js";
+import { slugOf } from "../people/model.js";
+import { NewCompany, NewPerson } from "../people/NewDialogs.js";
 import { findSettings, SECTIONS, SETTINGS_INDEX } from "../settings/parts.js";
 import { readJson, writeKey } from "../storage.js";
 import { Button, Kbd, ProgressRing, Ring, Square } from "../ui/controls.js";
@@ -74,6 +76,7 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
   const [type, setType] = useState<FindType | null>(null);
   const [sel, setSel] = useState(0);
   const [naming, setNaming] = useState(false);
+  const [making, setMaking] = useState<"person" | "company" | null>(null);
   const [recent, setRecent] = useState<Recent[]>(() => {
     const r = readJson<unknown>(RECENT_KEY, []);
     return Array.isArray(r) ? (r as Recent[]).slice(0, 6) : [];
@@ -109,6 +112,8 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
     const out: ActionDef[] = [
       { id: "new-note", title: "New note", meta: "A note, named with its folder", icon: "plus", words: "create add page write" },
       { id: "new-task", title: "New task", meta: "One line into your inbox, with a date if you type one", icon: "inbox", words: "capture todo step add" },
+      { id: "new-person", title: "New person", meta: "Someone you know, with where they work", icon: "person", words: "create add contact people friend colleague" },
+      { id: "new-company", title: "New company", meta: "An organisation, with what they do", icon: "company", words: "create add organisation organization business firm" },
       { id: "plan-tomorrow", title: "Plan tomorrow", meta: "Tomorrow in Planning, hour by hour", icon: "calendar", words: "planning day schedule" },
       { id: "theme", title: shown === "dark" ? "Switch to light" : "Switch to dark", meta: "On every device you sign in on", icon: shown === "dark" ? "sun" : "moon", words: "theme dark light night day mode appearance" },
       { id: "orrery", title: "Open the Orrery", meta: "Your notes as a map, Orr in the middle", icon: "orbit", words: "map graph" },
@@ -198,6 +203,9 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
         return setNaming(true);
       case "new-task":
         return onCapture();
+      case "new-person":
+      case "new-company":
+        return setMaking(it.action === "new-person" ? "person" : "company");
       case "plan-tomorrow":
         onClose();
         return navigate({ kind: "planning", scale: "day", at: tomorrow() });
@@ -233,6 +241,28 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
     }
   };
 
+  if (making === "person")
+    return (
+      <NewPerson
+        me={me}
+        onClose={onClose}
+        onSaved={(made) => {
+          onClose();
+          navigate({ kind: "person", slug: slugOf(made.path) });
+        }}
+      />
+    );
+  if (making === "company")
+    return (
+      <NewCompany
+        me={me}
+        onClose={onClose}
+        onSaved={(made) => {
+          onClose();
+          navigate({ kind: "company", slug: slugOf(made.path) });
+        }}
+      />
+    );
   if (naming) return <NameDialog title="New note" label="Path" help="A folder and a name, like Ideas/Reading list" onSubmit={makeNote} onClose={onClose} />;
 
   let n = -1;

@@ -157,6 +157,19 @@ describe("Find", () => {
     expect(location.search).toBe("?id=n-new");
   });
 
+  it("New person makes a person as People does, and opens their page", async () => {
+    await open();
+    await type("new person");
+    await key("Enter");
+    const dialog = screen.getByRole("dialog", { name: "New person" });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Emma Jansen" } });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Add person" }));
+    });
+    expect(server.calls.filter((c) => c.method !== "GET")).toEqual([{ method: "PUT", url: "/api/vault/note", body: expect.objectContaining({ path: "Contacts/Emma Jansen.md", create: true }) }]);
+    expect(location.pathname).toBe("/people/emma-jansen");
+  });
+
   it("the server's own filters still work, as notes", async () => {
     server.hits = [{ id: "n-off", path: "Personal/Kade offsite.md", title: "Kade offsite" }];
     await open();

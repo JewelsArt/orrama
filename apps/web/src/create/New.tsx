@@ -10,12 +10,15 @@
  *   the field and never replaced; in a project it carries the project's tag.
  * - Event: `POST /api/events`, on your calendar note.
  * - Project: `POST /api/projects`, create-only; it opens.
+ * - Person, Company: People's own dialogs (people/NewDialogs.tsx), create-only; the page opens.
  */
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { api } from "../api.js";
 import { parseDurationInput, parseTimeInput } from "../calendarMath.js";
 import { parseDateInput } from "../entity/dateInput.js";
 import { blankNote, createNote } from "../newNote.js";
+import { NewCompany, NewPerson } from "../people/NewDialogs.js";
+import { slugOf } from "../people/model.js";
 import { Button } from "../ui/controls.js";
 import { dateLabel, minutesLabel } from "../ui/dates.js";
 import { Field, Form, Input } from "../ui/fields.js";
@@ -24,7 +27,7 @@ import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
 import { navigate, type Route } from "../ui/router.js";
 import { newContext, type NewContext } from "./context.js";
 
-type Kind = "task" | "note" | "event" | "project";
+type Kind = "task" | "note" | "event" | "project" | "person" | "company";
 
 /** The menu, then the dialog picked from it. `onDone` when both are gone. */
 export function New({ anchor, route, extra = [], onDone }: { anchor: RefObject<HTMLElement | null>; route: Route; extra?: MenuItem[]; onDone: () => void }) {
@@ -42,6 +45,8 @@ export function New({ anchor, route, extra = [], onDone }: { anchor: RefObject<H
     { label: ctx.note.project ? "Note in this project" : "Note", icon: <Icon name="notes" size={16} />, onSelect: pick("note") },
     { label: "Event", icon: <Icon name="calendar" size={16} />, onSelect: pick("event") },
     { label: "Project", icon: <Icon name="projects" size={16} />, onSelect: pick("project") },
+    { label: "Person", icon: <Icon name="person" size={16} />, onSelect: pick("person") },
+    { label: "Company", icon: <Icon name="company" size={16} />, onSelect: pick("company") },
     // A page's own things (Today's ledgers): the menu closes, the page opens them.
     ...(extra.length ? (["-", ...extra.map((x) => ({ ...x, onSelect: () => (setPhase("gone"), x.onSelect()) }))] as (MenuItem | "-")[]) : []),
   ];
@@ -54,6 +59,24 @@ export function New({ anchor, route, extra = [], onDone }: { anchor: RefObject<H
       {phase === "note" && <NewNote ctx={ctx} onClose={close} />}
       {phase === "event" && <NewEvent ctx={ctx} onClose={close} />}
       {phase === "project" && <NewProject ctx={ctx} onClose={close} />}
+      {phase === "person" && (
+        <NewPerson
+          onClose={close}
+          onSaved={(made) => {
+            close();
+            navigate({ kind: "person", slug: slugOf(made.path) });
+          }}
+        />
+      )}
+      {phase === "company" && (
+        <NewCompany
+          onClose={close}
+          onSaved={(made) => {
+            close();
+            navigate({ kind: "company", slug: slugOf(made.path) });
+          }}
+        />
+      )}
     </>
   );
 }

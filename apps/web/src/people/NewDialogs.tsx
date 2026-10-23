@@ -3,13 +3,39 @@
  * already there is refused and said, never replaced. A failure is a Notice under the fields:
  * what failed in plain words, and the fix; the dialog stays open with what was typed.
  */
-import { useState } from "react";
-import { ApiError, type Me } from "../api.js";
+import { useEffect, useState } from "react";
+import { api, ApiError, isAbort, type Me } from "../api.js";
 import { companyNote, contactNote, createNote } from "../newNote.js";
 import { Button } from "../ui/controls.js";
 import { Field, Form, Input, Switch, Textarea } from "../ui/fields.js";
 import { Dialog } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
+import { CompanyField, type PickedCompany } from "./pickers.js";
+
+/** A note just made: its id and where it is, so the caller can open its page. */
+export interface Made {
+  id: string;
+  path: string;
+}
+
+/** Who is signed in, for a private note's folder: the caller's, else asked once (New, Find). */
+function useMe(given?: Me): Me | null {
+  const [me, setMe] = useState<Me | null>(given ?? null);
+  useEffect(() => {
+    if (given) return;
+    const ac = new AbortController();
+    api<Me>("GET", "/api/me", undefined, { signal: ac.signal }).then(setMe, (e) => !isAbort(e) && setMe(null));
+    return () => ac.abort();
+  }, [given]);
+  return given ?? me;
+}
+
+/** `company:` as the picker writes it: a link to the note by its path, labelled with its name. */
+export function companyLink(c: PickedCompany): string {
+  const stem = c.path.replace(/\.md$/i, "");
+  const label = c.name.replace(/[[\]|]/g, " ").replace(/\s+/g, " ").trim();
+  return /[[\]|#^]/.test(stem) ? label : `[[${stem}|${label || stem.split("/").pop()!}]]`;
+}
 
 /** The sectors offered when typing one; any other word is fine too. */
 export const SECTOR_SUGGESTIONS = ["Finance", "Marketing", "Leadership", "Operations", "University", "Engineering", "Design", "Other"];
@@ -49,8 +75,10 @@ function useSave() {
   return { busy, failure, run };
 }
 
-export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => void; onSaved: (noteId: string) => void }) {
-  const [f, setF] = useState({ name: "", sector: "", role: "", company: "", email: "", phone: "", linkedin: "" });
+export function NewPerson({ me: given, onClose, onSaved }: { me?: Me; onClose: () => void; onSaved: (made: Made) => void }) {
+  const me = useMe(given);
+  const [f, setF] = useState({ name: "", sector: "", role: "", email: "", phone: "", linkedin: "" });
+  const [company, setCompany] = useState<PickedCompany | null>(null);
   const [priv, setPriv] = useState(false);
   const { busy, failure, run } = useSave();
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
@@ -58,10 +86,9 @@ export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => voi
   const save = () =>
     run("person", async () => {
       const t = (s: string) => s.trim();
-      const content = contactNote({ name, sector: t(f.sector), role: t(f.role), company: t(f.company), email: t(f.email), phone: t(f.phone), linkedin: t(f.linkedin) });
-      const path = priv ? `Personal/${me.username}/Contacts/${name}.md` : `Contacts/${name}.md`;
-      const res = await createNote(path, content);
-      onSaved(res.id);
+      const content = contactNote({ name, sector: t(f.sector), role: t(f.role), company: company ? companyLink(company) : "", email: t(f.email), phone: t(f.phone), linkedin: t(f.linkedin) });
+      const path = priv && me ? `Personal/${me.username}/Contacts/${name}.md` : `Contacts/${name}.md`;
+      onSaved(await createNote(path, content));
     });
   return (
     <Dialog title="New person" onClose={onClose} className="pp-new">
@@ -72,7 +99,7 @@ export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => voi
             <Button kind="quiet" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" kind="solid" disabled={busy || !name}>
+            <Button type="submit" kind="solid" disabled={busy || !name || (priv && !me)}>
               {busy ? "Saving…" : "Add person"}
             </Button>
           </>
@@ -81,14 +108,12 @@ export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => voi
         <Field label="Name">
           <Input data-autofocus value={f.name} onChange={set("name")} placeholder="Full name" />
         </Field>
-        <div className="pp-pair">
-          <Field label="Role">
-            <Input value={f.role} onChange={set("role")} placeholder="Thesis supervisor" />
-          </Field>
-          <Field label="Company">
-            <Input value={f.company} onChange={set("company")} placeholder="Where they work" />
-          </Field>
-        </div>
+        <Field label="Role">
+          <Input value={f.role} onChange={set("role")} placeholder="Thesis supervisor" />
+        </Field>
+        <Field label="Works at">
+          <CompanyField value={company} onChange={setCompany} />
+        </Field>
         <div className="pp-pair">
           <Field label="Email">
             <Input type="email" value={f.email} onChange={set("email")} />
@@ -106,7 +131,7 @@ export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => voi
           </Field>
         </div>
         <Sectors id="pp-sectors" />
-        <Field label="Private" help={priv ? `Saved in Personal/${me.username}/Contacts, for you only.` : "Saved in Contacts."}>
+        <Field label="Private" help={priv ? `Saved in Personal/${me?.username ?? "you"}/Contacts, for you only.` : "Saved in Contacts."}>
           <Switch checked={priv} onChange={setPriv} label="Private" />
         </Field>
         {failure && <Notice title={failure.title} text={failure.text} />}
@@ -115,7 +140,8 @@ export function NewPerson({ me, onClose, onSaved }: { me: Me; onClose: () => voi
   );
 }
 
-export function NewCompany({ me, name: initial = "", onClose, onSaved }: { me: Me; name?: string; onClose: () => void; onSaved: (noteId: string) => void }) {
+export function NewCompany({ me: given, name: initial = "", onClose, onSaved }: { me?: Me; name?: string; onClose: () => void; onSaved: (made: Made) => void }) {
+  const me = useMe(given);
   const [f, setF] = useState({ name: initial, description: "", sector: "", location: "", linkedin: "", website: "", careers: "", positions: "" });
   const [priv, setPriv] = useState(false);
   const { busy, failure, run } = useSave();
@@ -134,9 +160,8 @@ export function NewCompany({ me, name: initial = "", onClose, onSaved }: { me: M
         location: t(f.location),
         positions: f.positions.split(",").map((p) => p.trim()).filter(Boolean),
       });
-      const path = priv ? `Personal/${me.username}/Companies/${name}.md` : `Contacts/Companies/${name}.md`;
-      const res = await createNote(path, content);
-      onSaved(res.id);
+      const path = priv && me ? `Personal/${me.username}/Companies/${name}.md` : `Contacts/Companies/${name}.md`;
+      onSaved(await createNote(path, content));
     });
   return (
     <Dialog title="New company" onClose={onClose} className="pp-new">
@@ -147,7 +172,7 @@ export function NewCompany({ me, name: initial = "", onClose, onSaved }: { me: M
             <Button kind="quiet" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" kind="solid" disabled={busy || !name}>
+            <Button type="submit" kind="solid" disabled={busy || !name || (priv && !me)}>
               {busy ? "Saving…" : "Add company"}
             </Button>
           </>
@@ -182,7 +207,7 @@ export function NewCompany({ me, name: initial = "", onClose, onSaved }: { me: M
         <Field label="Positions seen there" help="Separate them with commas.">
           <Input value={f.positions} onChange={set("positions")} placeholder="Data analyst, Marketing intern" />
         </Field>
-        <Field label="Private" help={priv ? `Saved in Personal/${me.username}/Companies, for you only.` : "Saved in Contacts/Companies."}>
+        <Field label="Private" help={priv ? `Saved in Personal/${me?.username ?? "you"}/Companies, for you only.` : "Saved in Contacts/Companies."}>
           <Switch checked={priv} onChange={setPriv} label="Private" />
         </Field>
         {failure && <Notice title={failure.title} text={failure.text} />}

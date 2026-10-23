@@ -92,7 +92,7 @@ function useData() {
   return { data, failed, load };
 }
 
-export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: string) => void; onAsk?: () => void }) {
+export function People({ me, onAsk }: { me: Me; onAsk?: () => void }) {
   const route = useRoute();
   const { data, failed, load } = useData();
   const listRoute = route?.kind === "people" ? route : null;
@@ -176,7 +176,7 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
     return sort.people === "recent" ? byRecent(list, (p) => p.name, (p) => at(p.id)) : byName(list, (p) => p.name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [people, firms, q, sector, sort.people, entries]);
-  const ghosts = useMemo(() => (sector ? [] : companiesWithoutNote(people).filter((g) => matches(q, [g.name, ...g.people.map((p) => p.name)]))), [people, firms, q, sector]);
+  const ghosts = useMemo(() => (sector ? [] : companiesWithoutNote(people).filter((g) => matches(q, [g.name, ...g.people.map((p) => p.name)]))), [people, q, sector]);
   const shownFirms = useMemo(() => {
     const list: ({ ghost: false; firm: Firm } | { ghost: true; name: string; people: Contact[] })[] = [
       ...firms.filter((c) => (!sector || sameSector(c.sector, sector)) && matches(q, [c.name, c.description, c.sector, c.location, ...c.positions, ...relatedTitles(c.id)])).map((firm) => ({ ghost: false as const, firm })),
@@ -272,15 +272,14 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
           <EmptyState
             pose="wave"
             title="No one here yet"
-            text={
-              <>
-                People are notes tagged <code>#contact</code>. Add the first one, or let me find them in your notes.
-              </>
-            }
+            text={onAsk ? "Add the first one, or let me find them in your notes." : "Add the first one."}
             actions={
               <>
                 <Button kind="solid" icon="plus" onClick={() => setAdding({ kind: "person" })}>
                   Person
+                </Button>
+                <Button icon="plus" onClick={() => setAdding({ kind: "company" })}>
+                  Company
                 </Button>
                 {onAsk && (
                   <Button orr onClick={onAsk}>
@@ -415,10 +414,9 @@ export function People({ me, onOpenNote, onAsk }: { me: Me; onOpenNote: (id: str
         <NewPerson
           me={me}
           onClose={() => setAdding(null)}
-          onSaved={(id) => {
+          onSaved={(made) => {
             setAdding(null);
-            void load();
-            onOpenNote(id);
+            navigate({ kind: "person", slug: slugOf(made.path) });
           }}
         />
       )}

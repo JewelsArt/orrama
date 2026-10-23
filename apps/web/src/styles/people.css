@@ -56,6 +56,16 @@
 .dialog.pp-new { width: 520px; margin-top: 10vh; }
 .pp-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* ---- the company field and the pickers (1F): a search, its matches under it ----------------- */
+.pp-picker .inp.search { height: 36px; }
+.pp-picker .rows { margin-top: 4px; max-height: 300px; overflow-y: auto; }
+.pp-picker .notice { margin-top: 8px; }
+.pp-picked { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.pp-picked b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pp-picked .btn { margin-left: auto; }
+.dialog.pp-pick .rows { margin-top: 6px; max-height: 340px; overflow-y: auto; }
+.pp-now, .pp-none { margin: 10px 0 0; font-size: 13px; }
+
 /* ---- between the boards: one column when two would be cramped ------------------------------- */
 @media (max-width: 1080px) {
   .people { padding: 18px 22px 32px; }

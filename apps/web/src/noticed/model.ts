@@ -12,8 +12,13 @@ export type NoteRef = Warning["note"];
 export type Part = string | { name: string; note: { id: string; title: string; type: string; path?: string } };
 
 export type Fix =
-  /** A company note by this name (People's New company, prefilled). */
-  | { kind: "create-company"; label: string; name: string }
+  /**
+   * A company note by this name (People's New company, prefilled). `person` names it by a path
+   * (`[[Clients/Acme]]`): once made, their `company:` is pointed at the new note.
+   */
+  | { kind: "create-company"; label: string; name: string; person?: string }
+  /** Where this person works, picked from the companies (the works-at picker). */
+  | { kind: "works-at"; label: string }
   /** A project note carrying this tag's key (`project/pitch-deck` → 04-Projects/pitch-deck.md). */
   | { kind: "create-project"; label: string; slug: string }
   /** Write this status to the project's `status:` (the ontology's id). */
@@ -47,6 +52,17 @@ const verb = (relation: string | undefined) => (relation ? (VERB[relation] ?? re
 /** "a company", "an area": the ontology's type with its article. */
 const kind = (type: string) => `${/^[aeiou]/i.test(type) ? "an" : "a"} ${type}`;
 
+/**
+ * "Create the note" for a company named by a link that has no note: named as the link's last
+ * part (`Contacts/Companies/Acme.md` → "Acme", never the path), and when the link named a
+ * folder, the person is pointed at the note once it exists, since a new note elsewhere would
+ * not answer to that path.
+ */
+function createCompany(target: string, person: string): Fix {
+  const name = target.split("/").pop()!.replace(/\.md$/i, "").trim() || target;
+  return { kind: "create-company", label: "Create the note", name, ...(target.includes("/") ? { person } : {}) };
+}
+
 /** The words after `project/`, as a name: `project/pitch-deck` → "pitch-deck". */
 const tagKey = (tag: string) => tag.replace(/^project\//, "");
 
@@ -68,12 +84,12 @@ export function itemsOf(warnings: Warning[]): Item[] {
     switch (w.code) {
       case "unresolved-object":
         parts = [who, ` ${verb(w.relation)} ${w.target ?? "something"}, which has no note.`];
-        fixes = w.relation === "works_at" && w.target ? [{ kind: "create-company", label: "Create the note", name: w.target }] : [open];
+        fixes = w.relation === "works_at" && w.target ? [createCompany(w.target, w.note.id)] : [open];
         break;
       case "person-without-company":
         if (unresolvedWork.has(w.note.id)) continue; // said by its unresolved-object row
         parts = [who, " has no company."];
-        fixes = [{ kind: "open", label: "Add one in the note" }];
+        fixes = [{ kind: "works-at", label: "Add where they work" }];
         break;
       case "conversation-without-about":
         parts = [who, " isn't about anything yet."];

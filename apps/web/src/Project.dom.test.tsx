@@ -303,13 +303,34 @@ describe("people and companies (F2)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("someone only the graph names opens their page too, and has nothing to remove", async () => {
+  it("someone only the graph names opens their page too; a supervisor is taken off in their own note", async () => {
     server.relations = [{ relation: "supervised_by", to: [{ id: "n-tb", title: "Thijs Brouwer", type: "person" }] }];
-    server.contacts = [{ id: "n-tb", name: "Thijs Brouwer", path: "03-People/Thijs Brouwer.md", sector: "", role: "", company: "", email: "", phone: "", linkedin: "", personal: false }];
+    server.contacts = [{ id: "n-tb", name: "Thijs Brouwer", path: "03-People/Thijs Brouwer.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false }];
     await open();
     expect(within(panel()).getByRole("link", { name: /Thijs Brouwer/ }).getAttribute("href")).toBe("/people/thijs-brouwer");
     expect(within(panel()).getByText("supervises")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "More for Thijs Brouwer" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More for Thijs Brouwer" }));
+    // Nothing in the project's note names him: there is no link to remove, only what he supervises.
+    expect(screen.queryByRole("menuitem", { name: "Remove from this project" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "No longer supervises" }));
+    const ask = screen.getByRole("alertdialog", { name: "Thijs Brouwer no longer supervises Thesis?" });
+    await act(async () => {
+      fireEvent.click(within(ask).getByRole("button", { name: "Take it off" }));
+    });
+    expect(deletes()).toEqual(["/api/contacts/n-tb/supervises/n-1"]);
+  });
+
+  it("someone the project's involves: names can be removed too", async () => {
+    server.relations = [{ relation: "involves", to: [{ id: "n-tb", title: "Thijs Brouwer", type: "person" }] }];
+    server.contacts = [{ id: "n-tb", name: "Thijs Brouwer", path: "03-People/Thijs Brouwer.md", sector: "", role: "", company: "", companyId: null, email: "", phone: "", linkedin: "", personal: false }];
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "More for Thijs Brouwer" }));
+    expect(screen.queryByRole("menuitem", { name: "No longer supervises" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Remove from this project" }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole("alertdialog", { name: "Take Thijs Brouwer off Thesis?" })).getByRole("button", { name: "Take them off" }));
+    });
+    expect(deletes()).toEqual(["/api/projects/thesis/people/n-tb"]);
   });
 
   it("Remove from this project is in the row's ⋯ menu, behind the same Confirm", async () => {
