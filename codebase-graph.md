@@ -65,6 +65,10 @@
 - **Exports**: MAX_EXPAND_STEPS, VEvent, IcsDetails, IcsOccurrence, wallToUtc, MAX_DESCRIPTION, httpUrl, descriptionText, parseIcs, IcsExpansion, expandIcs, expandIcsReport, IcsExportItem, foldLine, buildIcs
 - **Imports**: htmlparser2
 
+### `apps/server/src/lifeAreas.ts`
+- **Exports**: AreasView, areasNoteFor, areasFor, areaOf
+- **Imports**: @orrama/core, ./vaultStore.js
+
 ### `apps/server/src/linkRename.ts`
 - **Exports**: Renaming, retarget, rewriteLinks
 - **Imports**: @orrama/core
@@ -82,7 +86,7 @@
 
 ### `apps/server/src/main.ts`
 - **Exports**: WS_MAX_FRAME, allowedHost, buildServer
-- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
+- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
 
 ### `apps/server/src/migrations.ts`
 - **Exports**: runDataMigrations
@@ -120,6 +124,10 @@
 ### `apps/server/src/routes/ai.ts`
 - **Exports**: aiRoutes
 - **Imports**: fastify, ai, zod, @orrama/schema, node:crypto, @orrama/core, ./graph.js, ./projects.js, ./tasks.js, ./calendar.js, ../calendarNotes.js, drizzle-orm, ../db.js, ../aiProvider.js, ../mail.js, ./mail.js, ../vaultStore.js, ../agentWrites.js
+
+### `apps/server/src/routes/areas.ts`
+- **Exports**: areaRoutes
+- **Imports**: fastify, @orrama/schema, @orrama/core, ../vaultStore.js, ../lifeAreas.js
 
 ### `apps/server/src/routes/auth.ts`
 - **Exports**: sessionOnly, SESSION_COOKIE, sessionCookieOf, overHttps, sessionCookie, clearSessionCookie, fromOwnSite, MAX_LIVE_CHALLENGES, authRoutes, publicUser, webauthnOrigin
@@ -179,7 +187,7 @@
 
 ### `apps/server/src/routes/projects.ts`
 - **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, projectRoutes
-- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js
+- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js, ../lifeAreas.js
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
@@ -191,7 +199,7 @@
 
 ### `apps/server/src/routes/vault.ts`
 - **Exports**: vaultRoutes
-- **Imports**: node:fs, node:path, fastify, @orrama/sync, @orrama/schema, @orrama/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js
+- **Imports**: node:fs, node:path, fastify, @orrama/sync, @orrama/schema, @orrama/core, drizzle-orm, ../db.js, ../history.js, ../vaultStore.js, ./graph.js, ../agentWrites.js, ../lifeAreas.js
 
 ### `apps/server/src/routes/ws.ts`
 - **Exports**: wsRoutes
@@ -303,7 +311,7 @@
 
 ### `apps/web/src/Project.tsx`
 - **Exports**: default, Tab, LAST_TAB_KEY, tabHref, leftLabel, Project
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./projectGroup.js, ./ProjectOverview.js, ./projectPages.js, ./ProjectReader.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./categories.js, ./projectGroup.js, ./ProjectOverview.js, ./projectPages.js, ./ProjectReader.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/ProjectOverview.tsx`
 - **Exports**: ProjectOverview, decisionOf
@@ -376,8 +384,8 @@
 - **Imports**: react, ./api.js, @orrama/schema/responses
 
 ### `apps/web/src/categories.ts`
-- **Exports**: Category, CATEGORIES, SLEEP_STATES, CANCEL_STATES, DONE_STATES, isProjectActive, DOMAIN_COLOR, daysTo, relDay, isSessionLog, categoryOf, categoryColor, colorOf
-- **Imports**: ./api.js, @orrama/core/dates
+- **Exports**: Category, areaColorAt, categoriesOf, loadAreas, useAreas, areasNow, setAreasForTest, catchAllOf, SLEEP_STATES, CANCEL_STATES, DONE_STATES, isProjectActive, daysTo, relDay, isSessionLog, categoryOf, categoryColor
+- **Imports**: react, ./api.js, @orrama/schema/responses, @orrama/core/dates
 
 ### `apps/web/src/create/New.tsx`
 - **Exports**: New
@@ -667,23 +675,23 @@
 
 ### `apps/web/src/orrery/data.ts`
 - **Exports**: loadOrrery
-- **Imports**: @orrama/schema/responses, ../api.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../api.js, ../categories.js, ./model.js
 
 ### `apps/web/src/orrery/engine.ts`
 - **Exports**: View, Blank, Snapshot, Intent, Target, Hooks, Box, WEB_BUDGET, forgetLayouts, EngineOptions, OrreryEngine, fmt, nearestInDirection
 - **Imports**: ./model.js, ./layout.js, ./physics.js
 
 ### `apps/web/src/orrery/fixture.ts`
-- **Exports**: Fixture, NOW, fixture
-- **Imports**: @orrama/schema/responses, ./model.js
+- **Exports**: FIXTURE_AREAS, Fixture, NOW, fixture
+- **Imports**: @orrama/schema/responses, ./model.js, ../categories.js
 
 ### `apps/web/src/orrery/layout.ts`
 - **Exports**: TAU, BAND, Band, clamp, hash, bandOf, packSector, KindLayout, layoutKind, StepsLayout, layoutSteps
 - **Imports**: ./model.js
 
 ### `apps/web/src/orrery/model.ts`
-- **Exports**: Kind, KIND_NAME, AREAS, Relation, GROUP_ORDER, ONode, Topic, Model, ProjectRow, SchemaRelations, slugOf, isReviewOrTemplate, statusWord, folderTopic, buildModel, otherEnd, groupOf, relationGroups, signature
-- **Imports**: @orrama/schema/responses, ../ui/controls.js
+- **Exports**: Kind, KIND_NAME, OArea, orreryAreas, Relation, GROUP_ORDER, ONode, Topic, Model, ProjectRow, SchemaRelations, slugOf, isReviewOrTemplate, statusWord, folderTopic, buildModel, otherEnd, groupOf, relationGroups, signature
+- **Imports**: @orrama/schema/responses, ../ui/controls.js, ../categories.js
 
 ### `apps/web/src/orrery/physics.ts`
 - **Exports**: PB, Field, settleTicks, settleKind
@@ -752,9 +760,9 @@
 - **Exports**: PlanningRoute, planningTitle, planningRoute
 - **Imports**: ../calendarMath.js, ../ui/router.js
 
-### `apps/web/src/projectArea.ts`
-- **Exports**: areaOf, useNoteAreas
-- **Imports**: react, ./api.js, ./categories.js
+### `apps/web/src/projectArea.tsx`
+- **Exports**: areaOf, AreaMenu
+- **Imports**: react, ./categories.js, ./ui/controls.js, ./ui/overlays.js, ./ui/router.js, ./ui/writes.js
 
 ### `apps/web/src/projectGroup.tsx`
 - **Exports**: groupNames, useProjectGroups, GroupMenu
@@ -788,9 +796,13 @@
 - **Exports**: DeviceSection
 - **Imports**: react, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/dates.js, ./parts.js
 
+### `apps/web/src/settings/LifeAreas.tsx`
+- **Exports**: holds, removalWords, LifeAreasSection
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ../ui/writes.js, ./parts.js
+
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../Confirm.js, ../door/NotesChoice.js, ../ui/controls.js, ../ui/overlays.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../door/NotesChoice.js, ../ui/controls.js, ../ui/overlays.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js, ./LifeAreas.js
 
 ### `apps/web/src/settings/SignedIn.tsx`
 - **Exports**: SignedInSection
@@ -1043,11 +1055,11 @@
 - **Imports**: ./parse.js, ./describe.js, ./types.js, ./acl.js
 
 ### `packages/core/src/vaultCategories.ts`
-- **Exports**: VAULT_CATEGORY_IDS, VaultCategoryId, VaultCategoryRule, DEFAULT_VAULT_CATEGORY_RULES, REGEX_BUDGET, REGEX_HAY, splitMatches, parseVaultCategoryRules, categorizeNote
-- **Imports**: ./safeRegex.js, ./table.js
+- **Exports**: LIFE_AREAS_TAG, LIFE_AREAS_PATH, CATCH_ALL_WORDS, LifeArea, VaultCategoryRule, STARTER_AREAS, AREAS_MAX, AREA_NAME_MAX, AREA_WORD_MAX, AREA_WORDS_MAX, REGEX_BUDGET, REGEX_HAY, areaSlug, splitMatches, parseLifeAreas, lifeAreasOf, catchAllOf, areaRules, parseVaultCategoryRules, categorizeNote, namedAreaOf, domainAreaOf, AreaSource, areaOfNote, cleanLifeAreas, lifeAreasNote, writeLifeAreas
+- **Imports**: ./safeRegex.js, ./parse.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant
+- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`
@@ -1055,7 +1067,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, trashResponse, linkersResponse, historyResponse, revisionResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`
