@@ -1424,9 +1424,9 @@ export class VaultStore {
    * since afterwards they no longer resolve. `other` counts the links that won't follow:
    * Markdown links, and links in notes the caller can't edit.
    */
-  private linkPlan(user: AclUser, note: IndexedNote, toPath: string): { notes: LinkPlanItem[]; other: number; renaming: Renaming; fields: Set<string> } {
+  private linkPlan(user: AclUser, note: IndexedNote, toPath: string): { notes: LinkPlanItem[]; other: number; renaming: Renaming; fields: Set<string>; sections: string[] } {
     const grants = this.grants();
-    const fields = this.relationFields();
+    const { fields, sections } = this.relationFields();
     const oldTitle = note.writtenTitle ?? note.title;
     const renamed = titleFromPath(note.path) !== titleFromPath(toPath);
     const renaming: Renaming = { from: { path: note.path, title: oldTitle }, to: { path: toPath, title: renamed ? titleFromPath(toPath) : oldTitle } };
@@ -1469,7 +1469,7 @@ export class VaultStore {
       if (!editable) other += count;
       notes.push({ id: src.id, path: src.path, title: src.title, links: count, canEdit: editable, targets, names });
     }
-    return { notes, other, renaming, fields };
+    return { notes, other, renaming, fields, sections };
   }
 
   /**
@@ -1477,10 +1477,11 @@ export class VaultStore {
    * vault's ontology note's, or the template's when it has none, so a plain name follows a
    * rename the same way on a vault that never wrote one.
    */
-  private relationFields(): Set<string> {
+  private relationFields(): { fields: Set<string>; sections: string[] } {
     const note = this.index.all().find((n) => n.tags.some((t) => t.tag === ONTOLOGY_TAG));
     const ontology = parseOntology(note?.content ?? ONTOLOGY_TEMPLATE);
-    return new Set(ontology.relations.flatMap((r) => r.fields));
+    const also = ontology.relations.flatMap((r) => r.also).filter((a) => /^section:/i.test(a));
+    return { fields: new Set(ontology.relations.flatMap((r) => r.fields)), sections: [...new Set(also.map((a) => a.slice(8).trim()))] };
   }
 
   /** The linkers of a note for a move to `inputTo`, as GET …/linkers answers (nothing written). */
@@ -1527,9 +1528,9 @@ export class VaultStore {
       const named = rewriteNames(src.content, plan!.fields, {
         plain: (t) => (item.names.has(foldPath(t)) ? retarget(t, r) : null),
         label: (t, label) => (labelled && item.targets.has(foldPath(t)) && foldPath(label) === foldPath(r.from.title) ? r.to.title : null),
-      });
+      }, plan!.sections);
       const linked = rewriteLinks(named.content, (t) => (item.targets.has(foldPath(t)) ? retarget(t, r) : null));
-      const next = { content: linked.content, count: linked.count + (item.names.size ? named.count : 0) };
+      const next = { content: linked.content, count: linked.count + item.names.size };
       if (next.content === src.content) continue;
       try {
         const written = this.write(user, src.path, next.content, undefined, undefined, { guard: opts.guard });

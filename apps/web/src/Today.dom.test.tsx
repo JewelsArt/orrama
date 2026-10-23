@@ -324,7 +324,7 @@ describe("Today: Customise, the header, New", () => {
     expect(names).toEqual(["Due", "Mail", "Coming up", "Projects", "Money"]);
   });
 
-  it("says the date and week, plans tomorrow, and New offers task, note, event, project and the ledgers", async () => {
+  it("says the date and week, plans tomorrow, and New offers task, note, event, project, person, company and the ledgers", async () => {
     stubToday();
     const user = userEvent.setup();
     await shown();
@@ -333,7 +333,7 @@ describe("Today: Customise, the header, New", () => {
     expect(screen.getByRole("link", { name: "Plan tomorrow" }).getAttribute("href")).toBe("/planning/day/2026-10-09");
     await user.click(screen.getByRole("button", { name: "New" }));
     const menu = await screen.findByRole("menu", { name: "New" });
-    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project", "Subscription", "Income"]);
+    expect(within(menu).getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Task", "Note", "Event", "Project", "Person", "Company", "Subscription", "Income"]);
     // The task goes to your inbox, in New's own dialog (create/New.tsx), as Capture's did.
     await user.click(within(menu).getByRole("menuitem", { name: "Task" }));
     expect(await screen.findByRole("dialog", { name: "New task" })).toBeTruthy();

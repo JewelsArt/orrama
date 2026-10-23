@@ -46,9 +46,11 @@ describe("reading", () => {
     await expect(mcp.tool("get_dashboard", { teamSlug: "no-such-team" })).rejects.toThrow(/Orrama API error \(40[34]\)/);
   });
 
-  it("get_contacts lists the workspace's people", async () => {
+  it("get_contacts lists the people in the notes (#contact), not the accounts", async () => {
     const r = await mcp.tool("get_contacts");
-    expect(JSON.stringify(r.json)).toContain("erin");
+    const text = JSON.stringify(r.json);
+    expect(text).toContain("Pieter Haans");
+    expect(text).not.toContain("erin@orrama.dev");
   });
 
   it("the five graph tools answer from /api/graph, even with no ontology note", async () => {

@@ -201,6 +201,7 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   .ent-sub { font-size: 15px; line-height: 21px; }
   .ent-pacts { display: flex; gap: 8px; margin: -4px 0 18px; }
   .ent-pacts > * { flex: 1; justify-content: center; }
+  .ent-pacts > .btn.icon { flex: none; }
   /* One column: warnings, facts, relations, activity, then the note. */
   .ent-cols { display: flex; flex-direction: column; align-items: stretch; }
   .ent-side { display: contents; }
@@ -221,7 +222,6 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
 
 /* ---- a person's projects (1F): the row opens the project; its ⋯ sits beside it, over the
    relation's word while it shows (on pointing or focus; always on touch), as on the project page. */
-.ent-projects .rows { margin: 0 -8px; }
 .ent-proj { position: relative; }
 .ent-proj > a.row { color: inherit; text-decoration: none; }
 .ent-proj + .ent-proj > .row::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; border-top: 1px solid var(--line); }
@@ -234,4 +234,4 @@ button.status.ent-status:focus-visible { outline: none; box-shadow: var(--focus-
   .ent-proj.has-act:hover .r, .ent-proj.has-act:focus-within .r, .ent-proj.open .r { visibility: visible; }
 }
 .ent-projects .ent-none { margin: 2px 0 6px; font-size: 13.5px; }
-.ent-adds { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px -8px 0; }
+.ent-adds { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0 0; }

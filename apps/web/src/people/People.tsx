@@ -278,9 +278,6 @@ export function People({ me, onAsk }: { me: Me; onAsk?: () => void }) {
                 <Button kind="solid" icon="plus" onClick={() => setAdding({ kind: "person" })}>
                   Person
                 </Button>
-                <Button icon="plus" onClick={() => setAdding({ kind: "company" })}>
-                  Company
-                </Button>
                 {onAsk && (
                   <Button orr onClick={onAsk}>
                     Ask Orr

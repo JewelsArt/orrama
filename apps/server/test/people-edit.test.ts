@@ -60,6 +60,8 @@ beforeAll(async () => {
   put("04-Projects/pitch-deck.md", '---\ntitle: Pitch deck\ntags: [project/pitch-deck]\ninvolves: ["[[Ana Duarte]]", "[[Bo Plain]]"]\n---\n# Pitch deck\n\n## People\n\n- [[Ana Duarte]]\n- [[Cas Link]]\n');
   put("04-Projects/solo.md", '---\ntitle: Solo\ntags: [project/solo]\ninvolves: "[[Ana Duarte]]"\n---\n# Solo\n');
   put("Shared/Kade drinks.md", "# Kade drinks\n");
+  put("Contacts/Kit Label.md", "---\ntags: [contact]\n---\n# Kit Label\n");
+  put("04-Projects/atlas.md", "---\ntitle: Atlas\ntags: [project/atlas]\n---\n# Atlas\n\n## People\n\n- [[Contacts/Kit Label|Kit Label]]\n\n## Notes\n\nAsk [[Contacts/Kit Label|Kit Label]] about it.\n");
   await import("../src/seed.js");
   b = await buildServer();
   for (const [who, email] of [["jules", "jules@orrama.dev"], ["erin", "erin@orrama.dev"]] as const) {
@@ -210,6 +212,12 @@ describe("a rename takes plain names in relation properties with it", () => {
     const thesis = await idOf("Graduation thesis");
     const l = (await call("jules", "GET", `/api/vault/note/${thesis}/linkers?to=${encodeURIComponent("04-Projects/Thesis.md")}`)).json() as { notes: { title: string }[] };
     expect(l.notes.map((n) => n.title).sort()).toEqual(["Hal Two", "Ivy Plain"]);
+  });
+
+  it("relabels a ## People link that said the old name, never a link in the prose", async () => {
+    const r = await call("jules", "POST", "/api/vault/move", { fromPath: "Contacts/Kit Label.md", toPath: "Contacts/Kit Labelle.md", links: true });
+    expect(r.statusCode).toBe(200);
+    expect(read("04-Projects/atlas.md")).toBe("---\ntitle: Atlas\ntags: [project/atlas]\n---\n# Atlas\n\n## People\n\n- [[Contacts/Kit Labelle|Kit Labelle]]\n\n## Notes\n\nAsk [[Contacts/Kit Labelle|Kit Label]] about it.\n");
   });
 
   it("rewrites supervises: by its title when a project is renamed", async () => {

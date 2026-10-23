@@ -31,7 +31,7 @@ import { ConversationPage } from "./ConversationPage.js";
 import { Missing, WarningsBox, orreryRoute, plainLinks } from "./shared.js";
 import { DocumentPage } from "./DocumentPage.js";
 import { EntityHeader } from "./EntityHeader.js";
-import { useKnown, useLoad, useNotesTick, type KnownData } from "./known.js";
+import { useKnown, useLoad, useNotesTick, type KnownData, type Load } from "./known.js";
 import { anchor, bySlug, linkTo, notePath, type Known } from "./links.js";
 import { companyDomains, documentAt, pathWorthSaying, relationGroups, worksWith, youOf } from "./model.js";
 import { usePageTitle } from "./title.js";
@@ -118,13 +118,16 @@ function PersonPage({ me, person, data, known, onChanged }: { me: Me; person: Co
   const at = company?.name ?? linkText(person.company);
   const entry = ctx.state === "ok" ? ctx.data.entries.find((e) => e.id === person.id) : undefined;
   const titles = useMemo(() => new Map(data.contacts.map((c) => [c.id, c.name])), [data.contacts]);
-  const { mentions, links } = plainLinks(note, data, known);
-  // Where they work and their projects have their own controls above: the words below say the rest.
+  const projects = useLoad((signal) => api<ContactProject[]>("GET", `/api/contacts/${person.id}/projects`, undefined, { signal }), [tick, person.id]);
+  // Where they work and their projects have their own controls above: the words below say the
+  // rest, never those again (a project's `## People` link reads as a mention too).
+  const shown = new Set([...(projects.state === "ok" ? projects.data.map((p) => p.id) : []), ...(company ? [company.id] : [])]);
   const said = new Map([...rel.by].filter(([r]) => !OWN_CONTROLS.has(r)));
+  const { mentions, links } = plainLinks(note, data, known);
   const groups = relationGroups({
     relations: said,
-    mentions,
-    links,
+    mentions: mentions.filter((b) => !shown.has(b.id)),
+    links: links.filter((b) => !shown.has(b.id)),
     worksWith: ctx.state === "ok" ? worksWith(person.id, ctx.data.entries, (id) => titles.get(id)) : [],
   });
   const plain = rel.by.size === 0;
@@ -207,11 +210,12 @@ function PersonPage({ me, person, data, known, onChanged }: { me: Me; person: Co
         <LinkButton icon="notes" {...anchor(linkTo({ kind: "notes", path: notePath(person.path) }))}>
           Note
         </LinkButton>
+        {canEdit && <NoteMenu item={person} sync={sync} route={(p) => ({ kind: "person", slug: slugOfPath(p) })} onChanged={refresh} />}
       </div>
       <div className="ent-cols">
         <div className="ent-main">
           <Facts items={facts} />
-          <ProjectsBlock person={person} tick={tick} canEdit={canEdit} colorOf={colorOf} onChanged={refresh} />
+          <ProjectsBlock person={person} list={projects} canEdit={canEdit} colorOf={colorOf} onChanged={refresh} />
           <RelationsBlock title={`How ${firstName(person.name)} relates`} groups={groups} hrefOf={hrefOf} colorOf={colorOf} plain={plain} />
           {steps && pathWorthSaying(steps) && <PathBlock name={person.name} steps={steps} hrefOf={hrefOf} colorOf={colorOf} />}
         </div>
@@ -243,8 +247,7 @@ const OWN_CONTROLS = new Set(["works_at", "supervises", "involved_in"]);
  * project, with a ⋯ that takes them off it; and the two ways to add one, picked from the list.
  * Read from the notes (`GET /api/contacts/:id/projects`), so it holds without an ontology.
  */
-function ProjectsBlock({ person, tick, canEdit, colorOf, onChanged }: { person: Contact; tick: number; canEdit: boolean; colorOf: (id: string) => string; onChanged: () => void }) {
-  const list = useLoad((signal) => api<ContactProject[]>("GET", `/api/contacts/${person.id}/projects`, undefined, { signal }), [tick, person.id]);
+function ProjectsBlock({ person, list, canEdit, colorOf, onChanged }: { person: Contact; list: Load<ContactProject[]>; canEdit: boolean; colorOf: (id: string) => string; onChanged: () => void }) {
   const [adding, setAdding] = useState<ContactProject["relation"] | null>(null);
   const rows = list.state === "ok" ? list.data : [];
   const name = firstName(person.name);
@@ -415,6 +418,7 @@ function CompanyPage({ me, company, data, known, onChanged }: { me: Me; company:
         <LinkButton icon="notes" {...anchor(linkTo({ kind: "notes", path: notePath(company.path) }))}>
           Note
         </LinkButton>
+        {note?.canEdit && <NoteMenu item={company} sync={sync} route={(p) => ({ kind: "company", slug: slugOfPath(p) })} onChanged={refresh} />}
       </div>
       <div className="ent-cols">
         <div className="ent-main">

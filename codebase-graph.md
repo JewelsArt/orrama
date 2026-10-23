@@ -70,7 +70,7 @@
 - **Imports**: @orrama/core, ./vaultStore.js
 
 ### `apps/server/src/linkRename.ts`
-- **Exports**: Renaming, retarget, rewriteLinks
+- **Exports**: Renaming, retarget, rewriteLinks, rewriteNames
 - **Imports**: @orrama/core
 
 ### `apps/server/src/logging.ts`
@@ -138,7 +138,7 @@
 - **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, zod, ../calendarNotes.js, ../db.js, ./finance.js, ./ics.js, ../vaultStore.js, ./tasks.js
 
 ### `apps/server/src/routes/contacts.ts`
-- **Exports**: contactRoutes
+- **Exports**: fieldText, namesIn, fieldLink, companyOf, contactRoutes
 - **Imports**: fastify, @orrama/core, ../db.js, ../vaultStore.js
 
 ### `apps/server/src/routes/dashboard.ts`
@@ -187,7 +187,7 @@
 
 ### `apps/server/src/routes/projects.ts`
 - **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, projectRoutes
-- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js, ../lifeAreas.js
+- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js, ../lifeAreas.js, ./contacts.js
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
@@ -389,7 +389,7 @@
 
 ### `apps/web/src/create/New.tsx`
 - **Exports**: New
-- **Imports**: react, ../api.js, ../calendarMath.js, ../entity/dateInput.js, ../newNote.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
+- **Imports**: react, ../api.js, ../calendarMath.js, ../entity/dateInput.js, ../newNote.js, ../people/NewDialogs.js, ../people/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
 
 ### `apps/web/src/create/context.ts`
 - **Exports**: NewContext, newContext
@@ -440,7 +440,7 @@
 
 ### `apps/web/src/entity/EntityPage.tsx`
 - **Exports**: EntityRoute, titleFor, EntityPage
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../people/CompanyEdit.js, ../people/model.js, ../people/NewDialogs.js, ../orrery/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ./activity.js, ./ConversationPage.js, ./shared.js, ./DocumentPage.js, ./EntityHeader.js, ./known.js, ./links.js, ./model.js, ./title.js, ./parts.js, ./relations.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../noteActions.js, ../notes/actions.js, ../people/CompanyEdit.js, ../people/model.js, ../people/PersonEdit.js, ../people/pickers.js, ../orrery/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/layout.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../ui/states.js, ./activity.js, ./ConversationPage.js, ./shared.js, ./DocumentPage.js, ./EntityHeader.js, ./known.js, ./links.js, ./model.js, ./title.js, ./parts.js, ./relations.js
 
 ### `apps/web/src/entity/StatusMenu.tsx`
 - **Exports**: statusLook, StatusMenu
@@ -487,7 +487,7 @@
 
 ### `apps/web/src/find/Find.tsx`
 - **Exports**: FindProps, Find
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../people/model.js, ../people/NewDialogs.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
 
 ### `apps/web/src/find/build.ts`
 - **Exports**: Lists, Setting, ActionDef, placeItems, settingItems, actionItems, entityItems, noteItems
@@ -535,7 +535,7 @@
 
 ### `apps/web/src/mail/people.ts`
 - **Exports**: Sender, addressOf, hostOf, matchSender, entitySlug, projectSlugs
-- **Imports**: @orrama/schema/responses
+- **Imports**: @orrama/schema/responses, ../people/model.js
 
 ### `apps/web/src/mail/plainText.tsx`
 - **Exports**: PlainPart, PlainLine, isImageOnly, plainLines, PlainText
@@ -659,7 +659,7 @@
 
 ### `apps/web/src/noticed/fixes.tsx`
 - **Exports**: projectNameFor, useFixes, Sentence, Fixes, NoticeRow
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/StatusMenu.js, ../entity/links.js, ../people/NewDialogs.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/StatusMenu.js, ../entity/links.js, ../people/NewDialogs.js, ../people/pickers.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ./model.js
 
 ### `apps/web/src/noticed/model.ts`
 - **Exports**: Warning, NoteRef, Part, Fix, Item, statusWord, itemsOf, firstOf, typeCount
@@ -705,16 +705,24 @@
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/states.js, ./NewDialogs.js
 
 ### `apps/web/src/people/NewDialogs.tsx`
-- **Exports**: SECTOR_SUGGESTIONS, failureOf, NewPerson, NewCompany
-- **Imports**: react, ../api.js, ../newNote.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js
+- **Exports**: Made, companyLink, SECTOR_SUGGESTIONS, failureOf, NewPerson, NewCompany
+- **Imports**: react, ../api.js, ../newNote.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js, ./pickers.js
 
 ### `apps/web/src/people/People.tsx`
 - **Exports**: People, default
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
 
+### `apps/web/src/people/PersonEdit.tsx`
+- **Exports**: PersonEdit
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/states.js, ./NewDialogs.js, ./pickers.js, ./model.js
+
 ### `apps/web/src/people/model.ts`
-- **Exports**: Entry, Brief, linkText, slugOf, bySlug, companyFor, peopleAt, companiesWithoutNote, phraseOf, KeyRelation, keyRelation, letterOf, groupsOf, byName, byRecent, matches, sectorsIn, sameSector
+- **Exports**: Entry, Brief, linkText, slugOf, bySlug, companyFor, peopleAt, companyName, companiesWithoutNote, phraseOf, KeyRelation, keyRelation, letterOf, groupsOf, byName, byRecent, matches, sectorsIn, sameSector
 - **Imports**: @orrama/schema/responses
+
+### `apps/web/src/people/pickers.tsx`
+- **Exports**: PickedCompany, refusalText, useCompanies, makeCompany, CompanyField, WorksAtDialog, ProjectPicker
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../newNote.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ./model.js
 
 ### `apps/web/src/people/rows.tsx`
 - **Exports**: Name, whenLabel, RouteOf, PersonRow, CompanyRow, GhostRow
@@ -1067,7 +1075,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, contactProjectsResponse, ContactProject, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, Webhook
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`

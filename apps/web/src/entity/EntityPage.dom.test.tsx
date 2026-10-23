@@ -136,7 +136,14 @@ vi.mock("../api.js", async (orig) => {
       if (path.startsWith("/api/vault/note/")) {
         const id = path.slice("/api/vault/note/".length);
         const t = TREE.find((n) => n.id === id)!;
-        const backlinks = id === "n-ines" ? [{ fromId: "n-drinks", fromTitle: "Kade drinks", fromPath: "Shared/Kade drinks.md", line: 3, context: "" }] : [];
+        const backlinks =
+          id === "n-ines"
+            ? [
+                { fromId: "n-drinks", fromTitle: "Kade drinks", fromPath: "Shared/Kade drinks.md", line: 3, context: "" },
+                // The project's ## People link: she is on it, said by the Projects block, not "mentioned in".
+                { fromId: "n-thesis", fromTitle: "Graduation thesis", fromPath: "04-Projects/graduation-thesis.md", line: 9, context: "" },
+              ]
+            : [];
         const links = id === "n-ines" ? [{ target: "Westerdok", raw: "[[Westerdok]]", line: 8, targetId: "n-westerdok", locked: false }] : [];
         return { id, path: t.path, title: t.title, content: NOTE_TEXT[id] ?? `# ${t.title}\n`, hash: "h", tags: [], tasks: [], links, backlinks, canEdit: true };
       }
@@ -182,7 +189,10 @@ describe("a person", () => {
     const ww = await relationRow("works with");
     expect(linkNamed("Thijs Brouwer", ww).getAttribute("href")).toBe("/people/thijs-brouwer");
     expect(ww.textContent).toContain("both on Graduation thesis");
-    expect(linkNamed("Kade drinks", await relationRow("mentioned in")).getAttribute("href")).toBe("/notes/Shared/Kade%20drinks");
+    const mentioned = await relationRow("mentioned in");
+    expect(linkNamed("Kade drinks", mentioned).getAttribute("href")).toBe("/notes/Shared/Kade%20drinks");
+    await screen.findByRole("region", { name: "Projects" });
+    await waitFor(() => expect(mentioned.textContent).not.toContain("Graduation thesis"));
     // Where she works is a fact, her projects a block of their own: not said again in words.
     for (const word of ["supervises", "involved in", "works at"]) expect(screen.queryByText(word, { selector: ".ent-rel-row .k" })).toBeNull();
     const projects = await screen.findByRole("region", { name: "Projects" });
@@ -309,7 +319,7 @@ describe("a person", () => {
 
   it("renames from the ⋯, its links following, and opens the new address", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    fireEvent.click(await screen.findByRole("button", { name: "More for Ines Vermaat" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "More for Ines Vermaat" }))[0]!);
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename…" }));
     const dialog = await screen.findByRole("dialog", { name: "Rename note" });
     const field = within(dialog).getByRole("textbox") as HTMLInputElement;
@@ -323,7 +333,7 @@ describe("a person", () => {
 
   it("puts them in the trash from the ⋯ and goes back to People", async () => {
     await show({ kind: "person", slug: "ines-vermaat" });
-    fireEvent.click(await screen.findByRole("button", { name: "More for Ines Vermaat" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "More for Ines Vermaat" }))[0]!);
     await act(async () => {
       fireEvent.click(screen.getByRole("menuitem", { name: "Move to the trash" }));
     });
@@ -343,7 +353,9 @@ describe("on a vault without an ontology", () => {
     server.typed = false;
     await show({ kind: "person", slug: "ines-vermaat" });
     expect(linkNamed("Kade drinks", await relationRow("mentioned in"))).toBeTruthy();
-    expect(linkNamed("Westerdok", await relationRow("links to")).getAttribute("href")).toBe("/companies/westerdok");
+    // Her company is the Works at fact, not said again as a link.
+    expect(linkNamed("Westerdok", document.querySelector(".ent-facts") as HTMLElement).getAttribute("href")).toBe("/companies/westerdok");
+    expect(screen.queryByText("links to", { selector: ".ent-rel-row .k" })).toBeNull();
     // Every request was asked in the same effect and answered at once, so by now relations,
     // warnings and the path have answered too: what is absent is absent, not late.
     expect(screen.getByRole("region", { name: "How Ines relates" }).textContent).toContain("links in your notes");
