@@ -1,15 +1,15 @@
 # The desktop shell compiles (audit OPS-004): Cargo.lock, the crate and
 # tauri.conf.json changes were never built by CI. `cargo check`, not
-# `tauri build` — a bundle nobody downloads is minutes for nothing. Runs when
-# the shell changes, and by hand.
+# `tauri build` — a bundle nobody downloads is minutes for nothing. Runs
+# weekly and by hand (`gh workflow run desktop.yml --ref main`), not on push:
+# the shell changes rarely, and minutes on a private repo are counted. Run it
+# after touching apps/desktop and before a release.
 name: Desktop
 
 on:
-  push:
-    branches: [main, sep-2026-redesign]
-    paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
-  pull_request:
-    paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
+  schedule:
+    # Sunday 22:30 UTC, on main.
+    - cron: "30 22 * * 0"
   workflow_dispatch:
 
 permissions:

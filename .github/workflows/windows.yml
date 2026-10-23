@@ -1,4 +1,5 @@
-# The gate on Windows, by hand (Actions → Windows → Run workflow).
+# The gate on Windows, weekly and by hand (Actions → Windows → Run workflow,
+# or `gh workflow run windows.yml --ref main`).
 #
 # The backup is audited on Windows, where the server suite used to fail 43 of 60
 # files on POSIX assumptions (audit OPS-003). Not on every push: a Windows
@@ -7,6 +8,9 @@
 name: Windows
 
 on:
+  schedule:
+    # Sunday 22:00 UTC, on main.
+    - cron: "0 22 * * 0"
   workflow_dispatch:
 
 permissions:

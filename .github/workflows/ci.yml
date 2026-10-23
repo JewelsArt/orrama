@@ -1,11 +1,14 @@
 # The tests only protect anything if something other than a person remembering
 # runs them. This is that something.
 #
-# Jobs: typecheck + every package's tests + the web build on Ubuntu (every
-# push to main or sep-2026-redesign, every PR); the same on macOS for pushes to
-# those two branches; the Docker image built and booted; a dependency audit.
-# The desktop crate is checked by desktop.yml when it changes, Windows by
-# windows.yml when asked.
+# Jobs: typecheck + every package's tests + the web build on Ubuntu, and a
+# dependency audit — every push to main, every PR, and by hand. Only main:
+# sep-2026-redesign is pushed with the same commit, and a second run of it
+# bought nothing but minutes. The slow and dear runners have their own
+# workflows, weekly (Sunday night, on main) and by hand: macos.yml (10x the
+# minutes on a private repo), windows.yml (2x), desktop.yml (cargo check);
+# docker.yml also runs when the image's own files or the lockfile change.
+# Before a release: `gh workflow run <file> --ref main` for each of the four.
 #
 # Deliberately NOT `pnpm build`: that fans out to apps/desktop, which is Tauri
 # and needs a Rust toolchain — minutes of compilation to produce a .dmg no CI
@@ -19,7 +22,7 @@ name: CI
 
 on:
   push:
-    branches: [main, sep-2026-redesign]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -69,57 +72,6 @@ jobs:
       - run: pnpm test
 
       - run: pnpm --dir apps/web build
-
-  # macOS is where Orrama actually runs day to day, and it is the only place the
-  # darwin-arm64 native bindings (better-sqlite3, @node-rs/argon2) get exercised.
-  # It costs 10x the minutes of a Linux runner on a private repo, so it runs on
-  # pushes to the two branches that ship — sep-2026-redesign is the one
-  # `pnpm ship` deploys from — and by hand, not on every PR.
-  check-macos:
-    name: typecheck · test (macos)
-    runs-on: macos-latest
-    timeout-minutes: 20
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/sep-2026-redesign'))
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-        with:
-          version: 11.9.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-
-  # The self-host image, built and booted the way INSTALL.md says, on a Linux
-  # host — where a bind-mounted ./data that dockerd creates is root-owned
-  # (OPS-006), which a Mac's file sharing hides.
-  docker:
-    name: docker image (build · boot)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - name: compose up on a fresh ./data
-        env:
-          ORRAMA_JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
-          ORRAMA_SECRET_KEY: ci-only-secret-key-0123456789abcdef012345678
-        run: |
-          rm -rf data
-          docker compose up --build --detach
-          for i in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:4623/api/health && break
-            sleep 2
-          done
-          curl -fsS http://127.0.0.1:4623/api/health | grep -q '"ok":true'
-      - name: what the container said
-        if: always()
-        run: docker compose logs --no-color | tail -50
-      - name: down
-        if: always()
-        run: docker compose down
 
   # Advisories in production dependencies (audit OPS-002). Blocking since the
   # wave D bumps: an advisory judged unreachable goes into

@@ -7,7 +7,7 @@
  * close never ran (container exit 1, SQLite WAL left behind). Verified with a
  * real `docker build` + `docker stop` on 2026-09-30; this pins the line. The
  * rest was verified on 2026-10-11 against a Linux docker host (colima) and is
- * pinned here; CI builds and boots the image on Linux (ci.yml, docker).
+ * pinned here; CI builds and boots the image on Linux (docker.yml).
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";

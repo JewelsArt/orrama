@@ -119,11 +119,11 @@ Honest state of things:
 - **Single user.** Accounts, teams and grants all exist, and a fresh install now
   creates a real account rather than handing out demo logins — but there is still
   no invite flow, so a second person cannot be added from the UI.
-- **CI** (`.github/workflows/`) runs typecheck, every package's tests and the web
-  build on Ubuntu for each push to `main` or `sep-2026-redesign` and each pull
-  request, and typecheck and tests on macOS for pushes to those two branches. It
-  builds and boots the Docker image, reports dependency advisories, checks the
-  desktop crate when it changes, and runs on Windows when started by hand.
+- **CI** (`.github/workflows/`) runs typecheck, every package's tests, the web
+  build and a dependency audit on Ubuntu for each push to `main` and each pull
+  request. It builds and boots the Docker image when the image's files or the
+  lockfile change. Typecheck and tests on macOS and Windows, the Docker image
+  and the desktop crate also run weekly and by hand (CLAUDE.md, "Releases").
 - **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
 - The original build spec ([docs/spec.md](docs/spec.md)) planned a team product for 5–50
   person startups. What got built and used daily is this: a personal tool. The README

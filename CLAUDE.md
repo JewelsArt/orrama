@@ -1004,8 +1004,8 @@ sent as `note-changed` to whoever could read it (`note-removed` and
   `main.tsx`) moves any left over. Never a credential: the session is an
   HttpOnly cookie (WEB-013); the token the app kept before it
   (`orrama-token`, `basalt-token`) is deleted by `migrateLegacyKeys()`, never sent. A new key is `orrama-<area>-<what>`.
-- **The suite runs on macOS, Linux and Windows** (CI: Ubuntu and macOS on push,
-  `windows.yml` by hand; audit OPS-003). A test that needs POSIX permission bits,
+- **The suite runs on macOS, Linux and Windows** (CI: Ubuntu on push to `main`,
+  macOS and Windows weekly and by hand, see "CI" under Releases; audit OPS-003). A test that needs POSIX permission bits,
   symlinks or signal handlers says so through `test/helpers/platform.ts`
   (`POSIX_MODES`, `canSymlink`, `SIGNAL_HANDLERS`) and skips only that part;
   compare paths after `.split(path.sep).join("/")` or `path.resolve`; close
@@ -1342,6 +1342,23 @@ on a shipped commit, with an entry in `CHANGELOG.md`:
 
 Note anything users must do (a schema bump, signing in again) under
 "Upgrading" in that version's entry.
+
+**CI** (`.github/workflows/`, private repo, so minutes are counted; macOS
+costs 10x, Windows 2x). On each push to `main` (and each PR): `ci.yml`, the
+Ubuntu typecheck, lint, every test and the web build, and the dependency
+audit. A push to `sep-2026-redesign` runs nothing: it carries the same commit.
+`docker.yml` runs when `Dockerfile`, `.dockerignore`, `docker-compose.yml`,
+`docker-entrypoint.sh` or `pnpm-lock.yaml` change. `macos.yml`, `windows.yml`
+and `desktop.yml` (cargo check) never run on a push: they run Sunday night
+(22:00–23:00 UTC, on `main`) and by hand. Before a release, and after touching
+`apps/desktop` (desktop) or paths, files and processes (Windows), run them:
+
+```bash
+for wf in macos windows desktop docker; do gh workflow run $wf.yml --ref main; done
+```
+
+then `gh run list -L 6` and `gh run watch`. `test/ci-workflow.test.ts` pins
+these triggers.
 
 **Dependencies are audited**: `pnpm audit --prod --audit-level=high` must pass
 (CI blocks on it); an advisory judged unreachable goes into

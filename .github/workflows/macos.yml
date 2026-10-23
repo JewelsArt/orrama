@@ -1,0 +1,40 @@
+# The suite on macOS, weekly and by hand (Actions → macOS → Run workflow, or
+# `gh workflow run macos.yml --ref main`).
+#
+# macOS is where Orrama actually runs day to day, and it is the only place the
+# darwin-arm64 native bindings (better-sqlite3, @node-rs/argon2) get exercised.
+# A macOS runner costs 10x the minutes of a Linux one on a private repo, and
+# every `pnpm ship` already runs the suite on Jules's Mac, so it is not on every
+# push (it ran on two branches per push until GitHub refused the jobs, 23 Oct
+# 2026). Run it before a release.
+name: macOS
+
+on:
+  schedule:
+    # Sunday 22:00 UTC. A schedule runs on the default branch, main.
+    - cron: "0 22 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  check-macos:
+    name: typecheck · test (macos)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test

@@ -1,0 +1,56 @@
+# The self-host image, built and booted the way INSTALL.md says, on a Linux
+# host — where a bind-mounted ./data that dockerd creates is root-owned
+# (OPS-006), which a Mac's file sharing hides.
+#
+# Runs when the image's own files or the lockfile change on main, weekly, and
+# by hand (`gh workflow run docker.yml --ref main`): a code change rarely
+# breaks the image, and the weekly run catches the one that does.
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - docker-entrypoint.sh
+      - pnpm-lock.yaml
+      - .github/workflows/docker.yml
+  schedule:
+    # Sunday 23:00 UTC, on main.
+    - cron: "0 23 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker:
+    name: docker image (build · boot)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: compose up on a fresh ./data
+        env:
+          ORRAMA_JWT_SECRET: ci-only-jwt-secret-0123456789abcdef0123456789
+          ORRAMA_SECRET_KEY: ci-only-secret-key-0123456789abcdef012345678
+        run: |
+          rm -rf data
+          docker compose up --build --detach
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:4623/api/health && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:4623/api/health | grep -q '"ok":true'
+      - name: what the container said
+        if: always()
+        run: docker compose logs --no-color | tail -50
+      - name: down
+        if: always()
+        run: docker compose down

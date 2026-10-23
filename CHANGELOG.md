@@ -830,6 +830,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Internal
 
+- CI runs on pushes to `main` only (Ubuntu tests and the audit); the Docker image when its
+  files or the lockfile change; macOS, Windows and the desktop crate weekly and by hand
+  (`gh workflow run <file> --ref main`). A push used to cost about 66 billed Actions minutes
+  (the same run on both branches, macOS counted 10x), now about 11.
 - Every answer the web app reads has one schema (`packages/schema/src/responses.ts`)
   and a contract test that checks the real server against it.
 - Unauthenticated Touch ID challenges are cleaned up and capped; live-sync
