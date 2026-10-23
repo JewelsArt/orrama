@@ -69,7 +69,7 @@ describe("Due", () => {
 });
 
 const project = (o: Partial<ProjectRow>): ProjectRow => ({
-  slug: "x", key: "project/x", name: "X", domain: null, noteId: null, total: 4, done: 1, status: null, start: null, deadline: null, group: null, nextDue: null, overdue: 0, ...o,
+  slug: "x", key: "project/x", name: "X", domain: null, area: "personal", noteId: null, total: 4, done: 1, status: null, start: null, deadline: null, group: null, nextDue: null, overdue: 0, ...o,
 });
 
 describe("Coming up", () => {

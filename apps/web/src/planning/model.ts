@@ -13,7 +13,7 @@
  *   milestone    ms  a project's start or deadline (front matter), a diamond
  */
 import type { CalEvent, DayMarker, PlanTask, TimeBlock } from "@orrama/schema/responses";
-import { CATEGORIES } from "../categories.js";
+import { areasNow, type Category } from "../categories.js";
 import { DAY_MS, addDays, dayOf, isoDay } from "../calendarMath.js";
 
 /** One block the auto-scheduler suggests. Nothing is written until it is booked. */
@@ -158,11 +158,11 @@ export interface Lane {
  * The week as lanes: one per life area that has something in the week (in the areas' order),
  * then your calendar's events, then the areas with nothing, folded to one line each at the foot.
  */
-export function weekLanes(items: Item[]): { lanes: Lane[]; quiet: Lane[] } {
+export function weekLanes(items: Item[], list: readonly Category[] = areasNow()): { lanes: Lane[]; quiet: Lane[] } {
   const lanes: Lane[] = [];
   const quiet: Lane[] = [];
-  const known = new Set(CATEGORIES.map((c) => c.id));
-  const areas = [...CATEGORIES.map((c) => ({ id: c.id, label: c.label, color: c.color }))];
+  const known = new Set(list.map((c) => c.id));
+  const areas = list.map((c) => ({ id: c.id, label: c.label, color: c.color }));
   // A note whose area the rules don't know still gets a lane rather than vanishing.
   for (const i of items) if (i.lane !== DATED_LANE && i.lane !== CALENDAR_LANE && !known.has(i.lane) && !areas.some((a) => a.id === i.lane)) areas.push({ id: i.lane, label: "Other", color: "var(--c-other)" });
   for (const a of areas) {

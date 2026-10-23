@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, isoLocal } from "@orrama/core/dates";
 import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api } from "./api.js";
-import { DOMAIN_COLOR } from "./categories.js";
+import { categoryColor, useAreas } from "./categories.js";
 import { New } from "./create/New.js";
 import { addressOf } from "./mail/people.js";
 import { LineSheet } from "./money/LineSheet.js";
@@ -165,7 +165,8 @@ export function Today({ me }: { me?: { displayName: string } } = {}) {
   }, [items]);
   const taskByKey = useMemo(() => new Map((ok(tasks) ?? []).map((t) => [taskKey(t), t])), [tasks]);
   const projectByName = useMemo(() => new Map((ok(projects) ?? []).map((p) => [p.name, p])), [projects]);
-  const colour = useCallback((project: string | null) => DOMAIN_COLOR[projectByName.get(project ?? "")?.domain ?? ""] ?? "var(--c-other)", [projectByName]);
+  const lifeAreas = useAreas();
+  const colour = useCallback((project: string | null) => categoryColor(projectByName.get(project ?? "")?.area ?? "", lifeAreas), [projectByName, lifeAreas]);
 
   /* ---- Orr jumps once: a key deadline met, a project finished ---- */
   const [jumping, setJumping] = useState(false);

@@ -9,6 +9,7 @@
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AREAS_REPLY } from "./test/areas.js";
 
 const server = vi.hoisted(() => ({ calls: [] as string[] }));
 
@@ -64,10 +65,11 @@ vi.mock("./api.js", async (orig) => {
       server.calls.push(`${method} ${url}`);
       // No team: a new install has none, and the board asks for none (1A).
       if (url === "/api/dashboard") return DASHBOARD;
-      if (url === "/api/projects") return DASHBOARD.projects.map((p) => ({ slug: p.slug, key: p.slug, name: NAMES[p.slug], domain: p.domain, noteId: null, total: p.total, done: p.done, status: p.status, start: null, deadline: null, group: GROUPS[p.slug] ?? null, nextDue: null, overdue: 0 }));
+      if (url === "/api/projects") return DASHBOARD.projects.map((p) => ({ slug: p.slug, key: p.slug, name: NAMES[p.slug], domain: p.domain, area: p.domain === "academic" ? "school" : "work", noteId: null, total: p.total, done: p.done, status: p.status, start: null, deadline: null, group: GROUPS[p.slug] ?? null, nextDue: null, overdue: 0 }));
       if (url === "/api/vault/graph") return { nodes: [], edges: [] };
       if (url === "/api/graph/schema") throw new Error("no ontology");
       if (url === "/api/vault/tree") return [];
+      if (url === "/api/areas") return AREAS_REPLY;
       if (url === "/api/ai/status") return { configured: true };
       throw new Error(`unexpected ${method} ${url}`);
     },

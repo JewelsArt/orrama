@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { CalEvent, DayMarker, Feed, PlanData, PlanTask, TreeNote } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
-import { CATEGORIES, categoryColor } from "./categories.js";
+import { catchAllOf, categoryColor, useAreas } from "./categories.js";
 import { addDays, dayAt, isoDay, isoWeek, longMonth, longWeekday, monthAt, monthCells, monthKey, mondayOf, rangeLabel, weekAt } from "./calendarMath.js";
 import { readKey, writeKey } from "./storage.js";
 import { TaskCard } from "./TaskCard.js";
@@ -203,8 +203,9 @@ export function Planning({
   const tasks = useMemo(() => (plan?.assignees ?? []).flatMap((a) => a.tasks).filter((t) => t.forYou), [plan]);
   const backlog = useMemo(() => tasks.filter((t) => t.remainingHours > 0), [tasks]);
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
-  const areaOf = useCallback((noteId: string) => areas.get(noteId) ?? "personal", [areas]);
-  const colorOf = useCallback((lane: string) => (lane === DATED_LANE || lane === CALENDAR_LANE ? null : CATEGORIES.some((c) => c.id === lane) ? categoryColor(lane) : "var(--c-other)"), []);
+  const lifeAreas = useAreas();
+  const areaOf = useCallback((noteId: string) => areas.get(noteId) ?? catchAllOf(lifeAreas), [areas, lifeAreas]);
+  const colorOf = useCallback((lane: string) => (lane === DATED_LANE || lane === CALENDAR_LANE ? null : categoryColor(lane, lifeAreas)), [lifeAreas]);
   const items = useMemo(
     () => buildItems({ tasks, events, markers, proposals: proposals ?? [], areaOf, from: range.from, to: range.to }),
     [tasks, events, markers, proposals, areaOf, range],

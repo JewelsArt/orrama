@@ -3,7 +3,7 @@
  * app already serves. Nothing here is stored or invented; it is the same notes, read four ways:
  *
  *   /api/vault/graph   every readable note and its links, typed relations on the edges
- *   /api/vault/tree    each note's life area (the vault's #vault-categories rules) and age
+ *   /api/vault/tree    each note's life area (the person's list, categories.ts) and age
  *   /api/projects      which notes are projects, their slug, status and steps done
  *   /api/graph/schema  the ontology's words for a relation read backwards (optional)
  *
@@ -19,19 +19,23 @@
  */
 import type { GraphData, TreeNote } from "@orrama/schema/responses";
 import type { StatusWord } from "../ui/controls.js";
+import { areasNow, type Category } from "../categories.js";
 
 export type Kind = 0 | 1 | 2 | 3 | 4 | 5;
 /** project · person · company · note · conversation · review or template */
 export const KIND_NAME = ["Project", "Person", "Company", "Note", "Conversation", "Review or template"] as const;
 
-/** The five life areas in the order they go round the circle, each with its colour token. */
-export const AREAS = [
-  { id: "school", name: "School", v: "--c3" },
-  { id: "work", name: "Work", v: "--c1" },
-  { id: "tools", name: "Claude & tools", v: "--c4" },
-  { id: "personal", name: "Personal", v: "--c2" },
-  { id: "knowledge", name: "Knowledge", v: "--c5" },
-] as const;
+/** A life area as the Orrery draws it: its id, its name and its colour token. */
+export interface OArea {
+  id: string;
+  name: string;
+  v: string;
+  /** The area for everything no other area claims. */
+  catchAll: boolean;
+}
+
+/** The person's areas in the order they go round the circle, each with its colour token (categories.ts). */
+export const orreryAreas = (list: readonly Category[]): OArea[] => list.map((c) => ({ id: c.id, name: c.label, v: c.color.replace(/^var\((--[\w-]+)\)$/, "$1"), catchAll: c.catchAll }));
 
 export interface Relation {
   id: string;
@@ -103,6 +107,8 @@ export interface Topic {
 }
 
 export interface Model {
+  /** The life areas, round the circle in the person's order. */
+  areas: OArea[];
   nodes: ONode[];
   topics: Topic[];
   areaTopics: number[][];
@@ -185,7 +191,10 @@ export function buildModel(
   projects: readonly ProjectRow[],
   schema?: SchemaRelations | null,
   now = Date.now(),
+  areas: OArea[] = orreryAreas(areasNow()),
 ): Model {
+  // A note in an area the list doesn't have is in the catch-all, as the server says.
+  const rest = Math.max(0, areas.findIndex((a) => a.catchAll));
   const treeById = new Map(tree.map((n) => [n.id, n]));
   const projectByNote = new Map<string, ProjectRow>();
   for (const p of projects) if (p.noteId) projectByNote.set(p.noteId, p);
@@ -222,7 +231,7 @@ export function buildModel(
             : isReviewOrTemplate({ path, title: g.title, tags: g.tags })
               ? 5
               : 3;
-    const areaIx = AREAS.findIndex((a) => a.id === t0?.category);
+    const areaIx = areas.findIndex((a) => a.id === t0?.category);
     const node: ONode = {
       i,
       id: g.id,
@@ -230,7 +239,7 @@ export function buildModel(
       path,
       slug: pr ? pr.slug : slugOf(path),
       t,
-      area: areaIx < 0 ? 3 : areaIx, // nothing matching is Personal, as the server says
+      area: areaIx < 0 ? rest : areaIx,
       cl: -1,
       deg: 0,
       days: t0 ? Math.max(0, Math.floor((now - t0.mtimeMs) / DAY)) : 0,
@@ -286,7 +295,7 @@ export function buildModel(
 
   // topics: per area, a project's notes, else the folder
   const topics: Topic[] = [];
-  const areaTopics: number[][] = AREAS.map(() => []);
+  const areaTopics: number[][] = areas.map(() => []);
   const topicIx = new Map<string, number>();
   const topicOf = (area: number, name: string) => {
     const key = `${area}\0${name.toLowerCase()}`;
@@ -306,7 +315,7 @@ export function buildModel(
       const pid = projectByTag.get(tag);
       if (pid !== undefined && ix.has(pid)) return nodes[ix.get(pid)!]!.name;
     }
-    return folderTopic(n.path) || AREAS[n.area]!.name;
+    return folderTopic(n.path) || areas[n.area]!.name;
   };
   for (const n of nodes) if (n.t === 3 || n.t === 5) n.cl = topicOf(n.area, ownTopic(n));
   // the topic most of a file's own notes are in, if any
@@ -352,12 +361,12 @@ export function buildModel(
   }
 
   const counts = [0, 0, 0, 0, 0, 0];
-  const areaCount = AREAS.map(() => 0);
+  const areaCount = areas.map(() => 0);
   for (const n of nodes) {
     counts[n.t]!++;
     areaCount[n.area]!++;
   }
-  return { nodes, topics, areaTopics, ea: Int32Array.from(ea), eb: Int32Array.from(eb), er: Uint16Array.from(er), rels, adj, counts, areaCount };
+  return { areas, nodes, topics, areaTopics, ea: Int32Array.from(ea), eb: Int32Array.from(eb), er: Uint16Array.from(er), rels, adj, counts, areaCount };
 }
 
 /** The other end of edge `e` from node `i`. */
@@ -390,6 +399,7 @@ export function signature(m: Model): string {
   const mix = (s: string) => {
     for (let k = 0; k < s.length; k++) h = (Math.imul(h, 31) + s.charCodeAt(k)) | 0;
   };
+  for (const a of m.areas) mix(`${a.id}|${a.name}|${a.v};`);
   for (const n of m.nodes) mix(`${n.id}|${n.name}|${n.t}|${n.area}|${n.cl}|${n.project?.status ?? ""}|${n.project?.done ?? ""};`);
   for (let k = 0; k < m.ea.length; k++) mix(`${m.ea[k]},${m.eb[k]},${m.er[k]};`);
   return `${m.nodes.length}:${m.ea.length}:${h}`;

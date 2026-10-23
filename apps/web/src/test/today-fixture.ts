@@ -36,8 +36,8 @@ export const TASKS: DashboardTask[] = [
 const report = TASKS[2]!;
 
 export const PROJECTS: ProjectRow[] = [
-  { slug: "thesis", key: "project/thesis", name: "Graduation thesis", domain: "academic", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: "2026-10-19", group: null, nextDue: "2026-10-05", overdue: 2 },
-  { slug: "reporting", key: "project/reporting", name: "Reporting dashboard", domain: "professional", noteId: "n-dash", total: 5, done: 2, status: null, start: null, deadline: null, group: null, nextDue: "2026-10-09", overdue: 0 },
+  { slug: "thesis", key: "project/thesis", name: "Graduation thesis", domain: "academic", area: "school", noteId: "n-thesis", total: 9, done: 2, status: "on-track", start: null, deadline: "2026-10-19", group: null, nextDue: "2026-10-05", overdue: 2 },
+  { slug: "reporting", key: "project/reporting", name: "Reporting dashboard", domain: "professional", area: "work", noteId: "n-dash", total: 5, done: 2, status: null, start: null, deadline: null, group: null, nextDue: "2026-10-09", overdue: 0 },
 ];
 
 const agenda = (o: Partial<HomeData["agenda"][number]>): HomeData["agenda"][number] => ({

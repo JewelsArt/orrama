@@ -17,7 +17,7 @@
  *     with a small overshoot), zooms. With reduced motion every change is instant and a drag
  *     moves only the file you hold.
  */
-import { AREAS, otherEnd, type Model } from "./model.js";
+import { otherEnd, type Model } from "./model.js";
 import { BAND, clamp, hash, layoutKind, layoutSteps, TAU, type KindLayout, type StepsLayout } from "./layout.js";
 import { Field, PB, settleKind, settleTicks } from "./physics.js";
 
@@ -165,7 +165,7 @@ export class OrreryEngine {
   private H = 0;
   private DPR = 1;
   private Rpx = 300;
-  private colors: Colors = { ink: "#1B1813", ink2: "#4E473D", ink3: "#6B6357", line2: "#DCD4C6", surface: "#FFFFFF", accent: "#1967D4", warn: "#7F6000", prog: "#1B1813", area: AREAS.map(() => "#888"), font: "Figtree, system-ui, sans-serif" };
+  private colors: Colors = { ink: "#1B1813", ink2: "#4E473D", ink3: "#6B6357", line2: "#DCD4C6", surface: "#FFFFFF", accent: "#1967D4", warn: "#7F6000", prog: "#1B1813", area: [], font: "Figtree, system-ui, sans-serif" };
   private headPath: Path2D | null;
 
   private ndrag: { i: number; x: number; y: number; moved: boolean; n: number; mask?: number[] } | null = null;
@@ -235,6 +235,11 @@ export class OrreryEngine {
   }
 
   /** Read the theme's colours. Called at start and when the theme or colour vision changes. */
+  /** Each area's colour, read from its token: the model's areas, which the person names and orders. */
+  private areaColors(cs: CSSStyleDeclaration): string[] {
+    return (this.M?.areas ?? []).map((a, k) => cs.getPropertyValue(a.v).trim() || this.colors.area[k] || "#888");
+  }
+
   readColors(): void {
     const cs = getComputedStyle(this.styleRoot);
     const c = this.colors;
@@ -248,7 +253,7 @@ export class OrreryEngine {
       accent: v("--accent", c.accent),
       warn: v("--warn", c.warn),
       prog: v("--prog", v("--ink", c.prog)),
-      area: AREAS.map((a, k) => v(a.v, c.area[k]!)),
+      area: this.areaColors(cs),
       font: v("--font", c.font),
     };
     this.textW.clear();
@@ -326,6 +331,8 @@ export class OrreryEngine {
 
     this.M = m;
     this.sig = sig;
+    // The areas may have changed with the data: a rename, a new one, another order.
+    this.colors = { ...this.colors, area: this.areaColors(getComputedStyle(this.canvas)) };
     this.K = K;
     this.KB = [new Float32Array(KB[0]), new Float32Array(KB[1])];
     this.WORDER = worder;
@@ -1058,7 +1065,7 @@ export class OrreryEngine {
         const am = (sp[0] + sp[1]) / 2;
         const rr = narrow ? BAND.note[1] * s - 4 : BAND.rim * s + 18;
         const a = narrow ? "c" : Math.cos(am) > 0.3 ? "l" : Math.cos(am) < -0.3 ? "r" : "c";
-        cands.push({ t: `${AREAS[ai]!.name}  ${fmt(M.areaCount[ai]!)}`, x: c0[0] + Math.cos(am) * rr, y: c0[1] + Math.sin(am) * rr + 4, size: narrow ? 12 : 13, w: 750, c: narrow ? C.ink : C.ink2, p: 1000, a, k: "area", target: ["area", ai] });
+        cands.push({ t: `${M.areas[ai]!.name}  ${fmt(M.areaCount[ai]!)}`, x: c0[0] + Math.cos(am) * rr, y: c0[1] + Math.sin(am) * rr + 4, size: narrow ? 12 : 13, w: 750, c: narrow ? C.ink : C.ink2, p: 1000, a, k: "area", target: ["area", ai] });
       });
       // topics: name and count, where their notes gather
       for (const c of M.topics) {

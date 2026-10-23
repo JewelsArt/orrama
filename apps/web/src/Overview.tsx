@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbort, type DashboardData, type DashboardTask, type Me } from "./api.js";
-import { CATEGORIES } from "./categories.js";
+import { useAreas } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
 import { boardGroups, boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
 import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
-import { areaOf, useNoteAreas } from "./projectArea.js";
+import { areaOf } from "./projectArea.js";
 import { useTaskCard } from "./ProjectViews.js";
 import { readKey } from "./storage.js";
 import { Button, Chip } from "./ui/controls.js";
@@ -47,8 +47,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const shelf = route?.kind === "projects" ? (route.shelf ?? null) : null;
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [creating, setCreating] = useState(false);
-  const [version, setVersion] = useState(0);
-  const areas = useNoteAreas(version);
+  const areas = useAreas();
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -88,7 +87,6 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       }
       setData({ dashboard, list, people, warnings });
       setFailed(false);
-      setVersion((v) => v + 1);
     } catch (e) {
       if (!isAbort(e)) setFailed(true);
     }
@@ -129,7 +127,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           name: row?.name ?? p.project,
           href: tabHref(p.slug!, ["overview", "timeline", "documents", "todo"].includes(lastTab) ? lastTab : "overview"),
           noteId,
-          area: areaOf(noteId ? areas.get(noteId) : undefined, p.domain),
+          area: areaOf(row?.area, areas),
           group: row?.group ?? null,
           status: p.status,
           total: p.total,
@@ -154,7 +152,8 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const groups = area ? boardGroups(shown) : null;
   const shelved = shelf ? shelfRows(projects, shelf).filter(inArea) : [];
   const openSteps = shown.reduce((s, p) => s + (p.total - p.done), 0);
-  const areaCounts = CATEGORIES.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length })).filter((c) => c.n > 0 || c.id === area);
+  // Every area the person has, even an empty one: it is where its first project is made.
+  const areaCounts = areas.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length }));
 
   const card = useTaskCard(() => load(), onOpenNote);
   const setStatus = (t: DashboardTask, status: string) =>
@@ -261,7 +260,8 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   );
 
   const create = async (name: string) => {
-    const res = await api<{ slug: string }>("POST", "/api/projects", { name, ...(area === "school" ? { domain: "academic" } : area === "work" ? { domain: "professional" } : area === "personal" ? { domain: "personal" } : {}) });
+    // Made on a board filtered to an area, the project is in that area.
+    const res = await api<{ slug: string }>("POST", "/api/projects", { name, ...(area && areas.some((c) => c.id === area) ? { area } : {}) });
     navigate(tabHref(res.slug, "overview"));
   };
 
@@ -347,7 +347,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           ) : (
             <EmptyState
               pose="carry"
-              title={area ? `Nothing open in ${CATEGORIES.find((c) => c.id === area)?.label ?? area}` : "Nothing open"}
+              title={area ? `Nothing open in ${areas.find((c) => c.id === area)?.label ?? area}` : "Nothing open"}
               text="Everything here is paused, finished or put away: the shelves below have it."
               actions={area ? <Button onClick={() => navigate({ kind: "projects", shelf: shelf ?? undefined })}>Show every area</Button> : <Button onClick={() => setCreating(true)}>Make a project</Button>}
             />

@@ -1,11 +1,11 @@
 /** The Orrery's model: what each file is, where it belongs, and how its relations read. */
 import { describe, expect, it } from "vitest";
-import { fixture, NOW } from "./fixture.js";
-import { AREAS, buildModel, folderTopic, isReviewOrTemplate, relationGroups, signature, slugOf, statusWord, type Model } from "./model.js";
+import { FIXTURE_AREAS, fixture, NOW } from "./fixture.js";
+import { buildModel, folderTopic, isReviewOrTemplate, relationGroups, signature, slugOf, statusWord, type Model } from "./model.js";
 
 const build = (f = fixture(), schema: Parameters<typeof buildModel>[3] = { relations: [{ id: "attends", inverse: "attended_by" }] }) => buildModel(f.graph, f.tree, f.projects, schema, NOW);
 const node = (m: Model, id: string) => m.nodes.find((d) => d.id === id)!;
-const area = (id: string) => AREAS.findIndex((a) => a.id === id);
+const area = (id: string) => FIXTURE_AREAS.findIndex((a) => a.id === id);
 
 describe("what each file is", () => {
   const m = build();

@@ -11,7 +11,7 @@
  * Steps: one thing in the middle, ring 1 everything one step away grouped by how it relates,
  * ring 2 what several things in ring 1 share nearest and the rest further out.
  */
-import { AREAS, GROUP_ORDER, groupOf, otherEnd, type Model } from "./model.js";
+import { GROUP_ORDER, groupOf, otherEnd, type Model } from "./model.js";
 
 export const TAU = Math.PI * 2;
 const PHI = (Math.sqrt(5) - 1) / 2;
@@ -101,7 +101,7 @@ export function layoutKind(m: Model): KindLayout {
 
   // area spans: count^0.8, each at least a sliver, rescaled to fill the circle
   const gapA = 0.05;
-  const span = TAU - gapA * AREAS.length;
+  const span = TAU - gapA * m.areas.length;
   const wts = m.areaCount.map((c) => Math.pow(c, 0.8));
   const tw = wts.reduce((s, w) => s + w, 0) || 1;
   const raw = wts.map((w) => Math.max(0.32, (span * w) / tw));
@@ -152,8 +152,8 @@ export function layoutKind(m: Model): KindLayout {
     packSector(p.note, topicSpan[c]![0], topicSpan[c]![1], BAND.note[0], BAND.note[1], X, Y);
   });
   const mid = (c: number) => (topicSpan[c]![0] + topicSpan[c]![1]) / 2;
-  const areaRoom = AREAS.map(() => ({ ppl: 0, rest: 0 }));
-  AREAS.forEach((_, ai) => {
+  const areaRoom = m.areas.map(() => ({ ppl: 0, rest: 0 }));
+  m.areas.forEach((_, ai) => {
     let ppl: number[] = [];
     let rest: number[] = [];
     let proj: number[] = [];

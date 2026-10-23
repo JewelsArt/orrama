@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
 import { Settings } from "./Settings.js";
+import { AREAS_REPLY } from "./test/areas.js";
 import type { SettingsSection } from "./ui/router.js";
 
 const ME = {
@@ -43,6 +44,7 @@ const ROUTES: Record<string, unknown> = {
   "GET /api/admin/ai": { provider: "chatgpt", model: "gpt-5", configured: true, instructions: "", baseUrl: "", chatgpt: { connected: true, email: null, manageUsage: "https://chatgpt.com/#settings" } },
   "GET /api/admin/ai/chatgpt/models": [{ slug: "gpt-5", name: "GPT-5" }],
   "GET /api/vault/tree": [],
+  "GET /api/areas": AREAS_REPLY,
   "GET /api/graph/schema": { notes: 0, types: [], relations: [], derived: [], statuses: [], mostConnected: [], warnings: [] },
 };
 

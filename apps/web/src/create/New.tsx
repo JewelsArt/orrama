@@ -236,7 +236,7 @@ function NewProject({ ctx, onClose }: { ctx: NewContext; onClose: () => void }) 
       make={() => {
         if (!name.trim()) return null;
         return (async () => {
-          const res = await api<{ slug: string }>("POST", "/api/projects", { name: name.trim(), ...(ctx.project.domain ? { domain: ctx.project.domain } : {}) });
+          const res = await api<{ slug: string }>("POST", "/api/projects", { name: name.trim(), ...(ctx.project.area ? { area: ctx.project.area } : {}) });
           navigate({ kind: "project", slug: res.slug });
         })();
       }}

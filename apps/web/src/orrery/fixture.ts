@@ -4,6 +4,17 @@
  */
 import type { GraphData, TreeNote } from "@orrama/schema/responses";
 import type { ProjectRow } from "./model.js";
+import { setAreasForTest } from "../categories.js";
+
+/** The fixture's notes are in these areas, round the circle in this order (as a vault's areas note would say). */
+export const FIXTURE_AREAS = [
+  { id: "school", name: "School", catchAll: false },
+  { id: "work", name: "Work", catchAll: false },
+  { id: "tools", name: "Claude & tools", catchAll: false },
+  { id: "personal", name: "Personal", catchAll: true },
+  { id: "knowledge", name: "Knowledge", catchAll: false },
+];
+setAreasForTest(FIXTURE_AREAS);
 
 type GNode = GraphData["nodes"][number];
 type GEdge = GraphData["edges"][number];

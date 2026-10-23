@@ -7,8 +7,8 @@
  * - In Planning: the event and the task's due date are the day you are looking at (in a week
  *   or a month, today if it is in view, else its first day).
  * - In Notes: the note goes in the open note's folder.
- * - On the Projects board filtered to an area: the project gets that area's domain, as the
- *   board's own New project does.
+ * - On the Projects board filtered to an area: the project is in that area, as the board's own
+ *   New project makes it.
  * - Everywhere else: a task to your inbox, a note where you name it, an event today.
  */
 import { dayAt, isoDay, monthAt, weekAt, addDays } from "../calendarMath.js";
@@ -21,12 +21,9 @@ export interface NewContext {
   note: { folder: string; project?: string };
   /** The day an event is on. */
   event: { date: string };
-  /** The domain a new project is given (`POST /api/projects`). */
-  project: { domain?: "academic" | "professional" | "personal" };
+  /** The life area a new project is made in (`POST /api/projects`), by id. */
+  project: { area?: string };
 }
-
-/** The board's own mapping (Overview.tsx): a life area to the project note's domain. */
-const DOMAIN: Record<string, NewContext["project"]["domain"]> = { school: "academic", work: "professional", personal: "personal" };
 
 /** The day a Planning address shows: the day itself, or today when it is in the week or month. */
 function planningDay(r: Extract<Route, { kind: "planning" }>, today: Date): string {
@@ -52,7 +49,7 @@ export function newContext(route: Route, today: Date = new Date()): NewContext {
       return { ...base, note: { folder: cut === -1 ? "" : path.slice(0, cut + 1) } };
     }
     case "projects":
-      return { ...base, project: { domain: route.area ? DOMAIN[route.area] : undefined } };
+      return { ...base, project: route.area ? { area: route.area } : {} };
     default:
       return base;
   }

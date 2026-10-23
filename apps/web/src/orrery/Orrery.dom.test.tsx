@@ -6,7 +6,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { forgetLayouts } from "./engine.js";
-import { fixture, type Fixture } from "./fixture.js";
+import { FIXTURE_AREAS, fixture, type Fixture } from "./fixture.js";
 
 let data: Fixture | "fail" = fixture();
 const calls: string[] = [];
@@ -18,6 +18,7 @@ vi.mock("../api.js", () => ({
     if (url === "/api/vault/tree") return data.tree;
     if (url === "/api/projects") return data.projects;
     if (url === "/api/graph/schema") return { relations: [] };
+    if (url === "/api/areas") return { areas: FIXTURE_AREAS.map((a) => ({ ...a, words: [], notes: 0, projects: 0 })), note: null, canEdit: true };
     throw new Error(url);
   }),
 }));
@@ -57,7 +58,7 @@ describe("the whole vault", () => {
     expect(await laidOut()).toBeTruthy();
     expect(screen.getByText(/^16 files · 11 links · \d+ topics$/)).toBeTruthy();
     for (const a of ["School", "Work", "Claude & tools", "Personal", "Knowledge"]) expect(within(panel()).getByRole("button", { name: new RegExp(`^${a}`) })).toBeTruthy();
-    expect(calls.sort()).toEqual(["/api/graph/schema", "/api/projects", "/api/vault/graph", "/api/vault/tree"]);
+    expect(calls.sort()).toEqual(["/api/areas", "/api/graph/schema", "/api/projects", "/api/vault/graph", "/api/vault/tree"]);
   });
 
   it("the reviews switch is remembered on this device", async () => {

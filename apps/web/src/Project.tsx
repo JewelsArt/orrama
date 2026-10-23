@@ -4,7 +4,8 @@ import { daysTo } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { DatesButton, EntityHeader, OrrWarnings, shelfOf, statusOf, statusProblems, StatusMenu, useRelations, type StatusId } from "./entity/index.js";
 import { slugOf } from "./orrery/model.js";
-import { areaOf, useNoteAreas } from "./projectArea.js";
+import { AreaMenu, areaOf } from "./projectArea.js";
+import { useAreas } from "./categories.js";
 import { GroupMenu, useProjectGroups } from "./projectGroup.js";
 import { ProjectOverview } from "./ProjectOverview.js";
 import { isPage } from "./projectPages.js";
@@ -111,7 +112,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
   );
 
   const relations = useRelations(w?.noteId, version);
-  const areas = useNoteAreas(w?.noteId);
+  const areas = useAreas();
   const groupRows = useProjectGroups(w ? version : null);
 
   if (error)
@@ -143,7 +144,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
 
   const pct = w.total === 0 ? 0 : Math.round((w.done / w.total) * 100);
   const status = statusOf(w.status);
-  const area = areaOf(areas.get(w.noteId), w.domain);
+  const area = areaOf(w.area, areas);
   const pages = w.files.filter((f) => isPage(f.name)).length;
   const left = w.deadline && status !== "completed" && status !== "archived" && status !== "cancelled" ? leftLabel(w.deadline) : null;
   const finished = w.total > 0 && w.done === w.total && shelfOf(w) === "completed" && status !== "completed" && status !== "archived";
@@ -174,20 +175,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
               onCommit={(key, value) => patch({ [key]: value })}
             />
             {left && <span className={left.late ? "pj-late" : undefined}>{left.text}</span>}
-            {area && (
-              <a
-                className="ent-link"
-                href={routeHref({ kind: "projects", area: area.id })}
-                onClick={(e) => {
-                  if (e.button !== 0 || e.metaKey || e.ctrlKey) return;
-                  e.preventDefault();
-                  navigate({ kind: "projects", area: area.id });
-                }}
-              >
-                <span className="ui-dot" style={{ background: area.color }} />
-                {area.label}
-              </a>
-            )}
+            <AreaMenu area={area} areas={areas} canEdit={w.canEdit} write={(name) => patch({ area: name })} />
             <GroupMenu value={w.group} canEdit={w.canEdit} rows={groupRows} write={(group) => patch({ group })} />
             <a className="ent-link" href={tabHref(w.slug, "todo")} onClick={(e) => go(e, w.slug, "todo")}>
               {pct}% · {w.done} of {w.total} {w.total === 1 ? "step" : "steps"}

@@ -7,6 +7,7 @@ import { act, createEvent, fireEvent, render, screen, within } from "@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CalEvent, DayMarker, Feed, PlanTask } from "@orrama/schema/responses";
 import { event, marker, task } from "./test/planning-fixtures.js";
+import { AREAS_REPLY } from "./test/areas.js";
 
 const server = vi.hoisted(() => ({
   calls: [] as { method: string; url: string; body: unknown }[],
@@ -42,6 +43,7 @@ vi.mock("./api.js", async (orig) => {
         if (url.startsWith("/api/events")) return server.events;
         if (url.startsWith("/api/calendar/markers")) return server.markers;
         if (url === "/api/calendar/feeds") return server.feeds;
+        if (url === "/api/areas") return AREAS_REPLY;
         if (url === "/api/vault/tree")
           return [
             { id: "n-thesis", path: "04-Projects/graduation-thesis.md", folder: "04-Projects", title: "Graduation thesis", hash: "", mtimeMs: 0, tags: [], openTasks: 0, category: "school" },

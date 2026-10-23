@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { NoteSync, SaveState } from "@orrama/sync/client";
 import { api, isAbort, type NoteDetail } from "../api.js";
-import { CATEGORIES } from "../categories.js";
+import { categoryColor, useAreas } from "../categories.js";
 import { Editor } from "../Editor.js";
 import { openNoteSync, retire } from "../noteSync.js";
 import { noteForLink } from "../notes/links.js";
@@ -38,7 +38,8 @@ export function useHref(data: KnownData | null, known: Known | null) {
 /** The life area's colour of a note, for a project's dot. */
 export function useAreaColor(data: KnownData | null) {
   const areas = useMemo(() => new Map((data?.tree ?? []).map((n) => [n.id, n.category])), [data]);
-  return (id: string) => CATEGORIES.find((c) => c.id === areas.get(id))?.color ?? "var(--c-other)";
+  const list = useAreas();
+  return (id: string) => categoryColor(areas.get(id) ?? "", list);
 }
 
 /** The small mark before a name: a ring, a square, a project's area dot, a chat or a page. */

@@ -129,11 +129,15 @@
 .set-facts dd { margin: 0; overflow-wrap: anywhere; }
 
 /* Notes: areas, what Orr knows */
-.set-areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
-.set-area { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r-2); color: var(--ink); text-decoration: none; font-weight: 600; }
-.set-area small { color: var(--ink-3); font-weight: 500; font-size: 13px; }
-.set-area:hover, .set-fact.link:hover { background: var(--hover); }
-.set-area:focus-visible, .set-fact.link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Life areas (1D): a row per area, its dot, name, what it holds and its ⋯; the words dialog's list */
+.set-fact.set-arow { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding-right: 6px; }
+.set-arow > span { min-width: 0; overflow-wrap: anywhere; }
+.set-awords { color: var(--ink-3); }
+.set-words { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--r-2); }
+.set-words li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 0 4px 0 12px; overflow-wrap: anywhere; }
+.set-words li + li { border-top: 1px solid var(--line); }
+.set-fact.link:hover { background: var(--hover); }
+.set-fact.link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .set-rows { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--r-2); overflow: hidden; }
 .set-fact { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 44px; padding: 8px 14px; color: var(--ink); text-decoration: none; }
 .set-fact + .set-fact { border-top: 1px solid var(--line); }

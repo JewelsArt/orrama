@@ -4,7 +4,7 @@
  */
 import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { GraphRelations, NoteDetail, NotesOverview, TreeNote } from "@orrama/schema/responses";
-import { CATEGORIES, categoryOf } from "../categories.js";
+import { categoryOf, useAreas } from "../categories.js";
 import { FileTree, type TreeActions } from "../FileTree.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
@@ -66,13 +66,14 @@ function TreeRow({ n, icon, meta, active, onOpen, href }: { n: TreeNote; icon: "
 export function TreePane(p: TreePaneProps) {
   const areaBtn = useRef<HTMLButtonElement>(null);
   const [areaMenu, setAreaMenu] = useState(false);
-  const areaLabel = CATEGORIES.find((c) => c.id === p.area)?.label;
+  const lifeAreas = useAreas();
+  const areaLabel = lifeAreas.find((c) => c.id === p.area)?.label;
   const searching = p.filter.trim() !== "";
   // One filter control (structure.md §2.3): the life areas are a menu beside the text filter,
   // not a select plus five chips.
   const items: MenuItem[] = [
     { label: `All notes · ${p.tree?.length ?? 0}`, onSelect: () => p.onArea("all") },
-    ...CATEGORIES.filter((c) => (p.areaCounts.get(c.id) ?? 0) > 0).map((c) => ({
+    ...lifeAreas.filter((c) => (p.areaCounts.get(c.id) ?? 0) > 0).map((c) => ({
       label: `${c.label} · ${p.areaCounts.get(c.id)}`,
       onSelect: () => p.onArea(c.id),
     })),
@@ -112,7 +113,7 @@ export function TreePane(p: TreePaneProps) {
       </div>
       {p.area !== "all" && areaLabel && (
         <button type="button" className="chip nt-area-chip" onClick={() => p.onArea("all")} aria-label={`Show all notes, not only ${areaLabel}`}>
-          <span className="ui-dot" style={{ background: CATEGORIES.find((c) => c.id === p.area)?.color }} />
+          <span className="ui-dot" style={{ background: lifeAreas.find((c) => c.id === p.area)?.color }} />
           {areaLabel}
           <Icon name="x" size={13} />
         </button>
@@ -191,6 +192,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString
  */
 export function NotesHome(p: HomeProps) {
   const o = p.overview;
+  const lifeAreas = useAreas();
   const where = (n: TreeNote) => (n.folder ? (p.folderLabel ?? ((_f: string, seg: string) => folderName(seg)))(n.folder, n.folder.split("/").pop()!) : "Top folder");
   if (p.tree === null)
     return (
@@ -214,7 +216,7 @@ export function NotesHome(p: HomeProps) {
         {p.phoneTree && <div className="nt-phone-tree">{p.phoneTree}</div>}
       </div>
     );
-  const areas = CATEGORIES.filter((c) => (p.areaCounts.get(c.id) ?? 0) > 0);
+  const areas = lifeAreas.filter((c) => (p.areaCounts.get(c.id) ?? 0) > 0);
   return (
     <div className="nt-home">
       <header className="nt-home-h">
@@ -560,8 +562,9 @@ export function SidePanel(p: SideProps) {
 
 /** A note's area chip: its project (which opens it), or its life area (which filters the tree). */
 export function AreaChip({ note, project, onArea }: { note: TreeNote | undefined; project: { slug: string; name: string } | null; onArea: (id: string) => void }) {
+  const lifeAreas = useAreas();
   const area = note ? categoryOf(note) : "other";
-  const c = CATEGORIES.find((x) => x.id === area);
+  const c = lifeAreas.find((x) => x.id === area);
   if (project)
     return (
       <a className="chip" href={`/projects/${encodeURIComponent(project.slug)}`}>

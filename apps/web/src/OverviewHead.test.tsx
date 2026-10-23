@@ -49,7 +49,7 @@ const base = {
   group: null as string | null,
   href: "/projects/thesis",
   noteId: "n-p",
-  area: { id: "school", label: "School", color: "var(--c3)" },
+  area: { id: "school", label: "School", color: "var(--c3)", catchAll: false },
   status: "on-track",
   total: 3,
   done: 1,

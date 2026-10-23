@@ -5,16 +5,14 @@
  */
 import { api, type TreeNote } from "../api.js";
 import type { Company, Contact, GraphData, ProjectRow } from "@orrama/schema/responses";
-import { CATEGORIES } from "../categories.js";
+import { areasNow, loadAreas, type Category } from "../categories.js";
 import type { VaultShape } from "./dots.js";
 
-/** The areas in drawing order, by their colour token; notes in none of them come last. */
-const AREAS = CATEGORIES.map((c) => ({ id: c.id, color: c.color.replace(/^var\((--[\w-]+)\)$/, "$1") }));
-
-/** Pure: the shape from the tree, the projects' notes and the people's notes. */
-export function shapeOf(tree: TreeNote[], projectNotes: Set<string>, people: Set<string>): VaultShape {
-  const known = new Set(AREAS.map((a) => a.id));
-  const slots = [...AREAS, { id: "", color: "--c-other" }];
+/** Pure: the shape from the tree, the projects' notes and the people's notes, in the person's areas' order (each by its colour token); notes in none of them come last. */
+export function shapeOf(tree: TreeNote[], projectNotes: Set<string>, people: Set<string>, areas: readonly Category[] = areasNow()): VaultShape {
+  const list = areas.map((c) => ({ id: c.id, color: c.color.replace(/^var\((--[\w-]+)\)$/, "$1") }));
+  const known = new Set(list.map((a) => a.id));
+  const slots = [...list, { id: "", color: "--c-other" }];
   return {
     areas: slots
       .map(({ id, color }) => {
@@ -32,9 +30,11 @@ export function shapeOf(tree: TreeNote[], projectNotes: Set<string>, people: Set
 
 export async function vaultShape(): Promise<VaultShape> {
   const [tree, projects, contacts] = await Promise.all([
+    // The areas are asked beside the rest; shapeOf reads what they said.
     api<TreeNote[]>("GET", "/api/vault/tree"),
     api<ProjectRow[]>("GET", "/api/projects").catch(() => [] as ProjectRow[]),
     api<Contact[]>("GET", "/api/contacts").catch(() => [] as Contact[]),
+    loadAreas(),
   ]);
   return shapeOf(tree, new Set(projects.map((p) => p.noteId).filter((id): id is string => !!id)), new Set(contacts.map((c) => c.id)));
 }
@@ -55,11 +55,12 @@ export async function firstRunCounts(): Promise<{ counts: FirstCounts; shape: Va
     api<Contact[]>("GET", "/api/contacts").catch(() => [] as Contact[]),
     api<Company[]>("GET", "/api/companies").catch(() => [] as Company[]),
     api<GraphData>("GET", "/api/vault/graph").catch(() => ({ nodes: [], edges: [] }) as GraphData),
+    loadAreas(),
   ]);
   return {
     counts: {
-      // Orrama's own note that says what things are is not one of the person's notes.
-      notes: tree.filter((n) => !n.tags.includes("vault-ontology")).length,
+      // Orrama's own notes (what things are, the life areas) are not the person's notes.
+      notes: tree.filter((n) => !n.tags.includes("vault-ontology") && !n.tags.includes("vault-categories")).length,
       people: contacts.length,
       companies: companies.length,
       projects: projects.length,

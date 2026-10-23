@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, areaSlug, canEdit, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
+import { appendToSection, areaSlug, canEdit, catchAllOf, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "../db.js";
 import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
@@ -19,7 +19,7 @@ import { HttpError, type VaultStore } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
-import { areasFor } from "../lifeAreas.js";
+import { areaOf, areasFor } from "../lifeAreas.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
 export { PROJECTS_DIR, projectNoteFor };
@@ -265,6 +265,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       openByProject.set(key, cur);
     }
 
+    const areas = areasFor(store, user);
     return rows
       .map((p) => {
         const slug = p.key.startsWith("project/") ? p.key.slice("project/".length) : p.key;
@@ -280,7 +281,8 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
           slug,
           key: p.key,
           name: projectName(note, p.name),
-          domain: p.domain ?? null,
+          domain: asDomain(p.domain) ?? null,
+          area: note ? areaOf(note, areas).id : catchAllOf(areas.areas),
           noteId: note ? note.id : null,
           total: prog?.total ?? 0,
           done: prog?.done ?? 0,
@@ -383,6 +385,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
       path: note.path,
       // One of the three, or null — not "" for an absent field, nor whatever text front matter holds.
       domain: asDomain(row?.domain ?? fm["domain"]) ?? null,
+      area: areaOf(note, areasFor(store, user)).id,
       status: str(fm["status"]),
       start: str(fm["start"]),
       deadline: str(fm["deadline"]),

@@ -118,11 +118,11 @@ describe("New", () => {
     expect(screen.getByText("A time, like 15:00")).toBeTruthy();
   });
 
-  it("a project from the board filtered to School is academic, and opens", async () => {
+  it("a project from the board filtered to an area is in that area, and opens", async () => {
     await pick({ kind: "projects", area: "school" }, "Project");
     type("What is it called?", "Lisbon trip");
     await submit("New project");
-    expect(sent.filter((s) => s.method === "POST")).toEqual([{ url: "/api/projects", method: "POST", body: { name: "Lisbon trip", domain: "academic" } }]);
+    expect(sent.filter((s) => s.method === "POST")).toEqual([{ url: "/api/projects", method: "POST", body: { name: "Lisbon trip", area: "school" } }]);
     expect(window.location.pathname).toBe("/projects/lisbon-trip");
   });
 });

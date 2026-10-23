@@ -23,7 +23,7 @@ import { onWs } from "../ws.js";
 import { loadOrrery } from "./data.js";
 import { fmt, OrreryEngine, type Box, type Intent, type Snapshot } from "./engine.js";
 import { Glyph } from "./Glyph.js";
-import { AREAS, KIND_NAME, relationGroups, type Model, type ONode } from "./model.js";
+import { KIND_NAME, relationGroups, type Model, type ONode } from "./model.js";
 
 export type OrreryRoute = Extract<Route, { kind: "orrery" }>;
 
@@ -120,10 +120,10 @@ export function Orrery({ route, onAsk }: { route: OrreryRoute; onAsk: () => void
       if (!m) return;
       const r = routeRef.current;
       if (it.kind === "steps") goIn({ kind: "orrery", center: m.nodes[it.i]!.slug });
-      else if (it.kind === "area") goIn({ kind: "orrery", area: AREAS[it.area]!.id });
+      else if (it.kind === "area") goIn({ kind: "orrery", area: m.areas[it.area]!.id });
       else if (it.kind === "topic") {
         const t = m.topics[it.topic]!;
-        goIn({ kind: "orrery", area: AREAS[t.area]!.id, topic: t.slug });
+        goIn({ kind: "orrery", area: m.areas[t.area]!.id, topic: t.slug });
       } else if (it.kind === "home") goOut({ kind: "orrery" });
       else goOut(r.topic && r.area ? { kind: "orrery", area: r.area } : { kind: "orrery" });
     },
@@ -170,7 +170,7 @@ export function Orrery({ route, onAsk }: { route: OrreryRoute; onAsk: () => void
     const engine = engineRef.current;
     const m = laidOut;
     if (!engine || !m || engine.model !== m) return;
-    const area = route.area ? AREAS.findIndex((a) => a.id === route.area) : -1;
+    const area = route.area ? m.areas.findIndex((a) => a.id === route.area) : -1;
     if (route.center) {
       const c = nodeBySlug(m, route.center);
       if (c >= 0) return engine.show({ center: c });
@@ -270,7 +270,7 @@ export function Orrery({ route, onAsk }: { route: OrreryRoute; onAsk: () => void
             aria-roledescription="orrery"
             aria-label="The Orrery. Arrow keys move between files, Enter puts one in the middle, plus and minus zoom, 0 shows the whole circle, Escape steps back."
           />
-          {ready && <Where ref={whereRef} snap={snap} model={model} onOut={() => onIntent({ kind: "out" })} onHome={() => onIntent({ kind: "home" })} onArea={(a) => goOut({ kind: "orrery", area: AREAS[a]!.id })} />}
+          {ready && <Where ref={whereRef} snap={snap} model={model} onOut={() => onIntent({ kind: "out" })} onHome={() => onIntent({ kind: "home" })} onArea={(a) => goOut({ kind: "orrery", area: model?.areas[a]?.id })} />}
           {data.phase === "loading" && (
             <div className="o-load" role="status">
               <span>Reading your notes</span>
@@ -338,7 +338,7 @@ export function Orrery({ route, onAsk }: { route: OrreryRoute; onAsk: () => void
             onFly={(i) => engine?.flyTo(i)}
             onMiddle={(i) => onIntent({ kind: "steps", i })}
             onBack={() => onIntent({ kind: "home" })}
-            onArea={(a) => (snap?.area === a ? goOut({ kind: "orrery" }) : goIn({ kind: "orrery", area: AREAS[a]!.id }))}
+            onArea={(a) => (snap?.area === a ? goOut({ kind: "orrery" }) : goIn({ kind: "orrery", area: model?.areas[a]?.id }))}
             onTopic={(t) => onIntent({ kind: "topic", topic: t })}
             onAsk={onAsk}
           />
@@ -378,13 +378,13 @@ const Where = ({ ref, snap, model, onOut, onHome, onArea }: { ref: Ref<HTMLDivEl
       {snap.topic >= 0 ? (
         <>
           <button type="button" className="o-crumb" onClick={() => onArea(snap.area)}>
-            {AREAS[snap.area]!.name}
+            {model.areas[snap.area]!.name}
           </button>
           <Icon name="chev-r" size={14} />
           <b>{model.topics[snap.topic]!.name}</b>
         </>
       ) : (
-        <b>{AREAS[snap.area]!.name}</b>
+        <b>{model.areas[snap.area]!.name}</b>
       )}
       {back && <span className="o-q">Back returns to {back}</span>}
     </div>
@@ -474,7 +474,7 @@ function FindInOrrery({ model, rest, onPick }: { model: Model | null; rest: bool
                 <Glyph t={d.t} />
                 <b>{d.name}</b>
                 <span>
-                  {KIND_NAME[d.t]} · {AREAS[d.area]!.name}
+                  {KIND_NAME[d.t]} · {model?.areas[d.area]?.name}
                 </span>
               </li>
             ))
@@ -558,7 +558,7 @@ function Panel(p: PanelProps) {
       </div>
       <section>
         <h3>Life areas</h3>
-        {AREAS.map((a, ai) =>
+        {model.areas.map((a, ai) =>
           model.areaCount[ai] ? (
             <button key={a.id} type="button" className="o-area" onClick={() => p.onArea(ai)}>
               <i style={{ background: `var(${a.v})` }} />
@@ -605,7 +605,7 @@ function Panel(p: PanelProps) {
 
 function AreaPanel({ snap, model, onTopic, onFly, onArea, onAsk }: PanelProps & { snap: Snapshot; model: Model }) {
   const ai = snap.area;
-  const a = AREAS[ai]!;
+  const a = model.areas[ai]!;
   const topics = model.areaTopics[ai]!.map((t) => model.topics[t]!).filter((t) => t.n > 0).sort((x, y) => y.n - x.n || x.id - y.id);
   const inA = model.nodes.filter((d) => d.area === ai);
   const cnt = [0, 0, 0, 0, 0, 0];
@@ -670,10 +670,10 @@ function AreaPanel({ snap, model, onTopic, onFly, onArea, onAsk }: PanelProps & 
 
 function describe(m: Model, d: ONode): string {
   if (d.description) return d.description;
-  const topic = m.topics[d.cl]?.name ?? AREAS[d.area]!.name;
+  const topic = m.topics[d.cl]?.name ?? m.areas[d.area]!.name;
   if (d.t === 0) return `${topic} · ${d.project?.total ? `${d.project.done} of ${d.project.total} steps done` : "no steps yet"} · ${d.deg} relations`;
   if (d.t === 4) return "A saved conversation, filed with what it is about.";
-  if (d.t === 5) return `A review or template, in ${AREAS[d.area]!.name}.`;
+  if (d.t === 5) return `A review or template, in ${m.areas[d.area]!.name}.`;
   return `In ${topic} · ${d.days === 0 ? "edited today" : d.days === 1 ? "edited yesterday" : `edited ${d.days} days ago`}.`;
 }
 
@@ -689,8 +689,8 @@ function ThingPanel({ snap, model, i, rest, onFly, onMiddle, onBack, onAsk }: Pa
       <div className="o-pt">
         <span className="o-type">
           <Glyph t={d.t} />
-          {KIND_NAME[d.t]} · <i className="o-dot" style={{ background: `var(${AREAS[d.area]!.v})` }} />
-          {AREAS[d.area]!.name}
+          {KIND_NAME[d.t]} · <i className="o-dot" style={{ background: `var(${model.areas[d.area]!.v})` }} />
+          {model.areas[d.area]!.name}
           {st && (
             <>
               {" · "}

@@ -12,6 +12,15 @@ import { act, cleanup as cleanupRender, fireEvent, render, screen, within } from
 import { Toaster } from "./ui/overlays.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const AREAS = vi.hoisted(() => ({
+  areas: [
+    { id: "family", name: "Family", words: [], catchAll: false, notes: 0, projects: 0 },
+    { id: "home", name: "Home", words: [], catchAll: true, notes: 0, projects: 0 },
+    { id: "running", name: "Running", words: [], catchAll: false, notes: 0, projects: 0 },
+  ],
+  note: null,
+  canEdit: true,
+}));
 const server = vi.hoisted(() => ({
   calls: [] as { method: string; url: string; body: Record<string, unknown> }[],
   workspace: {} as Record<string, unknown>,
@@ -46,6 +55,7 @@ vi.mock("./api.js", async (orig) => {
         return { entity: { id: "n-1", title: "Thesis", type: "project", summary: "", fields: {} }, relations: server.relations, warnings: [] };
       if (method === "GET" && url === "/api/contacts") return server.contacts;
       if (method === "GET" && url === "/api/projects") return server.projects;
+      if (method === "GET" && url === "/api/areas") return AREAS;
       if (method === "GET" && url.startsWith("/api/vault/note/")) return { id: "n-1", path: "04-Projects/thesis.md", title: "Thesis", content: "", hash: "h", tags: [], canEdit: true };
       if (method === "GET") return [];
       return { ok: true };
@@ -67,7 +77,7 @@ beforeEach(() => {
   server.fail = null;
   server.projects = [];
   server.workspace = {
-    slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null,
+    slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null, area: "home",
     status: "on-track", start: "2026-09-01", deadline: "2027-01-15", group: "", prompt: "",
     goals: ["Pick a supervisor", "Defend in January", "book the room", "Done means: signed off."], goalsSource: SOURCE,
     decisions: ["**2026-10-06** — MASE over MAPE."], inbox: [], people: [], notes: [], files: [], content: "", canEdit: true, total: 2, done: 1, tasks: [],
@@ -491,5 +501,46 @@ describe("the group (Jules, 20 Oct)", () => {
     await open();
     expect(screen.getByText("Scooperz").tagName).toBe("SPAN");
     expect(screen.queryByRole("button", { name: /Group/ })).toBeNull();
+  });
+});
+
+describe("the area (1D)", () => {
+  const menu = async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Life area: Home. Change it" }));
+    await act(async () => {});
+    return screen.getByRole("menu", { name: "Life area" });
+  };
+
+  it("the header's area is a menu of the person's areas, in their order and colours, with the board inside it", async () => {
+    const m = await menu();
+    const items = within(m).getAllByRole("menuitemcheckbox");
+    expect(items.map((i) => [i.textContent, i.getAttribute("aria-checked")])).toEqual([
+      ["Family", "false"],
+      ["Home", "true"],
+      ["Running", "false"],
+    ]);
+    expect((items[2]!.querySelector(".ui-dot") as HTMLElement).style.background).toBe("var(--c3)");
+    fireEvent.click(within(m).getByRole("menuitem", { name: "Every project in Home" }));
+    expect(window.location.pathname + window.location.search).toBe("/projects?area=home");
+  });
+
+  it("picking an area writes it by name; picking the one it is in writes nothing", async () => {
+    const m = await menu();
+    fireEvent.click(within(m).getByRole("menuitemcheckbox", { name: "Home" }));
+    await act(async () => {});
+    expect(patches()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Life area: Home. Change it" }));
+    await act(async () => {});
+    fireEvent.click(within(screen.getByRole("menu", { name: "Life area" })).getByRole("menuitemcheckbox", { name: "Running" }));
+    await act(async () => {});
+    expect(patches()).toEqual([{ area: "Running" }]);
+  });
+
+  it("a project you can only read shows its area as the board's link", async () => {
+    server.workspace = { ...server.workspace, canEdit: false };
+    await open();
+    expect(screen.queryByRole("button", { name: /Life area/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "Home" }).getAttribute("href")).toBe("/projects?area=home");
   });
 });

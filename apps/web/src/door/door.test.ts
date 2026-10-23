@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "../api.js";
 import { areaSpans, assignDots, MAX_DOTS } from "./dots.js";
 import { countingLine, foundDetail, foundLine, shapeOf } from "./shape.js";
+import { categoriesOf } from "../categories.js";
 import { cancelled, doorError, waitOf } from "./voice.js";
 import type { TreeNote } from "../api.js";
 
@@ -53,11 +54,16 @@ const note = (id: string, category: string): TreeNote => ({ id, path: `${id}.md`
 describe("the vault's shape", () => {
   it("counts each area's notes, projects and people, in the areas' drawing order", () => {
     const tree = [note("a", "work"), note("b", "work"), note("c", "school"), note("d", "personal"), note("e", "mystery")];
-    const shape = shapeOf(tree, new Set(["a"]), new Set(["b", "d"]));
+    const areas = categoriesOf([
+      { id: "school", name: "School", catchAll: false },
+      { id: "work", name: "Work", catchAll: false },
+      { id: "personal", name: "Personal", catchAll: true },
+    ]);
+    const shape = shapeOf(tree, new Set(["a"]), new Set(["b", "d"]), areas);
     expect(shape.areas).toEqual([
-      { color: "--c3", notes: 1, projects: 0, people: 0 }, // school
-      { color: "--c1", notes: 2, projects: 1, people: 1 }, // work
-      { color: "--c2", notes: 1, projects: 0, people: 1 }, // personal
+      { color: "--c1", notes: 1, projects: 0, people: 0 }, // school
+      { color: "--c2", notes: 2, projects: 1, people: 1 }, // work
+      { color: "--c3", notes: 1, projects: 0, people: 1 }, // personal
       { color: "--c-other", notes: 1, projects: 0, people: 0 }, // in no area
     ]);
   });

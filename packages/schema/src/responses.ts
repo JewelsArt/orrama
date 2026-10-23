@@ -486,6 +486,8 @@ export const projectsResponse = z.array(
     key: z.string(),
     name: z.string(),
     domain: domainSchema.nullable(),
+    /** The project's life area id (`GET /api/areas`): its `area:`, its words, its old `domain:`, else the catch-all. */
+    area: z.string(),
     noteId: nstr,
     total: z.number(),
     done: z.number(),
@@ -530,6 +532,8 @@ export const projectWorkspaceResponse = o({
   noteId: z.string(),
   path: z.string(),
   domain: domainSchema.nullable(),
+  /** The project's life area id, as `/api/projects` says it. */
+  area: z.string(),
   status: z.string(),
   start: z.string(),
   deadline: z.string(),
@@ -1084,6 +1088,7 @@ export type Linkers = z.infer<typeof linkersResponse>;
 export type NoteHistory = z.infer<typeof historyResponse>;
 export type Revision = z.infer<typeof revisionResponse>;
 export type NotesOverview = z.infer<typeof notesOverviewResponse>;
+export type LifeAreas = z.infer<typeof lifeAreasResponse>;
 export type GraphData = z.infer<typeof graphResponse>;
 export type NoteDetail = z.infer<typeof noteResponse>;
 export type NoteLink = NoteDetail["links"][number];

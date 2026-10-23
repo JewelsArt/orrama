@@ -9,7 +9,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { lifeAreasWriteSchema } from "@orrama/schema";
-import { areaOfNote, areaRules, canEdit, catchAllOf, cleanLifeAreas, LIFE_AREAS_PATH, lifeAreasNote, updateFrontmatter, writeLifeAreas, type LifeArea } from "@orrama/core";
+import { areaOfNote, areaRules, canEdit, catchAllOf, cleanLifeAreas, LIFE_AREAS_PATH, LIFE_AREAS_TAG, lifeAreasNote, ONTOLOGY_TAG, updateFrontmatter, writeLifeAreas, type LifeArea } from "@orrama/core";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { areaOf, areasFor } from "../lifeAreas.js";
 
@@ -22,6 +22,8 @@ export async function areaRoutes(app: FastifyInstance, store: VaultStore) {
     const notes = new Map<string, number>();
     const projects = new Map<string, number>();
     for (const n of store.readable(user)) {
+      // Orrama's own notes (what things are, this list) are not the person's.
+      if (n.tags.some((t) => t.tag === ONTOLOGY_TAG || t.tag === LIFE_AREAS_TAG)) continue;
       const id = areaOf(n, view).id;
       notes.set(id, (notes.get(id) ?? 0) + 1);
       if (view.projects.has(n.id)) projects.set(id, (projects.get(id) ?? 0) + 1);

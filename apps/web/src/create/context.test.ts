@@ -26,9 +26,10 @@ describe("New, prefilled for the page you are on", () => {
     expect(newContext({ kind: "notes" }, THU).note).toEqual({ folder: "" });
   });
 
-  it("on the board filtered to an area: that area's domain for a project", () => {
-    expect(newContext({ kind: "projects", area: "school" }, THU).project).toEqual({ domain: "academic" });
-    expect(newContext({ kind: "projects" }, THU).project).toEqual({ domain: undefined });
+  it("on the board filtered to an area: a project in that area, any area", () => {
+    expect(newContext({ kind: "projects", area: "school" }, THU).project).toEqual({ area: "school" });
+    expect(newContext({ kind: "projects", area: "family" }, THU).project).toEqual({ area: "family" });
+    expect(newContext({ kind: "projects" }, THU).project).toEqual({});
   });
 
   it("elsewhere: a task to the inbox, an event today", () => {

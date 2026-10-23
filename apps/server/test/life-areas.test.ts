@@ -46,6 +46,12 @@ describe("the list", () => {
     expect(fs.existsSync(path.join(vault, "Orrama/Life areas.md"))).toBe(false);
   });
 
+  it("counts the person's notes, not Orrama's own", async () => {
+    const before = (await areas()).areas.find((x) => x.catchAll)!.notes;
+    await call("PUT", "/api/vault/note", { path: "Orrama/What things are.md", content: "---\ntags: [vault-ontology]\n---\n# What things are\n", create: true });
+    expect((await areas()).areas.find((x) => x.catchAll)!.notes).toBe(before);
+  });
+
   it("the first change makes the note; rename, add and reorder land in that order", async () => {
     const put = await call("PUT", "/api/areas", {
       areas: [
@@ -99,6 +105,9 @@ describe("a project's area", () => {
     expect(front(note)).not.toContain("domain:");
     expect(await areaOfPath(note)).toBe("running");
     expect(await row()).toBeNull();
+    // The board's rows and the project page say the same area.
+    expect(((await call("GET", "/api/projects")).json() as { key: string; area: string }[]).find((p) => p.key === `project/${slug}`)?.area).toBe("running");
+    expect((await call("GET", `/api/projects/${slug}`)).json().area).toBe("running");
     expect((await call("PATCH", `/api/projects/${slug}`, { area: "Mars" })).statusCode).toBe(400);
   });
 

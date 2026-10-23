@@ -16,6 +16,7 @@ import {
   windowFor,
   type Proposal,
 } from "./model.js";
+import { categoriesOf } from "../categories.js";
 
 const areas: Record<string, string> = { "n-thesis": "school", "n-report": "work", "n-errands": "personal" };
 const areaOf = (id: string) => areas[id] ?? "personal";
@@ -77,10 +78,30 @@ describe("one vocabulary for every time view", () => {
     expect(items.filter((i) => i.late).map((i) => i.title)).toEqual(["Ask Thijs to sign"]);
   });
 
+  it("lanes follow the person's areas: their order, names and colours", () => {
+    const list = categoriesOf([
+      { id: "running", name: "Running", catchAll: false },
+      { id: "home", name: "Home", catchAll: true },
+      { id: "school", name: "School", catchAll: false },
+    ]);
+    const { lanes, quiet } = weekLanes(items.filter((i) => i.lane !== DATED_LANE && i.lane !== "personal"), list);
+    expect(lanes.map((l) => [l.id, l.label, l.color])).toEqual([
+      ["school", "School", "var(--c3)"],
+      // An area the list doesn't have (work) still gets a lane rather than vanishing.
+      ["work", "Other", "var(--c-other)"],
+      [CALENDAR_LANE, "Calendar", null],
+    ]);
+    expect(quiet.map((l) => [l.id, l.label, l.color])).toEqual([
+      ["running", "Running", "var(--c1)"],
+      ["home", "Home", "var(--c2)"],
+    ]);
+  });
+
   it("folds the quiet areas and puts the calendar after the areas", () => {
-    const { lanes, quiet } = weekLanes(items.filter((i) => i.lane !== DATED_LANE));
+    const list = categoriesOf(["School", "Work", "Knowledge", "Claude & tools", "Personal"].map((name, i) => ({ id: ["school", "work", "knowledge", "claude-tools", "personal"][i]!, name, catchAll: i === 4 })));
+    const { lanes, quiet } = weekLanes(items.filter((i) => i.lane !== DATED_LANE), list);
     expect(lanes.map((l) => l.id)).toEqual(["school", "work", CALENDAR_LANE]);
-    expect(quiet.map((l) => l.id)).toEqual(["knowledge", "tools", "personal"]);
+    expect(quiet.map((l) => l.id)).toEqual(["knowledge", "claude-tools", "personal"]);
     expect(lanes[0]!.note).toBe("Graduation thesis · 1 late");
     expect(lanes[2]!.note).toBe("1 event · 1 subscribed");
   });

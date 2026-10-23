@@ -1,14 +1,13 @@
 /**
  * Settings → Notes (structure.md §3.1 #4): the folder this server reads the notes from, the life
- * areas (the vault's own `#vault-categories` note), and the ontology with Orr noticed. The folder
+ * areas (settings/LifeAreas.tsx), and the ontology with Orr noticed. The folder
  * is changed here with the first run's chooser (Change…, door/NotesChoice.tsx), unless it is set
  * where the server starts (ORRAMA_VAULT_DIR), and the example from first run is removed here.
- * The areas and the ontology are notes, so this section shows them and opens them.
+ * The ontology is a note, so this section shows it and opens it.
  */
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import type { GraphSchema, ServerSettings, TreeNote } from "@orrama/schema/responses";
 import { api } from "../api.js";
-import { CATEGORIES } from "../categories.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { NotesChoice } from "../door/NotesChoice.js";
 import { Button, Dot } from "../ui/controls.js";
@@ -17,6 +16,7 @@ import { Icon } from "../ui/Icon.js";
 import { navigate, routeHref, type Route } from "../ui/router.js";
 import { Skeleton } from "../ui/states.js";
 import { SectionHead, StateLine, SubHead, type SectionMeta } from "./parts.js";
+import { LifeAreasSection } from "./LifeAreas.js";
 
 const plain = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 const go = (to: Route) => (e: MouseEvent) => {
@@ -66,10 +66,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
     });
 
   const tagged = (tag: string) => tree?.find((n) => n.tags.includes(tag));
-  const areasNote = tagged("vault-categories");
   const ontologyNote = tagged("vault-ontology");
-  const counts = new Map<string, number>();
-  for (const n of tree ?? []) counts.set(n.category, (counts.get(n.category) ?? 0) + 1);
   const warnings = schema?.warnings.reduce((t, w) => t + w.count, 0) ?? 0;
 
   return (
@@ -130,39 +127,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
         </div>
       )}
 
-      <div>
-        <SubHead
-          aside={
-            areasNote && (
-              <a className="set-link" href={routeHref(noteRoute(areasNote))} onClick={go(noteRoute(areasNote))}>
-                Open the rules
-              </a>
-            )
-          }
-        >
-          Life areas
-        </SubHead>
-        {tree === null ? (
-          <Skeleton rows={2} label="Loading life areas" />
-        ) : (
-          <>
-            <div className="set-areas">
-              {CATEGORIES.map((c) => (
-                <a key={c.id} className="set-area" href={routeHref({ kind: "orrery", area: c.id })} onClick={go({ kind: "orrery", area: c.id })}>
-                  <Dot color={c.color} />
-                  <span>{c.label}</span>
-                  <small>{plural(counts.get(c.id) ?? 0, "note")}</small>
-                </a>
-              ))}
-            </div>
-            <p className="set-help">
-              {areasNote
-                ? "Which notes fall in each area is decided by the note tagged #vault-categories: phrases or patterns against a note's path and tags, first row wins."
-                : "Only the PARA folders are known. A note tagged #vault-categories, with a | Category | Matches | table, sorts the rest."}
-            </p>
-          </>
-        )}
-      </div>
+      <LifeAreasSection />
 
       <div>
         <SubHead

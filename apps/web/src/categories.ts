@@ -1,41 +1,90 @@
-import type { TreeNote } from "./api.js";
+import { useEffect, useSyncExternalStore } from "react";
+import { api, type TreeNote } from "./api.js";
+import type { LifeAreas } from "@orrama/schema/responses";
 import { daysTo as coreDaysTo, isoLocal } from "@orrama/core/dates";
 
 /**
- * Semantic categories over the PARA vault, each with a colour. This one module
- * is the single source of truth for how the vault is grouped and coloured — the
- * map, the file list, and the category filter all read from here, so a note is
- * the same colour everywhere. The grouping itself is the vault's
- * `#vault-categories` note, applied on the server.
+ * The life areas, each with its colour. This one module is the single source of truth for how
+ * the vault is grouped and coloured: Planning's lanes, the Projects board, the Notes tree, the
+ * entity pages, first run and the Orrery all read from here, so a note is the same colour
+ * everywhere. The list is the person's (Settings → Notes → Life areas, `GET /api/areas`); which
+ * notes fall in each is decided on the server and arrives as `TreeNote.category` and a project
+ * row's `area`.
  *
- * The colours are TOKENS, not hex: Orrama's five category colours (tokens.css
- * --c1…--c5, structure.md §13: cyan, logo orange, ultramarine, logo coral,
- * azure, in that fixed order), which the colour-vision profiles override. Work
- * is --c1, Personal --c2, School --c3, Claude & tools --c4, Knowledge --c5.
- * Retint in `packages/ui/src/tokens.css`, never here. Every consumer puts them
- * in a DOM or SVG context where `var()` resolves; the graph canvas reads its own
- * colours from CSS and never touches these. Category colours belong on white
- * boxes: on the paper ground they fall below 3:1 (§12).
+ * The colours are TOKENS, not hex, by position (Jules, 23 Oct 2026): the first area `--c1`, the
+ * fifth `--c5`, and every one after that `--c-other`, as Money's categories are drawn; the
+ * colour-vision profiles override the five. Retint in `packages/ui/src/tokens.css`, never here.
+ * Every consumer puts them in a DOM or SVG context where `var()` resolves; the graph canvas
+ * reads its own colours from CSS. Category colours belong on white boxes: on the paper ground
+ * they fall below 3:1 (§12).
  */
 export interface Category {
   id: string;
   label: string;
   color: string;
+  /** The area for everything no other area claims. */
+  catchAll: boolean;
 }
 
-/**
- * The areas, in the order they are drawn. WHICH notes fall in each is decided
- * on the server from the vault's own `#vault-categories` note (core
- * vaultCategories.ts) and arrives as `TreeNote.category` — the rules used to be
- * regexes here naming Jules's university, employer and projects.
- */
-export const CATEGORIES: Category[] = [
-  { id: "school", label: "School", color: "var(--c3)" },
-  { id: "work", label: "Work", color: "var(--c1)" },
-  { id: "knowledge", label: "Knowledge", color: "var(--c5)" },
-  { id: "tools", label: "Claude & tools", color: "var(--c4)" },
-  { id: "personal", label: "Personal", color: "var(--c2)" },
-];
+/** The colour of the area at position `i` in the list: the five, then grey. */
+export const areaColorAt = (i: number): string => (i >= 0 && i < 5 ? `var(--c${i + 1})` : "var(--c-other)");
+
+/** The list as the server sends it, drawn: each area with its colour. */
+export function categoriesOf(areas: readonly { id: string; name: string; catchAll: boolean }[]): Category[] {
+  return areas.map((a, i) => ({ id: a.id, label: a.name, color: areaColorAt(i), catchAll: a.catchAll }));
+}
+
+/** What a vault has before the server has said (and without an areas note): Work and Personal. */
+const STARTER: Category[] = categoriesOf([
+  { id: "work", name: "Work", catchAll: false },
+  { id: "personal", name: "Personal", catchAll: true },
+]);
+
+let current: Category[] = STARTER;
+let loaded: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+const changed = () => listeners.forEach((l) => l());
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+const snapshot = () => current;
+
+/** Asks the server for the list again (after Settings changes it), and tells every screen. */
+export function loadAreas(): Promise<void> {
+  loaded = api<LifeAreas>("GET", "/api/areas")
+    .then((r) => {
+      current = categoriesOf(r.areas);
+      changed();
+    })
+    .catch(() => {
+      // Keep what is drawn; the next screen that asks tries again.
+      loaded = null;
+    });
+  return loaded;
+}
+
+/** The areas in order, as the screens draw them; asked of the server the first time. */
+export function useAreas(): Category[] {
+  const list = useSyncExternalStore(subscribe, snapshot);
+  useEffect(() => {
+    if (!loaded) void loadAreas();
+  }, []);
+  return list;
+}
+
+/** The list as last drawn, for code outside a component. */
+export const areasNow = (): Category[] => current;
+
+/** Tests: the list as if the server had sent it. */
+export function setAreasForTest(areas: readonly { id: string; name: string; catchAll: boolean }[] | null): void {
+  current = areas ? categoriesOf(areas) : STARTER;
+  loaded = areas ? Promise.resolve() : null;
+  changed();
+}
+
+/** The catch-all's id. */
+export const catchAllOf = (areas: readonly Category[] = current): string => (areas.find((a) => a.catchAll) ?? areas[areas.length - 1])?.id ?? "personal";
 
 const FALLBACK = "var(--c-other)";
 
@@ -61,15 +110,6 @@ export function isProjectActive(p: { status: string | null; total: number; done:
   if (SLEEP_STATES.has(st) || CANCEL_STATES.has(st) || DONE_STATES.has(st)) return false;
   return !(p.total > 0 && p.done >= p.total);
 }
-
-/** Life-areas, as the Overview board separates projects. Shared by the board,
- *  the project workspace and the Dashboard's Projects card so a project is the
- *  same colour wherever it appears. */
-export const DOMAIN_COLOR: Record<string, string> = {
-  personal: "var(--c2)",
-  professional: "var(--c1)",
-  academic: "var(--c3)",
-};
 
 /** Whole days from today to a YYYY-MM-DD; negative is past. Local midnight on
  *  both sides, so a DST boundary never rounds a 7-day gap down to 6. */
@@ -104,13 +144,10 @@ export function isSessionLog(note: Pick<TreeNote, "path">): boolean {
 }
 
 export function categoryOf(note: Pick<TreeNote, "category">): string {
-  return note.category ?? "personal";
+  return note.category ?? catchAllOf();
 }
 
-export function categoryColor(id: string): string {
-  return CATEGORIES.find((c) => c.id === id)?.color ?? FALLBACK;
-}
-
-export function colorOf(note: Pick<TreeNote, "category">): string {
-  return categoryColor(categoryOf(note));
+/** An area's colour by id in a list (the current one by default); an id the list doesn't have is grey. */
+export function categoryColor(id: string, areas: readonly Category[] = current): string {
+  return areas.find((c) => c.id === id)?.color ?? FALLBACK;
 }
