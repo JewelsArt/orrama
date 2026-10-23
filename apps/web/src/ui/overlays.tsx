@@ -311,13 +311,23 @@ export function Popover({
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   useLayer({ kind: "popover", onClose, box, trap: false });
   useLayoutEffect(() => {
-    const a = anchor.current?.getBoundingClientRect();
-    const b = box.current?.getBoundingClientRect();
-    if (!a || !b) return;
-    const below = a.bottom + 6;
-    const top = below + b.height > window.innerHeight - 8 && a.top - 6 - b.height > 8 ? a.top - 6 - b.height : below;
-    const left = align === "end" ? a.right - b.width : a.left;
-    setAt({ top, left: Math.max(8, Math.min(left, window.innerWidth - b.width - 8)) });
+    const place = () => {
+      const a = anchor.current?.getBoundingClientRect();
+      // Its laid-out size: the pop-in animation scales the box, and a rect read mid-way is short.
+      const b = box.current ? { width: box.current.offsetWidth, height: box.current.offsetHeight } : null;
+      if (!a || !b) return;
+      const below = a.bottom + 6;
+      const top = below + b.height > window.innerHeight - 8 && a.top - 6 - b.height > 8 ? a.top - 6 - b.height : below;
+      const left = align === "end" ? a.right - b.width : a.left;
+      // Too tall for either side: kept inside the window, over the anchor if it must be.
+      setAt({ top: Math.max(8, Math.min(top, window.innerHeight - b.height - 8)), left: Math.max(8, Math.min(left, window.innerWidth - b.width - 8)) });
+    };
+    place();
+    // A box that grows (a form opening in it, a hint under a field) is placed again.
+    if (typeof ResizeObserver === "undefined" || !box.current) return;
+    const watch = new ResizeObserver(place);
+    watch.observe(box.current);
+    return () => watch.disconnect();
   }, [anchor, align]);
   useEffect(() => {
     const away = (e: PointerEvent) => {

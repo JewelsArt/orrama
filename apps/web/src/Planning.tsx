@@ -263,7 +263,8 @@ export function Planning({
 
   const moveItem = (i: Item, date: string) => {
     if (i.kind === "bk" && i.block) return void after("The block wasn't moved.", () => api("PATCH", `/api/blocks/${i.block!.id}`, { date }), `Moved to ${dateLabel(date)}`);
-    if (i.kind === "ev" && i.event) return void after("The event wasn't moved.", () => api("PATCH", `/api/events/${i.event!.id}`, { date }), `Moved to ${dateLabel(date)}`);
+    // A day of a series moves alone (the server's default for `<id>@<day>`).
+    if (i.kind === "ev" && i.event) return void after("The event wasn't moved.", () => api("PATCH", `/api/events/${encodeURIComponent(i.event!.id)}`, { date }), `Moved to ${dateLabel(date)}`);
     if ((i.kind === "du" || i.kind === "key") && i.marker?.noteId) {
       const t = findTask(i);
       return void after(
@@ -274,16 +275,21 @@ export function Planning({
     }
   };
 
+  /** A day of a repeating event is `<id>@<day>`: the server reads the day off the id. */
+  const eventUrl = (i: Item) => `/api/events/${encodeURIComponent(i.event!.id)}`;
   const popActions: PopActions = {
-    patch: (i, change) => {
-      const url = i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`;
-      return after(i.kind === "bk" ? "The block wasn't changed." : "The event wasn't changed.", () => api("PATCH", url, change));
+    patch: (i, change, scope) => {
+      if (i.kind === "bk") {
+        const { date, startMin, durationMin } = change;
+        return after("The block wasn't changed.", () => api("PATCH", `/api/blocks/${i.block!.id}`, { date, startMin, durationMin }), date && date !== i.date ? `Moved to ${dateLabel(date)}` : undefined);
+      }
+      return after("The event wasn't changed.", () => api("PATCH", eventUrl(i), scope ? { ...change, scope } : change));
     },
-    remove: (i) => {
-      const url = i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`;
-      return after(i.kind === "bk" ? "The block wasn't removed." : "The event wasn't deleted.", () => api("DELETE", url));
+    remove: (i, scope) => {
+      if (i.kind === "bk") return after("The block wasn't removed.", () => api("DELETE", `/api/blocks/${i.block!.id}`));
+      return after(scope === "one" ? "That day wasn't deleted." : "The event wasn't deleted.", () => api("DELETE", `${eventUrl(i)}${scope ? `?scope=${scope}` : ""}`));
     },
-    create: (date, startMin, durationMin, title) => after("The event wasn't added.", () => api("POST", "/api/events", { title, date, startMin, durationMin })),
+    create: (event) => after("The event wasn't added.", () => api("POST", "/api/events", event), `On your calendar, ${dateLabel(event.date)}.`),
     openStep: (i, anchor) => {
       setPop(null);
       if (i.task) setCard({ task: i.task, anchor });
@@ -458,7 +464,7 @@ export function Planning({
       onOpen={openItem}
       onNewEvent={(date, startMin, anchor) => setPop({ kind: "new-event", date, startMin, anchor })}
       onBook={bookStep}
-      onPatch={(i, to) => void after(i.kind === "bk" ? "The block wasn't moved." : "The event wasn't moved.", () => api("PATCH", i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${i.event!.id}`, to))}
+      onPatch={(i, to) => void after(i.kind === "bk" ? "The block wasn't moved." : "The event wasn't moved.", () => api("PATCH", i.kind === "bk" ? `/api/blocks/${i.block!.id}` : `/api/events/${encodeURIComponent(i.event!.id)}`, to))}
       onOpenDay={list.length > 1 ? openDay : undefined}
       colorOf={colorOf}
       pending={pop?.kind === "new-event" ? { date: pop.date, startMin: pop.startMin } : null}
@@ -542,6 +548,13 @@ export function Planning({
             <Button size="sm" kind="quiet" icon="chev-l" aria-label="Back" onClick={() => step(-1)} />
             <Button size="sm" kind="quiet" icon="chev-r" aria-label="Forward" onClick={() => step(1)} />
           </div>
+          {scale !== "month" && !proposals && (
+            <div className="pplan">
+              <Button size="sm" orr disabled={planning || backlog.length === 0} onClick={() => void autoPlan()}>
+                {planning ? "Working…" : "Plan my week"}
+              </Button>
+            </div>
+          )}
           {feedNotice}
           {proposalBox}
         </>

@@ -393,7 +393,7 @@
 
 ### `apps/web/src/create/New.tsx`
 - **Exports**: New
-- **Imports**: react, ../api.js, ../calendarMath.js, ../entity/dateInput.js, ../newNote.js, ../people/NewDialogs.js, ../people/model.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
+- **Imports**: react, ../api.js, ../entity/dateInput.js, ../newNote.js, ../people/NewDialogs.js, ../people/model.js, ../planning/EventForm.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
 
 ### `apps/web/src/create/context.ts`
 - **Exports**: NewContext, newContext
@@ -732,13 +732,17 @@
 - **Exports**: Name, whenLabel, RouteOf, PersonRow, CompanyRow, GhostRow
 - **Imports**: react, @orrama/schema/responses, ../ui/layout.js, ../ui/controls.js, ../ui/orr/Orr.js, ../ui/dates.js, ../ui/router.js, ./model.js
 
+### `apps/web/src/planning/EventForm.tsx`
+- **Exports**: Repeat, EventValue, repeatWords, useWhen, When, WhenFields, useEventForm, EventForm, EventFields
+- **Imports**: react, @orrama/schema/responses, ../calendarMath.js, ../entity/dateInput.js, ../ui/dates.js, ../ui/fields.js
+
 ### `apps/web/src/planning/Hours.tsx`
 - **Exports**: HOUR_PX, SNAP, TASK_MIME, DraggedStep, HoursProps, Hours
 - **Imports**: react, ../calendarMath.js, ../ui/dates.js, ./model.js, ./TimeItem.js
 
 ### `apps/web/src/planning/ItemPopover.tsx`
-- **Exports**: Pop, PopActions, ItemPopover
-- **Imports**: react, ../calendarMath.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/overlays.js, ./details.js, ./model.js, ./Hours.js
+- **Exports**: Pop, Scope, PopActions, ItemPopover
+- **Imports**: react, ../ui/controls.js, ../ui/dates.js, ../ui/overlays.js, ./details.js, ./EventForm.js, ./model.js
 
 ### `apps/web/src/planning/Lanes.tsx`
 - **Exports**: LanesProps, dropTarget, startDrag, Lanes

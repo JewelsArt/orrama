@@ -157,6 +157,30 @@ const answer = (over: Record<string, unknown>) => {
 };
 const navLinks = () => [...screen.getByRole("navigation", { name: "Settings" }).querySelectorAll(".set-ni")].map((a) => a.textContent);
 
+describe("Connections: a subscribed calendar's name and colour (1H)", () => {
+  it("renames a calendar and gives it one of the five area colours, from its ⋯ menu", async () => {
+    const user = userEvent.setup();
+    answer({
+      "PATCH /api/calendar/feeds/f1": { id: "f1", label: "Uni", color: "c2", host: "example.edu", createdAt: 1, lastSyncedAt: null, lastError: null },
+    });
+    const out = bodies();
+    open("connections");
+    await user.click(await screen.findByRole("button", { name: "Rename or colour School" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Rename…" }));
+    const dialog = screen.getByRole("dialog", { name: "Rename School" });
+    const field = within(dialog).getByRole("textbox", { name: "Name" });
+    await user.clear(field);
+    await user.type(field, "Uni");
+    await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+    await waitFor(() => expect(out).toEqual([{ key: "PATCH /api/calendar/feeds/f1", body: { label: "Uni" } }]));
+    expect(await screen.findByText("Uni")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Rename or colour Uni" }));
+    await user.click(within(screen.getByRole("menu")).getByRole("menuitemcheckbox", { name: "Orange" }));
+    await waitFor(() => expect(out.at(-1)).toEqual({ key: "PATCH /api/calendar/feeds/f1", body: { color: "c2" } }));
+  });
+});
+
 describe("the Settings page (structure.md §3)", () => {
   it("lists the eight sections in order; Access only with a second account", async () => {
     open("you");

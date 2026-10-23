@@ -14,6 +14,9 @@
 .plan .tm { display: block; width: 100%; }
 .plan .tm.mn { display: flex; }
 .plan .tm.fd { cursor: pointer; }
+/* A subscribed calendar given a colour in Settings → Connections: its edge and a wash of it. */
+.plan .tm.fd.tinted { border-color: var(--lane); background: color-mix(in srgb, var(--lane) 10%, transparent); }
+.plan .tm.fd.tinted b { color: var(--ink); }
 .plan .tm:focus-visible, .plan :is(.wk-dh, .wk-lh, .wk-fi, .knw, .hg-dh, .plus, .add, .n, .pc):focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ---- the header (the boards' .bar2) ---- */
@@ -172,8 +175,18 @@
 .plan-pop-desc p.gap { height: 9px; }
 .plan-pop .plan-pop-place a, .plan-pop .plan-pop-desc a { color: var(--accent); }
 .plan-pop .plan-pop-place a:hover, .plan-pop .plan-pop-desc a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.plan-len { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; }
-.plan-len .inp { height: 32px; text-align: center; }
+/* The event form (planning/EventForm.tsx): the popover's, and New → Event's dialog. */
+.plan-pop { max-height: calc(100vh - 16px); overflow-y: auto; }
+.ev-form { display: flex; flex-direction: column; gap: 10px; }
+.ev-when { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.ev-when.one { grid-template-columns: minmax(0, 1fr); }
+.ev-repeat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.ev-repeat.one { grid-template-columns: minmax(0, 1fr); }
+.ev-switch { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.plan-pop .ev-form .inp { height: 34px; }
+.plan-pop .ev-form .inp.area { height: auto; min-height: 64px; }
+.plan-pop .ev-form .field { gap: 4px; }
+.plan-pop .ev-form .field > label { font-size: 12.5px; }
 
 /* ---- the task card (also opened from a project's Timeline) ---- */
 .plan-tc-layer { align-items: flex-start; justify-content: center; }
@@ -229,6 +242,7 @@
 .plan.phone .pmeta { display: flex; align-items: center; gap: 4px; padding: 6px 12px 4px 16px; color: var(--ink-3); font-size: 14px; }
 .plan.phone .pmeta .hl { margin: 0 0 0 6px; font-size: 14px; }
 .plan.phone .pmeta .sp { flex: 1; }
+.plan.phone .pplan { display: flex; padding: 2px 16px 8px; }
 .plan.phone .notice, .plan.phone .oprop.boxed { margin: 8px 12px 0; }
 .plan.phone .oprop.boxed { grid-template-columns: 18px minmax(0, 1fr); }
 .plan.phone .oprop.boxed .acts { grid-column: 2; }

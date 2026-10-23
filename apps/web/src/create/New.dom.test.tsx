@@ -124,13 +124,31 @@ describe("New", () => {
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("an event goes on your calendar on the day shown, at the time and for the length typed", async () => {
+  it("an event goes on your calendar on the day shown, with Planning's fields: times, place, notes, repeat", async () => {
     await pick({ kind: "planning", scale: "day", at: "2026-10-16" }, "Event");
     type("What", "Dashboard review");
     type("Starts", "15:00");
-    type("For", "90m");
+    type("Ends", "16:30");
+    type("Place", "Room 2");
+    type("Notes", "Bring the numbers");
+    fireEvent.change(screen.getByRole("combobox", { name: "Repeats" }), { target: { value: "month" } });
     await submit("New event");
-    expect(sent.filter((s) => s.method === "POST")).toEqual([{ url: "/api/events", method: "POST", body: { title: "Dashboard review", date: "2026-10-16", startMin: 900, durationMin: 90 } }]);
+    expect(sent.filter((s) => s.method === "POST")).toEqual([
+      {
+        url: "/api/events",
+        method: "POST",
+        body: { title: "Dashboard review", date: "2026-10-16", startMin: 900, durationMin: 90, allDay: false, place: "Room 2", notes: "Bring the numbers", repeat: { every: "month", interval: 1, until: null } },
+      },
+    ]);
+  });
+
+  it("an all-day event has no hours", async () => {
+    await pick({ kind: "planning", scale: "day", at: "2026-10-16" }, "Event");
+    type("What", "Open day");
+    fireEvent.click(screen.getByRole("switch", { name: "All day" }));
+    expect(screen.queryByRole("textbox", { name: "Starts" })).toBeNull();
+    await submit("New event");
+    expect(sent.filter((s) => s.method === "POST")[0]!.body).toMatchObject({ title: "Open day", date: "2026-10-16", startMin: 0, durationMin: 1440, allDay: true });
   });
 
   it("sends nothing while a field is not readable", async () => {
@@ -139,7 +157,12 @@ describe("New", () => {
     type("Starts", "half past");
     await submit("New event");
     expect(sent.filter((s) => s.method === "POST")).toEqual([]);
-    expect(screen.getByText("A time, like 15:00")).toBeTruthy();
+    expect(screen.getByText("A time, like 9:30")).toBeTruthy();
+    type("Starts", "10:00");
+    type("Ends", "9:00");
+    await submit("New event");
+    expect(sent.filter((s) => s.method === "POST")).toEqual([]);
+    expect(screen.getByText("After it starts")).toBeTruthy();
   });
 
   it("a project from the board filtered to an area is in that area, and opens", async () => {

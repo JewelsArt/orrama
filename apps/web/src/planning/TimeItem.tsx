@@ -74,8 +74,11 @@ export function TimeItem({
   const i = item;
   const cur = i.kind === "bk" && i.date === today && nowMin != null && i.startMin !== null && nowMin >= i.startMin && nowMin < i.startMin + i.durationMin;
   const kind = i.kind === "ms" ? "du" : i.kind;
-  const cls = ["tm", kind, i.late && "late", cur && "cur", size === "s" && "s", className].filter(Boolean).join(" ");
-  const laneStyle = color ? ({ "--lane": color } as CSSProperties) : undefined;
+  // A subscribed calendar drawn in the colour picked for it in Settings → Connections.
+  const feedTint = i.kind === "fd" && i.event?.color ? `var(--${i.event.color})` : null;
+  const cls = ["tm", kind, i.late && "late", cur && "cur", size === "s" && "s", feedTint && "tinted", className].filter(Boolean).join(" ");
+  const tint = feedTint ?? color;
+  const laneStyle = tint ? ({ "--lane": tint } as CSSProperties) : undefined;
   const click = (e: MouseEvent<HTMLElement>) => onOpen(i, e.currentTarget);
   const drag = movable(i) && onDragStart ? { draggable: true, onDragStart: (e: DragEvent<HTMLElement>) => onDragStart(i, e) } : {};
   const label = `${i.title}${i.kind === "key" ? ", key deadline" : i.kind === "pp" ? ", proposed by Orr" : i.late ? ", late" : ""}`;

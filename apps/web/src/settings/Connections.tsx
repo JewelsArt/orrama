@@ -1,18 +1,19 @@
 /**
- * Settings → Connections (structure.md §3.1 #5): calendars you follow (ICS feeds in), your mail
+ * Settings → Connections (structure.md §3.1 #5): calendars you follow (ICS feeds in; each can be
+ * renamed and drawn in one of the five colours the life areas take, `PATCH /api/calendar/feeds/:id`), your mail
  * (Gmail with an app password), and Publish my planning (your blocks and events as a private
  * ICS link). Everything that cannot be undone asks first (WEB-017): removing a feed, the mail
  * account (Google shows an app password once), and turning off or changing the published link
  * (every calendar subscribed to it stops updating).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Feed, MailAccount } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
-import { Button } from "../ui/controls.js";
-import { Field, Input } from "../ui/fields.js";
+import { Button, Dot } from "../ui/controls.js";
+import { Field, Form, Input } from "../ui/fields.js";
 import { RowList } from "../ui/layout.js";
-import { toast } from "../ui/overlays.js";
+import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
 import { dateTimeLabel } from "../ui/dates.js";
 import { SectionHead, StateLine, SubHead, said, type SectionMeta } from "./parts.js";
@@ -69,6 +70,32 @@ function Calendars({ ask }: { ask: Ask }) {
       toast(said(e, `${f.label} couldn't be read.`));
     }
   };
+  const [menu, setMenu] = useState<Feed | null>(null);
+  const [renaming, setRenaming] = useState<Feed | null>(null);
+  const menuAt = useRef<HTMLElement | null>(null);
+  const change = async (f: Feed, patch: { label?: string; color?: string | null }) => {
+    const updated = await api<Feed>("PATCH", `/api/calendar/feeds/${f.id}`, patch);
+    setFeeds((all) => all.map((x) => (x.id === f.id ? { ...x, ...updated } : x)));
+  };
+  /** The five category colours the life areas take (`--c1`…`--c5`), by name; the dot shows each as drawn. */
+  const colours = [
+    { id: "c1", label: "Teal" },
+    { id: "c2", label: "Orange" },
+    { id: "c3", label: "Blue" },
+    { id: "c4", label: "Coral" },
+    { id: "c5", label: "Sky blue" },
+  ];
+  const menuItems = (f: Feed): (MenuItem | "-")[] => [
+    { label: "Rename…", onSelect: () => setRenaming(f) },
+    "-",
+    { label: "No colour", checked: !f.color, onSelect: () => void change(f, { color: null }).catch((e) => toast(said(e, `${f.label}'s colour wasn't changed.`))) },
+    ...colours.map((c) => ({
+      label: c.label,
+      icon: <Dot color={`var(--${c.id})`} />,
+      checked: f.color === c.id,
+      onSelect: () => void change(f, { color: c.id }).catch((e) => toast(said(e, `${f.label}'s colour wasn't changed.`))),
+    })),
+  ];
   const remove = (f: Feed) =>
     ask({
       title: `Remove ${f.label}?`,
@@ -87,20 +114,37 @@ function Calendars({ ask }: { ask: Ask }) {
       {feeds.length > 0 && (
         <RowList label="Calendars">
           {feeds.map((f) => (
-            <div key={f.id} className="set-item">
+            <div key={f.id} className="set-item feed">
               <span className={f.lastError ? "set-dot bad" : "set-dot ok"} aria-hidden="true" />
               <span className="set-item-x">
-                <b>{f.label}</b>
+                <b>
+                  {f.color && <Dot color={`var(--${f.color})`} />}
+                  {f.label}
+                </b>
                 <small>
                   {f.lastError ? `Couldn't be read: ${f.lastError}` : `${f.host ?? ""}${f.lastSyncedAt ? ` · read ${dateTimeLabel(f.lastSyncedAt)}` : ""}`}
                 </small>
               </span>
               <Button size="sm" kind="quiet" icon="repeat" aria-label={`Read ${f.label} again now`} tip="Read again now" onClick={() => void refresh(f)} />
+              <Button
+                size="sm"
+                kind="quiet"
+                icon="dots"
+                aria-label={`Rename or colour ${f.label}`}
+                tip="Name and colour"
+                aria-haspopup="menu"
+                onClick={(e) => {
+                  menuAt.current = e.currentTarget;
+                  setMenu(f);
+                }}
+              />
               <Button size="sm" kind="quiet" icon="trash" danger aria-label={`Remove ${f.label}`} tip="Remove" onClick={() => remove(f)} />
             </div>
           ))}
         </RowList>
       )}
+      {menu && <Menu anchor={menuAt} label={`${menu.label}: name and colour`} items={menuItems(menu)} align="end" onClose={() => setMenu(null)} />}
+      {renaming && <RenameFeed feed={renaming} onClose={() => setRenaming(null)} onSave={(label) => change(renaming, { label })} />}
       <form
         className="set-add"
         onSubmit={(e) => {
@@ -131,6 +175,48 @@ function Calendars({ ask }: { ask: Ask }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** A subscribed calendar's name, as Planning and its cards say it. */
+function RenameFeed({ feed, onClose, onSave }: { feed: Feed; onClose: () => void; onSave: (label: string) => Promise<void> }) {
+  const [label, setLabel] = useState(feed.label);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const name = label.trim();
+    if (!name || busy) return;
+    if (name === feed.label) return onClose();
+    setBusy(true);
+    setError(null);
+    try {
+      await onSave(name);
+      onClose();
+    } catch (e) {
+      setError(said(e, "That name wasn't saved."));
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog title={`Rename ${feed.label}`} onClose={onClose}>
+      <Form
+        onSubmit={() => void save()}
+        actions={
+          <>
+            <Button kind="quiet" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" kind="solid" disabled={busy || !label.trim()}>
+              Rename
+            </Button>
+          </>
+        }
+      >
+        <Field label="Name" error={error}>
+          <Input data-autofocus value={label} onChange={(e) => setLabel(e.target.value)} maxLength={60} />
+        </Field>
+      </Form>
+    </Dialog>
   );
 }
 

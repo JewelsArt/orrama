@@ -8,19 +8,19 @@
  *   project), with `due:` when a date is given.
  * - Note: `PUT /api/vault/note` create-only (newNote.ts), so a name already taken is said under
  *   the field and never replaced; in a project it carries the project's tag.
- * - Event: `POST /api/events`, on your calendar note.
+ * - Event: `POST /api/events`, on your calendar note, with the fields Planning's popover has.
  * - Project: `POST /api/projects`, create-only; it opens.
  * - Person, Company: People's own dialogs (people/NewDialogs.tsx), create-only; the page opens.
  */
 import { useEffect, useState, type ReactNode, type RefObject } from "react";
 import { api } from "../api.js";
-import { parseDurationInput, parseTimeInput } from "../calendarMath.js";
 import { parseDateInput } from "../entity/dateInput.js";
 import { blankNote, createNote } from "../newNote.js";
 import { NewCompany, NewPerson } from "../people/NewDialogs.js";
 import { slugOf } from "../people/model.js";
+import { EventFields, useEventForm } from "../planning/EventForm.js";
 import { Button } from "../ui/controls.js";
-import { dateLabel, minutesLabel } from "../ui/dates.js";
+import { dateLabel } from "../ui/dates.js";
 import { Field, Form, Input } from "../ui/fields.js";
 import { Icon } from "../ui/Icon.js";
 import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
@@ -211,40 +211,23 @@ function NewNote({ ctx, onClose }: { ctx: NewContext; onClose: () => void }) {
 const nextHour = (now = new Date()) => Math.min(23, now.getHours() + 1) * 60;
 
 function NewEvent({ ctx, onClose }: { ctx: NewContext; onClose: () => void }) {
-  const [title, setTitle] = useState("");
-  const date = useTypedDate(ctx.event.date);
-  const [start, setStart] = useState(minutesLabel(nextHour()));
-  const [length, setLength] = useState("1h");
-  const startMin = parseTimeInput(start);
-  const durationMin = parseDurationInput(length);
+  // The same fields as a double-click in Planning's hours (planning/EventForm.tsx).
+  const form = useEventForm({ date: ctx.event.date, startMin: nextHour(), durationMin: 60 });
   return (
     <Making
       title="New event"
       confirm="Add"
       onClose={onClose}
       make={() => {
-        if (!title.trim() || !date.value || startMin === null || durationMin === null) return null;
-        const day = date.value;
+        const event = form.value;
+        if (!event) return null;
         return (async () => {
-          await api("POST", "/api/events", { title: title.trim(), date: day, startMin, durationMin });
-          toast(`On your calendar, ${dateLabel(day)}.`, { action: { label: "Open", run: () => navigate({ kind: "planning", scale: "day", at: day }) } });
+          await api("POST", "/api/events", event);
+          toast(`On your calendar, ${dateLabel(event.date)}.`, { action: { label: "Open", run: () => navigate({ kind: "planning", scale: "day", at: event.date }) } });
         })();
       }}
     >
-      <Field label="What">
-        <Input data-autofocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Dashboard review" maxLength={140} />
-      </Field>
-      <div className="new-row">
-        <Field label="Day" help={date.value ? date.help : undefined} error={date.value === "" ? "Give it a day" : date.error}>
-          <Input value={date.text} onChange={(e) => date.setText(e.target.value)} placeholder="Fri 16 Oct" />
-        </Field>
-        <Field label="Starts" error={startMin === null ? "A time, like 15:00" : null}>
-          <Input value={start} onChange={(e) => setStart(e.target.value)} inputMode="numeric" />
-        </Field>
-        <Field label="For" error={durationMin === null ? "Like 1h or 30m" : null}>
-          <Input value={length} onChange={(e) => setLength(e.target.value)} />
-        </Field>
-      </div>
+      <EventFields form={form} autoFocus={false} />
     </Making>
   );
 }

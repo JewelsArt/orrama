@@ -105,6 +105,8 @@
 .set-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 6px 12px; align-items: center; min-height: 52px; padding: 6px 0; border-top: 1px solid var(--line); }
 .set-item:first-of-type { border-top: 0; }
 .set-sub + .set-item, .set-sub + .rows .set-item:first-child { border-top: 0; }
+/* A subscribed calendar's row: read again, name and colour, remove. */
+.set-item.feed { grid-template-columns: auto minmax(0, 1fr) auto auto auto; }
 .set-item-x { display: flex; flex-direction: column; min-width: 0; }
 .set-item-x b { font-weight: 650; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .set-item-x small { color: var(--ink-3); font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -163,6 +165,7 @@
   .set-row-form > .btn, .set-add > .btn { margin-top: 0; justify-self: start; }
   .set-item { grid-template-columns: auto minmax(0, 1fr) auto; }
   .set-item > .btn + .btn { grid-column: 3; }
+  .set-item.feed > .btn + .btn { grid-column: auto; }
   .set-danger { grid-template-columns: minmax(0, 1fr); }
   .set-danger .btn { justify-self: start; }
   .set-vrow { grid-template-columns: 18px minmax(0, 1fr); }

@@ -238,16 +238,91 @@ describe("items open what they are", () => {
     expect(within(card).getByText("Put it in the week")).toBeTruthy();
   });
 
-  it("booked time opens its popover: longer, then off the calendar", async () => {
+  it("booked time opens its popover: its day and times typed, then off the calendar", async () => {
     await open();
     fireEvent.click(document.querySelector<HTMLElement>(".tm.bk")!);
     const pop = screen.getByRole("dialog", { name: "Refine research question" });
-    fireEvent.click(within(pop).getByRole("button", { name: "Half an hour longer" }));
+    const save = within(pop).getByRole("button", { name: "Save" });
+    // Nothing changed, nothing to save.
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Day" }), { target: { value: "tue 6 oct" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Starts" }), { target: { value: "9:30" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Ends" }), { target: { value: "12:00" } });
+    fireEvent.click(save);
     await act(async () => {});
-    expect(writes("/api/blocks/blk-1")).toEqual([{ method: "PATCH", url: "/api/blocks/blk-1", body: { durationMin: 150 } }]);
-    fireEvent.click(within(pop).getByRole("button", { name: "Remove from calendar" }));
+    expect(writes("/api/blocks/blk-1")).toEqual([{ method: "PATCH", url: "/api/blocks/blk-1", body: { date: "2026-10-06", startMin: 570, durationMin: 150 } }]);
+    fireEvent.click(document.querySelector<HTMLElement>(".tm.bk")!);
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Refine research question" })).getByRole("button", { name: "Remove from calendar" }));
     await act(async () => {});
     expect(writes().at(-1)).toEqual({ method: "DELETE", url: "/api/blocks/blk-1", body: undefined });
+  });
+
+  it("your event reads like a subscribed one: when, place and notes; Edit changes it by typing", async () => {
+    server.events = [event({ id: "ev-dentist", date: "2026-10-06", title: "Dentist", startMin: 600, durationMin: 45, details: { location: "Kade 12, Amsterdam", description: "Bring the card" } })];
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Dentist" }));
+    let pop = screen.getByRole("dialog", { name: "Dentist" });
+    expect(within(pop).getByRole("link", { name: "Kade 12, Amsterdam" }).getAttribute("href")).toContain("google.com/maps");
+    expect(within(pop).getByText("Bring the card")).toBeTruthy();
+    fireEvent.click(within(pop).getByRole("button", { name: "Edit" }));
+    pop = screen.getByRole("dialog", { name: "Dentist" });
+    expect((within(pop).getByRole("textbox", { name: "Place" }) as HTMLInputElement).value).toBe("Kade 12, Amsterdam");
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Day" }), { target: { value: "9 oct" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Starts" }), { target: { value: "1415" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Ends" }), { target: { value: "15:00" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Notes" }), { target: { value: "Bring the card\nAnd the letter" } });
+    fireEvent.click(within(pop).getByRole("button", { name: "Save" }));
+    await act(async () => {});
+    expect(writes("/api/events")).toEqual([
+      {
+        method: "PATCH",
+        url: "/api/events/ev-dentist",
+        body: { title: "Dentist", date: "2026-10-09", startMin: 855, durationMin: 45, allDay: false, place: "Kade 12, Amsterdam", notes: "Bring the card\nAnd the letter", repeat: null },
+      },
+    ]);
+    expect(screen.queryByRole("dialog", { name: "Dentist" })).toBeNull();
+  });
+
+  it("a day of a repeating event saves and deletes as this one or all", async () => {
+    const choir = (date: string) => event({ id: `ev-choir@${date}`, seriesId: "ev-choir", date, title: "Choir", startMin: 1080, durationMin: 90, repeat: { every: "week", interval: 1, until: "2026-12-31" } });
+    server.events = [choir("2026-10-07")];
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Choir" }));
+    let pop = screen.getByRole("dialog", { name: "Choir" });
+    expect(within(pop).getByText("Every week until Thu 31 Dec")).toBeTruthy();
+    fireEvent.click(within(pop).getByRole("button", { name: "Delete this one" }));
+    await act(async () => {});
+    expect(writes().at(-1)).toEqual({ method: "DELETE", url: "/api/events/ev-choir%402026-10-07?scope=one", body: undefined });
+
+    fireEvent.click(screen.getByRole("button", { name: "Choir" }));
+    pop = screen.getByRole("dialog", { name: "Choir" });
+    fireEvent.click(within(pop).getByRole("button", { name: "Edit" }));
+    pop = screen.getByRole("dialog", { name: "Choir" });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Starts" }), { target: { value: "18:30" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Ends" }), { target: { value: "20:00" } });
+    fireEvent.click(within(pop).getByRole("button", { name: "Save all" }));
+    await act(async () => {});
+    expect(writes().at(-1)).toMatchObject({ method: "PATCH", url: "/api/events/ev-choir%402026-10-07", body: { startMin: 1110, durationMin: 90, repeat: { every: "week", interval: 1, until: "2026-12-31" }, scope: "all" } });
+
+    // A changed repeat is the series' to save: "This one" goes.
+    fireEvent.click(screen.getByRole("button", { name: "Choir" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Choir" })).getByRole("button", { name: "Edit" }));
+    pop = screen.getByRole("dialog", { name: "Choir" });
+    expect(within(pop).getByRole("button", { name: "Save this one" })).toBeTruthy();
+    fireEvent.change(within(pop).getByRole("combobox", { name: "Repeats" }), { target: { value: "2weeks" } });
+    expect(within(pop).queryByRole("button", { name: "Save this one" })).toBeNull();
+    fireEvent.click(within(pop).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Choir" })).getByRole("button", { name: "Delete all" }));
+    await act(async () => {});
+    expect(writes().at(-1)).toEqual({ method: "DELETE", url: "/api/events/ev-choir%402026-10-07?scope=all", body: undefined });
+  });
+
+  it("a subscribed calendar given a colour is drawn in it", async () => {
+    server.events = [event({ id: "ics-1", date: "2026-10-07", title: "Research methods", startMin: 780, durationMin: 120, source: "ics", readonly: true, mine: false, feedLabel: "Westerdok", feedId: "f1", color: "c3" })];
+    await open();
+    const item = screen.getByRole("button", { name: "Research methods" });
+    expect(item.classList.contains("tinted")).toBe(true);
+    expect(item.style.getPropertyValue("--lane")).toBe("var(--c3)");
   });
 });
 
@@ -341,11 +416,20 @@ describe("drag and drop", () => {
 
     at("dblClick", thu, 350, at10 + 24);
     const pop = screen.getByRole("dialog", { name: "New event" });
-    const title = within(pop).getByRole("textbox", { name: "Event title" });
+    const title = within(pop).getByRole("textbox", { name: "What" });
     fireEvent.change(title, { target: { value: "Lunch with Emma" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Place" }), { target: { value: "Café de Kade" } });
+    fireEvent.change(within(pop).getByRole("combobox", { name: "Repeats" }), { target: { value: "week" } });
+    fireEvent.change(within(pop).getByRole("textbox", { name: "Until" }), { target: { value: "17 Dec" } });
     fireEvent.keyDown(title, { key: "Enter" });
     await act(async () => {});
-    expect(writes("/api/events")).toEqual([{ method: "POST", url: "/api/events", body: { title: "Lunch with Emma", date: "2026-10-08", startMin: 630, durationMin: 60 } }]);
+    expect(writes("/api/events")).toEqual([
+      {
+        method: "POST",
+        url: "/api/events",
+        body: { title: "Lunch with Emma", date: "2026-10-08", startMin: 630, durationMin: 60, allDay: false, place: "Café de Kade", notes: "", repeat: { every: "week", interval: 1, until: "2026-12-17" } },
+      },
+    ]);
   });
 });
 
@@ -359,7 +443,7 @@ describe("a write that didn't save (WEB-010)", () => {
     const thu = document.querySelector<HTMLElement>(".plan-hg-cols")!.children[3] as HTMLElement;
     at("dblClick", thu, 350, 3 * 48);
     const pop = screen.getByRole("dialog", { name: "New event" });
-    const title = within(pop).getByRole("textbox", { name: "Event title" }) as HTMLInputElement;
+    const title = within(pop).getByRole("textbox", { name: "What" }) as HTMLInputElement;
     fireEvent.change(title, { target: { value: "Lunch with Emma" } });
     await act(async () => {
       fireEvent.keyDown(title, { key: "Enter" });
@@ -431,6 +515,24 @@ describe("the phone", () => {
       expect([...gone.querySelectorAll(".tm b")].map((b) => b.textContent)).toEqual(["Ask Thijs to sign the data agreement"]);
       expect(screen.queryByRole("radio", { name: "Hours" })).toBeNull();
       expect(document.querySelector(".pd.today .porr")).toBeTruthy();
+    } finally {
+      window.matchMedia = mm;
+    }
+  });
+
+  it("plans the week too, and books what Orr proposes", async () => {
+    const mm = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q.includes("760"), media: q, addEventListener() {}, removeEventListener() {} })) as never;
+    server.proposals = [{ noteId: "n-report", line: 3, blockId: null, text: "Build the October slides", project: "Reporting dashboard", due: "2026-10-10", atRisk: false, date: "2026-10-09", startMin: 780, durationMin: 120, estimateHours: 2 }];
+    try {
+      await open();
+      fireEvent.click(screen.getByRole("button", { name: "Plan my week" }));
+      await act(async () => {});
+      expect(writes()).toEqual([{ method: "POST", url: "/api/plan/auto", body: { from: "2026-10-05", to: "2026-10-11" } }]);
+      const row = document.querySelector(".pd .prow")!;
+      fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Book" }));
+      await act(async () => {});
+      expect(writes("/api/tasks/blocks").map((c) => c.body)).toEqual([{ noteId: "n-report", line: 3, blockId: undefined, text: "Build the October slides", date: "2026-10-09", startMin: 780, durationMin: 120, estimateHours: 2 }]);
     } finally {
       window.matchMedia = mm;
     }
