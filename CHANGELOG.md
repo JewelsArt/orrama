@@ -9,6 +9,17 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Life areas are yours: Settings → Notes → Life areas adds, renames, reorders and removes
+  them (a removed area's notes and projects go to the catch-all), with optional words that put
+  notes in an area by folder or tag.
+- A project's area is a menu in its header; a project made on a board filtered to an area
+  is in that area, any area.
+- A person's page has Edit (role, email, phone, LinkedIn, sector), Works at picked from
+  your companies or made in place, and Projects: what they supervise and the projects they are
+  in, added from a list and taken off from the row's ⋯.
+- People and companies can be renamed and put in the trash from their page's ⋯; the
+  links and the names in other notes' properties that name them follow a rename.
+- New and Find make a person or a company; New person's company is picked from the list.
 - First run asks where your notes are: start with a small example, start empty, or use a
   folder of notes you already have (Orrama says how many notes it holds and what it adds before
   you choose). A new install also gets the note that says what things are
@@ -170,6 +181,15 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- A new install starts with two areas, Work and Personal. Area colours follow the list's
+  order (the first five, then grey). Planning's lanes, the Projects board, Notes, the Orrery and
+  first run follow the list.
+- Settings and Orr noticed no longer explain the tags and tables Orrama reads.
+- After + Person, the person's page opens (it opened Notes).
+- Orr noticed's "has no company" opens the works-at picker; "Create the note" for a
+  company named by a path takes its name, not the path, and points the person at the new note.
+- On a project, a supervisor can be taken off ("No longer supervises"), and Remove also
+  takes someone out of the project's `involves:`.
 - In a step's card, a day alone now sets the step's due date (it used to plan it for a day
   nothing showed).
 - A Notes folder with no notes says "No notes yet" with New note, instead of pointing at a
@@ -392,6 +412,13 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- Moving a project to another area by editing its note now reaches Today and the board
+  (the database kept the area it was registered with).
+- Changing a company's card refused nothing when its properties couldn't be read, and
+  wrote "What they do" as a second `description:` beside an older `summary:`.
+- Someone whose `company:` was a link with a path and a label, or a list, showed no
+  company, and three screens disagreed about who works where.
+- MCP `get_contacts` returned the workspace's accounts instead of the people in the notes.
 - The Projects board loads on a new install (it no longer needs a team).
 - A new project starts as Planned, without the "No status yet" banner or an `active` tag.
 - A step ticked on Today or on a person's page can be unticked (Undo in the toast).
