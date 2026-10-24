@@ -335,7 +335,10 @@ function frontmatterCollapse(): Extension {
     if (inline) tags.push(...inline[1]!.split(",").map((t) => t.trim()).filter(Boolean));
     const block = /^tags:\s*$((?:\n\s+-\s+.+)+)/m.exec(raw);
     if (block) tags.push(...[...block[1]!.matchAll(/-\s+(\S+)/g)].map((m) => m[1]!));
-    const summary = `properties${tags.length ? " · " + tags.map((t) => "#" + t).join(" ") : ""}`;
+    // A project's own tags (`project`, `project/<key>`) are the app's bookkeeping: the project
+    // page's header and Notes say which project a note is in, in words (1E).
+    const shown = tags.filter((t) => !/^#?project(?:\/|$)/i.test(t));
+    const summary = `properties${shown.length ? " · " + shown.map((t) => "#" + t.replace(/^#/, "")).join(" ") : ""}`;
     return Decoration.set([
       Decoration.replace({ widget: new PropsWidget(summary, range.from), block: true }).range(range.from, range.to),
     ]);

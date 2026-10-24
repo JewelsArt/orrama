@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addDays, isoLocal } from "@orrama/core/dates";
 import { api } from "./api.js";
 import { daysTo } from "./categories.js";
@@ -13,10 +13,10 @@ import { Bar, Button, Checkbox, Segmented, Tabs, type TaskState } from "./ui/con
 import { dateLabel, dayMonthLabel } from "./ui/dates.js";
 import { Field, Input, SearchField, Switch } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
-import { HeadMark } from "./ui/orr/Orr.js";
-import { Dialog, Menu, toast } from "./ui/overlays.js";
+import { Dialog, Menu, toast, type MenuItem } from "./ui/overlays.js";
+import { restoreFromTrash } from "./noteActions.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
-import { attempt } from "./ui/writes.js";
+import { attempt, useWrite } from "./ui/writes.js";
 import { readKey, writeKey } from "./storage.js";
 
 /**
@@ -595,6 +595,61 @@ function TodoRow({ t, today, canEdit, onOpen, onCheck, onStatus }: { t: ProjectT
   );
 }
 
+/** A document to the trash, with Undo in the toast (Notes → Trash keeps it too). */
+export async function trashProjectFile(w: ProjectWorkspace, name: string, onChanged: () => Promise<void>) {
+  await attempt(`${name} wasn't moved to the trash.`, async () => {
+    const res = await api<{ trashPath: string }>("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(name)}`);
+    await onChanged();
+    toast(`${name} is in the trash.`, {
+      action: { label: "Undo", run: () => void attempt(`${name} wasn't put back.`, () => restoreFromTrash(res.trashPath).then(onChanged)) },
+    });
+  });
+}
+
+/** Rename a document: its name without the extension, which stays. */
+export function RenameFileDialog({ w, name, onDone, onClose }: { w: ProjectWorkspace; name: string; onDone: () => Promise<void>; onClose: () => void }) {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot) : "";
+  const [stem, setStem] = useState(ext ? name.slice(0, dot) : name);
+  const save = useWrite();
+  const submit = () =>
+    void save
+      .run(`${name} wasn't renamed.`, async () => {
+        await api("POST", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(name)}/rename`, { to: `${stem.trim()}${ext}` });
+        await onDone();
+      })
+      .then((ok) => ok && onClose());
+  return (
+    <Dialog
+      title={`Rename ${name}`}
+      onClose={onClose}
+      actions={
+        <>
+          <Button kind="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button kind="solid" disabled={!stem.trim() || save.busy} onClick={submit}>
+            Rename
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (stem.trim()) submit();
+        }}
+      >
+        <Field label="Name" help={ext ? `It stays a ${ext.slice(1).toUpperCase()} file.` : undefined} error={save.error}>
+          <Input autoFocus value={stem} onChange={(e) => setStem(e.target.value)} onFocus={(e) => e.target.select()} />
+        </Field>
+        <button type="submit" hidden />
+      </form>
+    </Dialog>
+  );
+}
+
 /* ---------------------------------------------------------------- Documents board */
 
 const nameOf = (n: FileNode) => n.file.split("/").pop()!;
@@ -612,7 +667,7 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
   const [query, setQuery] = useState("");
   const [reading, setReading] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
-  const [tip, setTip] = useState<string | null>(null);
+  const [renamingFile, setRenamingFile] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const canvas = useRef<HTMLDivElement>(null);
@@ -687,8 +742,6 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
   const height = Math.max(520, ...board.nodes.map((n) => n.y + n.height + 40));
 
   const patchNode = (id: string, change: Partial<BoardNode>) => ({ ...board, nodes: board.nodes.map((n) => (n.id === id ? ({ ...n, ...change } as BoardNode) : n)) });
-  const plainEdge = (e: BoardEdge): BoardEdge => ({ id: e.id, fromNode: e.fromNode, toNode: e.toNode, ...(e.label ? { label: e.label } : {}) });
-  const accept = (id: string) => commit({ ...board, edges: board.edges.map((x) => (x.id === id ? plainEdge(x) : x)) });
   const drop = (id: string) => commit({ ...board, edges: board.edges.filter((x) => x.id !== id) });
 
   /** Drag a card, or a box together with the cards inside it. */
@@ -755,7 +808,6 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
     setRenaming(g.id);
   };
 
-  const suggestions = board.edges.filter((e) => e.orramaSuggested);
   const q = query.trim().toLowerCase();
 
   // Connectors run between the facing edges of two cards, never centre to centre.
@@ -781,19 +833,9 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
     return { d: `M${a.x},${a.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}`, a, b, at };
   };
   const lit = (e: BoardEdge) => !!focus && (e.fromNode === focus || e.toNode === focus);
-  const edgeClick = (ev: React.MouseEvent, e: BoardEdge) => {
-    if (!editable) return;
-    if (e.orramaSuggested) {
-      if (ev.shiftKey) accept(e.id);
-      else setTip(e.id);
-    } else drop(e.id);
+  const edgeClick = (e: BoardEdge) => {
+    if (editable) drop(e.id);
   };
-  const cardName = (id: string) => {
-    const n = board.nodes.find((x) => x.id === id);
-    return n?.type === "file" ? nameOf(n).replace(/\.[^.]+$/, "") : "";
-  };
-  const tipEdge = tip ? board.edges.find((e) => e.id === tip && e.orramaSuggested) : undefined;
-  const tipAt = tipEdge ? route(tipEdge).at(0.5) : null;
 
   return (
     <div className="pj-board">
@@ -820,11 +862,6 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
             >
               {linking ? (picked ? "Now the other card" : "Pick the first card") : "Link two"}
             </Button>
-            {suggestions.length > 0 && (
-              <Button size="sm" orr onClick={() => setTip(suggestions[0]!.id)}>
-                {suggestions.length} suggested {suggestions.length === 1 ? "link" : "links"}
-              </Button>
-            )}
           </>
         )}
         <span className="sp" />
@@ -834,13 +871,13 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
       </div>
       {error && <Notice title={error.title} text={error.text} />}
       {uploadErrors.length > 0 && <Notice title={uploadErrors.length === 1 ? "A file was not uploaded" : `${uploadErrors.length} files were not uploaded`} text={uploadErrors.join(" · ")} />}
-      {board.unreadable && <Notice title="documents.canvas could not be read" text="This is the default layout. Moving anything replaces the file with it." />}
+      {board.unreadable && <Notice title="The board's layout could not be read" text="This is the default layout. Moving anything saves it in place of the old one." />}
       {cards.length === 0 && groups.length === 0 ? (
         <div className="card pj-empty">
           <EmptyState
             pose="carry"
             title="No documents yet"
-            text={<>Files you upload land in <code>04-Projects/{w.slug}/files/</code>, where Finder and Obsidian see them too.</>}
+            text="Upload a file and it shows here as a card. Put cards in boxes and link the ones that belong together."
             actions={editable ? <Button onClick={() => upload.current?.click()}>Upload a file</Button> : undefined}
           />
         </div>
@@ -851,12 +888,12 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
               {board.edges.map((e) => {
                 const r = route(e);
                 return (
-                  <g key={e.id} className={`pj-edge${e.orramaSuggested ? " sugg" : ""}${lit(e) ? " lit" : ""}${focus && !lit(e) ? " faded" : ""}`} onClick={(ev) => edgeClick(ev, e)}>
+                  <g key={e.id} className={`pj-edge${lit(e) ? " lit" : ""}${focus && !lit(e) ? " faded" : ""}`} onClick={() => edgeClick(e)}>
                     <path className="hit" d={r.d} />
                     <path className="line" d={r.d} />
                     <circle cx={r.a.x} cy={r.a.y} r={3} />
                     <circle cx={r.b.x} cy={r.b.y} r={3} />
-                    <title>{`${e.label ?? "Linked"}${e.orramaSuggested ? " (suggested by Orr)" : ""}${editable ? (e.orramaSuggested ? ". Click to decide." : ". Click to remove.") : ""}`}</title>
+                    <title>{`${e.label ?? "Linked"}${editable ? ". Click to remove." : ""}`}</title>
                   </g>
                 );
               })}
@@ -887,14 +924,15 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
                     <span className="pj-box-label">{g.label}</span>
                   )}
                   {editable && renaming !== g.id && (
-                    <span className="pj-box-btns">
-                      <button type="button" aria-label={`Rename ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => setRenaming(g.id)}>
-                        <Icon name="pen" size={12} />
-                      </button>
-                      <button type="button" aria-label={`Delete box ${g.label}`} onPointerDown={(e) => e.stopPropagation()} onClick={() => commit({ ...board, nodes: board.nodes.filter((n) => n.id !== g.id) })}>
-                        <Icon name="x" size={12} />
-                      </button>
-                    </span>
+                    <MoreButton
+                      className="pj-box-act"
+                      label={`box ${g.label}`}
+                      items={[
+                        { label: "Rename…", onSelect: () => setRenaming(g.id) },
+                        // A box only frames its cards: they stay on the board where they are.
+                        { label: "Delete the box", danger: true, onSelect: () => commit({ ...board, nodes: board.nodes.filter((n) => n.id !== g.id) }) },
+                      ]}
+                    />
                   )}
                 </div>
                 {editable && <span className="pj-grip" onPointerDown={(e) => resizeBox(e, g)} aria-hidden="true" />}
@@ -904,13 +942,12 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
               const name = nameOf(c);
               const hit = q && name.toLowerCase().includes(q);
               return (
+                <div key={c.id} className="pj-cardw" style={{ left: c.x, top: c.y, width: c.width }}>
                 <div
-                  key={c.id}
                   data-node={c.id}
                   role="button"
                   tabIndex={0}
                   className={`pj-card${picked === c.id ? " picked" : ""}${q ? (hit ? " hit" : " dim") : ""}${editable ? " movable" : ""}`}
-                  style={{ left: c.x, top: c.y, width: c.width }}
                   onPointerDown={(e) => (editable ? startDrag(e, c) : undefined)}
                   onClick={() => !editable && clickCard(c)}
                   onKeyDown={(e) => e.key === "Enter" && clickCard(c)}
@@ -923,11 +960,23 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
                   <span className="pj-ext">{extOf(name)}</span>
                   <span className="pj-cn">{name.replace(/\.[^.]+$/, "")}</span>
                 </div>
+                {editable && (
+                  <MoreButton
+                    className="pj-card-act"
+                    label={name}
+                    items={[
+                      { label: "Open", onSelect: () => setReading(name) },
+                      { label: "Rename…", onSelect: () => setRenamingFile(name) },
+                      { label: "Move to the trash", danger: true, onSelect: () => void trashProjectFile(w, name, onChanged) },
+                    ]}
+                  />
+                )}
+                </div>
               );
             })}
             <svg className="pj-labels" width={width} height={height} aria-hidden="true">
               {board.edges.map((e) => {
-                if (!e.label || !lit(e) || e.orramaSuggested) return null;
+                if (!e.label || !lit(e)) return null;
                 const m = route(e).at(e.fromNode === focus ? 0.72 : 0.28);
                 return (
                   <text key={e.id} x={m.x} y={m.y - 7} textAnchor="middle">
@@ -936,54 +985,28 @@ export function ProjectBoard({ w, onChanged }: { w: ProjectWorkspace; onChanged:
                 );
               })}
             </svg>
-            {tipEdge && tipAt && (
-              <SuggestTip x={tipAt.x} y={tipAt.y} onClose={() => setTip(null)}>
-                <span>{tipEdge.label ? `${tipEdge.label}. Link them?` : `Link ${cardName(tipEdge.fromNode)} and ${cardName(tipEdge.toNode)}?`}</span>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    accept(tipEdge.id);
-                    setTip(null);
-                  }}
-                >
-                  Link
-                </Button>
-                <Button
-                  size="sm"
-                  kind="quiet"
-                  onClick={() => {
-                    drop(tipEdge.id);
-                    setTip(null);
-                  }}
-                >
-                  No
-                </Button>
-              </SuggestTip>
-            )}
           </div>
         </div>
       )}
       <p className="pj-hint pj-dhint">
-        {editable ? "Drag cards and boxes; a box carries its cards. Dashed lines are Orr's suggestions." : "Point at a card to see its links; click it to open."}
+        {editable ? "Drag cards and boxes; a box carries its cards. Click a link to remove it." : "Point at a card to see its links; click it to open."}
       </p>
       {reading && <DocViewer base={`/api/projects/${slug}/files`} name={reading} onClose={() => setReading(null)} />}
+      {renamingFile && <RenameFileDialog w={w} name={renamingFile} onDone={onChanged} onClose={() => setRenamingFile(null)} />}
     </div>
   );
 }
 
-/** Orr's question about one suggested link, beside it on the board. Escape closes it. */
-function SuggestTip({ x, y, onClose, children }: { x: number; y: number; onClose: () => void; children: ReactNode }) {
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    box.current?.querySelector<HTMLElement>("button")?.focus();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+/** A ⋯ on the board (a card's, a box's): its own menu, and a press on it never starts a drag. */
+function MoreButton({ label, items, className }: { label: string; items: MenuItem[]; className: string }) {
+  const [open, setOpen] = useState(false);
+  const at = useRef<HTMLButtonElement>(null);
   return (
-    <div ref={box} className="pj-tip" role="dialog" aria-label="Suggested link" style={{ left: Math.max(8, x - 200), top: y + 12 }}>
-      <HeadMark size={16} />
-      {children}
-    </div>
+    <>
+      <button ref={at} type="button" className={className} aria-label={`More for ${label}`} aria-haspopup="menu" aria-expanded={open} onPointerDown={(e) => e.stopPropagation()} onClick={() => setOpen((v) => !v)}>
+        <Icon name="dots" size={14} />
+      </button>
+      {open && <Menu anchor={at} align="end" label={label} onClose={() => setOpen(false)} items={items} />}
+    </>
   );
 }

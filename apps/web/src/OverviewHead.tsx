@@ -2,7 +2,8 @@ import { useRef, useState, type ReactNode } from "react";
 import type { DashboardTask } from "./api.js";
 import { daysTo, type Category } from "./categories.js";
 import { shelfOf, statusOf, statusProblems } from "./entity/index.js";
-import { statusLook } from "./entity/StatusMenu.js";
+import { StatusMenu } from "./entity/StatusMenu.js";
+import type { StatusId } from "./entity/index.js";
 import { dueOf, StepMenu, taskState } from "./ProjectViews.js";
 import { Checkbox, DeadlineChip, ProgressRing, Ring, Square } from "./ui/controls.js";
 import { dateLabel } from "./ui/dates.js";
@@ -181,6 +182,7 @@ export function ProjectRow({
   onToggle,
   onOpen,
   menu,
+  onStatus,
   people = true,
 }: {
   p: BoardProject;
@@ -189,12 +191,13 @@ export function ProjectRow({
   onOpen: () => void;
   /** The ⋯ menu's actions; none, no menu. */
   menu: (MenuItem | "-")[];
+  /** The status as a menu, as on the project page; without it, the word alone. */
+  onStatus?: (id: StatusId) => void;
   /** Draw the people column (off on a shelf, where there is none). */
   people?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
-  const look = statusLook(p.status);
   const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
   const nd = nextDate(p.next);
   const keyDate = p.key?.due ?? p.deadline ?? null;
@@ -234,11 +237,13 @@ export function ProjectRow({
           {p.total > 0 && ` · ${pct}% · ${p.done} of ${p.total} ${p.total === 1 ? "step" : "steps"}`}
         </span>
         <span className="m2">
-          <span className={`status ${look.cls}`}>{look.word}</span>
+          <StatusMenu value={p.status} canEdit={!!onStatus} onPick={(id) => onStatus?.(id)} />
           {keyDate && <DeadlineChip small>{dateLabel(keyDate)}</DeadlineChip>}
         </span>
       </div>
-      <span className={`c-status status ${look.cls}`}>{look.word}</span>
+      <span className="c-status">
+        <StatusMenu value={p.status} canEdit={!!onStatus} onPick={(id) => onStatus?.(id)} />
+      </span>
       <span className={`c-date d${nd?.late ? " late" : ""}`}>
         {nd ? (
           <>

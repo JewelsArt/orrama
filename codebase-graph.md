@@ -303,11 +303,11 @@
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @orrama/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, ./ui/shell/SectionBar.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, @orrama/schema/responses, ./OverviewHead.js, ./Project.js, ./projectArea.js, ./entity/index.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/Icon.js, ./ui/layout.js, ./ui/NameDialog.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/OverviewHead.tsx`
 - **Exports**: BoardShelf, SHELVES, boardShelf, shelfRows, BoardPerson, BoardProject, stepOrder, boardProject, BoardGroup, boardGroups, nextDate, ProjectRow, ProjectSteps
-- **Imports**: react, ./api.js, ./categories.js, ./entity/index.js, ./entity/StatusMenu.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js
+- **Imports**: react, ./api.js, ./categories.js, ./entity/index.js, ./entity/StatusMenu.js, ./entity/index.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js
 
 ### `apps/web/src/Planning.tsx`
 - **Exports**: Planning
@@ -315,10 +315,10 @@
 
 ### `apps/web/src/Project.tsx`
 - **Exports**: default, Tab, LAST_TAB_KEY, tabHref, leftLabel, Project
-- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./categories.js, ./projectGroup.js, ./ProjectOverview.js, ./projectPages.js, ./ProjectReader.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
+- **Imports**: react, ./api.js, ./categories.js, ./Confirm.js, ./entity/EntityHeader.js, ./entity/title.js, ./entity/index.js, ./orrery/model.js, ./projectArea.js, ./categories.js, ./projectGroup.js, ./ProjectOverview.js, ./projectPages.js, ./ProjectReader.js, ./ProjectViews.js, ./storage.js, ./ui/controls.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./noteActions.js, ./ws.js, @orrama/schema/responses, ./ui/shell/SectionBar.js
 
 ### `apps/web/src/ProjectOverview.tsx`
-- **Exports**: ProjectOverview, decisionOf
+- **Exports**: ProjectOverview, decisionOf, MenuRow
 - **Imports**: react, @orrama/sync/client, ./api.js, ./Confirm.js, ./DocViewer.js, ./Editor.js, ./entity/index.js, ./entity/links.js, ./noteSync.js, ./Project.js, ./ProjectViews.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ws.js, @orrama/schema/responses
 
 ### `apps/web/src/ProjectReader.tsx`
@@ -326,8 +326,8 @@
 - **Imports**: react, @orrama/schema/responses, ./HtmlPage.js, ./projectPages.js, ./ui/controls.js, ./ui/Icon.js, ./ui/dates.js, ./ui/layout.js, ./ui/router.js, ./ui/states.js
 
 ### `apps/web/src/ProjectViews.tsx`
-- **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, stepLine, ProjectTimeline, ProjectTodo, StepMenu, ProjectBoard
-- **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./steps.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/orr/Orr.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./storage.js
+- **Exports**: default, taskState, dueOf, shortSection, useTaskCard, uploadProjectFiles, AddStepDialog, stepLine, ProjectTimeline, ProjectTodo, StepMenu, trashProjectFile, RenameFileDialog, ProjectBoard
+- **Imports**: react, @orrama/core/dates, ./api.js, ./categories.js, ./DocViewer.js, ./entity/index.js, ./Gantt.js, ./steps.js, ./TaskCard.js, ./Project.js, @orrama/schema/responses, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/overlays.js, ./noteActions.js, ./ui/states.js, ./ui/writes.js, ./storage.js
 
 ### `apps/web/src/QuickCapture.tsx`
 - **Exports**: QuickCapture
@@ -439,8 +439,8 @@
 - **Imports**: @orrama/schema/responses, ../api.js, ../DocViewer.js, ../notes/read.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/states.js, ./EntityHeader.js, ./shared.js, ./known.js, ./links.js, ./model.js, ./parts.js, ./relations.js
 
 ### `apps/web/src/entity/EntityHeader.tsx`
-- **Exports**: EntityHeader
-- **Imports**: react, ../ui/layout.js
+- **Exports**: EntityHeader, EditableTitle
+- **Imports**: react, ../ui/writes.js, ../ui/layout.js
 
 ### `apps/web/src/entity/EntityPage.tsx`
 - **Exports**: EntityRoute, titleFor, EntityPage

@@ -18,18 +18,18 @@ import { RelationRows, rolesOf, type RelationsState } from "./entity/index.js";
 import { linkTo, slugOf } from "./entity/links.js";
 import { openNoteSync, retire } from "./noteSync.js";
 import { tabHref } from "./Project.js";
-import { dueOf, taskState, uploadProjectFiles, useTaskCard, type ProjectTask } from "./ProjectViews.js";
+import { dueOf, RenameFileDialog, taskState, trashProjectFile, uploadProjectFiles, useTaskCard, type ProjectTask } from "./ProjectViews.js";
 import { Button, Checkbox, Ring, Square } from "./ui/controls.js";
 import { dateLabel } from "./ui/dates.js";
 import { Input, SearchField, Textarea } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { Module, Row, RowList } from "./ui/layout.js";
-import { Menu, type MenuItem } from "./ui/overlays.js";
+import { Menu, toast, type MenuItem } from "./ui/overlays.js";
 import { navigate } from "./ui/router.js";
 import { Notice } from "./ui/states.js";
 import { attempt, useWrite } from "./ui/writes.js";
 import { onWs } from "./ws.js";
-import type { Company, Contact, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
+import type { Company, Contact, ProjectCandidate, ProjectNote, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
 
 const NEXT_STEPS = 5;
 const kb = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
@@ -66,10 +66,13 @@ export function ProjectOverview({
       <div className="pj-side">
         <Log
           title="Decisions"
+          section="decisions"
           tiles
+          newestFirst
+          w={w}
           items={w.decisions}
           placeholder="Log a decision…"
-          canEdit={w.canEdit}
+          onChanged={onChanged}
           onAdd={async (text) => {
             await api("POST", `/api/projects/${slug}/decisions`, { text });
             await onChanged();
@@ -77,17 +80,34 @@ export function ProjectOverview({
         />
         <Log
           title="Inbox"
+          section="inbox"
+          newestFirst
+          w={w}
           items={w.inbox}
           placeholder="A thought, a link, a follow-up…"
-          canEdit={w.canEdit}
           asStep
+          onChanged={onChanged}
           onAdd={async (text, task) => {
             await api("POST", `/api/projects/${slug}/capture`, { text, task });
             await onChanged();
           }}
         />
         <NextSteps w={w} onChanged={onChanged} onOpenNote={onOpenNote} />
-        <Goals w={w} onSave={(goals) => onPatch({ goals })} />
+        {(w.canEdit || w.goals.length > 0) && (
+          <Log
+            title="Goals"
+            section="goals"
+            w={w}
+            items={w.goals}
+            placeholder="Add a goal…"
+            empty="No goals yet. What does done look like?"
+            onChanged={onChanged}
+            onAdd={async (text) => {
+              await api("POST", `/api/projects/${slug}/goals`, { text });
+              await onChanged();
+            }}
+          />
+        )}
         <People w={w} relations={relations} onChanged={onChanged} onOpenNote={onOpenNote} />
         <Conversations relations={relations} onOpenNote={onOpenNote} />
         <Documents w={w} onChanged={onChanged} onOpenNote={onOpenNote} />
@@ -142,8 +162,8 @@ function NoteEditor({ w, me, onOpenNote }: { w: ProjectWorkspace; me: Me; onOpen
   return (
     <>
       <div className="pj-doc-head">
-        <a className="pj-path" href={`/notes/${w.path.replace(/\.md$/i, "").split("/").map(encodeURIComponent).join("/")}`} onClick={(e) => inApp(e, () => onOpenNote(w.noteId))} title="Open in Notes">
-          {w.path}
+        <a className="pj-path" href={`/notes/${w.path.replace(/\.md$/i, "").split("/").map(encodeURIComponent).join("/")}`} onClick={(e) => inApp(e, () => onOpenNote(w.noteId))}>
+          Open in Notes
         </a>
         {state !== "idle" && <span className={state === "error" ? "pj-late" : undefined}>{state === "saving" ? "Saving…" : state === "error" ? "Not saved" : "Saved"}</span>}
       </div>
@@ -192,34 +212,81 @@ export function decisionOf(item: string): { day: string; text: string } {
   return m ? { day: m[1]!, text: m[2]! } : { day: "", text: item.replace(/\*\*/g, "") };
 }
 
+type LineSection = "decisions" | "inbox" | "goals";
+
+/**
+ * Decisions, the Inbox and Goals: lines of the project note's `##` sections, added at the end
+ * and each changed or removed from its ⋯ (an inbox line can also become a step under the
+ * steps). A line is named to the server by its place and its words as the page saw them, so a
+ * note changed since is refused, not edited in the wrong place.
+ */
 function Log({
   title,
+  section,
   tiles,
+  newestFirst,
+  w,
   items,
   placeholder,
-  canEdit,
+  empty,
   asStep,
   onAdd,
+  onChanged,
 }: {
   title: string;
+  section: LineSection;
   /** Clay draws the lines as grey tiles (Decisions, on its board). */
   tiles?: boolean;
+  /** Decisions and the Inbox show the newest line first; Goals keep the note's order. */
+  newestFirst?: boolean;
+  w: ProjectWorkspace;
   items: string[];
   placeholder: string;
-  canEdit: boolean;
+  /** Said when there are no lines yet. */
+  empty?: string;
   /** The Inbox can take a line as a step (a checkbox) instead. */
   asStep?: boolean;
   onAdd: (text: string, task: boolean) => Promise<void>;
+  onChanged: () => Promise<void>;
 }) {
   const [text, setText] = useState("");
   const [task, setTask] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [all, setAll] = useState(false);
-  const shown = items.slice().reverse();
-  const cap = all ? shown.length : 4;
+  const [editing, setEditing] = useState<number | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  const canEdit = w.canEdit;
+  // Each line keeps its place in the section: that is how the server finds it again.
+  const lines = items.map((item, index) => ({ item, index }));
+  const shown = newestFirst ? lines.slice().reverse() : lines;
+  const cap = all ? shown.length : newestFirst ? 4 : 8;
+  const base = `/api/projects/${encodeURIComponent(w.slug)}/lines`;
+  const what = section === "decisions" ? "decision" : section === "goals" ? "goal" : "line";
+  const change = async (index: number, item: string, to: string) => {
+    await api("PATCH", base, { section, index, text: item, to });
+    await onChanged();
+  };
+  const remove = (index: number, item: string) =>
+    setConfirm({
+      title: `Remove this ${what}?`,
+      body: `“${decisionOf(item).text}” comes out of the project note.`,
+      confirmLabel: "Remove",
+      danger: true,
+      failed: `The ${what} wasn't removed.`,
+      onConfirm: async () => {
+        await api("POST", `${base}/remove`, { section, index, text: item });
+        await onChanged();
+      },
+    });
+  const toStep = (index: number, item: string) =>
+    void attempt("The line wasn't made a step.", async () => {
+      await api("POST", `${base}/step`, { section, index, text: item });
+      await onChanged();
+      toast("It's a step now, with the other steps.");
+    });
   return (
-    <Module title={title} count={items.length} className={tiles ? "pj-log tiles" : "pj-log"}>
+    <Module title={title} count={items.length || undefined} className={tiles ? "pj-log tiles" : "pj-log"}>
       {canEdit && (
         <form
           className="pj-addline"
@@ -250,17 +317,29 @@ function Log({
         </form>
       )}
       {failed && <Notice title={`Not added to ${title}`} text="The note could not be written. Your words are still in the field: try again." />}
+      {shown.length === 0 && empty && <p className="q3 pj-none">{empty}</p>}
       {shown.length > 0 && (
         <ul className="pj-lines">
-          {shown.slice(0, cap).map((item, i) => {
-            const d = decisionOf(item);
-            return (
-              <li key={`${i}-${item}`} className={d.day ? "dated" : undefined}>
-                {d.day && <span className="pj-day">{dateLabel(d.day)}</span>}
-                <span>{d.text}</span>
-              </li>
-            );
-          })}
+          {shown.slice(0, cap).map(({ item, index }) => (
+            <LogLine
+              key={`${index}-${item}`}
+              item={item}
+              label={title}
+              canEdit={canEdit}
+              editing={editing === index}
+              onEdit={() => setEditing(index)}
+              onCancel={() => setEditing(null)}
+              onSave={async (to) => {
+                await change(index, item, to);
+                setEditing(null);
+              }}
+              actions={[
+                { label: "Change", onSelect: () => setEditing(index) },
+                ...(asStep ? [{ label: "Make it a step", onSelect: () => toStep(index, item) }] : []),
+                { label: "Remove", danger: true, onSelect: () => remove(index, item) },
+              ]}
+            />
+          ))}
         </ul>
       )}
       {shown.length > cap && (
@@ -268,7 +347,85 @@ function Log({
           {shown.length - cap} more
         </button>
       )}
+      <Confirm request={confirm} onClose={() => setConfirm(null)} />
     </Module>
+  );
+}
+
+/**
+ * One line: its day (a decision's), its words, and its ⋯ beside it (shown on pointing or focus,
+ * always on touch). Change turns the words into a field in place: Enter saves, Escape leaves.
+ */
+function LogLine({
+  item,
+  label,
+  canEdit,
+  editing,
+  actions,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  item: string;
+  label: string;
+  canEdit: boolean;
+  editing: boolean;
+  actions: MenuItem[];
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (to: string) => Promise<void>;
+}) {
+  const d = decisionOf(item);
+  const [menu, setMenu] = useState(false);
+  const [draft, setDraft] = useState(d.text);
+  const save = useWrite();
+  const at = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (editing) setDraft(d.text);
+  }, [editing, d.text]);
+  return (
+    <li className={`${d.day ? "dated" : ""}${canEdit ? " has-act" : ""}${menu ? " open" : ""}`.trim() || undefined}>
+      {d.day && <span className="pj-day">{dateLabel(d.day)}</span>}
+      {editing ? (
+        <form
+          className="pj-lineform"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!draft.trim()) return;
+            void save.run(`The ${label.toLowerCase()} line wasn't changed.`, () => onSave(draft.trim()));
+          }}
+        >
+          <Input
+            autoFocus
+            value={draft}
+            aria-label={`Change: ${d.text}`}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.stopPropagation();
+                onCancel();
+              }
+            }}
+          />
+          <Button type="submit" size="sm" disabled={save.busy || !draft.trim()}>
+            Save
+          </Button>
+          <Button size="sm" kind="quiet" onClick={onCancel}>
+            Cancel
+          </Button>
+          {save.error && <Notice title={save.error} />}
+        </form>
+      ) : (
+        <span onDoubleClick={canEdit ? onEdit : undefined}>{d.text}</span>
+      )}
+      {canEdit && !editing && (
+        <>
+          <Button ref={at} kind="quiet" size="sm" icon="dots" className="pj-line-act" aria-label={`More for ${d.text}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />
+          {menu && <Menu anchor={at} align="end" label={d.text} onClose={() => setMenu(false)} items={actions} />}
+        </>
+      )}
+    </li>
   );
 }
 
@@ -320,60 +477,6 @@ function NextSteps({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
         </RowList>
       )}
       {card.node}
-    </Module>
-  );
-}
-
-/* ---- goals: the `## Goals` section, edited as the note has it (COR-005) ------------------ */
-
-function Goals({ w, onSave }: { w: ProjectWorkspace; onSave: (body: string) => Promise<unknown> }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const save = useWrite();
-  if (!w.canEdit && w.goals.length === 0) return null;
-  return (
-    <Module title="Goals" count={w.goals.length || undefined} className="pj-goals">
-      {w.canEdit && (
-        <Button
-          size="sm"
-          kind="quiet"
-          className="pj-mod-act"
-          onClick={() => {
-            // The section as the note has it: checkboxes, nesting and prose round-trip
-            // untouched (COR-005). The list below is display only.
-            setDraft(w.goalsSource);
-            setEditing((e) => !e);
-            save.clear();
-          }}
-        >
-          {editing ? "Cancel" : "Edit"}
-        </Button>
-      )}
-      {editing ? (
-        <form
-          className="pj-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save.run("The goals weren't saved.", () => onSave(draft)).then((ok) => ok && setEditing(false));
-          }}
-        >
-          <Textarea value={draft} rows={5} onChange={(e) => setDraft(e.target.value)} aria-label="Goals" />
-          {save.error && <Notice title={save.error} />}
-          <div className="acts">
-            <Button type="submit" disabled={save.busy}>
-              Save goals
-            </Button>
-          </div>
-        </form>
-      ) : w.goals.length === 0 ? (
-        <p className="q3 pj-none">No goals yet. What does done look like?</p>
-      ) : (
-        <ul className="pj-goal-list">
-          {w.goals.map((g, i) => (
-            <li key={i}>{g}</li>
-          ))}
-        </ul>
-      )}
     </Module>
   );
 }
@@ -548,27 +651,34 @@ function People({ w, relations, onChanged, onOpenNote }: { w: ProjectWorkspace; 
 
 /**
  * One person or company: the row is the link to their page, and the ⋯ beside it (never inside
- * it) holds Remove from this project. It shows on pointing or focus, always on a touch screen.
+ * it) holds Remove from this project.
  */
 function PersonRow({ p, word, link, actions }: { p: Person; word: string; link: { href?: string; onOpen: () => void }; actions: MenuItem[] }) {
+  return (
+    <MenuRow
+      label={p.title}
+      actions={actions}
+      row={{ className: "ent-rel", lead: p.kind === "company" ? <Square name={p.title} small /> : <Ring name={p.title} small />, title: p.title, meta: p.sub || undefined, trailing: word, href: link.href, onOpen: link.onOpen }}
+    />
+  );
+}
+
+/**
+ * A row with its ⋯ beside it (never inside it): People's rows, Documents' notes and files. The
+ * ⋯ shows on pointing or focus, and always on a touch screen or a phone-wide window, so
+ * nothing is hover-only.
+ */
+export function MenuRow({ label, actions, row }: { label: string; actions: MenuItem[]; row: Parameters<typeof Row>[0] }) {
   const [menu, setMenu] = useState(false);
   const at = useRef<HTMLButtonElement>(null);
-  const onRemove = actions.length > 0;
+  const has = actions.length > 0;
   return (
-    <div className={`pj-who${onRemove ? " has-act" : ""}${menu ? " open" : ""}`}>
-      <Row
-        className="ent-rel"
-        lead={p.kind === "company" ? <Square name={p.title} small /> : <Ring name={p.title} small />}
-        title={p.title}
-        meta={p.sub || undefined}
-        trailing={word}
-        href={link.href}
-        onOpen={link.onOpen}
-      />
-      {onRemove && (
+    <div className={`pj-who${has ? " has-act" : ""}${menu ? " open" : ""}`}>
+      <Row {...row} />
+      {has && (
         <>
-          <Button ref={at} kind="quiet" size="sm" icon="dots" className="pj-who-act" aria-label={`More for ${p.title}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />
-          {menu && <Menu anchor={at} align="end" label={p.title} onClose={() => setMenu(false)} items={actions} />}
+          <Button ref={at} kind="quiet" size="sm" icon="dots" className="pj-who-act" aria-label={`More for ${label}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />
+          {menu && <Menu anchor={at} align="end" label={label} onClose={() => setMenu(false)} items={actions} />}
         </>
       )}
     </div>
@@ -590,13 +700,15 @@ function Conversations({ relations, onOpenNote }: { relations: RelationsState; o
 /* ---- Documents: the project's notes and the files beside it --------------------------- */
 
 function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChanged: () => Promise<void>; onOpenNote: (id: string) => void }) {
-  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [busy, setBusy] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
   const [reading, setReading] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const [all, setAll] = useState(false);
+  const [adding, setAdding] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const slug = encodeURIComponent(w.slug);
   const upload = async (files: FileList | File[]) => {
     setErrors([]);
     const failed: string[] = [];
@@ -605,6 +717,15 @@ function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
     setErrors(failed);
     await onChanged();
   };
+  /** Take a note off the project: its tag goes, the note stays; Undo puts the tag back. */
+  const takeOff = (n: ProjectNote) =>
+    void attempt(`“${n.title}” wasn't taken off the project.`, async () => {
+      await api("DELETE", `/api/projects/${slug}/notes/${encodeURIComponent(n.id)}`);
+      await onChanged();
+      toast(`“${n.title}” is no longer part of ${w.name}. The note stays where it is.`, {
+        action: { label: "Undo", run: () => void attempt(`“${n.title}” wasn't put back.`, () => api("POST", `/api/projects/${slug}/notes`, { noteId: n.id }).then(onChanged)) },
+      });
+    });
   const count = w.notes.length + w.files.length;
   const cap = all ? Infinity : 6;
   const notes = w.notes.slice(0, cap);
@@ -630,45 +751,31 @@ function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
         }}
       >
         {count === 0 ? (
-          <p className="q3 pj-none">
-            No documents yet. Drop files here: they land in <code>04-Projects/{w.slug}/files/</code>. A note joins by carrying <code>{w.key}</code> in its tags.
-          </p>
+          <p className="q3 pj-none">{w.canEdit ? "No documents yet. Upload a file or drop it here, or add a note you already have." : "No documents yet."}</p>
         ) : (
           <RowList label="Documents">
             {notes.map((n) => (
-              <Row key={n.id} lead={<Icon name="notes" size={18} />} title={n.title} titleAttr={n.path} meta={n.tasks > 0 ? `${n.done} of ${n.tasks} steps` : "note"} onOpen={() => onOpenNote(n.id)} />
+              <MenuRow
+                key={n.id}
+                label={n.title}
+                actions={w.canEdit ? [{ label: "Open the note", onSelect: () => onOpenNote(n.id) }, { label: "Take off the project", danger: true, onSelect: () => takeOff(n) }] : []}
+                row={{ lead: <Icon name="notes" size={18} />, title: n.title, meta: n.tasks > 0 ? `${n.done} of ${n.tasks} steps` : "note", onOpen: () => onOpenNote(n.id) }}
+              />
             ))}
             {files.map((f) => (
-              <Row
+              <MenuRow
                 key={f.name}
-                lead={<span className="pj-ext">{(f.ext || ".?").slice(1, 5).toUpperCase()}</span>}
-                title={f.name}
-                meta={kb(f.size)}
-                onOpen={() => setReading(f.name)}
-                hover={
-                  w.canEdit ? (
-                    <Button
-                      size="sm"
-                      kind="quiet"
-                      icon="trash"
-                      aria-label={`Delete ${f.name}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirm({
-                          title: `Delete ${f.name}?`,
-                          body: `This removes the file from disk, from 04-Projects/${w.slug}/files/. Orrama cannot bring it back.`,
-                          confirmLabel: "Delete",
-                          danger: true,
-                          failed: `${f.name} wasn't deleted.`,
-                          onConfirm: async () => {
-                            await api("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(f.name)}`);
-                            await onChanged();
-                          },
-                        });
-                      }}
-                    />
-                  ) : undefined
+                label={f.name}
+                actions={
+                  w.canEdit
+                    ? [
+                        { label: "Open", onSelect: () => setReading(f.name) },
+                        { label: "Rename…", onSelect: () => setRenaming(f.name) },
+                        { label: "Move to the trash", danger: true, onSelect: () => void trashProjectFile(w, f.name, onChanged) },
+                      ]
+                    : []
                 }
+                row={{ lead: <span className="pj-ext">{(f.ext || ".?").slice(1, 5).toUpperCase()}</span>, title: f.name, meta: kb(f.size), onOpen: () => setReading(f.name) }}
               />
             ))}
           </RowList>
@@ -693,14 +800,59 @@ function Documents({ w, onChanged, onOpenNote }: { w: ProjectWorkspace; onChange
             <Button size="sm" icon="upload" onClick={() => input.current?.click()} disabled={!!busy}>
               {busy ? `Uploading ${busy}…` : "Upload"}
             </Button>
-            <span className="q3">or drop files here</span>
+            <Button size="sm" icon="plus" kind="quiet" aria-expanded={adding} onClick={() => setAdding((v) => !v)}>
+              Add a note
+            </Button>
           </div>
         )}
+        {adding && <AddNote w={w} onAdded={onChanged} onClose={() => setAdding(false)} />}
       </div>
       {errors.length > 0 && <Notice title={errors.length === 1 ? "A file was not uploaded" : `${errors.length} files were not uploaded`} text={errors.join(" · ")} />}
-      {reading && <DocViewer base={`/api/projects/${encodeURIComponent(w.slug)}/files`} name={reading} onClose={() => setReading(null)} />}
-      <Confirm request={confirm} onClose={() => setConfirm(null)} />
+      {reading && <DocViewer base={`/api/projects/${slug}/files`} name={reading} onClose={() => setReading(null)} />}
+      {renaming && <RenameFileDialog w={w} name={renaming} onDone={onChanged} onClose={() => setRenaming(null)} />}
     </Module>
+  );
+}
+
+/**
+ * Add a note you already have: search your notes by name, pick one, and it joins the project
+ * (its properties get the project's tag). A note in another project says so, and moves.
+ */
+function AddNote({ w, onAdded, onClose }: { w: ProjectWorkspace; onAdded: () => Promise<void>; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [found, setFound] = useState<ProjectCandidate[] | null>(null);
+  const slug = encodeURIComponent(w.slug);
+  useEffect(() => {
+    const ac = new AbortController();
+    const t = setTimeout(() => {
+      api<ProjectCandidate[]>("GET", `/api/projects/${slug}/notes/candidates?q=${encodeURIComponent(q.trim())}`, undefined, { signal: ac.signal }).then(setFound, (e) => {
+        if (!isAbort(e)) setFound([]);
+      });
+    }, 150);
+    return () => {
+      clearTimeout(t);
+      ac.abort();
+    };
+  }, [q, slug]);
+  const add = (n: ProjectCandidate) =>
+    void attempt(`“${n.title}” wasn't added.`, async () => {
+      await api("POST", `/api/projects/${slug}/notes`, { noteId: n.id });
+      await onAdded();
+      toast(n.project ? `“${n.title}” moved here from ${n.project}.` : `“${n.title}” is part of ${w.name} now.`);
+      onClose();
+    });
+  return (
+    <div className="pj-picker pj-addnote">
+      <SearchField label="Find a note to add" placeholder="Find a note to add…" autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onClose()} />
+      {found && found.length > 0 && (
+        <RowList label="Notes you can add">
+          {found.slice(0, 8).map((n) => (
+            <Row key={n.id} lead={<Icon name="notes" size={18} />} title={n.title} meta={n.project ? `in ${n.project}` : undefined} trailing="Add" onOpen={() => add(n)} />
+          ))}
+        </RowList>
+      )}
+      {found && found.length === 0 && <p className="q3 pj-none">{q.trim() ? "No note by that name that isn't here already." : "Every note you can change is here already."}</p>}
+    </div>
   );
 }
 
@@ -713,7 +865,7 @@ function Prompt({ w, onSave }: { w: ProjectWorkspace; onSave: (text: string) => 
   useEffect(() => setDraft(w.prompt), [w.prompt]);
   return (
     <Module title="The prompt" className="pj-prompt">
-      <p className="q3 pj-hint">Standing context for Orr and for Claude over MCP (`get_project`), so a session can pick this project up cold.</p>
+      <p className="q3 pj-hint">What Orr, and Claude when it works with your notes, should always know about this project.</p>
       <form
         className="pj-form"
         onSubmit={(e) => {

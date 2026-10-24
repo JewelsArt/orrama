@@ -1,7 +1,8 @@
 /**
- * The project page edits the project note as the note has it (COR-005): "Edit" on the goals
- * opens on the `## Goals` section's own text and saves it back, so a checkbox, a nested item or
- * a line of prose survives a save nobody changed.
+ * The project page edits the project note as the note has it: a goal, a decision or an inbox
+ * line is changed or removed from its own ⋯, named to the server by its place and its words
+ * (1E; the goals were the section's raw text in a box before). The title is renamed in place;
+ * Delete the project says what goes and what stays first.
  *
  * Its dates are typed as text and written once, when a field is left (WEB-023): never a
  * half-typed year, never while typing, and one write after another. Its status is the vault's
@@ -33,6 +34,10 @@ const server = vi.hoisted(() => ({
   fail: null as ((method: string, url: string) => boolean) | null,
   /** `/api/projects`: the groups other projects use. */
   projects: [] as { slug: string; group: string | null }[],
+  /** `/api/projects/thesis/removal`: what Delete would do. */
+  removal: null as unknown,
+  /** `/api/projects/thesis/notes/candidates`. */
+  candidates: [] as unknown[],
 }));
 
 vi.mock("./ws.js", () => ({ onWs: () => () => {}, sendEditing: () => {} }));
@@ -56,6 +61,10 @@ vi.mock("./api.js", async (orig) => {
       if (method === "GET" && url === "/api/contacts") return server.contacts;
       if (method === "GET" && url === "/api/projects") return server.projects;
       if (method === "GET" && url === "/api/areas") return AREAS;
+      if (method === "GET" && url === "/api/projects/thesis/removal") return server.removal;
+      if (method === "GET" && url.startsWith("/api/projects/thesis/notes/candidates")) return server.candidates;
+      if (method === "POST" && url === "/api/projects/thesis/trash") return { ok: true, trashed: [".trash/04-Projects/thesis.md", ".trash/04-Projects/thesis/files/plan.pdf"], untagged: ["n-call"] };
+      if (method === "DELETE" && url.startsWith("/api/projects/thesis/files/")) return { ok: true, trashPath: ".trash/04-Projects/thesis/files/plan.pdf" };
       if (method === "GET" && url.startsWith("/api/vault/note/")) return { id: "n-1", path: "04-Projects/thesis.md", title: "Thesis", content: "", hash: "h", tags: [], canEdit: true };
       if (method === "GET") return [];
       return { ok: true };
@@ -76,6 +85,8 @@ beforeEach(() => {
   server.contacts = [];
   server.fail = null;
   server.projects = [];
+  server.removal = null;
+  server.candidates = [];
   server.workspace = {
     slug: "thesis", key: "project/thesis", name: "Thesis", noteId: "n-1", path: "04-Projects/thesis.md", domain: null, area: "home",
     status: "on-track", start: "2026-09-01", deadline: "2027-01-15", group: "", prompt: "",
@@ -96,16 +107,206 @@ const dates = async () => {
   return { start: screen.getByLabelText("Start") as HTMLInputElement, deadline: screen.getByLabelText("Deadline") as HTMLInputElement };
 };
 
-describe("Edit goals (COR-005)", () => {
-  it("opens on the section's own text and saves it back untouched", async () => {
+const posts = () => server.calls.filter((c) => c.method !== "GET").map((c) => ({ method: c.method, url: c.url, body: c.body }));
+/** Open a ⋯ by what it is for, and pick one of its items. */
+const pick = (what: string, item: string) => {
+  fireEvent.click(screen.getByRole("button", { name: `More for ${what}` }));
+  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+};
+
+describe("goals, decisions and the inbox are lines (1E)", () => {
+  it("a goal is changed in place from its ⋯, named by its place and its words", async () => {
+    await open();
+    pick("book the room", "Change");
+    const field = screen.getByRole("textbox", { name: "Change: book the room" }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "book the hall" } });
+    await act(async () => {
+      fireEvent.click(within(field.closest("form")!).getByRole("button", { name: "Save" }));
+    });
+    expect(posts()).toEqual([{ method: "PATCH", url: "/api/projects/thesis/lines", body: { section: "goals", index: 2, text: "book the room", to: "book the hall" } }]);
+    expect(screen.queryByRole("textbox", { name: "Change: book the room" })).toBeNull();
+  });
+
+  it("Escape leaves a line as it was and writes nothing", async () => {
+    await open();
+    pick("Pick a supervisor", "Change");
+    const field = screen.getByRole("textbox", { name: "Change: Pick a supervisor" });
+    fireEvent.change(field, { target: { value: "x" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Change: Pick a supervisor" })).toBeNull();
+    expect(posts()).toEqual([]);
+  });
+
+  it("a goal is added with the field, no Markdown", async () => {
     await open();
     const goals = screen.getByRole("region", { name: "Goals" });
-    fireEvent.click(within(goals).getByRole("button", { name: "Edit" }));
-    expect((within(goals).getByRole("textbox", { name: "Goals" }) as HTMLTextAreaElement).value).toBe(SOURCE);
+    fireEvent.change(within(goals).getByRole("textbox", { name: "Add to Goals" }), { target: { value: "Publish it" } });
     await act(async () => {
-      fireEvent.click(screen.getByText("Save goals"));
+      fireEvent.click(within(goals).getByRole("button", { name: "Add" }));
     });
-    expect(patches()).toEqual([{ goals: SOURCE }]);
+    expect(posts()).toEqual([{ method: "POST", url: "/api/projects/thesis/goals", body: { text: "Publish it" } }]);
+  });
+
+  it("a decision is removed behind a Confirm that quotes it", async () => {
+    await open();
+    pick("MASE over MAPE.", "Remove");
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.textContent).toContain("“MASE over MAPE.” comes out of the project note.");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Remove" }));
+    });
+    expect(posts()).toEqual([{ method: "POST", url: "/api/projects/thesis/lines/remove", body: { section: "decisions", index: 0, text: "**2026-10-06** — MASE over MAPE." } }]);
+  });
+
+  it("an inbox line becomes a step; a decision has no such item", async () => {
+    server.workspace = { ...server.workspace, inbox: ["Ask Thijs", "Read Hyndman"] };
+    await open();
+    pick("Read Hyndman", "Make it a step");
+    await act(async () => {});
+    expect(posts()).toEqual([{ method: "POST", url: "/api/projects/thesis/lines/step", body: { section: "inbox", index: 1, text: "Read Hyndman" } }]);
+    fireEvent.click(screen.getByRole("button", { name: "More for MASE over MAPE." }));
+    expect(screen.queryByRole("menuitem", { name: "Make it a step" })).toBeNull();
+  });
+
+  it("without edit, lines have no ⋯ and no field", async () => {
+    server.workspace = { ...server.workspace, canEdit: false };
+    await open();
+    expect(screen.queryByRole("button", { name: /^More for/ })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Add to Goals" })).toBeNull();
+  });
+});
+
+describe("rename and delete (1E)", () => {
+  it("says its name for the window's title, never its key in words", async () => {
+    const { usePageTitleFor } = await import("./entity/title.js");
+    const Title = () => <output aria-label="window title">{usePageTitleFor("/projects/thesis")}</output>;
+    server.workspace = { ...server.workspace, name: "Graduation thesis" };
+    render(<Title />);
+    await open();
+    expect(screen.getByRole("status", { name: "window title" }).textContent).toBe("Graduation thesis");
+  });
+
+  it("the title is renamed in place: Enter writes the name once", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Thesis. Rename it" }));
+    const field = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(field, { target: { value: "Graduation thesis" } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+    expect(patches()).toEqual([{ name: "Graduation thesis" }]);
+    expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull();
+  });
+
+  it("Escape, or the same name, writes nothing; ⋯ → Rename… opens the same field", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename…" }));
+    const field = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.change(field, { target: { value: "Other" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Thesis. Rename it" }));
+    await act(async () => {
+      fireEvent.blur(screen.getByRole("textbox", { name: "Name" }));
+    });
+    expect(patches()).toEqual([]);
+  });
+
+  it("a rename that didn't save stays in the field with the reason", async () => {
+    server.fail = (m) => m === "PATCH";
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Thesis. Rename it" }));
+    const field = screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Graduation thesis" } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: "Enter" });
+    });
+    expect(screen.getByRole("alert").textContent).toContain("The project wasn't renamed.");
+    expect((screen.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Graduation thesis");
+  });
+
+  it("Delete says what goes and what stays by name, then trashes it and offers Undo", async () => {
+    server.removal = {
+      note: { id: "n-1", title: "Thesis", path: "04-Projects/thesis.md" },
+      inFolder: [{ id: "n-ch1", title: "Chapter 1", path: "04-Projects/thesis/Chapter 1.md" }],
+      files: 3,
+      elsewhere: [{ id: "n-call", title: "Call with Thijs", path: "Meetings/Call with Thijs.md" }],
+      canDelete: true,
+    };
+    render(<Toaster />);
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete the project…" }));
+    });
+    const dialog = screen.getByRole("alertdialog", { name: "Delete “Thesis”?" });
+    expect(dialog.textContent).toContain("Its note, 1 more note (“Chapter 1”) and 3 documents go to the trash. You can put them back from Notes → Trash.");
+    expect(dialog.textContent).toContain("“Call with Thijs” stays where it is and is no longer part of the project.");
+    expect(dialog.textContent).not.toMatch(/04-Projects|tag/);
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Delete the project" }));
+    });
+    expect(posts()).toEqual([{ method: "POST", url: "/api/projects/thesis/trash", body: {} }]);
+    expect(window.location.pathname).toBe("/projects");
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    });
+    expect(posts().slice(1)).toEqual([
+      { method: "POST", url: "/api/vault/trash/restore", body: { path: ".trash/04-Projects/thesis.md" } },
+      { method: "POST", url: "/api/vault/trash/restore", body: { path: ".trash/04-Projects/thesis/files/plan.pdf" } },
+      { method: "POST", url: "/api/projects/thesis/notes", body: { noteId: "n-call" } },
+    ]);
+  });
+});
+
+describe("Documents (1E)", () => {
+  const plan = { id: "n-ch1", title: "Chapter 1", path: "04-Projects/thesis/Chapter 1.md", mtimeMs: 1, tasks: 0, done: 0 };
+  const pdf = { name: "plan.pdf", size: 2048, mtimeMs: 1, ext: ".pdf" };
+
+  it("a note is taken off the project from its ⋯, and Undo puts it back", async () => {
+    server.workspace = { ...server.workspace, notes: [plan] };
+    render(<Toaster />);
+    await open();
+    pick("Chapter 1", "Take off the project");
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    });
+    expect(posts()).toEqual([
+      { method: "DELETE", url: "/api/projects/thesis/notes/n-ch1", body: {} },
+      { method: "POST", url: "/api/projects/thesis/notes", body: { noteId: "n-ch1" } },
+    ]);
+  });
+
+  it("Add a note finds notes you have and adds the one picked, saying where it came from", async () => {
+    server.candidates = [{ id: "n-lit", title: "Literature map", path: "Ideas/Literature map.md", project: "Reading" }];
+    render(<Toaster />);
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find a note to add" }), { target: { value: "lit" } });
+    const row = await screen.findByText("Literature map");
+    expect(screen.getByText("in Reading")).toBeTruthy();
+    await act(async () => {
+      fireEvent.click(row);
+    });
+    expect(server.calls.some((c) => c.method === "GET" && c.url === "/api/projects/thesis/notes/candidates?q=lit")).toBe(true);
+    expect(posts()).toEqual([{ method: "POST", url: "/api/projects/thesis/notes", body: { noteId: "n-lit" } }]);
+    expect(await screen.findByText("“Literature map” moved here from Reading.")).toBeTruthy();
+  });
+
+  it("a file has a ⋯ with Rename… and Move to the trash (nothing hover-only), and says no folder name when empty", async () => {
+    server.workspace = { ...server.workspace, files: [pdf] };
+    render(<Toaster />);
+    await open();
+    pick("plan.pdf", "Move to the trash");
+    await act(async () => {});
+    expect(posts()).toEqual([{ method: "DELETE", url: "/api/projects/thesis/files/plan.pdf", body: {} }]);
+    expect(await screen.findByText("plan.pdf is in the trash.")).toBeTruthy();
+    cleanupRender();
+    server.workspace = { ...server.workspace, files: [] };
+    await open();
+    const docs = screen.getByRole("region", { name: "Documents" });
+    expect(docs.textContent).not.toMatch(/04-Projects|project\/|tags/);
   });
 });
 
@@ -400,26 +601,27 @@ describe("a failed write is never silent (WEB-010)", () => {
     for (const b of screen.queryAllByRole("button", { name: "Dismiss" })) fireEvent.click(b);
   });
 
-  it("a form: the goals that didn't save stay in the box, the reason under them, Save still there", async () => {
+  it("a line change that didn't save stays in its field, the reason under it, Save still there", async () => {
     server.fail = (m) => m === "PATCH";
     await openWithToasts();
-    const goals = screen.getByRole("region", { name: "Goals" });
-    fireEvent.click(within(goals).getByRole("button", { name: "Edit" }));
-    const box = within(goals).getByRole("textbox", { name: "Goals" }) as HTMLTextAreaElement;
-    fireEvent.change(box, { target: { value: "Defend in February" } });
+    pick("Defend in January", "Change");
+    const field = screen.getByRole("textbox", { name: "Change: Defend in January" }) as HTMLInputElement;
+    fireEvent.change(field, { target: { value: "Defend in February" } });
+    const form = field.closest("form")!;
     await act(async () => {
-      fireEvent.click(screen.getByText("Save goals"));
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }));
     });
-    expect(within(goals).getByRole("alert").textContent).toBe(`The goals weren't saved. ${down}`);
-    expect((within(goals).getByRole("textbox", { name: "Goals" }) as HTMLTextAreaElement).value).toBe("Defend in February");
-    const save = within(goals).getByRole("button", { name: "Save goals" }) as HTMLButtonElement;
-    expect(save.disabled).toBe(false);
+    expect(form.textContent).toContain(`The goals line wasn't changed. ${down}`);
+    expect((screen.getByRole("textbox", { name: "Change: Defend in January" }) as HTMLInputElement).value).toBe("Defend in February");
     server.fail = null;
     await act(async () => {
-      fireEvent.click(save);
+      fireEvent.click(within(form).getByRole("button", { name: "Save" }));
     });
-    expect(patches()).toEqual([{ goals: "Defend in February" }, { goals: "Defend in February" }]);
-    expect(within(goals).queryByRole("textbox", { name: "Goals" })).toBeNull();
+    expect(patches()).toEqual([
+      { section: "goals", index: 1, text: "Defend in January", to: "Defend in February" },
+      { section: "goals", index: 1, text: "Defend in January", to: "Defend in February" },
+    ]);
+    expect(screen.queryByRole("textbox", { name: "Change: Defend in January" })).toBeNull();
   });
 
   it("an inline edit: a date that didn't save is said, and leaving the field again sends it again", async () => {

@@ -57,3 +57,15 @@ describe("a task's box, clicked in the editor (1B)", () => {
     expect(last.split("\n")).toEqual(["- [x] open", "- [x] doing", "- [x] stuck", "- [ ] done", "- [ ] Done", "intro"]);
   });
 });
+
+describe("the properties row (1E)", () => {
+  it("leaves a project's own tags out and keeps the note's other tags", async () => {
+    const { EditorView } = await import("@codemirror/view");
+    const text = ["---", "tags:", "  - project", "  - project/thesis", "  - reading", "---", "Body"].join("\n");
+    const { container } = render(<Editor noteId="n" content={text} readOnly={false} completions={{ titles: [], users: [], tags: [] }} onChange={() => {}} />);
+    const view = EditorView.findFromDOM(container.querySelector(".cm-editor") as HTMLElement)!;
+    view.dispatch({ selection: { anchor: text.length } });
+    expect(container.textContent).toContain("properties · #reading");
+    expect(container.textContent).not.toContain("project");
+  });
+});

@@ -57,6 +57,11 @@
 .pr-row .chev:focus-visible, .pr-row .ov-act:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .pr-row .ov-act { opacity: 0; }
 .pr-row:hover .ov-act, .pr-row:focus-within .ov-act, .pr-row .ov-act[aria-expanded="true"] { opacity: 1; }
+/* The status is a menu, as on the project page: above the name's stretched link (1E). */
+.pr-row .c-status, .pr-row .m2 .ent-status { position: relative; z-index: 2; }
+.pr-row .c-status .status { font-size: 13px; }
+@media (hover: none) { .pr-row .ov-act { opacity: 1; } }
+.pjs-removed .row .end { visibility: visible; }
 .pr-row.open .chev svg { transform: rotate(90deg); }
 .status.archived, .status.cancelled { --st: var(--ink-3); }
 
@@ -103,14 +108,18 @@
   .pjs-filters { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
   .pjs-filters .lbl { display: none; }
   .pjs-filters .chip { flex: none; min-height: 0; height: 32px; }
-  .pjs .ph, .pjs .steps, .shelf-names, .pjs-shelf .ov-act { display: none; }
+  .pjs .ph, .pjs .steps, .shelf-names { display: none; }
   .pjs .pg { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; }
   .pr-row { align-items: start; min-height: 60px; }
-  .pr-row .c-status, .pr-row .c-key, .pr-row .c-who, .pr-row .c-end { display: none; }
+  .pr-row .c-status, .pr-row .c-key, .pr-row .c-who { display: none; }
+  /* The ⋯ stays on the phone (its steps don't unfold here, so the chevron goes). */
+  .pr-row .c-end { grid-column: 3; grid-row: 1; align-self: end; }
+  .pr-row .c-end .chev { display: none; }
+  .pr-row .ov-act { opacity: 1; }
   .pr-row .c-date { grid-column: 3; grid-row: 1; text-align: right; }
   .pr-row .d small { display: none; }
   .pr-row .d { font-size: 13px; }
-  .pr-row .c-flag { position: absolute; right: 8px; bottom: 8px; }
+  .pr-row .c-flag { position: absolute; right: 40px; bottom: 10px; }
   .pr-row .m2 { display: flex; }
   .pjs-shelves { flex-direction: column; gap: 6px; }
   .shelf-head { min-height: 0; }

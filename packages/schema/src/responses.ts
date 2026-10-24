@@ -598,8 +598,6 @@ export const boardEdgeSchema = o({
   fromNode: z.string(),
   toNode: z.string(),
   label: z.string().optional(),
-  /** Proposed by Claude, drawn dashed until accepted. */
-  orramaSuggested: z.literal(true).optional(),
 });
 export const boardResponse = o({
   nodes: z.array(boardNodeSchema),

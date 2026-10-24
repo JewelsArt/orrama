@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, isAbort, type DashboardData, type DashboardTask, type Me } from "./api.js";
 import { useAreas } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
-import type { GraphData, GraphRelations, GraphSchema, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
+import type { GraphData, GraphRelations, GraphSchema, HiddenProject, ProjectRow as ProjectListRow } from "@orrama/schema/responses";
 import { boardGroups, boardProject, ProjectRow, ProjectSteps, shelfRows, SHELVES, type BoardPerson, type BoardProject } from "./OverviewHead.js";
 import { LAST_TAB_KEY, tabHref, type Tab } from "./Project.js";
 import { areaOf } from "./projectArea.js";
+import { statusOf } from "./entity/index.js";
 import { useTaskCard } from "./ProjectViews.js";
 import { readKey } from "./storage.js";
 import { Button, Chip } from "./ui/controls.js";
 import { Icon } from "./ui/Icon.js";
-import { PageHeader } from "./ui/layout.js";
+import { PageHeader, Row, RowList } from "./ui/layout.js";
 import { NameDialog } from "./ui/NameDialog.js";
-import type { MenuItem } from "./ui/overlays.js";
+import { toast, type MenuItem } from "./ui/overlays.js";
 import { navigate, useRoute } from "./ui/router.js";
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
@@ -22,6 +23,8 @@ import { SectionBar } from "./ui/shell/SectionBar.js";
 interface Loaded {
   dashboard: DashboardData;
   list: ProjectListRow[];
+  /** Projects removed from the board (owners only; empty for anyone else). */
+  hidden: HiddenProject[];
   people: Map<string, BoardPerson[]>;
   warnings: Map<string, string[]>;
 }
@@ -51,11 +54,12 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [dashboard, list, graph, schema] = await Promise.all([
+      const [dashboard, list, graph, schema, hidden] = await Promise.all([
         api<DashboardData>("GET", "/api/dashboard", undefined, { signal }),
         api<ProjectListRow[]>("GET", "/api/projects", undefined, { signal }),
         api<GraphData>("GET", "/api/vault/graph", undefined, { signal }),
         api<GraphSchema>("GET", "/api/graph/schema", undefined, { signal }).catch(() => null),
+        me.isOwner ? api<HiddenProject[]>("GET", "/api/admin/projects/hidden", undefined, { signal }).catch((e) => (isAbort(e) ? Promise.reject(e) : [])) : Promise.resolve([] as HiddenProject[]),
       ]);
       // People: the contact and company notes a project note links to, either way (a
       // supervisor's own `supervises:` field counts as much as a link under ## People).
@@ -85,12 +89,12 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
           ),
         );
       }
-      setData({ dashboard, list, people, warnings });
+      setData({ dashboard, list, people, warnings, hidden });
       setFailed(false);
     } catch (e) {
       if (!isAbort(e)) setFailed(true);
     }
-  }, []);
+  }, [me.isOwner]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -150,7 +154,8 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   // One area at a time is split by the projects' groups (Work: Scooperz, Websites…); every area
   // at once stays one list, where the area's dot already tells them apart.
   const groups = area ? boardGroups(shown) : null;
-  const shelved = shelf ? shelfRows(projects, shelf).filter(inArea) : [];
+  const shelved = shelf && shelf !== "removed" ? shelfRows(projects, shelf).filter(inArea) : [];
+  const removed = data?.hidden ?? [];
   const openSteps = shown.reduce((s, p) => s + (p.total - p.done), 0);
   // Every area the person has, even an empty one: it is where its first project is made.
   const areaCounts = areas.map((c) => ({ ...c, n: active.filter((p) => p.area?.id === c.id).length }));
@@ -172,12 +177,20 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
       await load();
     });
 
+  const putBack = (h: HiddenProject) =>
+    attempt(`${h.name} wasn't put back.`, async () => {
+      await api("POST", `/api/admin/projects/${encodeURIComponent(h.id)}/back`);
+      await load();
+      toast(`${h.name} is back on the board.`);
+    });
+
   /** The ⋯ menu on a row: where the project stands, and (owners) taking it off the board. */
   const menuFor = (p: BoardProject): (MenuItem | "-")[] => {
     const items: (MenuItem | "-")[] = [
       p.shelf === "active" ? { label: "Pause", onSelect: () => void setLifecycle(p, "paused") } : { label: "Back on the board", onSelect: () => void setLifecycle(p, "on-track") },
     ];
     if (p.shelf !== "done") items.push({ label: "Mark completed", onSelect: () => void setLifecycle(p, "completed") });
+    if (statusOf(p.status) !== "archived") items.push({ label: "Archive", onSelect: () => void setLifecycle(p, "archived") });
     if (p.shelf !== "cancelled")
       items.push({
         label: "Cancel…",
@@ -198,7 +211,7 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
         onSelect: () =>
           setConfirm({
             title: `Remove “${p.name}” from the board?`,
-            body: "The note and its tag stay; it stops being tracked as a project.",
+            body: "Its note stays as it is. It waits under “Removed from the board”, where Put back brings it back.",
             confirmLabel: "Remove",
             danger: true,
             failed: `${p.name} wasn't removed from the board.`,
@@ -221,7 +234,15 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
   const rows = (list: BoardProject[], onShelf = false) =>
     list.map((p) => (
       <div key={p.slug} className="pr-wrap">
-        <ProjectRow p={p} open={open.has(p.slug)} onToggle={() => setOpen((s) => toggle(s, p.slug))} onOpen={() => navigate(p.href)} menu={menuFor(p)} people={!onShelf || p.people.length > 0} />
+        <ProjectRow
+          p={p}
+          open={open.has(p.slug)}
+          onToggle={() => setOpen((s) => toggle(s, p.slug))}
+          onOpen={() => navigate(p.href)}
+          menu={menuFor(p)}
+          onStatus={(id) => void setLifecycle(p, id)}
+          people={!onShelf || p.people.length > 0}
+        />
         {open.has(p.slug) && (
           <ProjectSteps
             p={p}
@@ -333,15 +354,11 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
 
       {data && shown.length === 0 && (
         <div className="card pjs-empty">
-          {projects.length === 0 ? (
+          {projects.length === 0 && removed.length === 0 ? (
             <EmptyState
               pose="carry"
               title="No projects yet"
-              text={
-                <>
-                  A project is a note tagged <code>project/…</code>: its checkboxes are the steps, its front matter the status and dates.
-                </>
-              }
+              text="Give it a name, then add its steps, dates, people and documents on its page."
               actions={<Button onClick={() => setCreating(true)}>Make a project</Button>}
             />
           ) : (
@@ -379,7 +396,33 @@ export function Overview({ me, area, onOpenNote }: { me: Me; area?: string; onOp
               </div>
             );
           })}
+          {removed.length > 0 && (
+            <div className="shelf">
+              <button type="button" className="shelf-head" aria-expanded={shelf === "removed"} onClick={() => navigate({ kind: "projects", area, shelf: shelf === "removed" ? undefined : "removed" })}>
+                <Icon name={shelf === "removed" ? "chev-d" : "chev-r"} size={14} />
+                Removed from the board {removed.length}
+              </button>
+              <span className="shelf-names">{removed.map((h) => h.name).join(" · ")}</span>
+            </div>
+          )}
         </div>
+      )}
+      {data && shelf === "removed" && removed.length > 0 && (
+        <section className="card pjs-board pjs-removed" aria-label="Removed from the board">
+          <RowList label="Removed from the board">
+            {removed.map((h) => (
+              <Row
+                key={h.id}
+                title={h.name}
+                trailing={
+                  <Button size="sm" onClick={() => void putBack(h)}>
+                    Put back
+                  </Button>
+                }
+              />
+            ))}
+          </RowList>
+        </section>
       )}
       {data && shelf && shelved.length > 0 && (
         <section className="card pjs-board pjs-shelf" aria-label={`${SHELVES.find((s) => s.id === shelf)!.label} projects`}>

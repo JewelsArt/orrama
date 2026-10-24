@@ -8,7 +8,8 @@
  * Built for the project page first; R11's person, company, conversation and document pages use
  * the same header with their own lead, meta and actions.
  */
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useWrite } from "../ui/writes.js";
 import { Crumbs, type Crumb } from "../ui/layout.js";
 
 export function EntityHeader({
@@ -38,5 +39,90 @@ export function EntityHeader({
         {actions && <div className="ent-acts">{actions}</div>}
       </div>
     </header>
+  );
+}
+
+/**
+ * A title you can rename in place (the project page's, 1E): the title is a button that turns
+ * into a field. Enter or leaving the field saves; Escape puts the name back. A refusal stays
+ * under the field with the words typed. `editing` is the page's, so its ⋯ → Rename… opens the
+ * same field.
+ */
+export function EditableTitle({
+  value,
+  canEdit,
+  editing,
+  onEditing,
+  onSave,
+}: {
+  value: string;
+  canEdit: boolean;
+  editing: boolean;
+  onEditing: (on: boolean) => void;
+  /** Write the new name; throw to keep the field open with the reason. */
+  onSave: (name: string) => Promise<unknown>;
+}) {
+  const [draft, setDraft] = useState(value);
+  const save = useWrite();
+  const settled = useRef(false);
+  useEffect(() => {
+    if (editing) {
+      setDraft(value);
+      save.clear();
+      settled.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the field opens
+  }, [editing]);
+  if (!canEdit) return <>{value}</>;
+  if (!editing)
+    return (
+      <button type="button" className="ent-title-btn" aria-label={`${value}. Rename it`} onClick={() => onEditing(true)}>
+        {value}
+      </button>
+    );
+  const commit = () => {
+    if (settled.current) return;
+    const name = draft.replace(/\s+/g, " ").trim();
+    if (!name || name === value) {
+      settled.current = true;
+      onEditing(false);
+      return;
+    }
+    settled.current = true;
+    void save.run("The project wasn't renamed.", () => onSave(name)).then((ok) => {
+      if (ok) onEditing(false);
+      else settled.current = false;
+    });
+  };
+  return (
+    <span className="ent-title-edit">
+      <input
+        className="ent-title-input"
+        autoFocus
+        aria-label="Name"
+        value={draft}
+        maxLength={120}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            settled.current = true;
+            onEditing(false);
+          }
+        }}
+      />
+      {save.error && (
+        <span className="ent-title-err" role="alert">
+          {save.error}
+        </span>
+      )}
+    </span>
   );
 }

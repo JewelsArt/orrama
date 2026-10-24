@@ -11,6 +11,14 @@
 .ent-lead .pr { width: 44px; height: 44px; }
 .ent-x { min-width: 0; }
 .ent-x h1 { margin: 0; font-size: 30px; line-height: 36px; font-weight: 750; letter-spacing: -0.02em; overflow-wrap: anywhere; }
+/* A title renamed in place (the project's, 1E): the button is the title itself; the field takes its size. */
+.ent-title-btn { all: unset; cursor: text; border-radius: var(--r-1); overflow-wrap: anywhere; }
+.ent-title-btn:hover { box-shadow: 0 0 0 4px var(--hover); background: var(--hover); }
+.ent-title-btn:focus-visible { box-shadow: var(--focus-ring); }
+.ent-title-edit { display: flex; flex-direction: column; gap: 4px; }
+.ent-title-input { width: 100%; min-width: 0; margin: -3px 0 -3px -6px; padding: 2px 6px; font: inherit; letter-spacing: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-2); }
+.ent-title-input:focus { outline: none; box-shadow: var(--focus-ring); }
+.ent-title-err { font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0; color: var(--late); }
 .ent-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px; color: var(--ink-3); font-size: 14px; line-height: 20px; }
 .ent-meta > * { display: inline-flex; align-items: center; gap: 6px; }
 .ent-acts { display: flex; align-items: center; gap: 8px; }

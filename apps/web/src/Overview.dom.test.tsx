@@ -11,7 +11,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AREAS_REPLY } from "./test/areas.js";
 
-const server = vi.hoisted(() => ({ calls: [] as string[] }));
+const server = vi.hoisted(() => ({
+  calls: [] as string[],
+  writes: [] as { method: string; url: string; body: unknown }[],
+  /** `/api/admin/projects/hidden`: removed from the board (owners). */
+  hidden: [] as { id: string; slug: string; name: string }[],
+}));
 
 const project = (slug: string, status: string, over: Record<string, unknown> = {}) => ({
   project: slug,
@@ -61,8 +66,13 @@ vi.mock("./api.js", async (orig) => {
   const real = await orig<typeof import("./api.js")>();
   return {
     ...real,
-    api: async (method: string, url: string) => {
+    api: async (method: string, url: string, body?: unknown) => {
       server.calls.push(`${method} ${url}`);
+      if (method !== "GET") {
+        server.writes.push({ method, url, body });
+        return { ok: true };
+      }
+      if (url === "/api/admin/projects/hidden") return server.hidden;
       // No team: a new install has none, and the board asks for none (1A).
       if (url === "/api/dashboard") return DASHBOARD;
       if (url === "/api/projects") return DASHBOARD.projects.map((p) => ({ slug: p.slug, key: p.slug, name: NAMES[p.slug], domain: p.domain, area: p.domain === "academic" ? "school" : "work", noteId: null, total: p.total, done: p.done, status: p.status, start: null, deadline: null, group: GROUPS[p.slug] ?? null, nextDue: null, overdue: 0 }));
@@ -90,6 +100,8 @@ const shelves = () => [...document.querySelectorAll<HTMLButtonElement>(".shelf-h
 
 beforeEach(() => {
   server.calls = [];
+  server.writes = [];
+  server.hidden = [];
   at("/projects");
 });
 
@@ -148,5 +160,41 @@ describe("Work split by group (Jules, 20 Oct)", () => {
     render(<Board />);
     await screen.findByText("Brand refresh");
     expect(boxes()).toEqual(["Open projects"]);
+  });
+});
+
+describe("the board's own changes (1E)", () => {
+  const user = () => userEvent.setup();
+  it("a row's ⋯ archives it, and its status is a menu like the project page's", async () => {
+    const u = user();
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    await u.click(screen.getByRole("button", { name: "More for Brand refresh" }));
+    await u.click(screen.getByRole("menuitem", { name: "Archive" }));
+    expect(server.writes).toEqual([{ method: "PATCH", url: "/api/projects/brand-refresh", body: { status: "archived" } }]);
+    const row = screen.getByText("Brand refresh").closest(".pr-row") as HTMLElement;
+    await u.click(within(row.querySelector(".c-status") as HTMLElement).getByRole("button", { name: /Status: on track/ }));
+    await u.click(screen.getByRole("menuitemcheckbox", { name: /At risk/ }));
+    expect(server.writes.at(-1)).toEqual({ method: "PATCH", url: "/api/projects/brand-refresh", body: { status: "at-risk" } });
+  });
+
+  it("a project removed from the board waits on its own shelf, and Put back brings it back", async () => {
+    server.hidden = [{ id: "p-stray", slug: "week-plan", name: "Week plan" }];
+    const u = user();
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    const head = shelves().find((b) => b.textContent === "Removed from the board 1")!;
+    await u.click(head);
+    expect(location.pathname + location.search).toBe("/projects?shelf=removed");
+    const shelf = await screen.findByRole("region", { name: "Removed from the board" });
+    await u.click(within(shelf).getByRole("button", { name: "Put back" }));
+    expect(server.writes).toEqual([{ method: "POST", url: "/api/admin/projects/p-stray/back", body: undefined }]);
+  });
+
+  it("no Removed shelf when nothing was removed", async () => {
+    render(<Board />);
+    await screen.findByText("Brand refresh");
+    expect(shelves().map((b) => b.textContent)).not.toContain("Removed from the board 0");
+    expect(server.calls).toContain("GET /api/admin/projects/hidden");
   });
 });

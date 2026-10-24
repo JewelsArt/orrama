@@ -26,7 +26,7 @@ export const PLACES: { place: Place; label: string; key: string }[] = [
 
 export type MoneyPage = "spending" | "documents" | "subscriptions" | "income" | "savings";
 export type ProjectTab = "timeline" | "documents" | "todo" | "reader";
-export type ProjectShelf = "paused" | "cancelled" | "done";
+export type ProjectShelf = "paused" | "cancelled" | "done" | "removed";
 export type SettingsSection = "you" | "appearance" | "ai" | "notes" | "connections" | "device" | "sessions" | "developer" | "access";
 
 export type Route =
@@ -59,6 +59,8 @@ const PROJECT_SHELVES = new Map<string, ProjectShelf>([
   ["done", "done"],
   ["completed", "done"],
   ["archived", "done"],
+  // Projects removed from the board (owners), each with Put back (1E).
+  ["removed", "removed"],
 ]);
 const SECTIONS = new Set<SettingsSection>(["you", "appearance", "ai", "notes", "connections", "device", "sessions", "developer", "access"]);
 const SCALES = new Set(["day", "week", "month"]);

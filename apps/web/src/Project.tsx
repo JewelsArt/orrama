@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, isAbort, latestOnly, type Me } from "./api.js";
 import { daysTo } from "./categories.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
+import { EditableTitle } from "./entity/EntityHeader.js";
+import { usePageTitle } from "./entity/title.js";
 import { DatesButton, EntityHeader, OrrWarnings, shelfOf, statusOf, statusProblems, StatusMenu, useRelations, type StatusId } from "./entity/index.js";
 import { slugOf } from "./orrery/model.js";
 import { AreaMenu, areaOf } from "./projectArea.js";
@@ -14,12 +16,13 @@ import { AddStepDialog, ProjectBoard, ProjectTimeline, ProjectTodo } from "./Pro
 import { writeKey } from "./storage.js";
 import { Button, ProgressRing, Tabs } from "./ui/controls.js";
 import { Orr } from "./ui/orr/Orr.js";
-import { Menu } from "./ui/overlays.js";
+import { Menu, toast } from "./ui/overlays.js";
 import { navigate, routeHref, type ProjectTab } from "./ui/router.js";
 import { Notice, Skeleton } from "./ui/states.js";
-import { attempt } from "./ui/writes.js";
+import { attempt, failureText } from "./ui/writes.js";
+import { restoreFromTrash } from "./noteActions.js";
 import { onWs } from "./ws.js";
-import type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace } from "@orrama/schema/responses";
+import type { ProjectFile, ProjectNote, ProjectPerson, ProjectRemoval, ProjectWorkspace } from "@orrama/schema/responses";
 import { SectionBar } from "./ui/shell/SectionBar.js";
 export type { ProjectFile, ProjectNote, ProjectPerson, ProjectWorkspace };
 
@@ -60,6 +63,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
   const [error, setError] = useState<{ missing: boolean } | null>(null);
   const [version, setVersion] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
 
   const [nextLoad] = useState(latestOnly);
@@ -111,6 +115,8 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
     [slug, load],
   );
 
+  // The window's title and the phone's top bar say the project's name, not its key in words.
+  usePageTitle(routeHref({ kind: "project", slug, ...(tab === "overview" ? {} : { tab }), ...(tab === "reader" && page ? { page } : {}) }), w?.name);
   const relations = useRelations(w?.noteId, version);
   const areas = useAreas();
   const groupRows = useProjectGroups(w ? version : null);
@@ -162,7 +168,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
             <ProgressRing value={w.total ? w.done / w.total : 0} size={44} label={`${pct}% done`} />
           </span>
         }
-        title={w.name}
+        title={<EditableTitle value={w.name} canEdit={w.canEdit} editing={renaming} onEditing={setRenaming} onSave={(name) => patch({ name })} />}
         meta={
           <>
             <StatusMenu value={w.status} canEdit={w.canEdit} capital onPick={setStatus} />
@@ -182,7 +188,7 @@ export function Project({ me, slug, tab = "overview", page, onOpenNote }: { me: 
             </a>
           </>
         }
-        actions={<HeadActions w={w} onAdd={() => setAdding(true)} onStatus={setStatus} onOpenNote={onOpenNote} ask={setConfirm} />}
+        actions={<HeadActions w={w} onAdd={() => setAdding(true)} onRename={() => setRenaming(true)} onStatus={setStatus} onOpenNote={onOpenNote} ask={setConfirm} />}
       />
 
       <OrrWarnings warnings={warnings} />
@@ -246,12 +252,14 @@ const go = (e: React.MouseEvent, slug: string, tab: Tab) => {
 function HeadActions({
   w,
   onAdd,
+  onRename,
   onStatus,
   onOpenNote,
   ask,
 }: {
   w: ProjectWorkspace;
   onAdd: () => void;
+  onRename: () => void;
   onStatus: (id: StatusId) => void;
   onOpenNote: (id: string) => void;
   ask: (r: ConfirmRequest) => void;
@@ -277,7 +285,7 @@ function HeadActions({
           label="Project"
           onClose={() => setOpen(false)}
           items={[
-            ...(w.canEdit ? [{ label: "Add a step", onSelect: onAdd }] : []),
+            ...(w.canEdit ? [{ label: "Add a step", onSelect: onAdd }, { label: "Rename…", onSelect: onRename }] : []),
             { label: "Show in the Orrery", onSelect: () => navigate({ kind: "orrery", center }) },
             { label: "Open the note", onSelect: () => onOpenNote(w.noteId) },
             ...(w.canEdit
@@ -304,6 +312,8 @@ function HeadActions({
                         },
                       ]
                     : []),
+                  "-" as const,
+                  { label: "Delete the project…", danger: true, onSelect: () => void askDelete(w, ask) },
                 ]
               : []),
           ]}
@@ -312,3 +322,56 @@ function HeadActions({
     </>
   );
 }
+
+/** "a", "a and b", "a, b and c". */
+const listed = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+const quoted = (ns: { title: string }[]) => listed(ns.map((n) => `“${n.title}”`));
+
+/**
+ * Delete the project (Jules, 23 Oct 2026): its note, the notes in its folder and its documents
+ * go to the trash; notes that are part of it but live elsewhere stay and are no longer part of
+ * it. The Confirm says all of it by name first. After, the board, with Undo in the toast: the
+ * trash gives everything back and those notes join again.
+ */
+async function askDelete(w: ProjectWorkspace, ask: (r: ConfirmRequest) => void) {
+  let plan: ProjectRemoval;
+  try {
+    plan = await api<ProjectRemoval>("GET", `/api/projects/${encodeURIComponent(w.slug)}/removal`);
+  } catch (e) {
+    toast(failureText(e, "The project can't be deleted right now."));
+    return;
+  }
+  const goes = [
+    "its note",
+    ...(plan.inFolder.length ? [`${plan.inFolder.length === 1 ? "1 more note" : `${plan.inFolder.length} more notes`} (${quoted(plan.inFolder)})`] : []),
+    ...(plan.files ? [plan.files === 1 ? "1 document" : `${plan.files} documents`] : []),
+  ];
+  const body = [
+    `${cap(listed(goes))} go to the trash. You can put them back from Notes → Trash.`,
+    plan.elsewhere.length ? `${quoted(plan.elsewhere)} ${plan.elsewhere.length === 1 ? "stays where it is and is" : "stay where they are and are"} no longer part of the project.` : "",
+  ].filter(Boolean).join(" ");
+  ask({
+    title: `Delete “${w.name}”?`,
+    body,
+    confirmLabel: "Delete the project",
+    danger: true,
+    failed: "The project wasn't deleted.",
+    onConfirm: async () => {
+      const res = await api<{ trashed: string[]; untagged: string[] }>("POST", `/api/projects/${encodeURIComponent(w.slug)}/trash`);
+      navigate({ kind: "projects" });
+      toast(`${w.name} is in the trash.`, {
+        ms: 8000,
+        action: {
+          label: "Undo",
+          run: () =>
+            void attempt(`${w.name} wasn't put back.`, async () => {
+              for (const path of res.trashed) await restoreFromTrash(path);
+              for (const id of res.untagged) await api("POST", `/api/projects/${encodeURIComponent(w.slug)}/notes`, { noteId: id });
+              navigate(tabHref(w.slug, "overview"));
+            }),
+        },
+      });
+    },
+  });
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
