@@ -5,9 +5,9 @@
  * the board lives in the database: delete the DB and the board comes back.
  *
  * Nodes are either a project FILE (a card) or a GROUP (a labelled box). Edges
- * link two cards; an edge Claude proposed carries `orramaSuggested: true` (`basaltSuggested`
- * in a board saved before the rename) until
- * the user accepts it. Unknown fields from other tools are dropped on write.
+ * link two cards. Unknown fields from other tools are dropped on write (the
+ * `orramaSuggested` mark of links Orr was once to propose too: nothing made them,
+ * and the board no longer asks about them, 1E).
  *
  * Everything here is pure, so the rules are testable without HTTP:
  *   normalizeBoard  — accept only a well-formed board, clamp it, drop dangling
@@ -28,7 +28,7 @@ const COLORS = new Set(["1", "2", "3", "4", "5", "6"]);
 export interface FileNode { id: string; type: "file"; file: string; x: number; y: number; width: number; height: number }
 export interface GroupNode { id: string; type: "group"; label: string; x: number; y: number; width: number; height: number; color?: string }
 export type BoardNode = FileNode | GroupNode;
-export interface BoardEdge { id: string; fromNode: string; toNode: string; label?: string; orramaSuggested?: true }
+export interface BoardEdge { id: string; fromNode: string; toNode: string; label?: string }
 export interface Board { nodes: BoardNode[]; edges: BoardEdge[] }
 
 const num = (v: unknown, lo: number, hi: number, fallback: number): number =>
@@ -92,9 +92,7 @@ export function normalizeBoard(raw: unknown, slug: string, files: Set<string>): 
     pairs.add(pair);
     edgeIds.add(id);
     const label = text(e["label"], 60);
-    // Written `basaltSuggested` before the rename (R13): read as the same mark, saved under the new name.
-    const suggested = e["orramaSuggested"] === true || e["basaltSuggested"] === true;
-    edges.push({ id, fromNode, toNode, ...(label ? { label } : {}), ...(suggested ? { orramaSuggested: true as const } : {}) });
+    edges.push({ id, fromNode, toNode, ...(label ? { label } : {}) });
   }
   return { nodes, edges };
 }

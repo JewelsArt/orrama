@@ -123,11 +123,14 @@ describe("creating a note (WEB-001)", () => {
 });
 
 describe("creating a project does not replace a project note in another case", () => {
-  it("POST /api/projects \"thesis\" with 04-Projects/Thesis.md there is a 409", async () => {
+  // Since 1E a taken key moves on to the next free one (`thesis-2`) instead of refusing: the
+  // second "Thesis" is its own project, and the note already there is never touched.
+  it("POST /api/projects \"thesis\" with 04-Projects/Thesis.md there makes thesis-2 and leaves it", async () => {
     expect((await call("jules", "PUT", "/api/vault/note", { path: "04-Projects/Thesis.md", content: "---\ntitle: Graduation Thesis\ntags: [project/thesis]\n---\n# Thesis\n\n- [ ] write ch1\n" })).status).toBe(200);
     const before = read("04-Projects/Thesis.md");
     const res = await call("jules", "POST", "/api/projects", { name: "Thesis" });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+    expect(res.body.slug).toBe("thesis-2");
     expect(read("04-Projects/Thesis.md")).toBe(before);
     expect(fs.readdirSync(abs("04-Projects"))).not.toContain("thesis.md");
   });

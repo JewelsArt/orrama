@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { projectName, projectSlugOf } from "@orrama/core";
 import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
@@ -114,6 +115,31 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
     const project = db.select().from(tables.projects).where(eq(tables.projects.id, req.params.id)).get();
     if (!project) throw new HttpError(404, "project not found");
     db.update(tables.projects).set({ hidden: 1 }).where(eq(tables.projects.id, req.params.id)).run();
+    return { ok: true };
+  });
+
+  /**
+   * The projects removed from the board, for its "Removed from the board" shelf (Jules,
+   * 23 Oct 2026): each with its name as its note says it, and Put back below. A project whose
+   * note is gone is listed by the name it was registered under.
+   */
+  app.get("/api/admin/projects/hidden", auth, async (req) => {
+    await requireOwner(req.userId);
+    return db
+      .select()
+      .from(tables.projects)
+      .all()
+      .filter((p) => p.hidden && p.kind === "tag" && projectSlugOf(p.key) !== null)
+      .map((p) => ({ id: p.id, slug: projectSlugOf(p.key)!, name: projectName(store.projectNote(p.key), p.name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  /** Put a removed project back on the board: the flag goes; the note never changed. */
+  app.post<{ Params: { id: string } }>("/api/admin/projects/:id/back", auth, async (req) => {
+    await requireOwner(req.userId);
+    const project = db.select().from(tables.projects).where(eq(tables.projects.id, req.params.id)).get();
+    if (!project) throw new HttpError(404, "project not found");
+    db.update(tables.projects).set({ hidden: null }).where(eq(tables.projects.id, req.params.id)).run();
     return { ok: true };
   });
 

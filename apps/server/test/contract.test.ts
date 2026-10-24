@@ -75,6 +75,10 @@ beforeAll(async () => {
   await must("POST", "/api/projects/atlas/people", { noteId: contact.id });
   contactId = contact.id;
   await must("POST", `/api/contacts/${contact.id}/supervises`, { projectId: ws["noteId"] });
+  // A project removed from the board, for its shelf (1E).
+  await must("POST", "/api/projects", { name: "Stray tag" });
+  const stray = ((await must("GET", "/api/dashboard"))["projects"] as { project: string; projectId: string }[]).find((p) => p.project === "Stray tag")!;
+  await must("DELETE", `/api/admin/projects/${stray.projectId}`);
   const board = await must("GET", "/api/projects/atlas/board");
   const files = (board["nodes"] as { id: string; type: string }[]).filter((n) => n.type === "file");
   await must("PUT", "/api/projects/atlas/board", { ...board, edges: [{ id: "e1", fromNode: files[0]!.id, toNode: files[1]!.id }] });
@@ -144,6 +148,9 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/people/context", () => "/api/people/context", R.peopleContextResponse],
   ["/api/projects", () => "/api/projects", R.projectsResponse],
   ["/api/projects/:x", () => "/api/projects/atlas", R.projectWorkspaceResponse],
+  ["/api/projects/:x/removal", () => "/api/projects/atlas/removal", R.projectRemovalResponse],
+  ["/api/projects/:x/notes/candidates", () => "/api/projects/atlas/notes/candidates?q=", R.projectCandidatesResponse],
+  ["/api/admin/projects/hidden", () => "/api/admin/projects/hidden", R.hiddenProjectsResponse],
   ["/api/projects/:x/board", () => "/api/projects/atlas/board", R.boardResponse],
   ["/api/projects/:x/board", () => "/api/projects/acme/board", R.boardResponse], // unreadable canvas
   [":x/:x/html", () => "/api/projects/atlas/files/brief.docx/html", R.docHtmlResponse],

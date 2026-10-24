@@ -74,15 +74,15 @@ describe("board rules", () => {
         { id: "e5", fromNode: "a", toNode: "zzz" },
       ],
     }, "plan", files);
-    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", label: "rules for", orramaSuggested: true }]);
+    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", label: "rules for" }]);
   });
 
-  it("reads a link saved as basaltSuggested before the rename as suggested, and saves it under the new name (R13)", () => {
+  it("keeps a link once marked as suggested (orramaSuggested, basaltSuggested) as a plain link (1E: nothing suggests links)", () => {
     const b = normalizeBoard({
       nodes: [card("a", "guide.pdf"), card("b", "draft.docx")],
       edges: [{ id: "e1", fromNode: "a", toNode: "b", basaltSuggested: true }],
     }, "plan", files);
-    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b", orramaSuggested: true }]);
+    expect(b.edges).toEqual([{ id: "e1", fromNode: "a", toNode: "b" }]);
   });
 
   it("gives every new file a card below the board, and a new project one box", () => {

@@ -8,9 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { appendToSection, areaSlug, canEdit, catchAllOf, canRead, isoLocal, parseNote, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, parseFrontmatter, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
+import { appendToSection, areaSlug, canEdit, catchAllOf, canRead, isoLocal, noteLines, parseNote, spliceNoteLines, PROJECT_SLUG_RE, PROJECTS_DIR, projectName, projectNoteFor, projectSlugOf, parseFrontmatter, readSection, readSectionItems, updateFrontmatter, writeSection, type IndexedNote } from "@orrama/core";
 import { tables, type Db } from "../db.js";
-import { defaultBoard, normalizeBoard, placeMissing } from "../board.js";
+import { defaultBoard, fileRef, normalizeBoard, placeMissing } from "../board.js";
 import { sanitizeDocHtml } from "../docHtml.js";
 import { isPageName, PAGE_CSP } from "../pageSandbox.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
@@ -21,19 +21,23 @@ import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableNam
 import { tokenWriter } from "../agentWrites.js";
 import { areaOf, areasFor } from "../lifeAreas.js";
 import { fieldText, namesIn } from "./contacts.js";
+import { changeLine, lineToStep, removeLine, STEPS_SECTION, withoutProjectTag, withProjectTag, type LineEdit } from "../projectEdits.js";
 
 // In core since the store names projects by their note (COR-004); here for the routes that import them.
 export { PROJECTS_DIR, projectNoteFor };
 export const DOMAINS = ["personal", "professional", "academic"] as const;
 export type Domain = (typeof DOMAINS)[number];
 
-export const slugify = (name: string): string =>
-  name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "project";
+/**
+ * A project's key from its name: letters and digits of any script kept, as `PROJECT_SLUG_RE`
+ * allows ("Thèse" is `thèse`, it was `th-se`), everything else a hyphen, at most 48 code
+ * points. A name with no letter or digit is "project".
+ */
+export const slugify = (name: string): string => {
+  const words = name.normalize("NFC").toLowerCase().trim().replace(/[^\p{L}\p{M}\p{N}]+/gu, "-").replace(/^[-\p{M}]+/u, "");
+  const slug = [...words].slice(0, 48).join("").replace(/-+$/, "");
+  return PROJECT_SLUG_RE.test(slug) ? slug : "project";
+};
 
 export const asDomain = (d: unknown): Domain | undefined => (DOMAINS.includes(d as Domain) ? (d as Domain) : undefined);
 
@@ -65,6 +69,10 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain,
     "---",
     "",
     `# ${name}`,
+    "",
+    // Under the heading every new step goes to (Add a step, New → Task, the task card), so the
+    // first step and the next ones are one list (inventory §2).
+    `## ${STEPS_SECTION}`,
     "",
     "- [ ] First step",
     "",
@@ -171,19 +179,45 @@ const iso = isoLocal;
 export async function projectRoutes(app: FastifyInstance, store: VaultStore, db: Db) {
   const auth = { preHandler: [app.authenticate] };
 
+  /**
+   * Whether a key is someone's already: registered (a project removed from the board too), a
+   * tag a note carries, or the conventional note's path (`04-Projects/<slug>.md`, in any case),
+   * which `projectNote` takes as the project whatever it carries. A new project or a promoted
+   * note given a taken key joined that project silently, or took it over.
+   */
+  const slugTaken = (slug: string): boolean => {
+    const key = `project/${slug}`;
+    if (db.select().from(tables.projects).where(eq(tables.projects.key, key)).get()) return true;
+    const conventional = `${PROJECTS_DIR}/${slug}.md`.toLowerCase();
+    return store.index.all().some((n) => n.path.toLowerCase() === conventional || n.tags.some((t) => t.line === 0 && t.tag === key));
+  };
+  /** The key itself when free, else `<key>-2`, `<key>-3`…: two projects may share a name, never a key. */
+  const freeSlugs = function* (base: string) {
+    for (let n = 1; n < 1000; n++) {
+      const slug = n === 1 ? base : `${base.slice(0, 48 - String(n).length - 1)}-${n}`;
+      if (!slugTaken(slug)) yield slug;
+    }
+  };
+
   /** Scaffold a fresh project note under 04-Projects/ and put it on the board. */
   app.post("/api/projects", auth, async (req) => {
     const body = (req.body ?? {}) as { name?: string; domain?: string; area?: string };
     const name = body.name?.trim();
     if (!name || name.length > 120) throw new HttpError(400, "name required (max 120)");
-    const slug = slugify(name);
-    const relPath = `${PROJECTS_DIR}/${slug}.md`;
     const user = store.aclUser(req.userId);
     const area = body.area === undefined ? undefined : areaNamed(user, body.area);
-    // Create-only, so `04-Projects/Thesis.md` is not replaced by the scaffold
-    // for "thesis" (slugify lower-cases; an exact-case check missed it).
-    const note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(body.domain), area), undefined, undefined, { create: true });
-    return { ok: true, noteId: note.id, path: note.path, slug, key: `project/${slug}` };
+    for (const slug of freeSlugs(slugify(name))) {
+      // Create-only, so `04-Projects/Thesis.md` is never replaced by the scaffold for
+      // "thesis" (slugify lower-cases; an exact-case check missed it): a name taken on
+      // disk in any spelling moves on to the next key.
+      try {
+        const note = store.write(user, `${PROJECTS_DIR}/${slug}.md`, projectNoteScaffold(name, slug, asDomain(body.domain), area), undefined, undefined, { create: true });
+        return { ok: true, noteId: note.id, path: note.path, slug, key: `project/${slug}` };
+      } catch (err) {
+        if (!(err instanceof HttpError && err.statusCode === 409)) throw err;
+      }
+    }
+    throw new HttpError(409, "There's no free name left for that project.");
   });
 
   /** Promote an existing note: add the project tags so it joins the board. */
@@ -195,17 +229,19 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const already = note.tags.find(isProjectTag);
     if (already) return { ok: true, alreadyProject: true, key: already.tag };
 
-    const slug = slugify(note.title);
+    const slug = freeSlugs(slugify(note.title)).next().value;
+    if (!slug) throw new HttpError(409, "There's no free name left for that project.");
     const domain = asDomain(body.domain);
     const updated = updateFrontmatter(note.content, (d) => {
       const raw = (d as Record<string, unknown>)["tags"];
       const tags = Array.isArray(raw) ? raw.map(String) : typeof raw === "string" ? [raw] : [];
       if (!tags.includes("project")) tags.push("project");
-      if (!tags.some((t) => t.startsWith("project/"))) tags.push(`project/${slug}`);
+      if (!tags.includes(`project/${slug}`)) tags.push(`project/${slug}`);
       return { ...(d as Record<string, unknown>), tags, ...(domain ? { domain } : {}) };
     });
+    if (updated === note.content) throw new HttpError(409, "This note's properties can't be read, so it wasn't made a project. Fix them in the note first.");
     const saved = store.write(user, note.path, updated);
-    return { ok: true, noteId: saved.id, key: `project/${slug}` };
+    return { ok: true, noteId: saved.id, slug, key: `project/${slug}` };
   });
 
   /** The name of the reader's life area `v` names (by name or id, any case), or a 400 saying so. */
@@ -480,15 +516,32 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const section = (v: unknown) => (typeof v === "string" ? v.replace(/\r\n?/g, "\n").replace(/^(?:[ \t]*\n)+/, "").replace(/(?:\n[ \t]*)+$/, "") : "");
 
     let next = note.content;
+    // A new name is the note's `title:` (Jules, 23 Oct 2026: only the name; the key, the tag on
+    // every note, the file and the files folder stay). A first `# Heading` that said the old
+    // name says the new one: the scaffold writes one, and it would go on naming the old project.
+    let name: string | undefined;
+    if (body["name"] !== undefined) {
+      name = typeof body["name"] === "string" ? body["name"].replace(/\s+/g, " ").trim() : "";
+      if (!name || name.length > 120) throw new HttpError(400, "A project needs a name, at most 120 characters.");
+      const old = projectName(note, note.title);
+      const h1 = note.headings.find((h) => h.level === 1);
+      if (h1 && h1.text === old && old !== name) {
+        const { lines } = noteLines(next);
+        const line = lines[h1.line];
+        if (line !== undefined && /^#\s/.test(line)) next = spliceNoteLines(next, h1.line, h1.line + 1, [`# ${name}`]);
+      }
+    }
     if (body["prompt"] !== undefined) next = writeSection(next, SEC.prompt, section(body["prompt"]));
     if (body["goals"] !== undefined) next = writeSection(next, SEC.goals, section(body["goals"]));
     const fmFields = ["status", "start", "deadline", "domain"] as const;
     // A life area is written by its name, and replaces the old `domain:` that stood for it (1D).
     const area = body["area"] === undefined ? undefined : areaNamed(user, body["area"]);
-    if (fmFields.some((k) => body[k] !== undefined) || body["group"] !== undefined || area !== undefined) {
+    if (fmFields.some((k) => body[k] !== undefined) || body["group"] !== undefined || area !== undefined || name !== undefined) {
       const before = next;
       next = updateFrontmatter(next, (d) => {
-        for (const k of fmFields) if (body[k] !== undefined) d[k] = str(body[k]);
+        // A field cleared is no line, not `start: ""`.
+        for (const k of fmFields) if (body[k] !== undefined) d[k] = str(body[k]) || undefined;
+        if (name !== undefined) d["title"] = name;
         // No group is no `group:` line, not an empty one.
         if (body["group"] !== undefined) d["group"] = asGroup(body["group"]) || undefined;
         if (area !== undefined) {
@@ -498,6 +551,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
         return d;
       });
       if (area !== undefined && next === before && note.frontmatter["area"] !== area) throw new HttpError(409, "The project's properties can't be read, so its area wasn't changed. Open the note to fix them.");
+      if (name !== undefined && next === before && note.frontmatter["title"] !== name) throw new HttpError(409, "The project's properties can't be read, so it wasn't renamed. Open the note to fix them.");
     }
     // The prompt is owner-authored: an API token may not change it, here or
     // through a heading slipped into the goals (agentWrites.ts).
@@ -526,7 +580,95 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const body = (req.body ?? {}) as { text?: string; task?: boolean };
     const text = String(body.text ?? "").trim().replace(/\n/g, " ");
     if (!text) throw new HttpError(400, "text required");
-    appendLine(req.params.slug, req.userId, body.task ? "Tasks" : SEC.inbox, body.task ? `- [ ] ${text}` : `- ${text}`);
+    appendLine(req.params.slug, req.userId, body.task ? STEPS_SECTION : SEC.inbox, body.task ? `- [ ] ${text}` : `- ${text}`);
+    return { ok: true };
+  });
+
+  /** A goal, as Log a decision adds a decision: one `- ` line at the end of `## Goals`. */
+  app.post<{ Params: { slug: string } }>("/api/projects/:slug/goals", auth, async (req) => {
+    const text = String((req.body as { text?: string })?.text ?? "").replace(/\s+/g, " ").trim();
+    if (!text) throw new HttpError(400, "text required");
+    appendLine(req.params.slug, req.userId, SEC.goals, `- ${text}`);
+    return { ok: true };
+  });
+
+  /**
+   * One line of Decisions, the Inbox or Goals: changed, removed, or (an inbox line) made a
+   * step. The page names it by its place among the section's lines and its words as it saw
+   * them; a note changed since is a 409 (projectEdits.ts).
+   */
+  const LINE_SECTIONS = { decisions: SEC.decisions, inbox: SEC.inbox, goals: SEC.goals } as const;
+  const lineEdit = (req: { userId: string; params: { slug: string }; body: unknown }, edit: (content: string, heading: string, index: number, seen: string, to: string) => LineEdit) => {
+    const { user, note } = openProject(req.userId, req.params.slug);
+    const body = (req.body ?? {}) as { section?: string; index?: number; text?: string; to?: string };
+    const heading = LINE_SECTIONS[body.section as keyof typeof LINE_SECTIONS];
+    if (!heading || typeof body.index !== "number" || typeof body.text !== "string") throw new HttpError(400, "section, index and text required");
+    const res = edit(note.content, heading, body.index, body.text, typeof body.to === "string" ? body.to : "");
+    if (!res.ok) throw new HttpError(res.status, res.why);
+    store.write(user, note.path, res.content);
+    return { ok: true };
+  };
+  app.patch<{ Params: { slug: string } }>("/api/projects/:slug/lines", auth, async (req) => {
+    const to = String((req.body as { to?: unknown })?.to ?? "").trim();
+    if (!to) throw new HttpError(400, "A line needs words. To take it out, remove it.");
+    return lineEdit(req, (c, h, i, seen) => changeLine(c, h, i, seen, to));
+  });
+  app.post<{ Params: { slug: string } }>("/api/projects/:slug/lines/remove", auth, async (req) => lineEdit(req, removeLine));
+  app.post<{ Params: { slug: string } }>("/api/projects/:slug/lines/step", auth, async (req) => {
+    if ((req.body as { section?: string })?.section !== "inbox") throw new HttpError(400, "Only an inbox line becomes a step.");
+    return lineEdit(req, lineToStep);
+  });
+
+  // ---- The project's notes: add an existing one, take one off ----------------
+
+  /** A note that can join: readable and editable, not this project's note, not another project's own. */
+  const joinable = (user: ReturnType<typeof store.aclUser>, grants: ReturnType<typeof store.grants>, n: IndexedNote, self: IndexedNote) => {
+    if (n.id === self.id || n.kind === "conversation" || !canEdit(user, n, grants)) return false;
+    return !n.tags.some((t) => t.line === 0 && projectSlugOf(t.tag) !== null && store.projectNote(t.tag)?.id === n.id);
+  };
+
+  /**
+   * Notes that could join the project, for Documents' "Add a note…": matched on the title and
+   * path, at most 20, each saying the project it is in now (adding it moves it from there).
+   */
+  app.get<{ Params: { slug: string }; Querystring: { q?: string } }>("/api/projects/:slug/notes/candidates", auth, async (req) => {
+    const { user, grants, row, note } = openProject(req.userId, req.params.slug);
+    const q = String(req.query.q ?? "").trim().toLowerCase();
+    const defs = store.projects(user);
+    const nameOf = new Map(defs.map((d) => [d.key, d.name]));
+    return store
+      .readable(user)
+      .filter((n) => joinable(user, grants, n, note) && store.index.projectKeyOf(n, defs) !== (row?.key ?? `project/${req.params.slug}`))
+      .filter((n) => !q || `${n.title} ${n.path}`.toLowerCase().includes(q))
+      .sort((a, b) => (b.mtimeMs ?? 0) - (a.mtimeMs ?? 0))
+      .slice(0, 20)
+      .map((n) => {
+        const key = store.index.projectKeyOf(n, defs);
+        return { id: n.id, title: n.title, path: n.path, project: key ? (nameOf.get(key) ?? null) : null };
+      });
+  });
+
+  /** Add an existing note to the project: its front matter gets `project/<slug>`. */
+  app.post<{ Params: { slug: string } }>("/api/projects/:slug/notes", auth, async (req) => {
+    const { user, grants, note } = openProject(req.userId, req.params.slug);
+    const target = store.requireReadable(user, String((req.body as { noteId?: string })?.noteId ?? ""));
+    if (!joinable(user, grants, target, note)) throw new HttpError(400, target.id === note.id ? "That's the project's own note." : "That note can't join a project: it's another project's note, or one you can't change.");
+    if (target.tags.some((t) => t.line === 0 && t.tag === `project/${req.params.slug}`) && target.tags.filter((t) => t.line === 0 && projectSlugOf(t.tag) !== null).length === 1) return { ok: true, already: true };
+    const next = withProjectTag(target.content, req.params.slug);
+    if (next === null) throw new HttpError(409, "That note's properties can't be read, so it wasn't added. Fix them in the note first.");
+    store.write(user, target.path, next);
+    return { ok: true };
+  });
+
+  /** Take a note off the project: the tag comes off; the note stays where it is. */
+  app.delete<{ Params: { slug: string; noteId: string } }>("/api/projects/:slug/notes/:noteId", auth, async (req) => {
+    const { user, note } = openProject(req.userId, req.params.slug);
+    const target = store.requireReadable(user, req.params.noteId);
+    if (target.id === note.id) throw new HttpError(400, "That's the project's own note: delete the project instead.");
+    if (!target.tags.some((t) => t.line === 0 && t.tag === `project/${req.params.slug}`)) return { ok: true, already: true };
+    const next = withoutProjectTag(target.content, req.params.slug);
+    if (next === null) throw new HttpError(409, "That note's properties can't be read, so it wasn't taken off. Fix them in the note first.");
+    store.write(user, target.path, next);
     return { ok: true };
   });
 
@@ -575,6 +717,69 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     if (next === note.content) return { ok: true, already: true };
     store.write(user, note.path, next);
     return { ok: true };
+  });
+
+  // ---- Delete: the project to the trash ------------------------------------
+
+  /**
+   * What deleting the project does, before it is done (Jules, 23 Oct 2026): its note, every
+   * note in its folder (`04-Projects/<slug>/`) and its files go to the trash; notes that are
+   * part of it but live elsewhere stay where they are and only lose the project's tag, so it
+   * really leaves the board.
+   */
+  const removalOf = (userId: string, slug: string) => {
+    const { user, grants, note } = openProject(userId, slug);
+    const tag = `project/${slug}`;
+    const folderRel = `${PROJECTS_DIR}/${slug}`;
+    const folderAbs = path.join(store.vaultRoot, PROJECTS_DIR, assertSlug(slug));
+    const inFolder = store.index.all().filter((n) => n.path.startsWith(`${folderRel}/`) && n.id !== note.id);
+    const elsewhere = store.index.all().filter((n) => n.id !== note.id && !n.path.startsWith(`${folderRel}/`) && n.tags.some((t) => t.line === 0 && t.tag === tag));
+    const notes = new Set(inFolder.map((n) => n.path));
+    const files = fs.existsSync(folderAbs) ? filesUnder(folderAbs).map((abs) => path.relative(store.vaultRoot, abs).split(path.sep).join("/")).filter((rel) => !notes.has(rel)) : [];
+    return { user, grants, note, tag, inFolder, elsewhere, files, folderAbs };
+  };
+  const brief = (n: IndexedNote) => ({ id: n.id, title: n.title, path: n.path });
+
+  app.get<{ Params: { slug: string } }>("/api/projects/:slug/removal", auth, async (req) => {
+    const r = removalOf(req.userId, req.params.slug);
+    return {
+      note: brief(r.note),
+      inFolder: r.inFolder.filter((n) => canRead(r.user, n, r.grants)).map(brief),
+      // The board's own file is the page's, not a document: counted with the files it lays out.
+      files: r.files.filter((f) => !f.endsWith("/documents.canvas")).length,
+      elsewhere: r.elsewhere.filter((n) => canRead(r.user, n, r.grants)).map(brief),
+      canDelete: canEdit(r.user, r.note, r.grants),
+    };
+  });
+
+  /**
+   * Delete the project. Everything is checked first — edit on the note, on each note in its
+   * folder, on each note that loses the tag, and that each of those notes' properties can be
+   * read — so a refusal writes nothing. Then the tags come off, the folder's notes and files go
+   * to the trash one by one (each keeps its place under `.trash/`), the note last; the answer
+   * lists the trash paths and the untagged notes, which is what Undo puts back.
+   */
+  app.post<{ Params: { slug: string } }>("/api/projects/:slug/trash", auth, async (req) => {
+    const r = removalOf(req.userId, req.params.slug);
+    if (!canEdit(r.user, r.note, r.grants)) throw new HttpError(403, "You can't change this project, so it wasn't deleted.");
+    const blocked = [...r.inFolder, ...r.elsewhere].filter((n) => !canEdit(r.user, n, r.grants));
+    if (blocked.length) {
+      // Named only when the caller can read them: a note they can't is never said by name.
+      const named = blocked.filter((n) => canRead(r.user, n, r.grants)).map((n) => `“${n.title}”`);
+      throw new HttpError(403, `Nothing was deleted: you can't change ${named.length === blocked.length ? named.join(", ") : `${blocked.length} of the notes in it`}.`);
+    }
+    const untag = r.elsewhere.map((n) => ({ n, next: withoutProjectTag(n.content, req.params.slug) }));
+    const unreadable = untag.filter((u) => u.next === null).map((u) => `“${u.n.title}”`);
+    if (unreadable.length) throw new HttpError(409, `Nothing was deleted: the properties of ${unreadable.join(", ")} can't be read, so the project couldn't be taken off. Fix them in the note first.`);
+
+    for (const u of untag) store.write(r.user, u.n.path, u.next!);
+    const trashed: string[] = [];
+    for (const rel of r.files) trashed.push(store.trashFile(r.user, rel).trashPath);
+    for (const n of r.inFolder) trashed.push(store.trashNote(r.user, n.path).trashPath);
+    removeEmptyDirs(r.folderAbs);
+    // The note last, and first in the list: Undo brings it back before its documents.
+    trashed.unshift(store.trashNote(r.user, r.note.path).trashPath);
+    return { ok: true, trashed, untagged: r.elsewhere.map((n) => n.id) };
   });
 
   // ---- Documents ----------------------------------------------------------
@@ -772,6 +977,11 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     }
   });
 
+  /**
+   * A document to the trash (1C's `.trash/`, where Notes → Trash restores it), not deleted for
+   * good: a .md in the files is a note and goes as one. The answer's `trashPath` is what Undo
+   * restores.
+   */
   app.delete<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name", auth, async (req) => {
     const { user, grants, note } = openProject(req.userId, req.params.slug);
     if (!canEdit(user, note, grants)) throw new HttpError(403, "you cannot edit this project");
@@ -779,7 +989,70 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const dir = filesDirFor(store.vaultRoot, req.params.slug);
     const abs = path.join(dir, name);
     if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
-    fs.unlinkSync(abs);
-    return { ok: true };
+    const rel = path.relative(store.vaultRoot, abs).split(path.sep).join("/");
+    const done = store.index.getByPath(rel) ? store.trashNote(user, rel) : store.trashFile(user, rel);
+    return { ok: true, trashPath: done.trashPath };
   });
+
+  /**
+   * Rename a document. The extension stays what it was (a name sent without it gets it back;
+   * another one is refused), a name taken in the folder is a 409, and the board's card follows
+   * the file so it keeps its place. A .md is a note: renamed as one, its links following.
+   */
+  app.post<{ Params: { slug: string; name: string } }>("/api/projects/:slug/files/:name/rename", auth, async (req) => {
+    const { user, grants, note } = openProject(req.userId, req.params.slug);
+    if (!canEdit(user, note, grants)) throw new HttpError(403, "you cannot edit this project");
+    const name = safeName(req.params.name);
+    const dir = filesDirFor(store.vaultRoot, req.params.slug);
+    const abs = path.join(dir, name);
+    if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "file not found");
+    const ext = path.extname(name);
+    let to = String((req.body as { to?: unknown })?.to ?? "").trim();
+    if (ext && !to.toLowerCase().endsWith(ext.toLowerCase())) {
+      if (path.extname(to) && path.extname(to).length <= 6 && !/\s/.test(path.extname(to))) throw new HttpError(400, `The name has to end in ${ext}.`);
+      to += ext;
+    }
+    to = safeName(to);
+    if (to === name) return { ok: true, name };
+    const unportable = unportableName(to);
+    if (unportable) throw new HttpError(400, unportable);
+    const target = path.join(dir, to);
+    const caseOnly = to.toLowerCase() === name.toLowerCase();
+    if (!caseOnly && fs.readdirSync(dir).some((e) => e.toLowerCase() === to.toLowerCase())) throw new HttpError(409, `There's already a document called “${to}”.`);
+    const folder = path.relative(store.vaultRoot, dir).split(path.sep).join("/");
+    if (store.index.getByPath(`${folder}/${name}`)) store.renameNote(user, `${folder}/${name}`, `${folder}/${to}`, { links: true, guard: req.viaToken ? tokenWriter : undefined });
+    else fs.renameSync(abs, target);
+    // The card points at the file by path: it follows, or the board dropped it and placed a new one.
+    const canvas = boardPath(req.params.slug);
+    if (fs.existsSync(canvas)) {
+      try {
+        const board = JSON.parse(fs.readFileSync(canvas, "utf8")) as { nodes?: { type?: string; file?: string }[] };
+        const from = fileRef(req.params.slug, name);
+        let moved = false;
+        for (const n of board.nodes ?? []) if (n && n.type === "file" && n.file === from) (n.file = fileRef(req.params.slug, to)), (moved = true);
+        if (moved) writeFileAtomic(canvas, JSON.stringify(board, null, 2) + "\n");
+      } catch {
+        /* an unreadable board is read as the default one anyway (GET …/board) */
+      }
+    }
+    return { ok: true, name: to };
+  });
+}
+
+/** Every file under a folder, at any depth, links left out (they are not the project's files). */
+function filesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...filesUnder(full));
+    else if (e.isFile()) out.push(full);
+  }
+  return out;
+}
+
+/** Remove a folder's empty folders, then itself when empty: never a file. */
+function removeEmptyDirs(dir: string): void {
+  if (!fs.existsSync(dir) || !fs.lstatSync(dir).isDirectory()) return;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory()) removeEmptyDirs(path.join(dir, e.name));
+  if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
 }

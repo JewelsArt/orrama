@@ -10,7 +10,7 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import * as Y from "yjs";
 import {
   VaultIndex,
@@ -1657,6 +1657,12 @@ export class VaultStore {
       this.markWritten(landing(n), n.content);
     }
     fs.renameSync(from.abs, to.abs);
+    // A folder project (a `projects` row of kind folder, keyed by the folder's path) goes
+    // along with its folder, or a rename cut the project off from it (1C's open item).
+    for (const p of this.db.select().from(tables.projects).all()) {
+      if (p.kind === "tag" || (foldPath(p.key) !== foldPath(from.rel) && !foldPath(p.key).startsWith(`${foldPath(from.rel)}/`))) continue;
+      this.db.update(tables.projects).set({ key: `${to.rel}${p.key.slice(from.rel.length)}` }).where(eq(tables.projects.id, p.id)).run();
+    }
     for (const n of notes) {
       this.index.remove(n.path);
       const moved = this.index.upsert({ path: landing(n), content: n.content, mtimeMs: n.mtimeMs, id: n.id });
@@ -1697,7 +1703,41 @@ export class VaultStore {
     if (!canEdit(user, note, grants)) throw new HttpError(403, "You can't change this note, so it stays where it is.");
     const placed = moveInto(abs, path.join(this.trashDir(), ...rel.split("/")));
     this.forget(rel);
+    this.dropUnclaimedProjects(note);
     return { path: rel, trashPath: path.relative(this.root, placed).split(path.sep).join("/") };
+  }
+
+  /**
+   * Move one file that is not a note (a project's document, its board) to the trash, keeping
+   * its place under `.trash/`; restore() brings it back like a note. The caller has judged
+   * the edit: a project's documents answer to the project note, not to their folder
+   * (routes/projects.ts). A note is refused: it goes through trashNote.
+   */
+  trashFile(user: AclUser, input: string): { path: string; trashPath: string } {
+    const given = path.relative(this.root, path.resolve(this.root, input)).split(path.sep).join("/");
+    if (given === "" || given.startsWith("../") || path.isAbsolute(given)) throw new HttpError(400, "invalid path");
+    refuseTrash(given);
+    if (this.index.getByPath(given)) throw new HttpError(400, "That's a note; it goes to the trash as a note.");
+    const abs = path.join(this.root, given);
+    if (!isPlainFile(abs)) throw new HttpError(404, "file not found");
+    const placed = moveInto(abs, path.join(this.trashDir(), ...given.split("/")));
+    const folder = given.includes("/") ? given.slice(0, given.lastIndexOf("/")) : "";
+    this.events.emit("folder-changed", { folder, authorId: user.id } satisfies FolderChangedEvent);
+    return { path: given, trashPath: path.relative(this.root, placed).split(path.sep).join("/") };
+  }
+
+  /**
+   * A project note put in the trash takes its registration with it once no note carries its
+   * tag any more: otherwise the owners' board kept an empty project by its old name (1C's
+   * open item). Restoring the note registers it again (syncProjectRow). A project removed
+   * from the board (hidden) keeps its row, so it comes back removed.
+   */
+  private dropUnclaimedProjects(gone: IndexedNote): void {
+    const keys = gone.tags.filter((t) => t.line === 0 && projectSlugOf(t.tag) !== null).map((t) => t.tag);
+    for (const key of keys) {
+      if (this.index.all().some((n) => n.tags.some((t) => t.line === 0 && t.tag === key))) continue;
+      this.db.delete(tables.projects).where(and(eq(tables.projects.key, key), eq(tables.projects.kind, "tag"), isNull(tables.projects.hidden))).run();
+    }
   }
 
   /** Move a folder and everything in it to the trash, keeping its place under `.trash/`.
@@ -1713,6 +1753,7 @@ export class VaultStore {
     }
     moveInto(from.abs, path.join(this.trashDir(), ...from.rel.split("/")));
     for (const n of notes) this.forget(n.path);
+    for (const n of notes) this.dropUnclaimedProjects(n);
     this.events.emit("folder-changed", { folder: from.rel, authorId: user.id } satisfies FolderChangedEvent);
     return { path: from.rel, notes: notes.length };
   }

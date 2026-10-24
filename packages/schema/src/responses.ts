@@ -571,6 +571,23 @@ export const projectWorkspaceResponse = o({
   tasks: z.array(projectTaskSchema),
 });
 
+const noteBrief = o({ id: z.string(), title: z.string(), path: z.string() });
+/** GET /api/projects/:slug/removal: what deleting the project does, for its Confirm (1E). */
+export const projectRemovalResponse = o({
+  note: noteBrief,
+  /** Notes in the project's folder: they go to the trash with it. */
+  inFolder: z.array(noteBrief),
+  /** Its documents (the files in its folder that are not notes). */
+  files: z.number(),
+  /** Notes in the project that live elsewhere: they stay, and lose the project. */
+  elsewhere: z.array(noteBrief),
+  canDelete: z.boolean(),
+});
+/** GET /api/projects/:slug/notes/candidates: notes that could join the project, each with the project it is in now. */
+export const projectCandidatesResponse = z.array(o({ id: z.string(), title: z.string(), path: z.string(), project: nstr }));
+/** GET /api/admin/projects/hidden: the projects removed from the board (owners). */
+export const hiddenProjectsResponse = z.array(o({ id: z.string(), slug: z.string(), name: z.string() }));
+
 const boardBox = { id: z.string(), x: z.number(), y: z.number(), width: z.number(), height: z.number() };
 export const boardNodeSchema = z.discriminatedUnion("type", [
   o({ ...boardBox, type: z.literal("file"), file: z.string() }),
@@ -1123,6 +1140,9 @@ export type ProjectNote = z.infer<typeof projectNoteSchema>;
 export type ProjectFile = z.infer<typeof fileEntry>;
 export type ProjectTask = z.infer<typeof projectTaskSchema>;
 export type ProjectWorkspace = z.infer<typeof projectWorkspaceResponse>;
+export type ProjectRemoval = z.infer<typeof projectRemovalResponse>;
+export type ProjectCandidate = z.infer<typeof projectCandidatesResponse>[number];
+export type HiddenProject = z.infer<typeof hiddenProjectsResponse>[number];
 export type BoardNode = z.infer<typeof boardNodeSchema>;
 export type FileNode = Extract<BoardNode, { type: "file" }>;
 export type GroupNode = Extract<BoardNode, { type: "group" }>;
