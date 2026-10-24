@@ -93,7 +93,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/vaultStore.ts` | Files-on-disk + index + Y.Doc cache + `events` EventEmitter (live sync bus) |
 | `apps/server/src/routes/` | auth, vault, tasks, dashboard, home (personal aggregates for Today), admin, ai, ws, plan, calendar, projects (the project workspace, its files and board), areas (the life areas: the list and its writes), finance (Money), mail, graph (the knowledge graph), contacts, people (each person's and company's relations and newest mention, for the People page), ics (ICS feeds in/out), integrations (API tokens + webhooks), settings (the notes folder: Settings → Notes and first run), notesHome (Notes home's pins and counts), noticed (every graph warning by note, with what its fix needs, for Orr noticed) — one file each |
 | `apps/server/src/firstRun.ts` | First run: the notes folder look and store, the ontology note, the example and its removal, the first-run flag |
-| `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API |
+| `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API; your own repeating events go through it too (`ownVEvent`), and out of the published feed as RRULE/EXDATE |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner when the event fires and again when a debounced delivery goes out (ACL-007) |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only; its pickers in `people/pickers.tsx` (the company field, works at, a project) and the person's Edit sheet in `people/PersonEdit.tsx`), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ui/shell/SectionBar.tsx` (a page's sections: in place, or in Clay's top bar), `ui/wavy.ts` (Clay's reveal), `ui/CountUp.tsx` (a hero figure that counts up in Clay), `ws.ts` |
 | `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Orrama isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Orrama (`is_orrama`, `src/lib.rs`). Building needs a Rust toolchain |
@@ -176,17 +176,32 @@ Conversations, Documents and the prompt on the right. **Timeline**,
   (`GET/PUT /api/projects/:slug/board`, rules in `apps/server/src/board.ts`):
   files only — notes stay off the board by Jules's choice; a card whose file is
   gone is dropped, a file with no card gets one below the rest; reading never
-  writes; saving needs edit. Links Orr proposes carry `orramaSuggested: true`
-  and draw dashed until accepted: "N suggested links" asks about one at a time
-  (Link, No), and Shift-click still accepts. Boxes are JSON Canvas groups, drawn
-  uncoloured (their `color` stays in the file for Obsidian): add, rename, move
-  (carrying their cards), resize, delete. Labels show only for the card or line
+  writes; saving needs edit. Boxes are JSON Canvas groups, drawn uncoloured
+  (their `color` stays in the file for Obsidian): add, move (carrying their
+  cards), resize, and from the box's ⋯ rename or delete; a card's ⋯ opens,
+  renames or trashes its file. A link once saved as suggested
+  (`orramaSuggested`, `basaltSuggested`) is read as a plain link. Labels show only for the card or line
   under the pointer.
 
 **None of it is a database row.** Goals/Prompt/Decisions/Inbox are `##` sections of the project note (`packages/core/src/sections.ts`),
 people are real `[[links]]` the picker writes into `## People`, steps are the
 note's checkboxes, and `status`/`start`/`deadline`/`group` are front-matter. Delete the
 DB, re-index, and the workspace comes back — same rule as the dashboard.
+
+**Changing it from the page** (1E). The title is renamed in place (`PATCH name`, written as
+`title:` and the first `# Heading` that said the old name; the key never changes, Jules
+23 Oct). Decisions, the Inbox and Goals are lines with a ⋯ (`PATCH /api/projects/:slug/lines`,
+`…/lines/remove`, `…/lines/step`, `POST …/goals`; `apps/server/src/projectEdits.ts`): a line
+is named by its place among the section's lines and its words, and a note changed since is a
+409. An inbox line made a step goes under `## Tasks`, where every new step goes, and the
+scaffold writes that heading. Documents' Add a note writes `project/<slug>` into a note's
+properties (taking another project's tag off: a note is in one project) and Take off the
+project removes it. Delete the project (`GET …/removal`, `POST …/trash`) checks every edit
+and property block first, then takes the tag off the project's notes that live elsewhere and
+puts the note, the notes in `04-Projects/<slug>/` and its files in the trash one by one; its
+answer's trash paths and untagged ids are what the toast's Undo puts back. A project note
+that leaves for the trash, from anywhere, takes its registration row with it once no note
+carries the tag (`dropUnclaimedProjects`); restoring registers it again.
 
 **One status vocabulary**: a project's `status:` is read as one of the ontology's seven
 words, *planned · on track · at risk · paused · completed · archived · cancelled*
@@ -196,7 +211,9 @@ follows from it (`shelfOf`): paused, cancelled, completed and archived leave the
 and every step ticked is completed. The Projects board shows three shelves, Paused,
 Cancelled and **Done** (completed and archived together, newest first by the board's
 `lastActivityMs`; `boardShelf`/`shelfRows` in `OverviewHead.tsx`), each at
-`/projects?shelf=<id>`; that is the page only, and the ontology and the project page keep
+`/projects?shelf=<id>`; owners also get **Removed from the board** (`?shelf=removed`,
+`GET /api/admin/projects/hidden`), the projects whose DB-only hidden flag the row's ⋯ set,
+each with Put back (`POST /api/admin/projects/:id/back`); that is the page only, and the ontology and the project page keep
 both words. With one area chosen, the open projects are split by the note's `group:` (one
 line, at most 60 characters; `boardGroups` in `OverviewHead.tsx`), a box per group, the
 biggest first, Other last; all areas at once stay one list. The header's group menu
@@ -218,7 +235,9 @@ Obsidian and travel with a vault backup. They sit outside `VaultStore.write`
 (whose `resolvePath` only accepts `.md`), so `routes/projects.ts` guards them
 itself: the filename is validated as sent (a `../` anywhere is a 400, not
 something `basename()` quietly flattens), reads require read on the project
-note, writes require edit, and nothing scriptable is ever served inline
+note, writes require edit, a delete moves the file to the trash
+(`VaultStore.trashFile`) and a rename keeps the extension and moves the board's
+card, and nothing scriptable is ever served inline
 except an .html on its page route, sandboxed (Reader, above).
 
 A person or company in the project's panel opens their own page
@@ -257,7 +276,7 @@ it (`agentWrites.ts`).
 
 ## Projects are bound by tag, not by folder
 
-A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project's note is `VaultStore.projectNote(key)`: `04-Projects/<slug>.md`, else the note the registration row is anchored to (`projects.note_id`, set to the note that registered the key) while it still carries the tag; the `projectNoteFor` ranking only anchors a row that has none or whose note is gone or untagged, and the choice is stored. It is never chosen from the notes the caller can read: a tag is free text, and that made any folder editor the owner of another team's project (audit ACL-002). Every other tagged note only joins the project. A project is named by that note's `title:`, else by the name it was registered under. `store.projects(user)` lists only projects whose note (or, for a folder project, folder) the reader can read; a registration no note carries any more is the owners'. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals. The Projects board reads only existing endpoints: the steps from `/api/dashboard` (no team: every project the requester can see; `/api/dashboard/<team>` stays for MCP's `get_dashboard`), each project's note and dates from `/api/projects`, the area from `/api/projects`' `area`, the people from the links between the project note and contact or company notes in `/api/vault/graph`, and the graph's warnings per project only when `/api/graph/schema` has any.
+A note joins a project through a `project/<slug>` tag in its **front matter**; an inline `#project/x` in the body binds nothing. Folder location is irrelevant: a note under `04-Projects/thesis/` with only a `thesis` tag is indexed, searchable and visible in Documents, but does not belong to the Graduation Thesis project. There is one slug grammar, `PROJECT_SLUG_RE` / `projectSlugOf` in core `vault.ts` (a letter or digit of any script, then letters, marks, digits, `_` and `-`, at most 64 — one path segment), used by registration, the board and every route; a new project's or a promoted note's key is `slugify(name)` (letters of any script kept) or, when that key is registered, carried by a note or is the conventional path in any case, the next free `<key>-2`…; a nested tag (`project/thesis/2026`) is no project. `projects` rows in SQLite are keyed on that tag (`kind='tag'`, `key='project/thesis'`), and every surface tells projects apart by key (`projectKeyOf`, `progress` keyed by key): a name is display only, and two projects may share one. A project's note is `VaultStore.projectNote(key)`: `04-Projects/<slug>.md`, else the note the registration row is anchored to (`projects.note_id`, set to the note that registered the key) while it still carries the tag; the `projectNoteFor` ranking only anchors a row that has none or whose note is gone or untagged, and the choice is stored. It is never chosen from the notes the caller can read: a tag is free text, and that made any folder editor the owner of another team's project (audit ACL-002). Every other tagged note only joins the project. A project is named by that note's `title:`, else by the name it was registered under. `store.projects(user)` lists only projects whose note (or, for a folder project, folder) the reader can read; a registration no note carries any more is the owners'. Project progress counts checkbox tasks inside tagged notes, so tagging a checklist-heavy note changes the project's totals. The Projects board reads only existing endpoints: the steps from `/api/dashboard` (no team: every project the requester can see; `/api/dashboard/<team>` stays for MCP's `get_dashboard`), each project's note and dates from `/api/projects`, the area from `/api/projects`' `area`, the people from the links between the project note and contact or company notes in `/api/vault/graph`, and the graph's warnings per project only when `/api/graph/schema` has any.
 
 ## The vault is a folder other editors share
 
@@ -518,7 +537,10 @@ the month. A step runs in its note's life area (the tree's `category`); events i
 Calendar lane; key deadlines, milestones, money and all-day events in the dated row. Only
 an overdue step is red apart from the key deadline's fill. To plan is a button that opens a
 sheet in Lanes and Month and a panel beside the hours you drag from (Jules, 11 Oct). Lanes
-or Hours is per device (`orrama-plan-view`).
+or Hours is per device (`orrama-plan-view`). Your events are made and changed in one form
+(`planning/EventForm.tsx`): New → Event, a double-click in the hours, and the popover's Edit.
+A subscribed calendar is drawn in the colour picked for it in Settings → Connections
+(`ics_feeds.color`, `c1`–`c5`).
 
 **The hour window follows the content.** The day opens on 07:00–23:00 and
 `windowFor` widens it around anything outside — a 06:30 block moves the top of
@@ -587,7 +609,7 @@ them without a migration:
   replaces every event in a subscribed calendar), the `bslt_` token prefix;
 - stored values: the avatar id `basalt` (users.avatar's default, shown as Orriginal);
 - the bridges: `migrateLegacyKeys` (browser keys `basalt-…` → `orrama-…`), the boot
-  script's fallback, `basaltSuggested` read in `board.ts`, and the `BASALT_*` refusal
+  script's fallback, `basaltSuggested` read (and dropped) in `board.ts`, and the `BASALT_*` refusal
   (`renamedEnvProblems` in the server's `env.ts`, the MCP server and the web dev server);
 - history: `CHANGELOG.md`, `docs/spec.md`, `scripts/merge-vaults.mjs`,
   `apps/desktop/basalt-icon.svg` (the old artwork).
@@ -836,7 +858,7 @@ sent as `note-changed` to whoever could read it (`note-removed` and
 - **Time blocks and events are Markdown** — one note per person per month,
   `01-Me/Calendar/2026-10.md` (`Personal/<u>/Calendar/` for a user who cannot
   edit 01-Me, or whose 01-Me another account could read — owners aside; a row in
-  such a note moves out when it is next written, audit ACL-009), a table `| Date | Start | End | What | Task | id |`; a row with a
+  such a note moves out when it is next written, audit ACL-009), a table `| Date | Start | End | What | Task | id |`; an event can say more in `| Place | Notes | Repeat |` after the id, columns the table gains only when the first row needs them (an older note stays byte for byte); `all day` in Start is an all-day event; Notes keep line breaks as `<br>`; Repeat is words (`weekly`, `every 2 weeks`, `monthly`, `yearly`, `until <day>`, `skip <days>`, `parseRepeat`). A repeating event is expanded by the ICS reader (`ownVEvent`), so it falls on the days a subscribed calendar with the same rule does; `ownEvents()` (calendarNotes.ts) is the one reader of your events — `/api/events`, Today, Plan my week. A day of a series is `<id>@<day>`; `PATCH`/`DELETE` it with `scope` `one` (that day leaves the series as an event of its own; the default, what a drag does) or `all` (a typed day moves every day). Jules, 23 Oct 2026: this one and all, no "this and following"; a row with a
   `[[note#^t-id]]` Task is a block, one without is an event
   (`apps/server/src/calendarNotes.ts`). `task_blocks`/`events` are an index of
   them: routes edit the note through `write()`, and a `note-changed` listener

@@ -9,6 +9,24 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- A project can be renamed from its title (or ⋯ → Rename…) and deleted from ⋯ → Delete the
+  project…: the Confirm says which notes and documents go to the trash and which notes stay and
+  leave the project; Undo in the toast, or Notes → Trash, brings it back.
+- Decisions, inbox lines and goals each have a ⋯ to change or remove them; an inbox line can
+  become a step. Goals are added one line at a time.
+- Documents → Add a note puts a note you already have in the project; a note's ⋯ takes it off
+  again. A document can be renamed (its extension stays) and put in the trash, from the list or
+  from the board.
+- Projects has a "Removed from the board" shelf with Put back, and the row's ⋯ can archive a
+  project; the row's status is a menu.
+- An event has a place, notes, all-day, and can repeat every week, two weeks, month or year,
+  until a day or for ever. One day of a repeating event can be changed or deleted on its own, or
+  all of them.
+- An event's and booked time's day and times can be typed in their popover; New → Event and a
+  double-click in the hours open the same fields.
+- A subscribed calendar can be renamed and given a colour (Settings → Connections), and Planning
+  draws it in that colour.
+- Plan my week on the phone.
 - Life areas are yours: Settings → Notes → Life areas adds, renames, reorders and removes
   them (a removed area's notes and projects go to the catch-all), with optional words that put
   notes in an area by folder or tag.
@@ -181,6 +199,11 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Deleting a project document moves it to the trash instead of deleting it for good.
+- A new project's first step sits under "Tasks", where new steps go.
+- A second project with a name already used gets its own key instead of joining the first one;
+  names in any alphabet keep their letters in the address.
+- A typed event length is kept to five minutes (it was rounded to the half hour).
 - A new install starts with two areas, Work and Personal. Area colours follow the list's
   order (the first five, then grey). Planning's lanes, the Projects board, Notes, the Orrery and
   first run follow the list.
@@ -370,6 +393,7 @@ one is in CLAUDE.md, "Releases".
 
 ### Removed
 
+- Suggested links on a project's documents board (nothing suggested them).
 - "How to change it?" and "also by Obsidian" in Settings → Notes; the terminal lesson for the
   password in Settings → You.
 - Money's sentences that explained ledger tables and tags.
@@ -412,6 +436,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- Clearing a project's start or deadline left `start: ""` in the note.
+- The window title of a project page showed its address in words, not its name.
+- A project note put in the trash left an empty project on the owners' board.
+- Renaming a folder cut a folder-based project off from it.
+- The published calendar link left out time booked on steps that name no one (every step written
+  in a project). Repeating events go out as one repeating event.
 - Moving a project to another area by editing its note now reaches Today and the board
   (the database kept the area it was registered with).
 - Changing a company's card refused nothing when its properties couldn't be read, and
@@ -919,6 +949,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Upgrading
 
+- Stage 1 wave 3: schema 5 (events place/notes/repeat/all day, feed colour); an older build
+  won't open the database after.
 - Stage 1 wave 1: nothing to do. An existing database never sees the notes chooser (no
   first-run row), and with `ORRAMA_VAULT_DIR` set the notes folder is shown as fixed. Nothing is
   written into an existing vault until someone chooses in the app.
