@@ -11,7 +11,9 @@
  *
  * Every account sees "Source code" at the foot: Orrama is under the AGPL, whose §13 asks that
  * whoever uses it over a network is offered its source. The address is the server's
- * (`/api/health`'s `source`, ORRAMA_SOURCE_URL).
+ * (`/api/health`'s `source`, ORRAMA_SOURCE_URL). Under it, the third-party notices the server
+ * serves beside the web app: the web app's and the server's, and in the desktop app (a server
+ * its shell started, `/api/health`'s `launch`) the runtime's and the window's.
  */
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { AiConfig, Feed, Health, MailAccount, Member, ServerSettings } from "@orrama/schema/responses";
@@ -68,11 +70,15 @@ export function Settings(props: SettingsProps) {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [server, setServer] = useState<ServerSettings | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [desktop, setDesktop] = useState(false);
   const [q, setQ] = useState("");
 
   useEffect(() => {
     api<Health>("GET", "/api/health")
-      .then((h) => setSource(h.source))
+      .then((h) => {
+        setSource(h.source);
+        setDesktop(Boolean(h.launch));
+      })
       .catch(() => setSource(null));
     api<Member[]>("GET", "/api/members")
       .then(setMembers)
@@ -145,6 +151,8 @@ export function Settings(props: SettingsProps) {
             <>
               <br />
               <SourceLink href={source} />
+              <br />
+              <Notices desktop={desktop} />
             </>
           )}
         </p>
@@ -152,8 +160,30 @@ export function Settings(props: SettingsProps) {
 
       <div className="set-body">{known ? <Section {...props} id={shown} members={members ?? []} /> : <Skeleton rows={4} label="Loading Settings" />}</div>
 
-      {!section && <PhoneList {...props} visible={visible.map((s) => s.id)} server={server} source={source} />}
+      {!section && <PhoneList {...props} visible={visible.map((s) => s.id)} server={server} source={source} desktop={desktop} />}
     </div>
+  );
+}
+
+/** The third-party notices the server serves beside the web app (written by the builds). */
+function Notices({ desktop }: { desktop: boolean }) {
+  const files: [string, string][] = [
+    ["web app", "/THIRD_PARTY_NOTICES.txt"],
+    ["server", "/THIRD_PARTY_NOTICES_SERVER.txt"],
+    ...(desktop ? ([["desktop app", "/THIRD_PARTY_NOTICES_DESKTOP.txt"]] as [string, string][]) : []),
+  ];
+  return (
+    <>
+      Third-party notices:{" "}
+      {files.map(([label, href], i) => (
+        <span key={href}>
+          {i > 0 && ", "}
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {label}
+          </a>
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -207,7 +237,16 @@ function Section({ id, members, ...p }: SettingsProps & { id: SettingsSection; m
  * The phone's Settings (§1.6): your Orr on top, then the sections in two groups, each row
  * saying where it stands (the theme, the model, how many notes…), and Sign out at the foot.
  */
-function PhoneList({ me, theme, look, onSignOut, visible, server, source }: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null; source: string | null }) {
+function PhoneList({
+  me,
+  theme,
+  look,
+  onSignOut,
+  visible,
+  server,
+  source,
+  desktop,
+}: SettingsProps & { visible: SettingsSection[]; server: ServerSettings | null; source: string | null; desktop: boolean }) {
   const [ai, setAi] = useState<AiConfig | null>(null);
   const [mail, setMail] = useState<MailAccount | null>(null);
   const [feeds, setFeeds] = useState<Feed[] | null>(null);
@@ -279,6 +318,8 @@ function PhoneList({ me, theme, look, onSignOut, visible, server, source }: Sett
       {source && (
         <p className="set-foot">
           <SourceLink href={source} />
+          <br />
+          <Notices desktop={desktop} />
         </p>
       )}
     </div>

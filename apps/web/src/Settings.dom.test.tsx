@@ -28,7 +28,7 @@ const ROUTES: Record<string, unknown> = {
   "GET /api/members": [{ id: "u-1", username: "jules", displayName: "Jules", isOwner: true, avatar: "victorr" }],
   "GET /api/settings/server": { notesFolder: "~/Notes", notes: 12, version: "0.1.0", fixed: false, own: false, example: 4 },
   "POST /api/settings/notes-folder/look": { folder: "~/Orrama/vault", problem: null, notes: 0, more: false, unstamped: 0, ontology: true, current: false },
-  "GET /api/health": { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama" },
+  "GET /api/health": { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama", launch: null },
   "GET /api/calendar/feeds": [{ id: "f1", label: "School", host: "example.edu", createdAt: 1, lastSyncedAt: null, lastError: null }],
   "GET /api/mail/account": { connected: true, email: "jules@example.com", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null },
   "GET /api/me/ics-token": { token: "tok123" },
@@ -244,6 +244,28 @@ describe("the Settings page (structure.md §3)", () => {
     const links = await screen.findAllByRole("link", { name: "Source code" });
     expect(links).toHaveLength(2); // the nav's foot, and the phone's list
     for (const a of links) expect(a.getAttribute("href")).toBe("https://git.example.com/orrama");
+  });
+
+  it("links the third-party notices the server serves, and the desktop app's own inside it", async () => {
+    const notices = () => screen.getAllByRole("link").filter((a) => a.getAttribute("href")?.startsWith("/THIRD_PARTY_NOTICES"));
+    const { unmount } = render(<Settings me={ME} section="you" theme="light" shown="light" onTheme={() => {}} look="paper" onLook={() => {}} vision="none" onVision={() => {}} profiles={[]} onProfiles={() => {}} onUpdate={() => {}} onSignOut={() => {}} />);
+    await screen.findByRole("link", { name: "Source code" });
+    expect(notices().map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["web app", "/THIRD_PARTY_NOTICES.txt"],
+      ["server", "/THIRD_PARTY_NOTICES_SERVER.txt"],
+    ]);
+    unmount();
+
+    // A server the desktop app started says its launch id: the runtime's and the window's notices are there too.
+    ROUTES["GET /api/health"] = { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama", launch: "0123456789abcdef0123456789abcdef" };
+    try {
+      render(<Settings me={ME} section="you" theme="light" shown="light" onTheme={() => {}} look="paper" onLook={() => {}} vision="none" onVision={() => {}} profiles={[]} onProfiles={() => {}} onUpdate={() => {}} onSignOut={() => {}} />);
+      await screen.findByRole("link", { name: "desktop app" });
+      expect(notices().map((a) => a.getAttribute("href"))).toEqual(["/THIRD_PARTY_NOTICES.txt", "/THIRD_PARTY_NOTICES_SERVER.txt", "/THIRD_PARTY_NOTICES_DESKTOP.txt"]);
+      for (const a of notices()) expect(a.getAttribute("target")).toBe("_blank");
+    } finally {
+      ROUTES["GET /api/health"] = { ok: true, notes: 12, build: null, source: "https://git.example.com/orrama", launch: null };
+    }
   });
 
   it("every section says where it lives", async () => {
