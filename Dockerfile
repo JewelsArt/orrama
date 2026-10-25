@@ -13,7 +13,7 @@
 #
 # Works on arm64 and x64, so this builds for a Raspberry Pi as well as a VPS.
 
-FROM node:22-slim AS build
+FROM node:24-slim AS build
 # The version the repo pins (package.json packageManager), not "some 11.x".
 RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 WORKDIR /app
@@ -44,7 +44,7 @@ RUN pnpm --dir apps/web build
 # dependency because it is how the server runs (OPS-011).
 RUN pnpm --filter @orrama/server deploy --prod --legacy /out/apps/server
 
-FROM node:22-slim
+FROM node:24-slim
 WORKDIR /app
 # The server finds the web app at ../../web/dist from its own src (main.ts).
 COPY --from=build /out/apps/server apps/server
