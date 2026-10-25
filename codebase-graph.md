@@ -258,7 +258,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/wavy.js, ./ui/writes.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./door/Reset.js, ./desktop.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/wavy.js, ./ui/writes.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -298,7 +298,7 @@
 
 ### `apps/web/src/Login.tsx`
 - **Exports**: Login
-- **Imports**: react, ./api.js, ./door/Door.js, ./door/voice.js, ./ui/controls.js
+- **Imports**: react, ./api.js, ./desktop.js, ./door/Door.js, ./door/voice.js, ./ui/controls.js
 
 ### `apps/web/src/Mail.tsx`
 - **Exports**: Mail
@@ -423,11 +423,15 @@
 
 ### `apps/web/src/door/Door.tsx`
 - **Exports**: HOLD_MS, reducedMotion, useNarrow, greeting, DoorHandle, Entered, useEnter, Door, After, DoorError, DoorFoot, PasswordField, DoorField, FingerprintIcon, BackspaceIcon
-- **Imports**: react, ../api.js, ../ui/fields.js, ../ui/orr/Orr.js, ./dots.js, ./shape.js
+- **Imports**: react, ../api.js, ../desktop.js, ../ui/fields.js, ../ui/orr/Orr.js, ./dots.js, ./shape.js
 
 ### `apps/web/src/door/NotesChoice.tsx`
 - **Exports**: NotesWay, lookWords, NotesChoice
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../desktop.js, ../ui/controls.js, ../ui/fields.js
+
+### `apps/web/src/door/Reset.tsx`
+- **Exports**: Reset
+- **Imports**: react, ../api.js, ../ui/controls.js, ./Door.js, ./voice.js
 
 ### `apps/web/src/door/dots.ts`
 - **Exports**: MAX_DOTS, NARROW, AreaShape, VaultShape, areaSpans, assignDots, DotsOptions, DoorDots

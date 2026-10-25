@@ -118,7 +118,7 @@ describe("what the shell hands the server", () => {
     const inside = path.join(data, "my notes");
     fs.mkdirSync(inside);
     const r = await as("POST", "/api/settings/notes-folder/look", { folder: inside });
-    expect(r.json().problem).toBe("That folder is inside Orrama's own data, which uninstalling the app may delete. Pick a folder of your own.");
+    expect(r.json().problem).toBe("That folder is inside Orrama's own folder, which uninstalling the app may delete. Pick a folder of your own.");
   });
 
   it("says its version from its own package, not from a file two folders up", async () => {

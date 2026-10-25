@@ -8,7 +8,7 @@
  */
 import { ApiError } from "../api.js";
 
-export type DoorAttempt = "signin" | "passcode" | "password" | "touchid" | "register";
+export type DoorAttempt = "signin" | "passcode" | "password" | "touchid" | "register" | "reset";
 
 export interface DoorError {
   text: string;
@@ -29,7 +29,7 @@ export function waitOf(message: string): string | null {
 const unreachable = (e: unknown) => !(e instanceof ApiError) && e instanceof TypeError;
 
 export function doorError(e: unknown, attempt: DoorAttempt): DoorError {
-  if (unreachable(e)) return { text: "Orrama's server isn't answering. Check that it's running, then try again." };
+  if (unreachable(e)) return { text: "Orrama isn't answering. Check that it's running, then try again." };
   const status = e instanceof ApiError ? e.status : 0;
   const message = e instanceof Error ? e.message : "";
   const wait = waitOf(message);
@@ -52,10 +52,15 @@ export function doorError(e: unknown, attempt: DoorAttempt): DoorError {
   }
   if (attempt === "register") {
     if (status === 429) return { text: `Too many tries from here. ${later}` };
-    if (status === 403) return { text: "Orrama is already set up on this server. Reload to sign in." };
+    if (status === 403) return { text: "Orrama is already set up here. Reload to sign in." };
     if (status === 400) return { text: "Check the email address, and that the password has at least 8 characters." };
   }
-  return { text: "Something went wrong on Orrama's server. Try again in a moment." };
+  if (attempt === "reset") {
+    if (status === 403) return { text: "This reset has expired. Start it again from the sign-in screen." };
+    if (status === 400 && /no account/i.test(message)) return { text: "There's no account with that email on this computer. Check it and try again." };
+    if (status === 400) return { text: "Check the email address, and that the password has at least 8 characters." };
+  }
+  return { text: "Something went wrong in Orrama. Try again in a moment." };
 }
 
 /** True when the browser's biometric prompt was dismissed: a normal thing to do, not an error. */

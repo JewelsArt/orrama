@@ -91,13 +91,13 @@ export function lookAtFolder(typed: string, dataDir = env.dataDir): FolderLook {
   const data = path.resolve(dataDir);
   const rel = path.relative(abs, data);
   if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
-    return { ...out, problem: "That folder holds Orrama's own data. Pick the folder your notes are in." };
+    return { ...out, problem: "That folder holds Orrama's own files. Pick the folder your notes are in." };
   }
   // Inside the data folder is the other way round, and as bad: uninstalling the app may delete
   // that folder with everything in it. Orrama's own folder is there only outside the app.
   const inside = path.relative(data, abs);
   if (!inside.startsWith("..") && !path.isAbsolute(inside) && abs !== path.resolve(ownNotesFolder(dataDir))) {
-    return { ...out, problem: "That folder is inside Orrama's own data, which uninstalling the app may delete. Pick a folder of your own." };
+    return { ...out, problem: "That folder is inside Orrama's own folder, which uninstalling the app may delete. Pick a folder of your own." };
   }
   try {
     fs.accessSync(abs, fs.constants.R_OK | fs.constants.W_OK);

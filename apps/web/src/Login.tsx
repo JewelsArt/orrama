@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, type Me, rememberEmail, type SignedIn } from "./api.js";
+import { inApp, startReset } from "./desktop.js";
 import { After, Door, DoorError, DoorField, DoorFoot, PasswordField, useEnter, type DoorHandle } from "./door/Door.js";
 import { doorError } from "./door/voice.js";
 import { Button } from "./ui/controls.js";
@@ -8,8 +9,12 @@ import { Button } from "./ui/controls.js";
  * Sign-in (structure.md §2.14, take B): Orr's head, Orrama, the promise, email and password.
  * Nothing of the vault shows before the server says yes; then the dots gather into it and the
  * app opens by itself. Rate limits and sessions are the server's (routes/auth.ts), unchanged.
+ *
+ * Forgot your password? In the desktop app, on a server it started (`resetHere`), the link asks
+ * the app for a reset (door/Reset.tsx). Anywhere else it says where a reset is done.
  */
-export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
+export function Login({ onLogin, resetHere = false }: { onLogin: (me: Me) => void; resetHere?: boolean }) {
+  const [forgot, setForgot] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -74,6 +79,15 @@ export function Login({ onLogin }: { onLogin: (me: Me) => void }) {
             <Button kind="solid" type="submit" className="dr-go" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </Button>
+            {forgot ? (
+              <p className="dr-forgot" role="status">
+                {resetHere ? "Reset it on the computer Orrama runs on: open Orrama there and choose Forgot your password? on its sign-in screen." : "Reset it on the computer Orrama runs on."}
+              </p>
+            ) : (
+              <button type="button" className="dr-link" onClick={() => (inApp() && resetHere ? startReset() : setForgot(true))}>
+                Forgot your password?
+              </button>
+            )}
           </form>
           <DoorFoot />
         </>

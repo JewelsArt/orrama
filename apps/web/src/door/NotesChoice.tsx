@@ -3,7 +3,10 @@
  * use notes you already have. The same chooser at first run (in the door) and in Settings →
  * Notes (Change…, in a dialog). Styles: styles/door.css (`dr-ch…`).
  *
- * A typed folder is looked at before anything is chosen (POST …/notes-folder/look): whether it
+ * In the desktop app "Use notes I already have" opens the system's folder chooser (desktop.ts);
+ * in a browser, and if the chooser can't open, the folder is typed.
+ *
+ * A picked or typed folder is looked at before anything is chosen (POST …/notes-folder/look): whether it
  * is there, how many notes it holds, and what Orrama will add to them, said in plain words.
  * Choosing a folder other than the one read now restarts the server to read it; the chooser
  * waits until the server says it reads the new folder, then starts there (POST
@@ -12,6 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FolderLook, ServerSettings } from "@orrama/schema/responses";
 import { api, ApiError } from "../api.js";
+import { inApp, pickFolder } from "../desktop.js";
 import { Button } from "../ui/controls.js";
 import { Field, Input } from "../ui/fields.js";
 
@@ -72,6 +76,19 @@ export function NotesChoice({
   const [busy, setBusy] = useState<null | "saving" | "restarting">(null);
   const [error, setError] = useState("");
   const typed = useRef(0);
+  /** The app's folder chooser, until it fails once: then the folder is typed. */
+  const [chooser, setChooser] = useState(inApp);
+
+  const choose = async () => {
+    setError("");
+    try {
+      const picked = await pickFolder("Where are your notes?");
+      if (picked) setFolder(picked);
+    } catch {
+      setChooser(false);
+      setError("The folder chooser didn't open. Type the folder instead.");
+    }
+  };
 
   // Orrama's own folder (or the fixed one): what an example or an empty start would add to it.
   useEffect(() => {
@@ -155,7 +172,20 @@ export function NotesChoice({
           {!fixed && option("existing", "Use notes I already have", "A folder of notes you already keep on this computer.")}
         </div>
       )}
-      {!fixed && way === "existing" && (
+      {!fixed && way === "existing" && chooser && (
+        <div className="dr-ch-pick">
+          {folder ? (
+            <p className="dr-ch-picked">
+              <b>{look?.folder || folder}</b>
+              <span className={look?.problem ? "bad" : undefined}>{look ? lookWords(look) : "Looking at it…"}</span>
+            </p>
+          ) : null}
+          <Button onClick={() => void choose()} disabled={!!busy}>
+            {folder ? "Choose another folder…" : "Choose the folder…"}
+          </Button>
+        </div>
+      )}
+      {!fixed && way === "existing" && !chooser && (
         <Field label="Folder" error={look?.problem ?? null} help={look && !look.problem ? lookWords(look) : "The whole path, like ~/Documents/Notes."}>
           <Input value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="~/Documents/Notes" autoFocus spellCheck={false} autoCapitalize="off" autoComplete="off" disabled={!!busy} />
         </Field>

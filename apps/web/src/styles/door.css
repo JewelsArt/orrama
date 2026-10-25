@@ -60,6 +60,7 @@
 @keyframes dr-pulse { 50% { opacity: .35; } }
 .dr-link { align-self: center; border: 0; background: transparent; color: var(--accent); font-size: 14px; font-weight: 600; cursor: pointer; padding: 6px; border-radius: var(--r-1); }
 .dr-link:hover { background: var(--hover); }
+.dr-forgot { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 19px; text-align: center; }
 .dr-pins { display: flex; justify-content: center; gap: 14px; margin: 2px 0 2px; }
 .door.has-pad .dr-pins { margin-bottom: 14px; }
 .dr-pins i { width: 13px; height: 13px; border-radius: 50%; border: 1.6px solid var(--ink-2); }
@@ -98,6 +99,11 @@
 .dr-ch-note, .dr-ch-fixed { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
 .dr-ch-fixed b { color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
 .dr-ch .field .help { overflow-wrap: anywhere; }
+/* The app's folder chooser: the folder picked, what it holds, and the button to pick again. */
+.dr-ch-pick { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.dr-ch-picked { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 13.5px; line-height: 19px; color: var(--ink-2); }
+.dr-ch-picked b { color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
+.dr-ch-picked .bad { color: var(--late); }
 .dr-ch-acts { display: flex; gap: 8px; justify-content: flex-end; }
 .dr-ch-acts .dr-go { margin-top: 0; }
 

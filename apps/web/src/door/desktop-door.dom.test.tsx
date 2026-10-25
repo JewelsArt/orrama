@@ -5,8 +5,14 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Login } from "../Login.js";
+import { RESET_PATH, takeResetTicket } from "../desktop.js";
 import { AiStep } from "./AiStep.js";
+import { DoorFoot } from "./Door.js";
+import { NotesChoice } from "./NotesChoice.js";
+import { Reset } from "./Reset.js";
 
+const ME = { id: "u-1", email: "ines@example.com", username: "ines", displayName: "Ines", avatar: null, isOwner: true, teams: [], appearance: null };
 const AI_OFF = { provider: null, model: null, configured: false, instructions: "", baseUrl: "", chatgpt: { connected: false, email: null, manageUsage: "x" } };
 const AI_PLAN = { ...AI_OFF, provider: "chatgpt", model: "gpt-plan", configured: true, chatgpt: { connected: true, email: "ines@example.com", manageUsage: "x" } };
 
@@ -118,5 +124,124 @@ describe("first run's AI step", () => {
     await waitFor(() => expect(assigned).toEqual(["https://auth.openai.com/x"]));
     expect(sent("POST /api/admin/ai/chatgpt/start").map((c) => c.body)).toEqual([undefined]);
     expect(screen.queryByText("Finish signing in in your browser, then come back here.")).toBeNull();
+  });
+});
+
+describe("Use notes I already have", () => {
+  const SERVER = { notesFolder: "~/Orrama", notes: 0, version: "0.1.0", fixed: false, own: false, example: 0 };
+  const LOOK = { folder: "~/Notes", problem: null, notes: 3, more: false, unstamped: 3, ontology: true, current: false };
+
+  it("in the app, opens the system's folder chooser and uses the folder picked", async () => {
+    inTheApp(async () => "/Users/ines/Notes");
+    serve({ "POST /api/settings/notes-folder/look": (b: { folder: string | null }) => json(200, b.folder === null ? { ...LOOK, folder: "~/Orrama", notes: 0 } : LOOK) });
+    render(<NotesChoice server={SERVER} place="first" onDone={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /Use notes I already have/ }));
+    expect(screen.queryByLabelText("Folder")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Choose the folder…" }));
+    expect(await screen.findByText("~/Notes")).toBeTruthy();
+    expect(await screen.findByText(/^3 notes\. Orrama adds a short id line/)).toBeTruthy();
+    expect(sent("POST /api/settings/notes-folder/look").map((c) => c.body)).toContainEqual({ folder: "/Users/ines/Notes" });
+    expect(window.__TAURI_INTERNALS__!.invoke).toHaveBeenCalledWith("plugin:dialog|open", { options: expect.objectContaining({ directory: true, multiple: false }) });
+    expect(screen.getByRole("button", { name: "Choose another folder…" })).toBeTruthy();
+  });
+
+  it("a chooser that can't open hands over to the typed path", async () => {
+    inTheApp(async () => {
+      throw new Error("dialog.open not allowed");
+    });
+    serve({ "POST /api/settings/notes-folder/look": LOOK });
+    render(<NotesChoice server={SERVER} place="first" onDone={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /Use notes I already have/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose the folder…" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("The folder chooser didn't open. Type the folder instead.");
+    expect(screen.getByLabelText("Folder")).toBeTruthy();
+  });
+
+  it("in a browser, the folder is typed as before", () => {
+    serve({ "POST /api/settings/notes-folder/look": LOOK });
+    render(<NotesChoice server={SERVER} place="first" onDone={vi.fn()} />);
+    fireEvent.click(screen.getByRole("radio", { name: /Use notes I already have/ }));
+    expect(screen.getByLabelText("Folder")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Choose the folder…" })).toBeNull();
+  });
+});
+
+describe("Forgot your password?", () => {
+  it("in the app, on the server it started, asks the shell for a reset", () => {
+    inTheApp();
+    render(<Login onLogin={vi.fn()} resetHere />);
+    fireEvent.click(screen.getByRole("button", { name: "Forgot your password?" }));
+    expect(assigned).toEqual([RESET_PATH]);
+  });
+
+  it("in a browser, says where the reset is done", () => {
+    render(<Login onLogin={vi.fn()} resetHere />);
+    fireEvent.click(screen.getByRole("button", { name: "Forgot your password?" }));
+    expect(screen.getByRole("status").textContent).toBe("Reset it on the computer Orrama runs on: open Orrama there and choose Forgot your password? on its sign-in screen.");
+    expect(assigned).toEqual([]);
+  });
+
+  it("on a server the app didn't start, says only that", () => {
+    inTheApp();
+    render(<Login onLogin={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Forgot your password?" }));
+    expect(screen.getByRole("status").textContent).toBe("Reset it on the computer Orrama runs on.");
+    expect(assigned).toEqual([]);
+  });
+
+  it("the shell's ticket is read from /reset once, and the address no longer holds it", () => {
+    window.history.replaceState(null, "", "/reset#ticket=abc_DEF-123");
+    expect(takeResetTicket()).toEqual({ ticket: "abc_DEF-123" });
+    expect(window.location.pathname + window.location.hash).toBe("/");
+    window.history.replaceState(null, "", "/reset#failed");
+    expect(takeResetTicket()).toEqual({ failed: true });
+    window.history.replaceState(null, "", "/today");
+    expect(takeResetTicket()).toBeNull();
+    expect(window.location.pathname).toBe("/today");
+  });
+
+  it("the reset form spends the ticket and signs you in", async () => {
+    localStorage.setItem("orrama-last-email", "ines@example.com");
+    serve({ "POST /api/auth/reset": { user: ME } });
+    const onDone = vi.fn();
+    render(<Reset ticket="t-1" onDone={onDone} onBack={vi.fn()} />);
+    expect((screen.getByLabelText("Email") as HTMLInputElement).value).toBe("ines@example.com");
+    type("New password", "a new long one");
+    fireEvent.click(screen.getByRole("button", { name: "Set the new password" }));
+    await waitFor(() => expect(onDone).toHaveBeenCalledWith(ME));
+    expect(sent("POST /api/auth/reset").map((c) => c.body)).toEqual([{ ticket: "t-1", email: "ines@example.com", password: "a new long one" }]);
+  });
+
+  it("an expired ticket and a wrong email are said in the door's words", async () => {
+    let status = 403;
+    serve({ "POST /api/auth/reset": () => json(status, { error: status === 403 ? "expired" : "There's no account with that email on this computer." }) });
+    render(<Reset ticket="t-1" onDone={vi.fn()} onBack={vi.fn()} />);
+    type("Email", "ines@example.com");
+    type("New password", "a new long one");
+    fireEvent.click(screen.getByRole("button", { name: "Set the new password" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("This reset has expired. Start it again from the sign-in screen.");
+    status = 400;
+    fireEvent.click(screen.getByRole("button", { name: "Set the new password" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("There's no account with that email on this computer. Check it and try again."));
+  });
+
+  it("when the shell couldn't get a ticket, says so and offers the way back", () => {
+    const onBack = vi.fn();
+    render(<Reset ticket={null} onDone={vi.fn()} onBack={onBack} />);
+    expect(screen.getByRole("alert").textContent).toBe("Orrama couldn't start the reset. Try again from the sign-in screen.");
+    expect(screen.queryByLabelText("New password")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
+    expect(onBack).toHaveBeenCalled();
+  });
+});
+
+describe("the door's words", () => {
+  it("say this computer in the app, and where Orrama runs elsewhere; never the server", () => {
+    const { unmount } = render(<DoorFoot />);
+    expect(screen.getByText(/stay where Orrama runs/)).toBeTruthy();
+    unmount();
+    inTheApp();
+    render(<DoorFoot />);
+    expect(screen.getByText(/stay on this computer/).textContent).not.toMatch(/server/);
   });
 });

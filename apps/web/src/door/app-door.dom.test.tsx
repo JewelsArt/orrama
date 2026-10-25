@@ -17,6 +17,17 @@ afterEach(() => {
 });
 
 describe("the door in the app", () => {
+  it("the window the app's shell sends to /reset gets the reset form, and the ticket leaves the address (2C)", async () => {
+    signedOut();
+    at("/reset#ticket=t-1");
+    vi.resetModules(); // App reads the shell's ticket once, when it loads
+    const { App: Loaded } = await import("../App.js");
+    render(<Loaded />);
+    expect(await screen.findByRole("heading", { name: "Choose a new password" })).toBeTruthy();
+    expect(location.hash).toBe("");
+    expect(location.pathname).not.toBe("/reset");
+  });
+
   it("at the lock, digits are the passcode: they never move the address", async () => {
     signedOut();
     localStorage.setItem("orrama-last-email", "ines@example.com");

@@ -14,6 +14,8 @@ import { useDraftsWaiting } from "./today/mailDot.js";
 import { todayTitle } from "./today/title.js";
 import { Lock } from "./Lock.js";
 import { Login } from "./Login.js";
+import { Reset } from "./door/Reset.js";
+import { takeResetTicket } from "./desktop.js";
 import { Mail } from "./Mail.js";
 import { Overview } from "./Overview.js";
 import { PROFILE_VAR_NAMES, customId, isCustom, profileVars, type VisionProfile } from "./palette.js";
@@ -198,12 +200,19 @@ function useNotePaths(signedIn: boolean) {
   };
 }
 
+/** Read once when the page loads, before the address is tidied (StrictMode runs initialisers twice). */
+const shellReset = typeof window === "undefined" ? null : takeResetTicket();
+
 export function App() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   /** undefined = still asking the server; true = empty install, show Setup. */
   const [needsSetup, setNeedsSetup] = useState<boolean | undefined>(undefined);
   /** The founder has an account but never said where the notes are (first run, step 2). */
   const [chooseNotes, setChooseNotes] = useState(false);
+  /** The desktop app started this server: its sign-in can reset a forgotten password. */
+  const [resetHere, setResetHere] = useState(false);
+  /** What the app's shell left at /reset (desktop.ts): the reset form's ticket, read once. */
+  const [reset, setReset] = useState(() => shellReset);
   /** Set when the user chooses "use password instead", to skip the lock screen. */
   const [forcePassword, setForcePassword] = useState(false);
   /*
@@ -326,10 +335,11 @@ export function App() {
         setMe(m);
       })
       .catch(() => setMe(null));
-    api<{ needsSetup: boolean; chooseNotes?: boolean }>("GET", "/api/auth/status")
+    api<{ needsSetup: boolean; chooseNotes?: boolean; resetHere?: boolean }>("GET", "/api/auth/status")
       .then((s) => {
         setNeedsSetup(s.needsSetup);
         setChooseNotes(!!s.chooseNotes);
+        setResetHere(!!s.resetHere);
       })
       .catch(() => setNeedsSetup(false));
   }, []);
@@ -482,12 +492,28 @@ export function App() {
       />
     );
   }
+  if (me === null && reset) {
+    const back = () => {
+      setReset(null);
+      setForcePassword(true);
+    };
+    return (
+      <Reset
+        ticket={"ticket" in reset ? reset.ticket : null}
+        onBack={back}
+        onDone={(m) => {
+          setReset(null);
+          setMe(m);
+        }}
+      />
+    );
+  }
   // A device that has signed in before gets the quick-unlock screen; it offers
   // "use password instead", which is also the only way out of a passcode lockout.
   if (me === null && !forcePassword && lastEmail()) {
     return <Lock onUnlock={setMe} onUsePassword={() => setForcePassword(true)} />;
   }
-  if (me === null) return <Login onLogin={setMe} />;
+  if (me === null) return <Login onLogin={setMe} resetHere={resetHere} />;
 
   return (
     <Shell

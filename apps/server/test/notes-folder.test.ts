@@ -77,7 +77,7 @@ describe("looking at a folder", () => {
     expect(await look(path.join(theirs, "nope"))).toBe("There is no folder there.");
     expect(await look(path.join(theirs, "Ideas.md"))).toBe("That is a file, not a folder.");
     expect(await look("notes")).toBe("Type the whole path, starting with / or ~/.");
-    expect(await look(path.dirname(dataDir))).toBe("That folder holds Orrama's own data. Pick the folder your notes are in.");
+    expect(await look(path.dirname(dataDir))).toBe("That folder holds Orrama's own files. Pick the folder your notes are in.");
   });
 
   it("is a session's, never an API token's", async () => {

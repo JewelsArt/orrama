@@ -424,6 +424,6 @@ describe("first run", () => {
     type("Email", "ines@example.com");
     type("Password", "long-enough");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("Orrama is already set up on this server. Reload to sign in.");
+    expect((await screen.findByRole("alert")).textContent).toBe("Orrama is already set up here. Reload to sign in.");
   });
 });

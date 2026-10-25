@@ -5,6 +5,7 @@
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
 import { sessionStarted, type Me, type SignedIn } from "../api.js";
+import { inApp } from "../desktop.js";
 import { Field, Input } from "../ui/fields.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { DoorDots, NARROW, type DotsOptions } from "./dots.js";
@@ -155,8 +156,12 @@ export function DoorError({ text }: { text: string }) {
   ) : null;
 }
 
-/** "Your account and your notes stay on this server." */
-export const DoorFoot = () => <p className="dr-foot">Your account and your notes stay on this server. Nothing leaves it unless you connect a service.</p>;
+/** Where the account and the notes stay: this computer, in the app; where Orrama runs, elsewhere. */
+export const DoorFoot = () => (
+  <p className="dr-foot">
+    {inApp() ? "Your account and your notes stay on this computer. Nothing leaves it unless you connect a service." : "Your account and your notes stay where Orrama runs. Nothing leaves it unless you connect a service."}
+  </p>
+);
 
 /** A password field with Show. */
 export const PasswordField = forwardRef<
