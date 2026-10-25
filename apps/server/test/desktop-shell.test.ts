@@ -28,11 +28,11 @@ describe("desktop shell", () => {
   it("registers no commands and gives no page IPC", () => {
     const src = rust();
     expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler/);
-    // The opener is called from Rust, never registered (registering it would add
-    // its commands and a script to every page).
-    expect(src).not.toMatch(/\.plugin\(/);
+    // One plugin is registered, single instance; the opener is called from Rust,
+    // never registered (registering it would add its commands and a script to every page).
+    expect([...src.matchAll(/\.plugin\(([\w:]+)/g)].map((m) => m[1])).toEqual(["tauri_plugin_single_instance::init"]);
     const cargo = fs.readFileSync(path.join(shell, "Cargo.toml"), "utf8");
-    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-opener"]);
+    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-opener", "tauri-plugin-single-instance"]);
     expect(cargo).not.toMatch(/^notify\s*=/m);
     expect(fs.existsSync(path.join(shell, "capabilities"))).toBe(false); // no IPC for any page
   });

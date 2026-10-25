@@ -10,7 +10,8 @@
 ///
 /// Still no commands and no capability: the server's pages get no Tauri IPC at
 /// all, and the bundled page needs none (its buttons are links the shell catches,
-/// window.rs). The opener plugin is used from Rust only.
+/// window.rs). Single instance is the one plugin registered (no commands, no
+/// script); the opener is called from Rust, never registered.
 /// It used to register `read_vault_file` / `write_vault_file`, which took the vault
 /// root FROM THE CALLER — anything able to invoke them could read or write any file
 /// on the Mac. Removed with the never-initialised fs/dialog plugins and the `notify`
@@ -170,6 +171,17 @@ fn act(shell: &Shell, action: Action) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // First: a second launch hands over to the first and exits before it starts anything.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(shell) = app.try_state::<Arc<Shell>>() {
+                server::shell_log(&shell.log_file, "another launch: bringing this window forward");
+            }
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .setup(|app| {
             let (data_dir, overridden) = data_dir(app)?;
             let launch = launch(app, &data_dir)?;

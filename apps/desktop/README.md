@@ -33,6 +33,8 @@ all live in the server, and the page the server serves gets no IPC at all.
   Keychain (`secretStore: "keyring"` in desktop.json moves the file there). A data
   folder with a database never gets new ones: if they can't be read, nothing
   starts and the window says "Orrama can't read its key".
+- **One Orrama at a time**: the single-instance plugin; a second launch brings
+  the first window forward and starts nothing.
 - **Links** (`window.rs`): the window stays on its own page and the server;
   `target=_blank`, `window.open` and any other address (auth.openai.com
   included) open in the system browser. Downloads go to Downloads under their
