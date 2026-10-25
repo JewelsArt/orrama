@@ -36,8 +36,13 @@ process.env.ORRAMA_LAUNCH_ID = LAUNCH;
 process.env.ORRAMA_JWT_SECRET = "test-secret-jwt-0123456789abcdef";
 process.env.ORRAMA_SECRET_KEY = "test-secret-key-0123456789abcdef";
 
+// A folder left by an earlier install (an uninstall keeps the notes): one note, no id line yet.
+fs.mkdirSync(notes);
+const LEFT = "# Left from before\n";
+fs.writeFileSync(path.join(notes, "Left.md"), LEFT);
+
 const { buildServer } = await import("../src/main.js");
-const { env, envProblems, ownNotesFolder } = await import("../src/env.js");
+const { env, envProblems, NOTES_FOLDER_FILE, notChosenFolder, ownNotesFolder } = await import("../src/env.js");
 const { expandHome, ONTOLOGY_PATH } = await import("../src/firstRun.js");
 const { VERSION, bundled } = await import("../src/build.js");
 
@@ -74,15 +79,39 @@ describe("what the shell hands the server", () => {
     expect((await b.app.inject({ method: "GET", url: "/api/health" })).json().build).toBe(build);
   });
 
-  it("reads the notes from the default notes folder, not the data folder", () => {
+  it("reads no folder of the person's before they choose one: nothing made, nothing stamped", async () => {
     expect(env.packaged).toBe(true);
-    expect(b.store.vaultRoot).toBe(notes);
+    expect(b.store.vaultRoot).toBe(notChosenFolder());
+    expect(fs.readFileSync(path.join(notes, "Left.md"), "utf8")).toBe(LEFT);
+    expect(fs.existsSync(path.join(home, "Orrama"))).toBe(false);
     expect(fs.existsSync(path.join(data, "vault"))).toBe(false);
+    // The chooser looks at Orrama's own folder without making it or writing in it.
+    expect((await as("POST", "/api/settings/notes-folder/look", { folder: null })).json()).toMatchObject({ notes: 1, current: false });
+    expect((await as("GET", "/api/settings/server")).json()).toMatchObject({ own: false });
+    // And nothing can start in the stand-in.
+    const early = await as("POST", "/api/settings/start", { example: false });
+    expect(early.statusCode).toBe(409);
+    expect(fs.readdirSync(notChosenFolder())).toEqual([]);
   });
 
-  it("Start empty writes there", async () => {
+  it("Start empty: the default notes folder is chosen, kept, and read from the next start", async () => {
+    const chose = (await b.app.inject({ method: "PUT", url: "/api/settings/notes-folder", headers: signedIn(session), payload: { folder: null } })).json();
+    expect(chose).toMatchObject({ restart: true });
+    expect(JSON.parse(fs.readFileSync(path.join(data, NOTES_FOLDER_FILE), "utf8"))).toEqual({ folder: notes });
+    await b.app.close();
+    b = await buildServer();
+    expect(b.store.vaultRoot).toBe(notes);
     expect((await as("POST", "/api/settings/start", { example: false })).json()).toMatchObject({ ontology: "written" });
     expect(fs.existsSync(path.join(notes, ONTOLOGY_PATH))).toBe(true);
+    expect(fs.readFileSync(path.join(notes, "Left.md"), "utf8")).toMatch(/^---\nid: n-/);
+  });
+
+  it("the chosen default folder, deleted since, is made again rather than lost", async () => {
+    await b.app.close();
+    fs.rmSync(notes, { recursive: true, force: true });
+    b = await buildServer();
+    expect(b.store.vaultRoot).toBe(notes);
+    expect(fs.existsSync(notes)).toBe(true);
   });
 
   it("refuses a notes folder inside the data folder, which an uninstall may delete", async () => {

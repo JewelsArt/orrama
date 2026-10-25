@@ -283,6 +283,8 @@ export function storedNotesFolder(dataDir = env.dataDir): string | null {
   try {
     const folder = (JSON.parse(raw) as { folder?: unknown }).folder;
     if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("no absolute folder in it");
+    // Orrama's own folder, chosen and since deleted, is made again: it was the person's choice.
+    if (path.resolve(folder) === path.resolve(ownNotesFolder(dataDir)) && !fs.existsSync(folder)) return path.resolve(folder);
     if (!fs.statSync(folder).isDirectory()) throw new Error(`${folder} is not a folder`);
     return path.resolve(folder);
   } catch (err) {
@@ -291,6 +293,20 @@ export function storedNotesFolder(dataDir = env.dataDir): string | null {
   }
 }
 
-/** Where the notes are: ORRAMA_VAULT_DIR, else the folder chosen in the app, else Orrama's own. */
-export const vaultDir = () => env.vaultDir ?? storedNotesFolder() ?? ownNotesFolder();
+/**
+ * What the desktop app reads while no notes folder has been chosen yet (first run): an empty
+ * folder in its own data. Reading `~/Orrama` at boot made it before anyone had chosen, and
+ * read and stamped one left by an earlier install; now it is made, or read, only when the
+ * person picks Start empty or the example (`PUT /api/settings/notes-folder`, which keeps that
+ * choice in notes-folder.json in the app). Nothing is ever written here:
+ * `POST /api/settings/start` refuses until a folder is chosen.
+ */
+export const NOT_CHOSEN_DIR = "notes-not-chosen";
+export const notChosenFolder = (dataDir = env.dataDir) => path.join(dataDir, NOT_CHOSEN_DIR);
+
+/**
+ * Where the notes are: ORRAMA_VAULT_DIR, else the folder chosen in the app, else Orrama's own
+ * (from the checkout) or, in the desktop app, the empty one above until a folder is chosen.
+ */
+export const vaultDir = () => env.vaultDir ?? storedNotesFolder() ?? (env.packaged ? notChosenFolder() : ownNotesFolder());
 export const dbPath = () => path.join(env.dataDir, "basalt.db");

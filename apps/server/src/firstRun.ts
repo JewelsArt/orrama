@@ -149,16 +149,19 @@ export function lookAtFolder(typed: string, dataDir = env.dataDir): FolderLook {
 
 /**
  * Keep the chosen folder in the data folder, read at boot when ORRAMA_VAULT_DIR is not set
- * (`storedNotesFolder`, env.ts). Orrama's own folder is the default, so choosing it removes
- * the file.
+ * (`storedNotesFolder`, env.ts). From the checkout Orrama's own folder is the default, so
+ * choosing it removes the file. The desktop app keeps that choice too: without one it reads
+ * nothing yet (`notChosenFolder`).
  */
-export function storeNotesFolder(abs: string | null, dataDir = env.dataDir): void {
+export function storeNotesFolder(abs: string | null, dataDir = env.dataDir, e: Pick<typeof env, "packaged"> = env): void {
   const file = path.join(dataDir, NOTES_FOLDER_FILE);
-  if (abs === null || path.resolve(abs) === path.resolve(ownNotesFolder(dataDir))) {
+  const own = path.resolve(ownNotesFolder(dataDir));
+  const folder = abs === null ? own : path.resolve(abs);
+  if (folder === own && !e.packaged) {
     fs.rmSync(file, { force: true });
     return;
   }
-  writeFileAtomic(file, `${JSON.stringify({ folder: path.resolve(abs) }, null, 2)}\n`);
+  writeFileAtomic(file, `${JSON.stringify({ folder }, null, 2)}\n`);
 }
 
 // ---- what things are -----------------------------------------------------------

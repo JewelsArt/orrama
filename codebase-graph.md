@@ -50,7 +50,7 @@
 - **Imports**: node:fs, node:path, node:url
 
 ### `apps/server/src/env.ts`
-- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, DEFAULT_SOURCE_URL, env, assertProductionSecrets, envProblems, assertValidEnv, ownNotesFolder, NOTES_FOLDER_FILE, storedNotesFolder, vaultDir, dbPath
+- **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, DEFAULT_SOURCE_URL, env, assertProductionSecrets, envProblems, assertValidEnv, ownNotesFolder, NOTES_FOLDER_FILE, storedNotesFolder, NOT_CHOSEN_DIR, notChosenFolder, vaultDir, dbPath
 - **Imports**: node:fs, node:net, node:os, node:path
 
 ### `apps/server/src/export.ts`

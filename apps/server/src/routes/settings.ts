@@ -6,7 +6,7 @@ import { z } from "zod";
 import { VERSION } from "../build.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import type { Db } from "../db.js";
-import { env, ownNotesFolder, vaultDir } from "../env.js";
+import { env, notChosenFolder, ownNotesFolder, vaultDir } from "../env.js";
 import { exampleNotes, lookAtFolder, removeExample, startHere, storeNotesFolder } from "../firstRun.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { sessionOnly } from "./auth.js";
@@ -106,6 +106,8 @@ export async function settingsRoutes(app: FastifyInstance, db: Db, store: VaultS
    */
   app.post("/api/settings/start", choosing, async (req) => {
     const user = owner(req.userId);
+    // The desktop app before a folder is chosen: nothing is written into the empty stand-in.
+    if (same(store.vaultRoot, notChosenFolder())) throw new HttpError(409, "Choose where your notes are first.");
     const { example } = z.object({ example: z.boolean() }).parse(req.body);
     return startHere(db, store, calendar, user, { example });
   });
