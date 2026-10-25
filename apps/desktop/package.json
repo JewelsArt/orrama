@@ -12,7 +12,8 @@
     "fetch-node": "node ../../scripts/fetch-node.mjs",
     "package-server": "node ../../scripts/package-server.mjs",
     "prepare-bundle": "node ../../scripts/fetch-node.mjs && node ../../scripts/package-server.mjs && node ../../scripts/desktop-notices.mjs",
-    "notices": "node ../../scripts/desktop-notices.mjs"
+    "notices": "node ../../scripts/desktop-notices.mjs",
+    "release:mac": "node ../../scripts/release-build.mjs --target aarch64-apple-darwin"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0"

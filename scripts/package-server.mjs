@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The server as the desktop app carries it: apps/desktop/src-tauri/resources/server/ (git-ignored).
 //
-//   node scripts/package-server.mjs [--target <triple>]   (default: this computer)
+//   node scripts/package-server.mjs [--target <triple>] [--web <dir>]
+//   (default: this computer, and apps/web/dist; a release builds the web app into its own folder)
 //
 // What goes in (the contract in ~/orrama-next/build/2-COMMON.md):
 //   server.mjs               apps/server and the workspace packages in one ESM file (esbuild)
@@ -24,6 +25,7 @@ import {
   ROOT,
   TARGETS,
   TAURI,
+  arg,
   binaryTarget,
   expectIntegrity,
   expectSha256,
@@ -38,7 +40,7 @@ import {
 } from "./bundle-common.mjs";
 
 const SERVER = path.join(ROOT, "apps", "server");
-const WEB_DIST = path.join(ROOT, "apps", "web", "dist");
+const WEB_DIST = path.resolve(arg("web", path.join(ROOT, "apps", "web", "dist")));
 export const OUT = path.join(TAURI, "resources", "server");
 /** Built here, then put in place whole: a refusal halfway never leaves a folder that looks built. */
 const BUILD = `${OUT}.partial`;

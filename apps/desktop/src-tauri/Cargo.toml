@@ -31,3 +31,12 @@ apple-native-keyring-store = { version = "1.0.2", features = ["keychain"] }
 [lib]
 name = "orrama_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# The download's size (2D, 25 Oct 2026): one codegen unit, whole-program LTO, size over speed,
+# symbols stripped. Measured on the Mac: the shell's binary 10.3 MB → 4.5 MB, a clean release build
+# 39 s → 74 s. The shell waits on a server and a webview; nothing in it is speed-bound.
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
