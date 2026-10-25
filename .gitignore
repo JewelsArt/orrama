@@ -8,6 +8,10 @@ apps/server/data-dev/
 *.db-*
 target/
 apps/desktop/src-tauri/gen/
+# The desktop app's Node and server bundle (scripts/fetch-node.mjs, package-server.mjs): built, never committed.
+apps/desktop/src-tauri/binaries/
+apps/desktop/src-tauri/resources/server/
+apps/desktop/src-tauri/resources/server.partial/
 .DS_Store
 
 # Secrets and logs — never in the repo.

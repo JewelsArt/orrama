@@ -11,6 +11,9 @@ importers:
 
   .:
     devDependencies:
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       turbo:
         specifier: ^2.5.0
         version: 2.10.2

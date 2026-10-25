@@ -1,0 +1,69 @@
+{
+  "about": "What the desktop app ships with the server: the official Node build per target and the two native modules built for its ABI. scripts/fetch-node.mjs and scripts/package-server.mjs refuse anything that does not match. A new Node: node scripts/fetch-node.mjs --pin <version> (pick one at least a week old). A new better-sqlite3 or @node-rs/argon2 in the lockfile: change the version here and each target's hash (better-sqlite3: the release asset's digest on GitHub; argon2: the npm registry's dist.integrity).",
+  "node": {
+    "version": "24.22.0",
+    "abi": 137,
+    "lts": "Krypton",
+    "released": "2026-10-14",
+    "targets": {
+      "aarch64-apple-darwin": {
+        "archive": "node-v24.22.0-darwin-arm64.tar.gz",
+        "sha256": "6a9724d9b50a5f22b4816cded441b5a8d9ddae546191a5e5b7efa5a5e2ee26d5",
+        "file": "node-v24.22.0-darwin-arm64/bin/node",
+        "binarySha256": "b468fb9c67427c9d3aec07ee1105e63020923a631a9a2a00beb71a7ba3768bfd"
+      },
+      "x86_64-apple-darwin": {
+        "archive": "node-v24.22.0-darwin-x64.tar.gz",
+        "sha256": "495e3f273c645f3c4677d438304cdfc701729ea5dec5728f5c8e76a2dece4b91",
+        "file": "node-v24.22.0-darwin-x64/bin/node",
+        "binarySha256": "83dc50ed654b9494c722c4b9a836ce423242a9bd3214b99935e5a5c483ca025b"
+      },
+      "x86_64-pc-windows-msvc": {
+        "archive": "node-v24.22.0-win-x64.zip",
+        "sha256": "f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f80c3",
+        "file": "node-v24.22.0-win-x64/node.exe",
+        "binarySha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c"
+      }
+    }
+  },
+  "native": {
+    "abi": 137,
+    "better-sqlite3": {
+      "version": "12.11.1",
+      "targets": {
+        "aarch64-apple-darwin": {
+          "url": "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-node-v137-darwin-arm64.tar.gz",
+          "sha256": "6eaefc8a9c088fea873365f7db2c0f89be6ea021ede62f6a71832f5130826a93"
+        },
+        "x86_64-apple-darwin": {
+          "url": "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-node-v137-darwin-x64.tar.gz",
+          "sha256": "f9fe570a2ef7d6069196dd595f49bc8592574963dd1f249dcaa8878626773fc9"
+        },
+        "x86_64-pc-windows-msvc": {
+          "url": "https://github.com/WiseLibs/better-sqlite3/releases/download/v12.11.1/better-sqlite3-v12.11.1-node-v137-win32-x64.tar.gz",
+          "sha256": "4ee5e653174d6ddd301605d351798cdae2613da06c4f37ecdce263021fcf1255"
+        }
+      }
+    },
+    "@node-rs/argon2": {
+      "version": "2.0.2",
+      "targets": {
+        "aarch64-apple-darwin": {
+          "package": "@node-rs/argon2-darwin-arm64",
+          "url": "https://registry.npmjs.org/@node-rs/argon2-darwin-arm64/-/argon2-darwin-arm64-2.0.2.tgz",
+          "integrity": "sha512-3TTNL/7wbcpNju5YcqUrCgXnXUSbD7ogeAKatzBVHsbpjZQbNb1NDxDjqqrWoTt6XL3z9mJUMGwbAk7zQltHtA=="
+        },
+        "x86_64-apple-darwin": {
+          "package": "@node-rs/argon2-darwin-x64",
+          "url": "https://registry.npmjs.org/@node-rs/argon2-darwin-x64/-/argon2-darwin-x64-2.0.2.tgz",
+          "integrity": "sha512-vNPfkLj5Ij5111UTiYuwgxMqE7DRbOS2y58O2DIySzSHbcnu+nipmRKg+P0doRq6eKIJStyBK8dQi5Ic8pFyDw=="
+        },
+        "x86_64-pc-windows-msvc": {
+          "package": "@node-rs/argon2-win32-x64-msvc",
+          "url": "https://registry.npmjs.org/@node-rs/argon2-win32-x64-msvc/-/argon2-win32-x64-msvc-2.0.2.tgz",
+          "integrity": "sha512-cJxWXanH4Ew9CfuZ4IAEiafpOBCe97bzoKowHCGk5lG/7kR4WF/eknnBlHW9m8q7t10mKq75kruPLtbSDqgRTw=="
+        }
+      }
+    }
+  }
+}

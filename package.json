@@ -17,6 +17,7 @@
     "ship": "bash scripts/ship.sh"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"
   }
