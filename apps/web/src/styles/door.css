@@ -136,3 +136,13 @@
   color: var(--danger);
   font-size: 12.5px;
 }
+
+/* First run's cards can be taller than the window: the AI step with a key, the folder's words, a
+   600 px window or a phone. There the column is in the page's flow and the page scrolls, never
+   clipped: centred while it fits (anchored low on the phone, as above), from the top when not.
+   Its dots stay hidden until the short gather, which fits. */
+.door.door-first { height: auto; overflow: visible; display: flex; flex-direction: column; }
+.door.door-first .dr-mid { position: relative; left: auto; top: auto; bottom: auto; transform: none; align-self: center; margin: auto 0; padding: 32px 0; }
+@media (max-width: 559px) {
+  .door.door-first:not(.in) .dr-mid { margin: auto 0 0; padding: 24px 0; }
+}
