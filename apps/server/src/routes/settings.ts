@@ -3,21 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { VERSION } from "../build.js";
 import type { CalendarNotes } from "../calendarNotes.js";
 import type { Db } from "../db.js";
 import { env, ownNotesFolder, vaultDir } from "../env.js";
 import { exampleNotes, lookAtFolder, removeExample, startHere, storeNotesFolder } from "../firstRun.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { sessionOnly } from "./auth.js";
-
-/** The server's own version, from its package.json (the twelve places agree; release.test.ts). */
-const VERSION = (() => {
-  try {
-    return (JSON.parse(fs.readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version?: string }).version ?? "";
-  } catch {
-    return "";
-  }
-})();
 
 /** A path under the home folder said as `~/…`, the way a person writes it. */
 export function homePath(p: string, home = os.homedir()): string {

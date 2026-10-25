@@ -13,6 +13,7 @@ import { HttpError, VaultStore } from "./vaultStore.js";
 import { runDataMigrations } from "./migrations.js";
 import { CalendarNotes } from "./calendarNotes.js";
 import { compactAll } from "./history.js";
+import { bundled } from "./build.js";
 import { isEntry } from "./entry.js";
 import { authRoutes, fromOwnSite, sessionCookieOf } from "./routes/auth.js";
 import { vaultRoutes } from "./routes/vault.js";
@@ -312,8 +313,9 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   await areaRoutes(app, store);
   initWebhooks(db, store);
 
-  // Serve the built web app when present (self-host: one container serves everything).
-  const webDist = path.resolve(import.meta.dirname, "../../web/dist");
+  // Serve the built web app when present (self-host: one container serves everything). The
+  // desktop app names it (ORRAMA_WEB_DIST); its bundle keeps it beside itself, in `web/`.
+  const webDist = env.webDist ?? (bundled ? path.join(import.meta.dirname, "web") : path.resolve(import.meta.dirname, "../../web/dist"));
 
   /**
    * Digest of the bundle currently on disk. `index.html` names the hashed asset
@@ -335,7 +337,9 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   };
 
   // `source`: where this server's source is, for Settings' link (AGPL §13). Public, like the rest.
-  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length, build: buildId(), source: env.sourceUrl }));
+  // `launch`: the id the desktop shell started this server with (null otherwise), so the shell
+  // shows only its own child, never another Orrama or a stranger on the port.
+  app.get("/api/health", async () => ({ ok: true, notes: store.index.all().length, build: buildId(), source: env.sourceUrl, launch: env.launchId }));
 
   if (fs.existsSync(webDist)) {
     await app.register(fastifyStatic, {
@@ -404,19 +408,33 @@ if (isEntry(import.meta.url, process.argv[1])) {
   // Close properly — stop the watcher, finish in-flight requests, close the
   // database so its WAL is checkpointed — instead of dying mid-write. A close
   // that hangs is cut off, because launchd will SIGKILL us anyway.
-  for (const signal of ["SIGTERM", "SIGINT"] as const) {
-    process.on(signal, () => {
-      if (closing) return;
-      closing = true;
-      app.log.info(`${signal}: closing`);
-      setTimeout(() => process.exit(1), 10_000).unref();
-      app.close().then(
-        () => process.exit(0),
-        (err) => {
-          app.log.error(err, "close failed");
-          process.exit(1);
-        },
-      );
+  const shut = (why: string) => {
+    if (closing) return;
+    closing = true;
+    app.log.info(`${why}: closing`);
+    setTimeout(() => process.exit(1), 10_000).unref();
+    app.close().then(
+      () => process.exit(0),
+      (err) => {
+        app.log.error(err, "close failed");
+        process.exit(1);
+      },
+    );
+  };
+  for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, () => shut(signal));
+  // In the desktop app the shell holds this process's stdin. When the shell quits, or dies,
+  // the pipe closes; a line `stop` asks the same. Windows has no SIGTERM for a child (a kill
+  // is a hard kill, which leaves the database's WAL behind), so this is how the app stops its
+  // server on every platform. Only there: under launchd stdin is /dev/null, closed from the start.
+  if (env.packaged) {
+    let line = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk: string) => {
+      const lines = (line + chunk).split("\n");
+      line = lines.pop()!.slice(-64); // what follows the last newline, kept short
+      if (lines.some((l) => l.trim() === "stop")) shut("stop");
     });
+    process.stdin.on("end", () => shut("stdin closed"));
+    process.stdin.on("error", () => shut("stdin closed"));
   }
 }

@@ -21,6 +21,10 @@
 ### `apps/server/src/board.ts`
 - **Exports**: CARD_W, CARD_H, FileNode, GroupNode, BoardNode, BoardEdge, Board, fileRef, normalizeBoard, placeMissing, defaultBoard
 
+### `apps/server/src/build.ts`
+- **Exports**: bundled, VERSION
+- **Imports**: node:fs
+
 ### `apps/server/src/calendarNotes.ts`
 - **Exports**: CAL_DIR, CalRow, Repeat, parseRepeat, repeatCell, parseCalendarRows, renderRow, placeRow, dropRow, ruleOf, seriesOf, OwnOccurrence, ownEvents, ownerOf, CalendarNotes
 - **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./ics.js, ./vaultStore.js
@@ -47,15 +51,15 @@
 
 ### `apps/server/src/env.ts`
 - **Exports**: DEV_JWT_SECRET, DEV_SECRET_KEY, devMode, DEV_PORT, renamedEnvProblems, assertNoRenamedEnv, DEFAULT_SOURCE_URL, env, assertProductionSecrets, envProblems, assertValidEnv, ownNotesFolder, NOTES_FOLDER_FILE, storedNotesFolder, vaultDir, dbPath
-- **Imports**: node:fs, node:net, node:path
+- **Imports**: node:fs, node:net, node:os, node:path
 
 ### `apps/server/src/export.ts`
 - **Exports**: webhookHint, EXPORT_FORMAT, ExportResult, exportOrrama
-- **Imports**: node:fs, node:path, better-sqlite3, drizzle-orm/better-sqlite3, ./db.js, ./db.js, ./env.js, ./entry.js
+- **Imports**: node:fs, node:path, better-sqlite3, drizzle-orm/better-sqlite3, ./db.js, ./db.js, ./env.js, ./build.js, ./entry.js
 
 ### `apps/server/src/firstRun.ts`
 - **Exports**: markFirstRunPending, firstRunPending, FolderLook, NOTE_CAP, expandHome, lookAtFolder, storeNotesFolder, ONTOLOGY_PATH, starterOntology, exampleNotes, exampleFiles, exampleEvent, StartResult, startHere, removeExample
-- **Imports**: node:fs, node:path, drizzle-orm, @orrama/core, ./atomicWrite.js, ./calendarNotes.js, ./db.js, ./env.js, ./vaultStore.js
+- **Imports**: node:fs, node:os, node:path, drizzle-orm, @orrama/core, ./atomicWrite.js, ./calendarNotes.js, ./db.js, ./env.js, ./vaultStore.js
 
 ### `apps/server/src/history.ts`
 - **Exports**: LogRow, replay, bucketOf, compactionRuns, compactNote, compactAll
@@ -74,7 +78,7 @@
 - **Imports**: @orrama/core
 
 ### `apps/server/src/logging.ts`
-- **Exports**: redactUrl, reqSerializer, errSerializer, privateLogFiles, LOG_ROTATE_BYTES, AGENT_LOG, rotateLogIfLarge
+- **Exports**: redactUrl, reqSerializer, errSerializer, privateLogFiles, LOG_ROTATE_BYTES, agentLog, AGENT_LOG, rotateLogIfLarge
 - **Imports**: node:fs, node:os, node:path, fastify
 
 ### `apps/server/src/loginLimit.ts`
@@ -86,7 +90,7 @@
 
 ### `apps/server/src/main.ts`
 - **Exports**: WS_MAX_FRAME, allowedHost, buildServer
-- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
+- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./build.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
 
 ### `apps/server/src/migrations.ts`
 - **Exports**: runDataMigrations
@@ -195,7 +199,7 @@
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
-- **Imports**: node:fs, node:os, node:path, fastify, zod, ../calendarNotes.js, ../db.js, ../env.js, ../firstRun.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:fs, node:os, node:path, fastify, zod, ../build.js, ../calendarNotes.js, ../db.js, ../env.js, ../firstRun.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/tasks.ts`
 - **Exports**: TASK_GONE, requireTask, applyTaskStatus, applyTaskDates, promoteNamedTask, taskCard, applyTaskEdit, applyTaskMove, applyTaskDelete, taskRoutes

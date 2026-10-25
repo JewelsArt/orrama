@@ -83,8 +83,14 @@ export function privateLogFiles(fds: number[] = [1, 2]): number[] {
 
 /** Past this the log is rotated: one previous generation is kept, so ~10 MB at most. */
 export const LOG_ROTATE_BYTES = 5 * 1024 * 1024;
-/** Where the launchd agent sends stdout and stderr (dev.orrama.server.plist). */
-export const AGENT_LOG = path.join(os.homedir(), ".orrama-run", "server.log");
+/**
+ * The server's own log: where the launchd agent sends stdout and stderr
+ * (dev.orrama.server.plist), or, in the desktop app, `ORRAMA_LOG_FILE`, the file the shell
+ * hands the server as stdout and stderr (`<data dir>/logs/server.log`).
+ */
+export const agentLog = (e: NodeJS.ProcessEnv = process.env): string =>
+  e.ORRAMA_LOG_FILE ? path.resolve(e.ORRAMA_LOG_FILE) : path.join(os.homedir(), ".orrama-run", "server.log");
+export const AGENT_LOG = agentLog();
 
 /**
  * Keep the agent's log from growing forever (audit B7). launchd opens

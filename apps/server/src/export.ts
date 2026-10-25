@@ -45,6 +45,7 @@ export function webhookHint(url: string): string {
     return "(unreadable URL)";
   }
 }
+import { VERSION } from "./build.js";
 import { isEntry } from "./entry.js";
 
 export const EXPORT_FORMAT = { name: "orrama-export", version: 1 } as const;
@@ -177,14 +178,7 @@ export async function exportOrrama(opts: { into?: string; db?: string; vault?: s
   }
 }
 
-function readVersion(): string | null {
-  try {
-    const pkg = path.resolve(import.meta.dirname, "../../../package.json");
-    return (JSON.parse(fs.readFileSync(pkg, "utf8")) as { version?: string }).version ?? null;
-  } catch {
-    return null;
-  }
-}
+const readVersion = (): string | null => VERSION || null;
 
 function readme(at: string, source: string, vault: string): string {
   return `Orrama export — ${at}

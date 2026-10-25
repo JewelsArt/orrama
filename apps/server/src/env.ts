@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 export const DEV_JWT_SECRET = "dev-secret-change-me";
@@ -111,6 +112,19 @@ export const env = {
     .filter(Boolean),
   /** The source this server runs, linked from Settings (AGPL §13). */
   sourceUrl: process.env.ORRAMA_SOURCE_URL || DEFAULT_SOURCE_URL,
+  /**
+   * `ORRAMA_PACKAGED=1`: the server inside the desktop app, started by its shell (stage 2,
+   * the contract in ~/orrama-next/build/2-COMMON.md). Its own notes folder is in the home
+   * folder, not the data folder (`ownNotesFolder`), and it stops when its stdin closes
+   * (main.ts). Unset for `pnpm start` under launchd, the tests and Docker.
+   */
+  packaged: process.env.ORRAMA_PACKAGED === "1",
+  /** The built web app to serve; unset, the checkout's `apps/web/dist` (main.ts). */
+  webDist: process.env.ORRAMA_WEB_DIST ? path.resolve(process.env.ORRAMA_WEB_DIST) : null,
+  /** Where "Start empty" and the example go, over the default (`ownNotesFolder`). */
+  defaultNotesDir: process.env.ORRAMA_DEFAULT_NOTES_DIR ? path.resolve(process.env.ORRAMA_DEFAULT_NOTES_DIR) : null,
+  /** Set by the desktop shell, new each launch; /api/health says it so the shell knows its own child. */
+  launchId: process.env.ORRAMA_LAUNCH_ID || null,
 };
 
 /**
@@ -201,6 +215,16 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
     const okHost = v === 0 && prefix === undefined && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(entry);
     if (!okCidr && !okHost) out.push(`ORRAMA_FETCH_ALLOW: ${JSON.stringify(entry)} is not a hostname, an address or a CIDR`);
   }
+  const packaged = e["ORRAMA_PACKAGED"];
+  if (packaged !== undefined && packaged !== "" && packaged !== "1" && packaged !== "0") {
+    out.push(`ORRAMA_PACKAGED=${JSON.stringify(packaged)} means nothing — it is "1" or unset`);
+  }
+  // The app's shell always says where its data is. Without it the data folder is `./data`
+  // of wherever the process was started, which for an app is nowhere anyone would look.
+  if (packaged === "1" && !e["ORRAMA_DATA_DIR"]) out.push("ORRAMA_PACKAGED=1 needs ORRAMA_DATA_DIR (the app's own data folder)");
+  dir("ORRAMA_WEB_DIST");
+  dir("ORRAMA_DEFAULT_NOTES_DIR");
+  if (e["ORRAMA_LAUNCH_ID"] && !/^[0-9a-f]{32}$/i.test(e["ORRAMA_LAUNCH_ID"])) out.push("ORRAMA_LAUNCH_ID must be 32 hexadecimal characters");
   int("ORRAMA_DOC_CACHE", 1);
   int("ORRAMA_PLAN_AI_TIMEOUT_MS", 1);
   int("ORRAMA_AI_TIMEOUT_MS", 1);
@@ -227,8 +251,18 @@ export function assertValidEnv(e: NodeJS.ProcessEnv = process.env): void {
   if (problems.length) throw new Error(`Refusing to start — the environment is not valid:\n  - ${problems.join("\n  - ")}`);
 }
 
-/** Orrama's own notes folder, inside the data folder: where "Start empty" and the example go. */
-export const ownNotesFolder = (dataDir = env.dataDir) => path.join(dataDir, "vault");
+/**
+ * Orrama's own notes folder: where "Start empty" and the example go, and what is read while no
+ * other folder is chosen. Inside the data folder (`<data>/vault`), except in the desktop app,
+ * whose data folder an uninstall may delete: there it is `~/Orrama`, visible in Finder and
+ * Explorer, outside the app's data, not under Documents (macOS asks an unsigned app for
+ * Documents again after every update; OneDrive may hold it on Windows). Jules, 25 Oct 2026
+ * (stage 2, D3). `ORRAMA_DEFAULT_NOTES_DIR` names another.
+ */
+export function ownNotesFolder(dataDir = env.dataDir, e: Pick<typeof env, "packaged" | "defaultNotesDir"> = env): string {
+  if (e.defaultNotesDir) return e.defaultNotesDir;
+  return e.packaged ? path.join(os.homedir(), "Orrama") : path.join(dataDir, "vault");
+}
 
 /**
  * The notes folder chosen in the app (first run, Settings → Notes), kept in the data folder

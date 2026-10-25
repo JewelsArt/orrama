@@ -7,6 +7,7 @@
  * screen or in Settings → Notes, made through `VaultStore.write` like any other note.
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { ONTOLOGY_TEMPLATE, type AclUser } from "@orrama/core";
@@ -52,8 +53,12 @@ export interface FolderLook {
 export const NOTE_CAP = 20_000;
 const ENTRY_CAP = 200_000;
 
-/** `~` and `~/…` the way a person types them, else the path as typed. */
-export function expandHome(typed: string, home = process.env.HOME ?? ""): string {
+/**
+ * `~` and `~/…` the way a person types them, else the path as typed. The home folder is
+ * `os.homedir()`: Windows has no HOME (it has USERPROFILE), and `~/Notes` read as `Notes`
+ * there was refused as "not the whole path".
+ */
+export function expandHome(typed: string, home = os.homedir()): string {
   const t = typed.trim();
   if (t === "~") return home;
   if (t.startsWith("~/")) return path.join(home, t.slice(2));
@@ -87,6 +92,12 @@ export function lookAtFolder(typed: string, dataDir = env.dataDir): FolderLook {
   const rel = path.relative(abs, data);
   if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) {
     return { ...out, problem: "That folder holds Orrama's own data. Pick the folder your notes are in." };
+  }
+  // Inside the data folder is the other way round, and as bad: uninstalling the app may delete
+  // that folder with everything in it. Orrama's own folder is there only outside the app.
+  const inside = path.relative(data, abs);
+  if (!inside.startsWith("..") && !path.isAbsolute(inside) && abs !== path.resolve(ownNotesFolder(dataDir))) {
+    return { ...out, problem: "That folder is inside Orrama's own data, which uninstalling the app may delete. Pick a folder of your own." };
   }
   try {
     fs.accessSync(abs, fs.constants.R_OK | fs.constants.W_OK);

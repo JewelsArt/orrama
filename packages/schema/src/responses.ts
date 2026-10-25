@@ -121,7 +121,7 @@ export const sessionsResponse = z.array(
 export const passkeysResponse = z.array(o({ id: z.string(), label: z.string(), createdAt: z.number(), lastUsedAt: nnum }));
 
 /** `source`: the repository this server's code comes from, linked from Settings (AGPL §13). */
-export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nstr, source: z.string() });
+export const healthResponse = o({ ok: z.boolean(), notes: z.number(), build: nstr, source: z.string(), launch: nstr });
 
 /** The accounts on this server (Settings → Access, shown only when there is more than one). */
 export const membersResponse = z.array(o({ id: z.string(), username: z.string(), displayName: z.string(), isOwner: z.boolean(), avatar: z.string() }));
