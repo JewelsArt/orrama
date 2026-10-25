@@ -142,7 +142,7 @@ describe.skipIf(!built)("the desktop bundle", () => {
 
       // Sign up (argon2), then the first-run choice, then Start empty (better-sqlite3, the vault).
       expect((await call("POST", "/api/auth/register", { email: "sam@example.test", username: "sam", displayName: "Sam", password: "correct horse battery" })).status).toBe(200);
-      expect(await (await call("GET", "/api/auth/status")).json()).toEqual({ needsSetup: false, chooseNotes: true });
+      expect(await (await call("GET", "/api/auth/status")).json()).toEqual({ needsSetup: false, chooseNotes: true, resetHere: false });
       expect(await (await call("POST", "/api/settings/start", { example: false })).json()).toMatchObject({ ontology: "written" });
       expect(fs.existsSync(path.join(s.notes, "Orrama", "What things are.md"))).toBe(true);
       const version = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;

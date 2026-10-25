@@ -9,7 +9,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
-import { appearanceSchema, loginSchema, passcodeSchema, passwordChangeSchema, registerSchema, unlockSchema } from "@orrama/schema";
+import { appearanceSchema, loginSchema, passcodeSchema, passwordChangeSchema, passwordResetSchema, registerSchema, unlockSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { LoginLimiter } from "../loginLimit.js";
 import { listSessions, openSession, revokeEverything, revokeSession, SESSION_DAYS, sessionUser } from "../sessions.js";
@@ -267,6 +267,54 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     return { sessions: done.sessions.length, tokens: done.tokens, devices: done.devices };
   });
 
+  // ── Forgot your password (the desktop app) ──────────────────────────────────
+  /**
+   * "Reset it on this computer" (Jules, 25 Oct 2026, stage 2 D6). The app's shell starts
+   * its server with a token that is new each launch and never said back (`ORRAMA_SHELL_TOKEN`,
+   * env.ts): not in /api/health, not to any page. "Forgot your password?" in the app sends
+   * the window to a path the shell catches (window.rs); the shell asks here, with the token,
+   * for a ticket, and opens the reset form with it. A browser elsewhere has no token, so it
+   * is told to reset on the computer Orrama runs on. Whoever sits at that unlocked computer
+   * can already read the notes: this gives nothing new away.
+   *
+   * A ticket is good once, for 10 minutes, and only the newest one is. The reset keeps the
+   * notes and every stored credential (mail, AI: they don't depend on the password) and ends
+   * every way in that existed, like a password change (`revokeEverything`), then signs this
+   * window in.
+   */
+  const RESET_MS = 10 * 60_000;
+  let resetTicket: { digest: Buffer; at: number } | null = null;
+  const digest = (s: string) => crypto.createHash("sha256").update(s).digest();
+  const sameSecret = (a: string, b: string) => crypto.timingSafeEqual(digest(a), digest(b));
+
+  app.post("/api/auth/reset/ticket", async (req) => {
+    const shown = req.headers["x-orrama-shell-token"];
+    if (!env.shellToken) throw new HttpError(404, "Reset it on the computer Orrama runs on.");
+    if (typeof shown !== "string" || !sameSecret(shown, env.shellToken)) throw new HttpError(403, "only the Orrama app on this computer can start a reset");
+    const ticket = crypto.randomBytes(32).toString("base64url");
+    resetTicket = { digest: digest(ticket), at: Date.now() };
+    return { ticket };
+  });
+
+  app.post("/api/auth/reset", async (req, reply) => {
+    const body = passwordResetSchema.parse(req.body);
+    const live = resetTicket && Date.now() - resetTicket.at < RESET_MS && crypto.timingSafeEqual(resetTicket.digest, digest(body.ticket));
+    if (!live) throw new HttpError(403, "This reset has expired. Start it again from the sign-in screen.");
+    const user = db.select().from(tables.users).where(eq(tables.users.email, body.email.toLowerCase())).get();
+    // A mistyped address keeps the ticket: it is the person at this computer, typing again.
+    if (!user) throw new HttpError(400, "There's no account with that email on this computer.");
+    resetTicket = null; // spent before the hash is awaited: a second request finds nothing
+    const passwordHash = await argonHash(body.password);
+    const done = db.transaction((tx) => {
+      tx.update(tables.users).set({ passwordHash }).where(eq(tables.users.id, user.id)).run();
+      return revokeEverything(tx, user.id);
+    });
+    for (const sessionId of done.sessions) store.events.emit("session-revoked", { sessionId });
+    logins.succeed(req.ip);
+    signIn(user.id, req, reply);
+    return reply.send({ user: publicUser(db, store, user.id) });
+  });
+
   // ── First run ────────────────────────────────────────────────────────────────
   /**
    * Is this an empty install? The web app asks before rendering anything, so a
@@ -278,7 +326,8 @@ export async function authRoutes(app: FastifyInstance, db: Db, store: VaultStore
     const userCount = db.select().from(tables.users).all().length;
     // `chooseNotes`: the account exists but its notes folder was never settled (the window
     // closed on the chooser). Says nothing `needsSetup: false` does not already say.
-    return { needsSetup: userCount === 0, chooseNotes: userCount > 0 && firstRunPending(db) };
+    // `resetHere`: the desktop app started this server, so its sign-in can offer the reset.
+    return { needsSetup: userCount === 0, chooseNotes: userCount > 0 && firstRunPending(db), resetHere: env.shellToken !== null };
   });
 
   // ── Quick unlock (passcode / Touch ID) ───────────────────────────────────────

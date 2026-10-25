@@ -10,6 +10,13 @@ export const passwordChangeSchema = z.object({
   next: z.string().min(8).max(256),
 });
 
+/** Forgot your password, in the app: the shell's one-time ticket, the account, the new password. */
+export const passwordResetSchema = z.object({
+  ticket: z.string().min(1).max(128),
+  email: z.string().email(),
+  password: z.string().min(8).max(256),
+});
+
 export const registerSchema = z.object({
   email: z.string().email(),
   // Must start alphanumeric: a username becomes a path segment under Personal/,

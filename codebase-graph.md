@@ -1079,7 +1079,7 @@
 - **Imports**: ./safeRegex.js, ./parse.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema, eventRepeatSchema, eventWriteSchema, feedPatchSchema
+- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, passwordResetSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema, eventRepeatSchema, eventWriteSchema, feedPatchSchema
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`

@@ -105,7 +105,7 @@ export const meResponse = o({
   teams: z.array(teamSchema),
 });
 
-export const authStatusResponse = o({ needsSetup: z.boolean(), chooseNotes: z.boolean() });
+export const authStatusResponse = o({ needsSetup: z.boolean(), chooseNotes: z.boolean(), resetHere: z.boolean() });
 
 /**
  * What every way in answers (sign-up, password, passcode, Touch ID, the switch from a stored

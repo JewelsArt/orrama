@@ -110,7 +110,7 @@ describe("choosing a folder", () => {
   it("starting there writes no second ontology note: the folder's own is the one read", async () => {
     expect((await as("POST", "/api/settings/start", { example: false })).json()).toEqual({ ontology: "there", example: 0 });
     expect(fs.existsSync(path.join(theirs, "Orrama"))).toBe(false);
-    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false });
+    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false, resetHere: false });
   });
 
   it("choosing the folder already read restarts nothing", async () => {

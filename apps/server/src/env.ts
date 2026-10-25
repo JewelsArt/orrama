@@ -125,6 +125,12 @@ export const env = {
   defaultNotesDir: process.env.ORRAMA_DEFAULT_NOTES_DIR ? path.resolve(process.env.ORRAMA_DEFAULT_NOTES_DIR) : null,
   /** Set by the desktop shell, new each launch; /api/health says it so the shell knows its own child. */
   launchId: process.env.ORRAMA_LAUNCH_ID || null,
+  /**
+   * Set by the desktop shell, new each launch, and never said back: not in /api/health, not to
+   * any page. Only the shell can show it, which is how "Forgot your password?" in the app asks
+   * for a reset that a browser elsewhere cannot (routes/auth.ts, `/api/auth/reset/ticket`).
+   */
+  shellToken: process.env.ORRAMA_SHELL_TOKEN || null,
 };
 
 /**
@@ -225,6 +231,7 @@ export function envProblems(e: NodeJS.ProcessEnv = process.env): string[] {
   dir("ORRAMA_WEB_DIST");
   dir("ORRAMA_DEFAULT_NOTES_DIR");
   if (e["ORRAMA_LAUNCH_ID"] && !/^[0-9a-f]{32}$/i.test(e["ORRAMA_LAUNCH_ID"])) out.push("ORRAMA_LAUNCH_ID must be 32 hexadecimal characters");
+  if (e["ORRAMA_SHELL_TOKEN"] && !/^[0-9a-f]{64}$/i.test(e["ORRAMA_SHELL_TOKEN"])) out.push("ORRAMA_SHELL_TOKEN must be 64 hexadecimal characters");
   int("ORRAMA_DOC_CACHE", 1);
   int("ORRAMA_PLAN_AI_TIMEOUT_MS", 1);
   int("ORRAMA_AI_TIMEOUT_MS", 1);

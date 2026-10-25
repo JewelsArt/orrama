@@ -66,7 +66,7 @@ describe("the note that says what things are", () => {
 
 describe("first run on an empty folder", () => {
   it("signing up founds the workspace and writes nothing into the folder; the app asks where the notes are", async () => {
-    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: true, chooseNotes: false });
+    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: true, chooseNotes: false, resetHere: false });
     const r = await b.app.inject({
       method: "POST",
       url: "/api/auth/register",
@@ -75,7 +75,7 @@ describe("first run on an empty folder", () => {
     expect(r.statusCode).toBe(200);
     session = sessionOf(r);
     expect(files()).toEqual([]);
-    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: true });
+    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: true, resetHere: false });
   });
 
   it("starting with the example writes the ontology note, the example and its event, and ends first run", async () => {
@@ -85,7 +85,7 @@ describe("first run on an empty folder", () => {
     expect(files()).toEqual(
       [ONTOLOGY_PATH, ...exampleFiles(new Date()).map((f) => f.path), `01-Me/Calendar/${new Date().toISOString().slice(0, 7)}.md`].sort(),
     );
-    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false });
+    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false, resetHere: false });
     const events = b.db.select().from(tables.events).all();
     expect(events.map((e) => e.title)).toEqual(["Site visit with Sam"]);
     const server = (await as("GET", "/api/settings/server")).json();
@@ -146,7 +146,7 @@ describe("first run on an empty folder", () => {
     });
     expect(r.statusCode).toBe(200);
     expect(notesFiles()).toEqual(["04-Projects/kitchen-renovation.md"]);
-    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false });
+    expect((await b.app.inject({ method: "GET", url: "/api/auth/status" })).json()).toEqual({ needsSetup: false, chooseNotes: false, resetHere: false });
     expect((await as("POST", "/api/settings/start", { example: false }, sessionOf(r))).statusCode).toBe(403);
   });
 });

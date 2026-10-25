@@ -67,7 +67,7 @@ describe("the door in the app", () => {
   });
 
   it("a founder who never said where the notes are is asked again once signed in (first run, 1A)", async () => {
-    serve({ "GET /api/auth/status": { needsSetup: false, chooseNotes: true } });
+    serve({ "GET /api/auth/status": { needsSetup: false, chooseNotes: true, resetHere: false } });
     at("/today");
     render(<App />);
     // Setup is a stub here (test/app-harness.tsx); door.dom.test.tsx covers what it shows.
@@ -75,7 +75,7 @@ describe("the door in the app", () => {
   });
 
   it("…and only the founder: anyone else goes straight in", async () => {
-    serve({ "GET /api/me": { ...ME, isOwner: false }, "GET /api/auth/status": { needsSetup: false, chooseNotes: true } });
+    serve({ "GET /api/me": { ...ME, isOwner: false }, "GET /api/auth/status": { needsSetup: false, chooseNotes: true, resetHere: false } });
     at("/today");
     render(<App />);
     expect((await screen.findByTestId("view")).dataset.view).toBe("today");
