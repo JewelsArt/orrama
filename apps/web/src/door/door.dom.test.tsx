@@ -294,6 +294,13 @@ describe("first run", () => {
     expect(sent("POST /api/auth/register")).toHaveLength(0);
   });
 
+  /** Orr's AI not set up: the third step offers it, and these tests answer Later. */
+  const AI_OFF = { provider: null, model: null, configured: false, instructions: "", baseUrl: "", chatgpt: { connected: false, email: null, manageUsage: "x" } };
+  const later = async () => {
+    fireEvent.click(await screen.findByRole("radio", { name: /^Later/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  };
+
   /** The folder read now (Orrama's own, nothing set where it starts) and what a look at another says. */
   const OWN = { notesFolder: "~/Orrama/vault", notes: 0, version: "0.1.0", fixed: false, own: true, example: 0 };
   const LOOK = { folder: "~/Notes", problem: null, notes: 3, more: false, unstamped: 3, ontology: false, current: false };
@@ -316,6 +323,7 @@ describe("first run", () => {
         return json(200, { folder: "~/Notes", restart: true });
       },
       "POST /api/settings/start": { ontology: "written", example: 0 },
+      "GET /api/admin/ai": AI_OFF,
       ...found,
     });
     const onDone = vi.fn();
@@ -332,7 +340,12 @@ describe("first run", () => {
     ).toBeTruthy();
     expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("heading", { name: "How should Orr think?" }, { timeout: 3000 });
+    // The notes are counted once Orr's step is answered, not behind it.
+    expect(sent("GET /api/vault/tree")).toHaveLength(0);
+    await later();
     expect((await screen.findByText("I found 3 notes.", undefined, { timeout: 3000 })).textContent).toBeTruthy();
+    expect(sent("POST /api/admin/ai")).toHaveLength(0);
     expect(screen.getByText("1 person, 1 project and 1 link between them.")).toBeTruthy();
     expect(sent("PUT /api/settings/notes-folder").map((c) => c.body)).toEqual([{ folder: "~/Notes" }]);
     expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: false }]);
@@ -344,22 +357,24 @@ describe("first run", () => {
   });
 
   it("starts with the example in Orrama's own folder: no folder change, no restart", async () => {
-    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 4 }, ...found });
+    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 4 }, "GET /api/admin/ai": AI_OFF, ...found });
     render(<Setup onDone={vi.fn()} />);
     signUp();
     expect((await screen.findByRole("radio", { name: /Start with an example/ })).getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await later();
     expect(await screen.findByText("Your example is ready.")).toBeTruthy();
     expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
     expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: true }]);
   });
 
   it("starts empty: no example, and Today is the one way on", async () => {
-    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 0 }, ...found });
+    serve({ "POST /api/auth/register": IN, "GET /api/settings/server": OWN, "POST /api/settings/notes-folder/look": { ...LOOK, notes: 0, unstamped: 0, current: true }, "POST /api/settings/start": { ontology: "written", example: 0 }, "GET /api/admin/ai": AI_OFF, ...found });
     render(<Setup onDone={vi.fn()} />);
     signUp();
     fireEvent.click(await screen.findByRole("radio", { name: /Start empty/ }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await later();
     expect(await screen.findByText("Your notes start here.")).toBeTruthy();
     expect(sent("POST /api/settings/start").map((c) => c.body)).toEqual([{ example: false }]);
     expect(screen.queryByRole("button", { name: "Show me how they relate" })).toBeNull();
@@ -382,6 +397,7 @@ describe("first run", () => {
       "GET /api/settings/server": { ...OWN, notesFolder: "~/Orrama Vault", notes: 3, fixed: true, own: false },
       "POST /api/settings/notes-folder/look": { ...LOOK, folder: "~/Orrama Vault", ontology: true, current: true },
       "POST /api/settings/start": { ontology: "there", example: 0 },
+      "GET /api/admin/ai": AI_OFF,
       ...found,
     });
     render(<Setup onDone={vi.fn()} />);
@@ -389,6 +405,7 @@ describe("first run", () => {
     expect((await screen.findByText(/That folder is set where Orrama starts/)).textContent).toContain("~/Orrama Vault");
     expect(screen.queryByRole("radio")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Use these notes" }));
+    await later();
     expect(await screen.findByText("I found 3 notes.")).toBeTruthy();
     expect(sent("PUT /api/settings/notes-folder")).toHaveLength(0);
   });

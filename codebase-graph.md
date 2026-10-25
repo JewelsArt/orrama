@@ -346,7 +346,7 @@
 
 ### `apps/web/src/Setup.tsx`
 - **Exports**: Setup
-- **Imports**: react, @orrama/schema/responses, ./api.js, ./door/Door.js, ./door/NotesChoice.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./door/Door.js, ./door/AiStep.js, ./door/NotesChoice.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
 
 ### `apps/web/src/TaskCard.tsx`
 - **Exports**: PlannableTask, TaskCard
@@ -406,9 +406,16 @@
 - **Exports**: NewContext, newContext
 - **Imports**: ../calendarMath.js, ../ui/router.js
 
+### `apps/web/src/desktop.ts`
+- **Exports**: inApp, RESET_PATH, RESET_PAGE, startReset, takeResetTicket, pickFolder
+
 ### `apps/web/src/dialog.tsx`
 - **Exports**: Dialog
 - **Imports**: react, ./ui/focus.js, ./ui/overlays.js
+
+### `apps/web/src/door/AiStep.tsx`
+- **Exports**: AiStep
+- **Imports**: react, ../settings/Ai.js, ../settings/parts.js, ../ui/controls.js
 
 ### `apps/web/src/door/Boot.tsx`
 - **Exports**: Boot
@@ -800,8 +807,8 @@
 - **Imports**: @orrama/schema/responses, ../ui/orr/Orr.js, ./parts.js
 
 ### `apps/web/src/settings/Ai.tsx`
-- **Exports**: AiSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/orr/Orr.js, ../ui/states.js, ./parts.js
+- **Exports**: AiKind, Company, DEFAULT_MODEL, KEY_GUIDE, SIGN_IN_WAIT_MS, useAiForm, AiForm, AiFields, AiSection
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../desktop.js, ../ui/controls.js, ../ui/fields.js, ../ui/orr/Orr.js, ../ui/states.js, ./parts.js
 
 ### `apps/web/src/settings/Appearance.tsx`
 - **Exports**: ThemeChoice, AppearanceSection

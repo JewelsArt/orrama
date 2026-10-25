@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ServerSettings } from "@orrama/schema/responses";
 import { api, type Me, rememberEmail, sessionStarted, type SignedIn } from "./api.js";
 import { Door, DoorError, DoorField, DoorFoot, PasswordField, reducedMotion, type DoorHandle } from "./door/Door.js";
+import { AiStep } from "./door/AiStep.js";
 import { NotesChoice, type NotesWay } from "./door/NotesChoice.js";
 import { countingLine, firstRunCounts, foundDetail, foundLine, type FirstCounts } from "./door/shape.js";
 import { doorError } from "./door/voice.js";
@@ -27,9 +28,12 @@ function readyWords(way: NotesWay, c: FirstCounts): { hi: string; detail: string
  *
  * 1. Your account: name, email, password, stored on this machine only. No dots yet.
  * 2. Where are your notes? Start with an example, start empty, or use notes you already have
- *    (door/NotesChoice.tsx). Also shown on its own (`resume`) when the founder signs in again
- *    before choosing: /api/auth/status says `chooseNotes` until it is settled.
- * 3. Orrama reads them: each one arrives as a dot as it's counted, then they gather. Show me how
+ *    (door/NotesChoice.tsx; in the app, the system's folder chooser). Also shown on its own
+ *    (`resume`) when the founder signs in again before choosing: /api/auth/status says
+ *    `chooseNotes` until it is settled.
+ * 3. Orr's AI: Sign in with ChatGPT, use a key, or later (door/AiStep.tsx, Settings → Orr & AI's
+ *    own form).
+ * 4. Orrama reads them: each one arrives as a dot as it's counted, then they gather. Show me how
  *    they relate (the Orrery), or Start with today.
  *
  * The counts are real, asked once the folder is settled.
@@ -46,6 +50,9 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
   const [server, setServer] = useState<ServerSettings | null>(null);
   const [serverFailed, setServerFailed] = useState(false);
   const [way, setWay] = useState<NotesWay | null>(null);
+  /** Step 3 answered (or skipped with Later). */
+  const [aiDone, setAiDone] = useState(false);
+  const aiAnswered = useCallback(() => setAiDone(true), []);
   const [counts, setCounts] = useState<FirstCounts | null>(null);
   /** 0–1 while counting; 1 once counted. */
   const [counted, setCounted] = useState(0);
@@ -112,9 +119,9 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
     };
   }, [me, way]);
 
-  // 3: read what the server found, bring the dots in as they're counted, then gather.
+  // 4: read what the server found, bring the dots in as they're counted, then gather.
   useEffect(() => {
-    if (!me || !way) return;
+    if (!me || !way || !aiDone) return;
     let alive = true;
     let timer: ReturnType<typeof setInterval> | undefined;
     const reduce = reducedMotion();
@@ -147,7 +154,7 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
       alive = false;
       clearInterval(timer);
     };
-  }, [me, way]);
+  }, [me, way, aiDone]);
 
   const go = (to: Route) => {
     navigate(to);
@@ -195,9 +202,18 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
               <NotesChoice server={server} place="first" onDone={(w) => setWay(w)} />
             ) : serverFailed ? (
               <p className="dr-err" role="alert">
-                Orrama's server isn't answering. Reload the page to try again.
+                Orrama isn't answering. Reload the page to try again.
               </p>
             ) : null}
+          </div>
+          <DoorFoot />
+        </>
+      ) : !aiDone ? (
+        <>
+          <div className="dr-card dr-first2">
+            <h1 className="dr-h">How should Orr think?</h1>
+            <p className="dr-p">Orr answers from your notes and helps plan your week, through an AI service you choose. You can change it any time in Settings.</p>
+            <AiStep onDone={aiAnswered} />
           </div>
           <DoorFoot />
         </>

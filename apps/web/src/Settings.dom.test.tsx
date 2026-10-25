@@ -350,9 +350,35 @@ describe("the Settings page (structure.md §3)", () => {
     await user.click(screen.getByRole("button", { name: "Replace" }));
     await user.type(screen.getByLabelText("API key"), "sk-new-key-0123456789");
     await user.click(screen.getByRole("button", { name: "Save" }));
+    // The new key is checked with Anthropic first, then saved.
     await waitFor(() =>
-      expect(sent2).toEqual([{ key: "POST /api/admin/ai", body: { provider: "anthropic", model: "claude-sonnet-5", apiKey: "sk-new-key-0123456789", baseUrl: "" } }]),
+      expect(sent2).toEqual([
+        { key: "POST /api/admin/ai/check", body: { provider: "anthropic", model: "claude-sonnet-5", apiKey: "sk-new-key-0123456789" } },
+        { key: "POST /api/admin/ai", body: { provider: "anthropic", model: "claude-sonnet-5", apiKey: "sk-new-key-0123456789", baseUrl: "" } },
+      ]),
     );
+  });
+
+  it("Orr & AI: a key the provider refuses is said, and not saved", async () => {
+    const user = userEvent.setup();
+    answer({ "GET /api/admin/ai": { provider: null, model: null, configured: false, instructions: "", baseUrl: "", chatgpt: { connected: false, email: null, manageUsage: "x" } } });
+    const base = globalThis.fetch;
+    const out: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: { method?: string } = {}) => {
+      const key = `${init.method ?? "GET"} ${url.split("?")[0]}`;
+      if (!key.startsWith("GET ")) out.push(key);
+      if (key === "POST /api/admin/ai/check") return new Response(JSON.stringify({ error: "Google didn't accept that key. Check that you copied all of it." }), { status: 400 });
+      return base(url, init);
+    });
+    open("ai");
+    await user.selectOptions(await screen.findByLabelText("Company"), "google");
+    // A company chosen fills its model; the guide says where its key comes from.
+    expect((screen.getByLabelText("Model") as HTMLInputElement).value).toBe("gemini-flash-latest");
+    expect(screen.getByRole("link", { name: "Open Google AI Studio" }).getAttribute("href")).toBe("https://aistudio.google.com/apikey");
+    await user.type(screen.getByLabelText("API key"), "g-wrong-0123456789");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Google didn't accept that key. Check that you copied all of it.")).toBeTruthy();
+    expect(out).toEqual(["POST /api/admin/ai/check"]);
   });
 
   it("Orr & AI with nothing set up still saves the instructions alone", async () => {

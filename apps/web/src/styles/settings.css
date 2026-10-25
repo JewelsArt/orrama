@@ -92,6 +92,14 @@
 .set-pinform { margin-top: 12px; }
 .set-pinrow { justify-content: flex-start; }
 .set-pinrow .inp { flex: 0 1 140px; }
+/* Orr's AI (settings/Ai.tsx), here and in first run's third step: a key's guide, and the
+   sign-in the page waits for while it runs in the browser. */
+.ai-guide { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
+.ai-guide a { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.ai-wait { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: var(--r-2); border: 1px solid var(--line-2); background: var(--surface); }
+.ai-wait b { font-size: 15px; line-height: 21px; font-weight: 700; color: var(--ink); }
+.ai-wait > span { color: var(--ink-2); font-size: 13.5px; line-height: 19px; }
+.ai-wait-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .set-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
 .set-actions .set-help { margin: 0; }
 .set-savebar { display: flex; align-items: center; gap: 12px; padding-top: 6px; }
