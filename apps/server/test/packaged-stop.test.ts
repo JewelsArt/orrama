@@ -11,6 +11,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
+/** The exit code, or "still running" after `ms`: a test that waits for an exit must not hang past its own finally. */
+const exitWithin = (exited: Promise<number | null>, ms = 15_000) =>
+  Promise.race([exited, new Promise<"still running">((r) => setTimeout(() => r("still running"), ms))]);
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-packaged-stop-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
@@ -66,7 +70,7 @@ describe("the server inside the app", () => {
       expect(r.status).toBe(200);
       expect(fs.existsSync(path.join(s.data, "basalt.db-wal"))).toBe(true);
       s.child.stdin!.end();
-      expect(await s.exited).toBe(0);
+      expect(await exitWithin(s.exited)).toBe(0);
       expect(fs.readFileSync(s.log, "utf8")).toContain("stdin closed: closing");
       expect(fs.existsSync(path.join(s.data, "basalt.db-wal"))).toBe(false);
     } finally {
@@ -80,7 +84,7 @@ describe("the server inside the app", () => {
       expect(s.port).toBeGreaterThan(0);
       s.child.stdin!.write("hello\nst");
       s.child.stdin!.write("op\n");
-      expect(await s.exited).toBe(0);
+      expect(await exitWithin(s.exited)).toBe(0);
       expect(fs.readFileSync(s.log, "utf8")).toContain("stop: closing");
     } finally {
       await stopped(s);

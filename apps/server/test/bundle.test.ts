@@ -29,6 +29,10 @@ const NODE = triple ? path.join(TAURI, "binaries", `node-${triple}${process.plat
 const built = !!triple && fs.existsSync(NODE) && fs.existsSync(path.join(SERVER_DIR, "server.mjs"));
 if (!built) console.warn("bundle.test.ts skipped: the desktop bundle hasn't been built here. Run pnpm --dir apps/desktop prepare-bundle (it needs apps/web/dist).");
 
+/** The exit code, or "still running" after `ms`: a test that waits for an exit must not hang past its own finally. */
+const exitWithin = (exited: Promise<number | null>, ms = 15_000) =>
+  Promise.race([exited, new Promise<"still running">((r) => setTimeout(() => r("still running"), ms))]);
+
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-bundle-"));
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 /**
@@ -105,7 +109,7 @@ describe.skipIf(!built)("the desktop bundle", () => {
 
   it("refuses to start on the development secrets", async () => {
     const s = await boot("dev-secrets", { jwt: "dev-secret-change-me", key: "dev-secret-key-32-bytes-change!!" });
-    const code = await s.exited;
+    const code = await exitWithin(s.exited);
     expect(code).not.toBe(0);
     expect(fs.readFileSync(s.log, "utf8")).toContain("Refusing to start: ORRAMA_JWT_SECRET and ORRAMA_SECRET_KEY");
   }, 60_000);
@@ -174,7 +178,7 @@ describe.skipIf(!built)("the desktop bundle", () => {
       // The shell quits: stdin closes, the server closes like on SIGTERM and exits 0.
       expect(fs.existsSync(path.join(s.data, "basalt.db-wal"))).toBe(true);
       s.child.stdin!.end();
-      expect(await s.exited).toBe(0);
+      expect(await exitWithin(s.exited)).toBe(0);
       expect(fs.readFileSync(s.log, "utf8")).toContain("stdin closed: closing");
       expect(fs.existsSync(path.join(s.data, "basalt.db-wal"))).toBe(false);
     } finally {
