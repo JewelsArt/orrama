@@ -1,90 +1,244 @@
-/// The window, and nothing else.
+/// The window around Orrama's own server.
 ///
-/// The shell shows the running server (http://localhost:4623, which serves the
-/// app and the API same-origin), so it needs no commands of its own. It used to
-/// register `read_vault_file` / `write_vault_file`, which took the vault root
-/// FROM THE CALLER — anything able to invoke them could read or write any file
-/// on the Mac — and nothing in the app ever called them. Removed with the
-/// never-initialised fs/dialog plugins and the `notify` watcher; the server's
-/// watcher is the one that feeds outside edits into the CRDT.
+/// The app starts its server, keeps its two secrets, and shows the server's page
+/// once it answers; it stops the server when it quits (server.rs). The window
+/// opens on the bundled page in `fallback/` ("Starting Orrama…") and moves to
+/// `http://localhost:<port>` only once `/api/health` answers as Orrama with this
+/// launch's id (health.rs). It used to load :4623 directly, so whatever held that
+/// port was shown inside "Orrama" and got the password typed into it (audit
+/// OPS-010); then it showed any Orrama there.
 ///
-/// The window opens on the bundled page in `fallback/` ("Orrama isn't running")
-/// and moves to the server only once `/api/health` answers the way Orrama does.
-/// It used to load :4623 directly, so whatever held that port — with the agent
-/// down — was shown inside "Orrama" and got the password typed into it
-/// (audit OPS-010).
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
-use std::time::Duration;
+/// Still no commands and no capability: the server's pages get no Tauri IPC at
+/// all, and the bundled page needs none (its buttons are links the shell catches,
+/// window.rs). The opener plugin is used from Rust only.
+/// It used to register `read_vault_file` / `write_vault_file`, which took the vault
+/// root FROM THE CALLER — anything able to invoke them could read or write any file
+/// on the Mac. Removed with the never-initialised fs/dialog plugins and the `notify`
+/// watcher; the server's watcher is the one that feeds outside edits into the CRDT.
+mod health;
+mod port;
+mod secrets;
+mod server;
+#[cfg(test)]
+mod testutil;
+mod window;
 
-use tauri::Manager;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
-const SERVER: &str = "http://localhost:4623";
-const HEALTH: ([u8; 4], u16) = ([127, 0, 0, 1], 4623);
+use tauri::webview::{DownloadEvent, NewWindowResponse};
+use tauri::{Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-/// Whether an HTTP response is Orrama's `/api/health`: a 200 whose JSON body
-/// says `"ok":true` and carries the `build` and `notes` fields.
-pub fn is_orrama(response: &str) -> bool {
-    let Some((head, body)) = response.split_once("\r\n\r\n") else {
-        return false;
-    };
-    let status = head.lines().next().unwrap_or("");
-    let ok_status = status.starts_with("HTTP/1.1 200") || status.starts_with("HTTP/1.0 200");
-    let json = head.to_ascii_lowercase().contains("content-type: application/json");
-    ok_status && json && body.contains("\"ok\":true") && body.contains("\"build\":") && body.contains("\"notes\":")
+pub use health::is_orrama;
+use server::{Launch, Status, Supervisor};
+use window::{Action, Route};
+
+/// What the window's handlers and the supervisor share.
+struct Shell {
+    data_dir: PathBuf,
+    log_file: PathBuf,
+    supervisor: OnceLock<Supervisor>,
+    /// The port of the server the window shows, once it answered.
+    port: Mutex<Option<u16>>,
+    /// Where the window was when the server went away, to go back once it is up.
+    resume: Mutex<Option<Url>>,
 }
 
-fn orrama_answers() -> bool {
-    let addr = SocketAddr::from(HEALTH);
-    let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_secs(1)) else {
-        return false;
-    };
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-    let request = "GET /api/health HTTP/1.1\r\nHost: localhost:4623\r\nConnection: close\r\n\r\n";
-    if stream.write_all(request.as_bytes()).is_err() {
-        return false;
+/// The data folder: `ORRAMA_DATA_DIR` from the shell's own environment (tests, and
+/// every run on Jules's Mac, where the app's default folder must stay untouched),
+/// else the app's local data folder. True when it came from the environment.
+fn data_dir(app: &tauri::App) -> Result<(PathBuf, bool), String> {
+    if let Some(dir) = std::env::var_os("ORRAMA_DATA_DIR").filter(|d| !d.is_empty()) {
+        let dir = PathBuf::from(dir);
+        let dir = if dir.is_absolute() { dir } else { std::env::current_dir().map_err(|e| e.to_string())?.join(dir) };
+        return Ok((dir, true));
     }
-    let mut response = String::new();
-    let _ = stream.take(64 * 1024).read_to_string(&mut response);
-    is_orrama(&response)
+    app.path().app_local_data_dir().map(|d| (d, false)).map_err(|e| e.to_string())
+}
+
+/// The packaged server: the Node binary Tauri put beside the app's executable
+/// (`externalBin`, its target triple dropped) and `server/` in the resources.
+fn packaged(node: PathBuf, server_dir: PathBuf, data_dir: &Path) -> Launch {
+    Launch { program: node, args: vec![server_dir.join("server.mjs").into()], cwd: data_dir.to_path_buf(), web_dist: server_dir.join("web") }
+}
+
+#[cfg(not(debug_assertions))]
+fn launch(app: &tauri::App, data_dir: &Path) -> Result<Launch, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let node = exe.parent().ok_or("no folder around the app")?.join(format!("node{}", std::env::consts::EXE_SUFFIX));
+    let resources = app.path().resource_dir().map_err(|e| e.to_string())?;
+    Ok(packaged(node, resources.join("server"), data_dir))
+}
+
+/// Debug builds (`tauri dev`): `ORRAMA_DEV_SERVER_DIR` (an `apps/server` folder,
+/// run with the system Node and tsx); else 2A's bundle when it was prepared in
+/// `src-tauri/binaries` and `src-tauri/resources/server`; else this checkout's
+/// `apps/server` with tsx. Release builds only ever run the packaged server.
+#[cfg(debug_assertions)]
+fn launch(_app: &tauri::App, data_dir: &Path) -> Result<Launch, String> {
+    let tsx = |dir: PathBuf| Launch {
+        program: "node".into(),
+        args: vec!["--import".into(), "tsx".into(), "src/main.ts".into()],
+        web_dist: dir.join("..").join("web").join("dist"),
+        cwd: dir,
+    };
+    if let Some(dir) = std::env::var_os("ORRAMA_DEV_SERVER_DIR").filter(|d| !d.is_empty()) {
+        return Ok(tsx(PathBuf::from(dir)));
+    }
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let node = here.join("binaries").join(format!("node-{}{}", env!("ORRAMA_TARGET_TRIPLE"), std::env::consts::EXE_SUFFIX));
+    let server_dir = here.join("resources").join("server");
+    if node.exists() && server_dir.join("server.mjs").exists() {
+        return Ok(packaged(node, server_dir, data_dir));
+    }
+    Ok(tsx(here.join("..").join("..").join("server")))
+}
+
+/// A page of the bundled `fallback/` folder, on the app's own origin.
+fn app_page(name: &str) -> Url {
+    let base = if cfg!(windows) { "http://tauri.localhost/" } else { "tauri://localhost/" };
+    Url::parse(base).and_then(|b| b.join(name)).expect("a bundled page's URL")
+}
+
+fn show(shell: &Shell, window: &WebviewWindow, url: Url) {
+    server::shell_log(&shell.log_file, &format!("the window shows {}", url.as_str().split('?').next().unwrap_or("")));
+    if let Err(e) = window.navigate(url) {
+        eprintln!("orrama: the window can't move: {e}");
+    }
+}
+
+/// The supervisor says what the window shows.
+fn on_status(app: &tauri::AppHandle, shell: &Shell, status: Status) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    match status {
+        Status::Starting => {
+            let current = window.url().ok();
+            let port = *shell.port.lock().unwrap();
+            if let Some(url) = current.filter(|u| u.host_str() == Some("localhost") && u.port().is_some() && u.port() == port) {
+                *shell.resume.lock().unwrap() = Some(url);
+            }
+            show(shell, &window, app_page("index.html"));
+        }
+        Status::Ready { port } => {
+            *shell.port.lock().unwrap() = Some(port);
+            let back = shell.resume.lock().unwrap().take().filter(|u| u.port() == Some(port));
+            let home = Url::parse(&format!("http://localhost:{port}/")).expect("the server's URL");
+            show(shell, &window, back.unwrap_or(home));
+        }
+        Status::Failed => show(shell, &window, app_page("failed.html")),
+        Status::KeyMissing(secrets::StoreKind::File) => show(shell, &window, app_page("key.html")),
+        Status::KeyMissing(secrets::StoreKind::Keyring) => show(shell, &window, app_page("key-keyring.html")),
+    }
+}
+
+/// Opens a link outside the window. The log names the scheme and host only.
+fn open_in_browser(shell: &Shell, url: &Url) {
+    server::shell_log(&shell.log_file, &format!("opened outside the window: {}:{}", url.scheme(), url.host_str().unwrap_or("")));
+    let url = url.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = tauri_plugin_opener::open_url(&url, None::<&str>) {
+            eprintln!("orrama: can't open a link in the browser: {e}");
+        }
+    });
+}
+
+fn act(shell: &Shell, action: Action) {
+    match action {
+        Action::Retry => {
+            if let Some(s) = shell.supervisor.get() {
+                s.retry();
+            }
+        }
+        Action::ShowLog | Action::ShowFolder => {
+            let target = match action {
+                Action::ShowLog if shell.log_file.exists() => shell.log_file.clone(),
+                Action::ShowLog => shell.log_file.parent().unwrap_or(&shell.data_dir).to_path_buf(),
+                _ => shell.data_dir.clone(),
+            };
+            std::thread::spawn(move || {
+                if let Err(e) = tauri_plugin_opener::reveal_item_in_dir(&target) {
+                    eprintln!("orrama: can't show {}: {e}", target.display());
+                }
+            });
+        }
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let window = app.get_webview_window("main").expect("the main window");
-            let server: tauri::Url = SERVER.parse().expect("the server URL");
-            std::thread::spawn(move || loop {
-                if orrama_answers() {
-                    let _ = window.navigate(server);
-                    break;
-                }
-                std::thread::sleep(Duration::from_secs(2));
-            });
+            let (data_dir, overridden) = data_dir(app)?;
+            let launch = launch(app, &data_dir)?;
+            let config = server::Config {
+                data_dir: data_dir.clone(),
+                data_dir_overridden: overridden,
+                default_notes_dir: std::env::var_os("ORRAMA_DEFAULT_NOTES_DIR").filter(|d: &OsString| !d.is_empty()),
+                launch,
+            };
+            let shell = Arc::new(Shell { log_file: config.log_file(), data_dir, supervisor: OnceLock::new(), port: Mutex::new(None), resume: Mutex::new(None) });
+            app.manage(shell.clone());
+
+            let (nav, popup, saves) = (shell.clone(), shell.clone(), shell.clone());
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                .title("Orrama")
+                .inner_size(1280.0, 820.0)
+                .min_inner_size(900.0, 600.0)
+                .on_navigation(move |url| match window::route(url, *nav.port.lock().unwrap()) {
+                    Route::Stay => true,
+                    Route::Browser => {
+                        open_in_browser(&nav, url);
+                        false
+                    }
+                    Route::Do(action) => {
+                        act(&nav, action);
+                        false
+                    }
+                    Route::Refuse => false,
+                })
+                .on_new_window(move |url, _features| {
+                    if window::route_new_window(&url) == Route::Browser {
+                        open_in_browser(&popup, &url);
+                    }
+                    NewWindowResponse::Deny
+                })
+                .on_download(move |webview, event| {
+                    // Downloads the page offers (a project's file, a statement) go to the
+                    // Downloads folder under their own name; wry numbers a name in use.
+                    match event {
+                        DownloadEvent::Requested { destination, .. } => {
+                            if !destination.is_absolute() {
+                                if let Ok(dir) = webview.app_handle().path().download_dir() {
+                                    *destination = dir.join(destination.file_name().unwrap_or_default());
+                                }
+                            }
+                            server::shell_log(&saves.log_file, &format!("saving a download to {}", destination.display()));
+                        }
+                        DownloadEvent::Finished { success, .. } => {
+                            server::shell_log(&saves.log_file, if success { "the download is saved" } else { "the download failed" });
+                        }
+                        _ => {}
+                    }
+                    true
+                })
+                .build()?;
+
+            let handle = app.handle().clone();
+            let status_shell = shell.clone();
+            let supervisor = Supervisor::start(config, move |status| on_status(&handle, &status_shell, status));
+            let _ = shell.supervisor.set(supervisor);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running orrama");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_orrama;
-
-    const HEAD: &str = "HTTP/1.1 200 OK\r\ncontent-type: application/json; charset=utf-8\r\n\r\n";
-
-    #[test]
-    fn knows_orrama_health() {
-        assert!(is_orrama(&format!("{HEAD}{{\"ok\":true,\"notes\":3,\"build\":\"ca300d99b0ef\"}}")));
-        assert!(is_orrama(&format!("{HEAD}{{\"ok\":true,\"notes\":0,\"build\":null}}")));
-    }
-
-    #[test]
-    fn refuses_anything_else() {
-        assert!(!is_orrama(&format!("{HEAD}{{\"ok\":true}}"))); // some other app's health
-        assert!(!is_orrama("HTTP/1.1 200 OK\r\ncontent-type: text/html\r\n\r\n<html>\"ok\":true \"build\": \"notes\":</html>"));
-        assert!(!is_orrama("HTTP/1.1 503 Service Unavailable\r\ncontent-type: application/json\r\n\r\n{\"ok\":true,\"notes\":1,\"build\":null}"));
-        assert!(!is_orrama(""));
-    }
+        .build(tauri::generate_context!())
+        .expect("error while building orrama")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                if let Some(s) = app.try_state::<Arc<Shell>>().and_then(|s| s.supervisor.get().map(|_| s.inner().clone())) {
+                    s.supervisor.get().expect("checked").stop();
+                }
+            }
+        });
 }

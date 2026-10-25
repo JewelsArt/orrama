@@ -1,31 +1,81 @@
 # Orrama Desktop (Tauri 2 shell)
 
-Thin native shell: a window on the local server (`http://localhost:4623`),
-which serves the same React app as `apps/web` and the API, same-origin. It has
-no Tauri commands, no plugins and no capabilities — file access, the vault
-watcher and sync all live in the server, and the page the server serves gets
-no IPC at all.
+The app a friend downloads: a window around Orrama's own server, which the
+shell starts, watches and stops. The server serves the same React app as
+`apps/web` and the API, same-origin, on `http://localhost:<port>`. The shell has
+no Tauri commands and no capabilities: file access, the vault watcher and sync
+all live in the server, and the page the server serves gets no IPC at all.
 
-The window opens on the small bundled page in `src-tauri/fallback/` ("Orrama
-isn't running") and moves to the server only once `GET /api/health` answers the
-way Orrama does (`is_orrama` in `src/lib.rs`, checked every 2 s). With the agent
-down and something else on 4623, that something is never shown inside a window
-called Orrama. `security.csp` applies to the bundled page; the server's own
-pages carry the server's CSP header.
+## What the shell does (`src-tauri/src/`)
 
-There is no web build inside the app and no dev window on the vite server: the
-window always shows the server on 4623. To see a web change in the app,
-`pnpm ship` (CLAUDE.md, "Start here").
+- **Starts the server** (`server.rs`): the official Node build beside the app's
+  executable (`externalBin`) runs `server/server.mjs` from the resources, with the
+  environment of the shell ↔ server contract (`~/orrama-next/build/2-COMMON.md`)
+  and none of the person's own `ORRAMA_*` (or `BASALT_*`, `NODE_OPTIONS`,
+  `NODE_PATH`). stdout and stderr go to `<data dir>/logs/server.log`, opened in
+  append mode; the shell writes its own lines there too (`"name":"shell"`).
+- **Shows it only when it is its own** (`health.rs`): the window opens on the
+  bundled "Starting Orrama…" page (`src-tauri/fallback/`) and moves to the server
+  once `/api/health` answers as Orrama (`is_orrama`) **with this launch's id**
+  (`is_our_launch`, `ORRAMA_LAUNCH_ID`, new each start).
+- **The port** (`port.rs`): the one used last time if it is free, else 4623 if
+  free, else one the system gives; kept in `<data dir>/desktop.json`, because
+  Sign in with ChatGPT registers `http://127.0.0.1:<port>/callback` per install.
+- **Watches it**: a server that exits is started again after 1 s, 5 s, 15 s; a
+  fourth exit within a minute shows "Orrama couldn't start" with Show the log and
+  Try again. A start that never answers counts as an exit after 5 minutes.
+- **Stops it**: quitting (⌘Q, the Dock's Quit, closing the window) closes the
+  server's stdin, waits up to 10 s, then kills it. A shell that is killed closes
+  that stdin too, and the server stops on its own (2A's side).
+- **Secrets** (`secrets.rs`): two 32-byte secrets made on first launch and kept by
+  the shell: on Windows in the Credential Manager, on the Mac in
+  `<data dir>/secrets.json` (owner-only) until the app is signed, then the
+  Keychain (`secretStore: "keyring"` in desktop.json moves the file there). A data
+  folder with a database never gets new ones: if they can't be read, nothing
+  starts and the window says "Orrama can't read its key".
+- **Links** (`window.rs`): the window stays on its own page and the server;
+  `target=_blank`, `window.open` and any other address (auth.openai.com
+  included) open in the system browser. Downloads go to Downloads under their
+  own name.
 
-## Build requirements
+The data folder is the app's local data folder (`~/Library/Application
+Support/com.orrama.desktop`, `%LOCALAPPDATA%\com.orrama.desktop`), or
+`ORRAMA_DATA_DIR` from the shell's own environment. `ORRAMA_DEFAULT_NOTES_DIR`
+from the shell's environment is passed to the server (where "Start empty" and the
+example go instead of `~/Orrama`). Both work in debug and release builds.
 
-Needs a Rust toolchain (`rustup`), then:
+## Running it
+
+Needs a Rust toolchain (`rustup`). **On Jules's Mac always give it a scratch data
+folder and notes folder**: the default ones are a friend's, and his own Orrama
+(`/Applications/Orrama.app`, `dev.basalt.app`, the agent on :4623) must not be
+touched. With 4623 taken the app picks another port and keeps it.
 
 ```sh
 pnpm install
-pnpm --dir apps/desktop dev     # the shell, debug build, against the server on 4623
-pnpm --dir apps/desktop build   # installers via tauri bundler
-cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib   # is_orrama
+mkdir -p ~/basalt-scratch/me/data ~/basalt-scratch/me/notes
+ORRAMA_DATA_DIR=~/basalt-scratch/me/data ORRAMA_DEFAULT_NOTES_DIR=~/basalt-scratch/me/notes \
+  pnpm --dir apps/desktop dev        # tauri dev: debug build, one window
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib
+```
+
+A debug build runs, in this order: `ORRAMA_DEV_SERVER_DIR` (an `apps/server`
+folder, with the system Node and tsx; its `../web/dist` is the web app), else the
+prepared bundle when `src-tauri/binaries/node-<triple>` and
+`src-tauri/resources/server/server.mjs` exist, else this checkout's `apps/server`
+with tsx. A release build only ever runs the bundle. The web app must be built
+for the tsx case (`pnpm --dir apps/web exec vite build`, never into the live
+checkout's `apps/web/dist`).
+
+A release build takes the bundle's files from `tauri.bundle.conf.json`
+(`externalBin`, `resources`), kept out of `tauri.conf.json` so `cargo check`,
+`cargo test` and `tauri dev` work on a checkout where the bundle was never
+prepared:
+
+```sh
+pnpm --dir apps/desktop tauri build --config src-tauri/tauri.bundle.conf.json
+open -n src-tauri/target/release/bundle/macos/Orrama.app \
+  --env ORRAMA_DATA_DIR=$HOME/basalt-scratch/me/data --env ORRAMA_DEFAULT_NOTES_DIR=$HOME/basalt-scratch/me/notes
 ```
 
 The shell is deliberately thin (spec §4): all product logic lives in

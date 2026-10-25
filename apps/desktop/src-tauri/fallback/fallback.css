@@ -1,16 +1,23 @@
-/* The page the desktop window shows until Orrama's server answers (lib.rs).
-   Values copied from packages/ui/src/tokens.css (paper by day, night blue after
-   dark: --ground, --surface, --card-line, --ink, --ink-2) — this page cannot
-   load them from the server it is waiting for. System font: nothing loads from
-   elsewhere. */
-:root { color-scheme: light dark; --ground: #F3EFE8; --surface: #FFFFFF; --card-line: #E5DED2; --ink: #1B1813; --ink-2: #4E473D; }
+/* The pages the desktop window shows while Orrama's server starts, or when it can't
+   (server.rs, lib.rs). Values copied from packages/ui/src/tokens.css (paper by day,
+   night blue after dark: --ground, --surface, --card-line, --ink, --ink-2, --line-2,
+   --accent, the main button's gradient) — these pages cannot load them from the
+   server they wait for. System font: nothing loads from elsewhere. The buttons are
+   links the shell catches (window.rs `Action`): the pages run no script. */
+:root { color-scheme: light dark; --ground: #F3EFE8; --surface: #FFFFFF; --card-line: #E5DED2; --line-2: #DCD4C6; --ink: #1B1813; --ink-2: #4E473D; --accent: #1967D4; }
 @media (prefers-color-scheme: dark) {
-  :root { --ground: #090E1A; --surface: #131A2B; --card-line: #252F46; --ink: #EEF1F7; --ink-2: #B6BDCB; }
+  :root { --ground: #090E1A; --surface: #131A2B; --card-line: #252F46; --line-2: #2F3A53; --ink: #EEF1F7; --ink-2: #B6BDCB; --accent: #7DAEF5; }
 }
 html, body { height: 100%; margin: 0; }
-body { display: grid; place-items: center; background: var(--ground); color: var(--ink); font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+body { display: grid; place-items: center; background: var(--ground); color: var(--ink); font: 15px/1.5 -apple-system, system-ui, "Segoe UI", sans-serif; }
 main { max-width: 30rem; margin: 1.5rem; padding: 2rem; background: var(--surface); border: 1px solid var(--card-line); border-radius: 12px; }
 h1 { margin: 0 0 0.75rem; font-size: 1.25rem; font-weight: 600; }
 p { margin: 0 0 0.75rem; }
-.hint { margin: 0; color: var(--ink-2); font-size: 13px; }
-code { font: 12px ui-monospace, monospace; user-select: all; }
+.hint { color: var(--ink-2); font-size: 13px; }
+p:last-child { margin-bottom: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1.25rem; }
+.btn { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-weight: 600; text-decoration: none; }
+.btn:hover { background: color-mix(in srgb, var(--ink) 4%, var(--surface)); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.solid { border-color: transparent; background: linear-gradient(90deg, #FEC97B 0%, #FEA267 45%, #FE7867 100%); color: #1B1813; }
+.btn.solid:hover { filter: brightness(1.04) saturate(1.05); }
