@@ -30,7 +30,7 @@
 - **Imports**: node:crypto, drizzle-orm, @orrama/core, ./db.js, ./ics.js, ./vaultStore.js
 
 ### `apps/server/src/chatgpt.ts`
-- **Exports**: SIWC, ChatGptCredentials, chatgptCredentials, hostId, startSignIn, setKeySetForTests, finishSignIn, chatgptAccessToken, ChatGptModel, listModels, disconnect
+- **Exports**: SIWC, ChatGptCredentials, chatgptCredentials, hostId, startSignIn, setKeySetForTests, finishSignIn, chatgptAccessToken, ChatGptModel, listModels, SIGNED_IN_PAGE, disconnect
 - **Imports**: node:crypto, drizzle-orm, jose, ./db.js, ./secrets.js, ./vaultStore.js
 
 ### `apps/server/src/db.ts`
@@ -127,7 +127,7 @@
 
 ### `apps/server/src/routes/admin.ts`
 - **Exports**: adminRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/schema, ../db.js, ../secrets.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, zod, @orrama/core, @orrama/schema, ../db.js, ../secrets.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/ai.ts`
 - **Exports**: aiRoutes

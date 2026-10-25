@@ -4,15 +4,16 @@
  * Usage comes out of the plan's weekly allowance; the owner caps it per app in
  * ChatGPT's settings.
  *
- * Who may use it (16 October 2026): OpenAI offers ChatGPT plan usage to
- * open-source projects, personal projects that run locally, and selected
- * private apps (developers.openai.com/siwc, and the cookbook's "Sign in with
- * ChatGPT"); a paid or proprietary app needs OpenAI's OK first, through the
- * interest form (openai.com/form/sign-in-with-chatgpt-interest/). Orrama is
- * under the AGPL since 21 October 2026, but its repository is still private:
- * until it is public this covers Jules's own copy, a personal project on his
- * own Mac. Other people use a key; hiding this option from them is stage 2's
- * first run.
+ * Who may use it: OpenAI offers ChatGPT plan usage to open-source projects,
+ * personal projects that run locally, and selected private apps
+ * (developers.openai.com/siwc, and the cookbook's "Sign in with ChatGPT"); a
+ * paid or proprietary app needs OpenAI's OK first, through the interest form
+ * (openai.com/form/sign-in-with-chatgpt-interest/). Orrama is free software
+ * under the AGPL since 21 October 2026 and runs on each person's own computer,
+ * so it is offered to everyone, in first run and in Settings (Jules, plan of
+ * 21 Oct). That rests on the source being public by the friends' release
+ * (stage 2, 2G): until then the repository is private and only Jules's own
+ * copy is covered.
  *
  * Implemented from the documented protocol, not OpenAI's DevKit (that code is
  * under a noncommercial licence, which the AGPL cannot carry, so none of it is
@@ -23,7 +24,9 @@
  *                registers this install and returns an issued client id on
  *                the callback) and a stable `ext_agent_host_id` per install.
  *                The redirect must be http://127.0.0.1:<port>/callback, so
- *                sign-in happens in a browser on this Mac.
+ *                sign-in happens in a browser on this computer: in the desktop
+ *                app, the system browser (Google refuses to sign in inside an
+ *                app's window), while the app's page waits for it to land.
  *   2. finish  — /callback checks the one-time state, exchanges the code, and
  *                verifies the ID token against OpenAI's JWKS (issuer, audience
  *                = the issued client id, expiry, nonce).
@@ -105,7 +108,8 @@ interface Pending {
   verifier: string;
   nonce: string;
   redirectUri: string;
-  returnTo: string;
+  /** The app origin to send the browser back to; null when the page that started it waits. */
+  returnTo: string | null;
   at: number;
 }
 const pending = new Map<string, Pending>();
@@ -113,9 +117,11 @@ const b64url = (b: Buffer) => b.toString("base64url");
 
 /**
  * The URL that starts sign-in. `port` is the one this server listens on;
- * `returnTo` is the app origin to send the browser back to afterwards.
+ * `returnTo` is the app origin to send the browser back to afterwards, or null
+ * when the page that started it stays where it is and waits (the desktop app:
+ * the sign-in runs in the system browser, which is then told it can close).
  */
-export function startSignIn(db: Db, port: number, returnTo: string, now = Date.now()): string {
+export function startSignIn(db: Db, port: number, returnTo: string | null, now = Date.now()): string {
   for (const [k, p] of pending) if (now - p.at > PENDING_MS) pending.delete(k);
   const creds = chatgptCredentials(db);
   const verifier = b64url(crypto.randomBytes(32));
@@ -159,11 +165,11 @@ async function tokenRequest(body: Record<string, string>): Promise<{ access_toke
 }
 
 /** The callback: one-time state, code exchange, ID-token checks. Returns where to send the browser. */
-export async function finishSignIn(db: Db, query: Record<string, string | undefined>, now = Date.now()): Promise<{ returnTo: string; email: string | null }> {
+export async function finishSignIn(db: Db, query: Record<string, string | undefined>, now = Date.now()): Promise<{ returnTo: string | null; email: string | null }> {
   const state = query.state ?? "";
   const p = pending.get(state);
   pending.delete(state); // single use, whatever happens next
-  if (!p || now - p.at > PENDING_MS) throw new HttpError(400, "This sign-in link has expired. Start again from Settings → AI.");
+  if (!p || now - p.at > PENDING_MS) throw new HttpError(400, "This sign-in has expired. Start it again in Orrama.");
   if (query.error) throw new HttpError(400, `ChatGPT sign-in was not completed (${query.error}).`);
   if (!query.code) throw new HttpError(400, "ChatGPT sign-in returned no code.");
   const previous = chatgptCredentials(db);
@@ -244,6 +250,11 @@ export async function listModels(db: Db): Promise<ChatGptModel[]> {
   const body = (await res.json()) as { models?: { slug: string; display_name?: string; visibility?: string }[] };
   return (body.models ?? []).filter((m) => m.visibility === "list").map((m) => ({ slug: m.slug, name: m.display_name ?? m.slug }));
 }
+
+/** What the browser shows once a sign-in the app waits for has landed. */
+export const SIGNED_IN_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signed in · Orrama</title>
+<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f1e7;color:#1d1b18}main{max-width:26rem;padding:2rem;text-align:center}h1{font-size:1.5rem;margin:0 0 .5rem}p{margin:0;color:#5b5650}@media (prefers-color-scheme:dark){body{background:#0f1626;color:#e9edf5}p{color:#a9b1c2}}</style>
+<main><h1>Signed in.</h1><p>You can close this tab and go back to Orrama.</p></main></html>`;
 
 /** Forget the connection. The workspace stops using ChatGPT; another provider's stored key is untouched. */
 export function disconnect(db: Db): void {

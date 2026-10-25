@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { projectName, projectSlugOf } from "@orrama/core";
 import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
-import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIWC, startSignIn } from "../chatgpt.js";
+import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIGNED_IN_PAGE, SIWC, startSignIn } from "../chatgpt.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
 import { sessionOnly } from "./auth.js";
@@ -178,12 +179,17 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   /**
    * The sign-in URL. OpenAI sends the browser back to 127.0.0.1 on this
    * machine, so it has to start from a browser on this machine: from a phone
-   * it would land nowhere.
+   * it would land nowhere. `wait: true` (the desktop app, whose window sends
+   * auth.openai.com to the system browser): the page stays and watches
+   * GET /api/admin/ai, and the browser is told it can close. Without it (a
+   * browser tab on this computer), that tab goes to OpenAI and comes back.
    */
   app.post("/api/admin/ai/chatgpt/start", auth, async (req) => {
     await requireOwner(req.userId);
+    const { wait } = z.object({ wait: z.boolean().optional() }).parse(req.body ?? {});
     const local = (h: string) => /^(localhost|127\.0\.0\.1|\[::1\])$/.test(h);
-    if (!local(req.hostname)) throw new HttpError(400, "Sign in with ChatGPT from Orrama on the Mac it runs on — OpenAI returns to this computer.");
+    if (!local(req.hostname)) throw new HttpError(400, "Sign in with ChatGPT from Orrama on the computer it runs on — OpenAI returns to that computer.");
+    if (wait) return { url: startSignIn(db, env.port, null) };
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     let returnTo = `http://127.0.0.1:${env.port}`;
     try {
@@ -199,6 +205,7 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.get("/callback", async (req, reply) => {
     try {
       const { returnTo } = await finishSignIn(db, req.query as Record<string, string | undefined>);
+      if (returnTo === null) return reply.type("text/html; charset=utf-8").send(SIGNED_IN_PAGE);
       return reply.redirect(`${returnTo}/?ai=chatgpt-connected`);
     } catch (err) {
       const msg = err instanceof HttpError ? err.message : "ChatGPT sign-in failed.";

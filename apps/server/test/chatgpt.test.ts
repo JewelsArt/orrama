@@ -189,6 +189,19 @@ describe("the callback", () => {
     expect(ai.body).not.toMatch(/access-1|refresh-1|eyJ/);
   });
 
+  it("started by the app, it lands in the system browser and tells it to close; the page that waits sees it", async () => {
+    const r = await call("jules", "POST", "/api/admin/ai/chatgpt/start", { payload: { wait: true }, headers: { origin: "http://localhost:4623" } });
+    const u = new URL(r.json.url as string);
+    nextNonce = u.searchParams.get("nonce")!;
+    const res = await callback({ state: u.searchParams.get("state")!, code: "code-3", client_id: ISSUED });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/^text\/html/);
+    expect(res.body).toContain("Signed in.");
+    expect(res.body).toContain("You can close this tab and go back to Orrama.");
+    expect(res.headers.location).toBeUndefined();
+    expect((await call("jules", "GET", "/api/admin/ai")).json).toMatchObject({ chatgpt: { connected: true } });
+  });
+
   it("a state works once", async () => {
     const u = await start();
     nextNonce = u.searchParams.get("nonce")!;
