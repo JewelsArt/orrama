@@ -18,6 +18,8 @@ pub enum Action {
     Retry,
     ShowLog,
     ShowFolder,
+    /// "Forgot your password?" on our server's sign-in page: ask for a reset (reset.rs).
+    Reset,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,8 +56,12 @@ pub fn route(url: &Url, server_port: Option<u16>) -> Route {
             _ => Route::Stay,
         };
     }
+    let ours = url.scheme() == "http" && url.host_str() == Some("localhost") && server_port.is_some() && url.port() == server_port;
+    if ours && url.path() == crate::reset::RESET_PATH {
+        return Route::Do(Action::Reset);
+    }
     match url.scheme() {
-        "http" if url.host_str() == Some("localhost") && server_port.is_some() && url.port() == server_port => Route::Stay,
+        "http" if ours => Route::Stay,
         "blob" | "data" | "about" => Route::Stay,
         "http" | "https" | "mailto" | "tel" => Route::Browser,
         _ => Route::Refuse,
@@ -117,6 +123,17 @@ mod tests {
         assert_eq!(r("tauri://localhost/action/rm-rf", None), Route::Refuse);
         // Only on the app's own origin: the same path on the server is a page.
         assert_eq!(r("http://localhost:50123/action/retry", Some(50123)), Route::Stay);
+    }
+
+    #[test]
+    fn forgot_your_password_on_our_server_is_the_shells() {
+        assert_eq!(r("http://localhost:50123/_shell/reset", Some(50123)), Route::Do(Action::Reset));
+        // Not on another server, nor before ours answered, nor any other path.
+        assert_eq!(r("http://localhost:4623/_shell/reset", Some(50123)), Route::Browser);
+        assert_eq!(r("http://localhost:50123/_shell/reset", None), Route::Browser);
+        assert_eq!(r("http://127.0.0.1:50123/_shell/reset", Some(50123)), Route::Browser);
+        assert_eq!(r("http://localhost:50123/reset", Some(50123)), Route::Stay);
+        assert_eq!(r("http://localhost:50123/_shell/other", Some(50123)), Route::Stay);
     }
 
     #[test]

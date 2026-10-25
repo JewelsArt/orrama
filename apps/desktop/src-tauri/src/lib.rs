@@ -8,16 +8,23 @@
 /// port was shown inside "Orrama" and got the password typed into it (audit
 /// OPS-010); then it showed any Orrama there.
 ///
-/// Still no commands and no capability: the server's pages get no Tauri IPC at
-/// all, and the bundled page needs none (its buttons are links the shell catches,
-/// window.rs). Single instance is the one plugin registered (no commands, no
-/// script); the opener is called from Rust, never registered.
+/// No commands of its own. The server's pages get one plugin command, the dialog's
+/// `open` (the system's folder chooser, 2C): a capability granted at run time for
+/// exactly `http://localhost:<port>` once the server answers (capability.rs), and
+/// nothing else; the bundled page needs none (its buttons are links the shell
+/// catches, window.rs). Every page the window loads gets a mark,
+/// `window.__ORRAMA_DESKTOP__`, so the web app knows it is inside the app
+/// (desktop.ts) without reading the user agent. "Forgot your password?" is a link
+/// the shell catches too (reset.rs). Single instance and the dialog are the plugins
+/// registered; the opener is called from Rust, never registered.
 /// It used to register `read_vault_file` / `write_vault_file`, which took the vault
 /// root FROM THE CALLER — anything able to invoke them could read or write any file
 /// on the Mac. Removed with the never-initialised fs/dialog plugins and the `notify`
 /// watcher; the server's watcher is the one that feeds outside edits into the CRDT.
+mod capability;
 mod health;
 mod port;
+mod reset;
 mod secrets;
 mod server;
 #[cfg(test)]
@@ -29,7 +36,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::webview::{DownloadEvent, NewWindowResponse};
-use tauri::{Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 pub use health::is_orrama;
 use server::{Launch, Status, Supervisor};
@@ -37,6 +44,7 @@ use window::{Action, Route};
 
 /// What the window's handlers and the supervisor share.
 struct Shell {
+    app: AppHandle,
     data_dir: PathBuf,
     log_file: PathBuf,
     supervisor: OnceLock<Supervisor>,
@@ -44,7 +52,14 @@ struct Shell {
     port: Mutex<Option<u16>>,
     /// Where the window was when the server went away, to go back once it is up.
     resume: Mutex<Option<Url>>,
+    /// The ports whose pages were granted the folder chooser (capability.rs).
+    granted: Mutex<Vec<u16>>,
+    /// This launch's shell token, also in the server's environment (reset.rs).
+    shell_token: String,
 }
+
+/// Set on every page the window loads: the web app's sign that it is in the app (desktop.ts).
+const DESKTOP_MARK: &str = "Object.defineProperty(window, '__ORRAMA_DESKTOP__', { value: Object.freeze({ shell: 1 }) });";
 
 /// The data folder: `ORRAMA_DATA_DIR` from the shell's own environment (tests, and
 /// every run on Jules's Mac, where the app's default folder must stay untouched),
@@ -125,6 +140,7 @@ fn on_status(app: &tauri::AppHandle, shell: &Shell, status: Status) {
         }
         Status::Ready { port } => {
             *shell.port.lock().unwrap() = Some(port);
+            grant_folder_chooser(app, shell, port);
             let back = shell.resume.lock().unwrap().take().filter(|u| u.port() == Some(port));
             let home = Url::parse(&format!("http://localhost:{port}/")).expect("the server's URL");
             show(shell, &window, back.unwrap_or(home));
@@ -132,6 +148,18 @@ fn on_status(app: &tauri::AppHandle, shell: &Shell, status: Status) {
         Status::Failed => show(shell, &window, app_page("failed.html")),
         Status::KeyMissing(secrets::StoreKind::File) => show(shell, &window, app_page("key.html")),
         Status::KeyMissing(secrets::StoreKind::Keyring) => show(shell, &window, app_page("key-keyring.html")),
+    }
+}
+
+/// The server's pages at this port may open the folder chooser, and nothing else.
+fn grant_folder_chooser(app: &AppHandle, shell: &Shell, port: u16) {
+    let mut granted = shell.granted.lock().unwrap();
+    if granted.contains(&port) {
+        return;
+    }
+    match app.add_capability(capability::server_page(port)) {
+        Ok(()) => granted.push(port),
+        Err(e) => server::shell_log(&shell.log_file, &format!("the folder chooser couldn't be given to the page: {e}")),
     }
 }
 
@@ -146,8 +174,21 @@ fn open_in_browser(shell: &Shell, url: &Url) {
     });
 }
 
-fn act(shell: &Shell, action: Action) {
+fn act(shell: &Arc<Shell>, action: Action) {
     match action {
+        Action::Reset => {
+            let Some(port) = *shell.port.lock().unwrap() else {
+                return;
+            };
+            let shell = shell.clone();
+            std::thread::spawn(move || {
+                let ticket = reset::fetch_ticket(port, &shell.shell_token);
+                server::shell_log(&shell.log_file, if ticket.is_some() { "a password reset was asked for on this computer" } else { "a password reset couldn't be started" });
+                if let Some(window) = shell.app.get_webview_window("main") {
+                    show(&shell, &window, reset::form_url(port, ticket.as_deref()));
+                }
+            });
+        }
         Action::Retry => {
             if let Some(s) = shell.supervisor.get() {
                 s.retry();
@@ -182,21 +223,34 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let (data_dir, overridden) = data_dir(app)?;
             let launch = launch(app, &data_dir)?;
+            let shell_token = secrets::random_hex(32)?;
             let config = server::Config {
                 data_dir: data_dir.clone(),
                 data_dir_overridden: overridden,
                 default_notes_dir: std::env::var_os("ORRAMA_DEFAULT_NOTES_DIR").filter(|d: &OsString| !d.is_empty()),
                 launch,
+                shell_token: shell_token.clone(),
             };
-            let shell = Arc::new(Shell { log_file: config.log_file(), data_dir, supervisor: OnceLock::new(), port: Mutex::new(None), resume: Mutex::new(None) });
+            let shell = Arc::new(Shell {
+                app: app.handle().clone(),
+                log_file: config.log_file(),
+                data_dir,
+                supervisor: OnceLock::new(),
+                port: Mutex::new(None),
+                resume: Mutex::new(None),
+                granted: Mutex::new(Vec::new()),
+                shell_token,
+            });
             app.manage(shell.clone());
 
             let (nav, popup, saves) = (shell.clone(), shell.clone(), shell.clone());
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("Orrama")
+                .initialization_script(DESKTOP_MARK)
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(900.0, 600.0)
                 .on_navigation(move |url| match window::route(url, *nav.port.lock().unwrap()) {

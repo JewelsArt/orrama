@@ -3,8 +3,8 @@
 /// The shell runs `node server.mjs` (2-COMMON.md, the shell ↔ server contract):
 /// the official Node build beside the app's executable, the bundled server in its
 /// resources. It chooses the port (port.rs), gives the server its secrets
-/// (secrets.rs) and a new launch id, and shows the window only once `/api/health`
-/// answers with that id (health.rs). A server that exits on its own is started
+/// (secrets.rs), a new launch id and the launch's shell token (reset.rs), and
+/// shows the window only once `/api/health` answers with that id (health.rs). A server that exits on its own is started
 /// again after 1 s, 5 s, then 15 s; a fourth exit inside a minute stops trying and
 /// the window says Orrama couldn't start. Quitting closes the server's stdin (the
 /// server stops cleanly when it closes, 2A), waits up to 10 s, then kills it. A
@@ -53,6 +53,9 @@ pub struct EnvContext<'a> {
     pub port: u16,
     pub secrets: &'a secrets::Secrets,
     pub launch_id: &'a str,
+    /// New each launch of the app, never said back by the server: what lets the shell, and
+    /// only the shell, ask for a password reset (reset.rs).
+    pub shell_token: &'a str,
     pub default_notes_dir: Option<&'a OsString>,
 }
 
@@ -69,7 +72,7 @@ fn inherited_ok(name: &str) -> bool {
 pub fn server_env(inherited: impl IntoIterator<Item = (OsString, OsString)>, ctx: &EnvContext) -> Vec<(OsString, OsString)> {
     let mut env: Vec<(OsString, OsString)> = inherited.into_iter().filter(|(k, _)| k.to_str().is_some_and(inherited_ok)).collect();
     let origin = format!("http://localhost:{}", ctx.port);
-    let ours: [(&str, OsString); 10] = [
+    let ours: [(&str, OsString); 11] = [
         ("ORRAMA_PACKAGED", "1".into()),
         ("ORRAMA_DATA_DIR", ctx.data_dir.into()),
         ("ORRAMA_WEB_DIST", ctx.web_dist.into()),
@@ -80,6 +83,7 @@ pub fn server_env(inherited: impl IntoIterator<Item = (OsString, OsString)>, ctx
         ("ORRAMA_JWT_SECRET", ctx.secrets.jwt_secret.clone().into()),
         ("ORRAMA_SECRET_KEY", ctx.secrets.secret_key.clone().into()),
         ("ORRAMA_LAUNCH_ID", ctx.launch_id.into()),
+        ("ORRAMA_SHELL_TOKEN", ctx.shell_token.into()),
     ];
     env.extend(ours.into_iter().map(|(k, v)| (OsString::from(k), v)));
     if let Some(dir) = ctx.default_notes_dir {
@@ -103,6 +107,8 @@ pub struct Config {
     pub data_dir_overridden: bool,
     pub default_notes_dir: Option<OsString>,
     pub launch: Launch,
+    /// This launch's shell token (`ORRAMA_SHELL_TOKEN`), the same for every restart of the server.
+    pub shell_token: String,
 }
 
 impl Config {
@@ -349,6 +355,7 @@ fn spawn(config: &Config, secrets: &secrets::Secrets, port: u16, launch_id: &str
             port,
             secrets,
             launch_id,
+            shell_token: &config.shell_token,
             default_notes_dir: config.default_notes_dir.as_ref(),
         },
     );
@@ -443,6 +450,7 @@ mod tests {
                 port: 50123,
                 secrets: &s,
                 launch_id: "abc",
+                shell_token: "t0k",
                 default_notes_dir: notes,
             },
         );
@@ -464,6 +472,7 @@ mod tests {
                 ("BASALT_DATA_DIR", "/old"),
                 ("PORT", "1"),
                 ("NODE_OPTIONS", "--require evil"),
+                ("ORRAMA_SHELL_TOKEN", "the person's own"),
             ],
             None,
         );
@@ -482,6 +491,7 @@ mod tests {
         assert_eq!(get(&env, "ORRAMA_JWT_SECRET"), ["j".repeat(64).as_str()]);
         assert_eq!(get(&env, "ORRAMA_SECRET_KEY"), ["k".repeat(64).as_str()]);
         assert_eq!(get(&env, "ORRAMA_LAUNCH_ID"), ["abc"]);
+        assert_eq!(get(&env, "ORRAMA_SHELL_TOKEN"), ["t0k"], "the shell's own token, never one from outside");
     }
 
     #[test]
@@ -517,6 +527,7 @@ process.stdin.resume();
             data_dir_overridden: true,
             default_notes_dir: None,
             launch: Launch { program: "node".into(), args: vec![script.into()], cwd: dir.clone(), web_dist: dir.clone() },
+            shell_token: secrets::random_hex(32).unwrap(),
         };
         let log = config.log_file();
         let sup = Supervisor::start(config, move |s| tx.send(s).unwrap());

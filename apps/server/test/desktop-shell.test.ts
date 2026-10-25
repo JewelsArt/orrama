@@ -1,8 +1,9 @@
 /**
  * The Tauri shell stays thin: no Rust commands (the two it had took the vault
- * root from the caller and could read or write any file on the Mac), no
- * capability (no page gets Tauri IPC), and no setting that cannot affect the
- * window it ships (audit OPS-010).
+ * root from the caller and could read or write any file on the Mac), no page
+ * gets Tauri IPC beyond the folder chooser (2C: the server's own page, one
+ * command, granted at run time for its exact origin), and no setting that
+ * cannot affect the window it ships (audit OPS-010).
  *
  * Its only window loaded http://localhost:4623 directly, so whatever held port
  * 4623 was shown as Orrama. Then it waited for anything answering as Orrama
@@ -25,16 +26,24 @@ const source = (f: string) => fs.readFileSync(path.join(shell, "src", f), "utf8"
 const rust = () => fs.readdirSync(path.join(shell, "src")).map(source).join("\n");
 
 describe("desktop shell", () => {
-  it("registers no commands and gives no page IPC", () => {
+  it("registers no commands, and gives the server's page the folder chooser and nothing else", () => {
     const src = rust();
     expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler/);
-    // One plugin is registered, single instance; the opener is called from Rust,
-    // never registered (registering it would add its commands and a script to every page).
-    expect([...src.matchAll(/\.plugin\(([\w:]+)/g)].map((m) => m[1])).toEqual(["tauri_plugin_single_instance::init"]);
+    // Two plugins are registered: single instance, and the dialog for the folder chooser (2C,
+    // Jules 25 Oct: D5). The opener is called from Rust, never registered (registering it
+    // would add its commands and a script to every page).
+    expect([...src.matchAll(/\.plugin\(([\w:]+)/g)].map((m) => m[1])).toEqual(["tauri_plugin_single_instance::init", "tauri_plugin_dialog::init"]);
     const cargo = fs.readFileSync(path.join(shell, "Cargo.toml"), "utf8");
-    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-opener", "tauri-plugin-single-instance"]);
+    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-dialog", "tauri-plugin-opener", "tauri-plugin-single-instance"]);
     expect(cargo).not.toMatch(/^notify\s*=/m);
-    expect(fs.existsSync(path.join(shell, "capabilities"))).toBe(false); // no IPC for any page
+    // No capability file: the one capability is made at run time, for the server's exact origin,
+    // with the dialog's open only (capability.rs; `cargo test` holds its origin and its one permission).
+    expect(fs.existsSync(path.join(shell, "capabilities"))).toBe(false);
+    expect([...src.matchAll(/add_capability\(([^)]*\))/g)].map((m) => m[1])).toEqual(["capability::server_page(port)"]);
+    expect(source("capability.rs")).toMatch(/pub const PERMISSION: &str = "dialog:allow-open";/);
+    expect([...source("capability.rs").matchAll(/"[a-z-]+:[a-z-]+"/g)].map((m) => m[0])).toEqual(['"dialog:allow-open"', '"dialog:allow-open"']);
+    expect(source("capability.rs")).toMatch(/#\[test\]\s*fn the_page_gets_the_folder_chooser_and_nothing_else/);
+    expect(source("capability.rs")).toMatch(/#\[test\]\s*fn only_for_our_own_server_at_its_port/);
   });
 
   it("is com.orrama.desktop, and its bundle carries Node and the server", () => {
