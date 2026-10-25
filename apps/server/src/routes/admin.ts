@@ -6,6 +6,7 @@ import { projectName, projectSlugOf } from "@orrama/core";
 import { aiConfigSchema, aiInstructionsSchema, grantSchema, inviteCreateSchema, projectCreateSchema, teamCreateSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
+import { checkKey } from "../aiKeyCheck.js";
 import { chatgptCredentials, disconnect as disconnectChatGpt, finishSignIn, listModels as chatgptModels, SIGNED_IN_PAGE, SIWC, startSignIn } from "../chatgpt.js";
 import { env } from "../env.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -226,6 +227,21 @@ export async function adminRoutes(app: FastifyInstance, db: Db, store: VaultStor
   app.post("/api/admin/ai/chatgpt/disconnect", auth, async (req) => {
     await requireOwner(req.userId);
     disconnectChatGpt(db);
+    return { ok: true };
+  });
+
+  /**
+   * Check a key before it is saved (first run's Use a key, Settings → Orr & AI): one read
+   * of the model with that key at the provider's own fixed host, nothing generated, nothing
+   * stored. Answers what is wrong in words, or ok. An OpenAI-compatible server is not
+   * checked: it is often on this computer or a private network, which Orrama never fetches
+   * on a person's word (`safeFetch`).
+   */
+  app.post("/api/admin/ai/check", auth, async (req) => {
+    await requireOwner(req.userId);
+    const body = z.object({ provider: z.enum(["anthropic", "google"]), model: z.string().trim().min(1).max(200), apiKey: z.string().trim().min(10).max(1000) }).parse(req.body);
+    const problem = await checkKey(body.provider, body.model, body.apiKey);
+    if (problem) throw new HttpError(400, problem);
     return { ok: true };
   });
 

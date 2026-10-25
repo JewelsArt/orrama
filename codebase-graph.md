@@ -10,6 +10,9 @@
 - **Exports**: isInstructionFile, untrustedWriter, agentWriter, tokenWriter, both
 - **Imports**: @orrama/core, ./vaultStore.js
 
+### `apps/server/src/aiKeyCheck.ts`
+- **Exports**: KeyProvider, setKeyCheckHostsForTests, checkKey
+
 ### `apps/server/src/aiProvider.ts`
 - **Exports**: AiConfig, aiConfig, callOptions, completeText, resolveModel
 - **Imports**: ai, ./chatgpt.js, ./db.js, ./secrets.js
@@ -127,7 +130,7 @@
 
 ### `apps/server/src/routes/admin.ts`
 - **Exports**: adminRoutes
-- **Imports**: node:crypto, drizzle-orm, fastify, zod, @orrama/core, @orrama/schema, ../db.js, ../secrets.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
+- **Imports**: node:crypto, drizzle-orm, fastify, zod, @orrama/core, @orrama/schema, ../db.js, ../secrets.js, ../aiKeyCheck.js, ../chatgpt.js, ../env.js, ../vaultStore.js, ./auth.js
 
 ### `apps/server/src/routes/ai.ts`
 - **Exports**: aiRoutes

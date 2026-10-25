@@ -75,6 +75,7 @@ const SESSION_ONLY: [Method, string, object?][] = [
   ["GET", "/api/admin/ai"],
   ["POST", "/api/admin/ai", { provider: "openai-compatible", model: "m", apiKey: "", baseUrl: "https://attacker.example/v1" }],
   ["POST", "/api/admin/ai/instructions", { instructions: "x" }],
+  ["POST", "/api/admin/ai/check", { provider: "anthropic", model: "m", apiKey: "sk-test-0123456789" }],
   ["POST", "/api/admin/ai/chatgpt/start"],
   ["GET", "/api/admin/ai/chatgpt/models"],
   ["POST", "/api/admin/ai/chatgpt/disconnect"],
