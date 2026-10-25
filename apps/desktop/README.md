@@ -91,7 +91,7 @@ Both are built, never committed (`.gitignore`):
 
 ```sh
 pnpm --dir apps/web build                  # once: the web app the bundle serves
-pnpm --dir apps/desktop prepare-bundle     # fetch-node + package-server, for this computer
+pnpm --dir apps/desktop prepare-bundle     # fetch-node + package-server + desktop notices, for this computer
 pnpm --dir apps/desktop package-server --target x86_64-pc-windows-msvc   # any target, from any computer
 pnpm --dir apps/server exec vitest run test/bundle.test.ts               # the smoke test (skipped if not built)
 ```
@@ -116,3 +116,36 @@ To run the folder the way the app does (stdin held open: the server stops when i
 ORRAMA_PACKAGED=1 ORRAMA_DATA_DIR=… ORRAMA_DEFAULT_NOTES_DIR=… ORRAMA_JWT_SECRET=… ORRAMA_SECRET_KEY=… PORT=… \
   src-tauri/binaries/node-aarch64-apple-darwin src-tauri/resources/server/server.mjs
 ```
+
+## Release builds
+
+One script makes the installer, on Jules's Mac and on CI's Windows runner alike
+(`scripts/release-build.mjs`): the licence guards (npm and Rust), the web app built into
+`node_modules/.cache/orrama-release/web` (never `apps/web/dist`, which the live server on this
+Mac serves), the pinned Node, the server bundle, the desktop notices, then `tauri build` with
+`tauri.bundle.conf.json`.
+
+```sh
+pnpm --dir apps/desktop release:mac        # Orrama_<v>_aarch64.dmg, ~1.5 min warm, 45 MB
+node scripts/install-check.mjs --app apps/desktop/src-tauri/target/release/bundle/macos/Orrama.app
+gh workflow run release.yml --ref main -f version=<v>      # the Windows installer, on a runner
+```
+
+- **Mac:** Apple silicon only (Jules, 25 Oct 2026), macOS 13.5 and later (Node 24's own minimum),
+  ad-hoc signed (`signingIdentity: "-"`): Gatekeeper says it can't verify the app, and System
+  Settings → Privacy & Security → Open Anyway opens it, once. Tauri re-signs everything inside,
+  the Node binary too, so `hardenedRuntime` is off: with it on, Node would lose the JIT entitlement
+  its own signature carried. The .dmg shows the AGPL before it opens (`licenseFile`).
+- **Windows:** the NSIS installer only (per user, no admin prompt; an MSI needs WiX and a
+  per-machine install), English, the WebView2 bootstrapper when WebView2 is missing, the AGPL on
+  its licence page. Unsigned: SmartScreen's "More info → Run anyway". Built by `release.yml`
+  (windows-latest), which then installs it silently into a temp folder, runs and stops the
+  installed server, uninstalls, and drafts the GitHub release.
+- **Notices:** `resources/server/` carries `LICENSE`, `NOTICE` and three notices files: the web
+  app's, the server's, and `THIRD_PARTY_NOTICES_DESKTOP.txt` (Node's licence and the Rust crates
+  of the window, `scripts/desktop-notices.mjs`, also copied into `web/` so Settings can link it).
+  The crates' licences are kept in `apps/desktop/crate-licences.json` and checked by
+  `apps/web/src/crateLicences.test.ts`: after a crate is added or bumped, run
+  `node scripts/desktop-notices.mjs --licences` and that test, and commit both.
+- **Size:** `[profile.release]` in `Cargo.toml` (one codegen unit, LTO, `opt-level = "s"`,
+  stripped) takes the shell from 10.3 MB to 4.5 MB. Node is ~117 MB of the 144 MB app.

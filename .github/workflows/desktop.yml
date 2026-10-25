@@ -1,9 +1,12 @@
-# The desktop shell compiles (audit OPS-004): Cargo.lock, the crate and
-# tauri.conf.json changes were never built by CI. `cargo check`, not
-# `tauri build` — a bundle nobody downloads is minutes for nothing. Runs
-# weekly and by hand (`gh workflow run desktop.yml --ref main`), not on push:
-# the shell changes rarely, and minutes on a private repo are counted. Run it
-# after touching apps/desktop and before a release.
+# The desktop shell compiles and its tests pass on Windows (audit OPS-004; stage 2, 2D). The Mac
+# builds it with every `pnpm --dir apps/desktop release:mac` and `cargo test` on Jules's Mac; nothing
+# else compiles the Windows side (secrets.rs's Credential Manager, the cfg(windows) code) until a
+# release. Clippy, then the tests, on the Rust Jules's Mac uses. Neither needs the Node binary or the
+# server bundle: those are named only in tauri.bundle.conf.json, which `tauri build --config` reads
+# (release.yml). Runs weekly and by hand (`gh workflow run desktop.yml --ref main`), not on push: a
+# Windows runner costs 2x on a private repo, ~10 minutes here. Run it after touching apps/desktop
+# and before a release. (Until 25 Oct 2026 this was a `cargo check` on Ubuntu: Linux is not a
+# platform Orrama ships, Windows is.)
 name: Desktop
 
 on:
@@ -15,15 +18,24 @@ on:
 permissions:
   contents: read
 
+env:
+  RUST_TOOLCHAIN: "1.97.0"
+
 jobs:
-  cargo-check:
-    name: cargo check (desktop)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  windows:
+    name: clippy · cargo test (desktop, windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/desktop/src-tauri
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      # The webview and its friends, as Tauri's Linux prerequisites list them.
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
-      - run: cargo check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      # The supervisor test starts a real Node child and stops it through its stdin (it skips without one).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy --no-self-update && rustup default "$RUST_TOOLCHAIN"
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked --lib
