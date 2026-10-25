@@ -22,6 +22,9 @@ every such package and font, with its version and licence text:
   - apps/web/dist/THIRD_PARTY_NOTICES.txt: the web app (what the server, the
     Docker image and the desktop app show in your browser or window);
   - apps/web/dist/THIRD_PARTY_NOTICES_SERVER.txt: the server and the MCP
-    server, which run on your own computer.
+    server, which run on your own computer;
+  - THIRD_PARTY_NOTICES_DESKTOP.txt, in the desktop app beside the other two:
+    the Node.js runtime it carries and the Rust crates of its window.
 
-Both files are written by every web build (apps/web/licenses.ts).
+The first two are written by every web build (apps/web/licenses.ts), the third
+by every desktop build (scripts/desktop-notices.mjs).

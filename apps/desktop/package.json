@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "fetch-node": "node ../../scripts/fetch-node.mjs",
     "package-server": "node ../../scripts/package-server.mjs",
-    "prepare-bundle": "node ../../scripts/fetch-node.mjs && node ../../scripts/package-server.mjs"
+    "prepare-bundle": "node ../../scripts/fetch-node.mjs && node ../../scripts/package-server.mjs && node ../../scripts/desktop-notices.mjs",
+    "notices": "node ../../scripts/desktop-notices.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0"

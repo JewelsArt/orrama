@@ -153,6 +153,9 @@ export const ALLOWED_LICENCES = [
   "Python-2.0",
   "CC0-1.0",
   "CC-BY-4.0",
+  // The Unicode licence (ICU's data and code, under Tauri's URL parser in the desktop app):
+  // permissive, and the FSF lists it as GPL-compatible.
+  "Unicode-3.0",
   "LGPL-2.1-only",
   "LGPL-2.1-or-later",
   "LGPL-3.0-only",
@@ -182,10 +185,30 @@ export const ALLOWED_BY_NAME: Record<string, string> = {
   "duck@0.1.12": 'package.json says only "BSD"; its LICENSE file is the 2-clause BSD text (Michael Williamson, 2013).',
 };
 
+/** `expr` split on `op` where no bracket is open: `(A OR B) AND C` is two parts under AND. */
+function splitOutside(expr: string, op: "OR" | "AND"): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < expr.length; i++) {
+    if (expr[i] === "(") depth++;
+    else if (expr[i] === ")") depth--;
+    else if (depth === 0 && expr.slice(i, i + op.length + 2).toUpperCase() === ` ${op} `) {
+      parts.push(expr.slice(start, i));
+      start = i + op.length + 2;
+    }
+  }
+  return [...parts, expr.slice(start)];
+}
+
+/** SPDX: AND binds tighter than OR, brackets group. */
 function allowedExpression(expr: string): boolean {
-  const e = expr.trim().replace(/^\((.*)\)$/, "$1").trim();
-  if (/ OR /i.test(e)) return e.split(/ OR /i).some(allowedExpression);
-  if (/ AND /i.test(e)) return e.split(/ AND /i).every(allowedExpression);
+  const e = expr.trim();
+  const any = splitOutside(e, "OR");
+  if (any.length > 1) return any.some(allowedExpression);
+  const all = splitOutside(e, "AND");
+  if (all.length > 1) return all.every(allowedExpression);
+  if (/^\(.*\)$/.test(e)) return allowedExpression(e.slice(1, -1));
   const id = SPELLINGS[e] ?? e;
   return (ALLOWED_LICENCES as readonly string[]).includes(id);
 }
@@ -195,6 +218,16 @@ export function licenceProblem(notice: Notice): string | null {
   if (ALLOWED_BY_NAME[`${notice.name}@${notice.version}`]) return null;
   if (allowedExpression(notice.license)) return null;
   return `${notice.name}@${notice.version}: ${notice.license}`;
+}
+
+/**
+ * A Rust crate's licence (the desktop app's window, apps/desktop/crate-licences.json) by the
+ * same rule. Cargo's old `MIT/Apache-2.0` means OR; an exception (`Apache-2.0 WITH
+ * LLVM-exception`) only adds permissions to the licence it qualifies.
+ */
+export function crateLicenceProblem(name: string, version: string, license: string): string | null {
+  const spdx = license.replace(/\s*\/\s*/g, " OR ").replace(/ WITH [\w.-]+/g, "");
+  return licenceProblem({ name, version, license: spdx, text: null }) && `${name}@${version}: ${license}`;
 }
 
 /** The packages that run from their own node_modules, relative to apps/web. */
