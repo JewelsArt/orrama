@@ -20,6 +20,12 @@ fs.mkdirSync(web);
 const INDEX = "<!doctype html><title>Orrama</title><p>the packaged web app</p>\n";
 fs.writeFileSync(path.join(web, "index.html"), INDEX);
 const LAUNCH = crypto.randomBytes(16).toString("hex");
+// The packaged default is ~/Orrama: a home of the test's own, so nothing here can write the
+// real one (os.homedir() reads HOME, USERPROFILE on Windows).
+const home = path.join(tmp, "home");
+fs.mkdirSync(home);
+process.env.HOME = home;
+process.env.USERPROFILE = home;
 
 process.env.ORRAMA_PACKAGED = "1";
 process.env.ORRAMA_DATA_DIR = data;
@@ -96,7 +102,7 @@ describe("what the shell hands the server", () => {
 
 describe("the defaults", () => {
   it("a friend's notes go to ~/Orrama; from the checkout, to the data folder as before", () => {
-    expect(ownNotesFolder("/d", { packaged: true, defaultNotesDir: null })).toBe(path.join(os.homedir(), "Orrama"));
+    expect(ownNotesFolder("/d", { packaged: true, defaultNotesDir: null })).toBe(path.join(home, "Orrama"));
     expect(ownNotesFolder("/d", { packaged: false, defaultNotesDir: null })).toBe(path.join("/d", "vault"));
     expect(ownNotesFolder("/d", { packaged: true, defaultNotesDir: "/x" })).toBe("/x");
   });
@@ -111,14 +117,13 @@ describe("the defaults", () => {
 
 describe("a typed ~ on a computer with no HOME", () => {
   it("is the home folder all the same (Windows has USERPROFILE, not HOME)", () => {
-    const home = process.env.HOME;
     delete process.env.HOME;
     try {
       const typed = expandHome("~/Notes");
       expect(path.isAbsolute(typed)).toBe(true);
       expect(typed).toBe(path.join(os.homedir(), "Notes"));
     } finally {
-      if (home !== undefined) process.env.HOME = home;
+      process.env.HOME = home;
     }
   });
 });
