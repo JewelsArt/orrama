@@ -17,7 +17,7 @@ user, one vault").
 - **The app is already running.** A launchd agent
   (`~/Library/LaunchAgents/dev.orrama.server.plist`, KeepAlive) serves the API on
   **:4623** *and* the built web bundle from `apps/web/dist`. The desktop app is a
-  Tauri window that shows :4623 once it answers as Orrama. `pnpm --dir apps/web dev` (:4625) is for
+  Tauri window that shows :4623 once it answers as Orrama (Jules's own `dev.basalt.app` build; the app friends download starts its own server, `apps/desktop/README.md`). `pnpm --dir apps/web dev` (:4625) is for
   iterating; the desktop app does not see it.
 - **After changing web code, run `pnpm ship`** — typecheck, tests, build, and
   restart the agent. Editing source alone changes nothing in the desktop app,
@@ -96,7 +96,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API; your own repeating events go through it too (`ownVEvent`), and out of the published feed as RRULE/EXDATE |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner when the event fires and again when a debounced delivery goes out (ACL-007) |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only; its pickers in `people/pickers.tsx` (the company field, works at, a project) and the person's Edit sheet in `people/PersonEdit.tsx`), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ui/shell/SectionBar.tsx` (a page's sections: in place, or in Clay's top bar), `ui/wavy.ts` (Clay's reveal), `ui/CountUp.tsx` (a hero figure that counts up in Clay), `ws.ts` |
-| `apps/desktop/` | Tauri 2 shell: one window, no commands; opens a bundled "Orrama isn't running" page (`src-tauri/fallback/`) and moves to :4623 once `/api/health` answers as Orrama (`is_orrama`, `src/lib.rs`). Building needs a Rust toolchain |
+| `apps/desktop/` | Tauri 2 shell: starts its own server (`server.rs`: Node + `server/server.mjs` from the bundle, restart with backoff, stop through stdin), keeps its secrets (`secrets.rs`: Credential Manager / `secrets.json` 600, never new ones over a database), keeps its port (`port.rs`, `desktop.json`), shows the server only when `/api/health` answers with its launch id (`health.rs`), sends every other address to the browser (`window.rs`). One window, no commands, no capability; bundled pages in `src-tauri/fallback/`. `externalBin`/`resources` are in `tauri.bundle.conf.json` (`tauri build --config …`). Building needs a Rust toolchain. The app carries its server: `scripts/fetch-node.mjs` puts the official Node (pinned in `node-version.json`) in `src-tauri/binaries/`, `scripts/package-server.mjs` the bundled server in `src-tauri/resources/server/` (both git-ignored; `pnpm --dir apps/desktop prepare-bundle`, README "Building the server bundle"; `test/bundle.test.ts` runs it) |
 
 ## Permission model (memorize this)
 
@@ -305,7 +305,8 @@ Change…; `routes/settings.ts`, `firstRun.ts`). It is kept in
 `<data>/notes-folder.json` and read at boot by `vaultDir()` (env.ts) when
 `ORRAMA_VAULT_DIR` is not set; when it is set, the variable wins and Settings
 shows the folder as fixed. A stored folder that is gone is ignored with a log
-line (Orrama's own `<data>/vault` is read), never a crash loop. Choosing another
+line (Orrama's own `<data>/vault` is read), never a crash loop. A folder inside the
+data folder is refused (an uninstall may delete it). Choosing another
 folder restarts the server in place (`buildServer({ restart })`, the entry point
 in main.ts): the store's root is fixed at construction and everything holds the
 store, so the whole build is made again.
@@ -602,8 +603,9 @@ the repo, or already stored, depends on them. Do not "finish" the rename on any 
 them without a migration:
 
 - the database file `basalt.db`, the `~/basalt` checkout,
-  and the desktop app's identifier `dev.basalt.app` (its saved state and macOS
-  permissions belong to it);
+  and Jules's own desktop window's identifier `dev.basalt.app` (its saved state and macOS
+  permissions belong to it; the packaged app is `com.orrama.desktop` since 25 Oct 2026,
+  and he moves onto it in 2H);
 - what other programs read: the webhook headers `x-basalt-event`/`x-basalt-signature`
   and user agent `basalt-webhook/1.0`, the ICS feed's UIDs (`…@basalt`: a new suffix
   replaces every event in a subscribed calendar), the `bslt_` token prefix;
@@ -783,6 +785,14 @@ sent as `note-changed` to whoever could read it (`note-removed` and
   `ORRAMA_WEBHOOK_DEBOUNCE_MS`) are whole numbers, origins are bare origins,
   data/vault paths are directories, and real secrets are ≥ 32 characters. A new
   variable gets a rule there.
+- **`ORRAMA_PACKAGED=1` is the server inside the desktop app** (the contract:
+  `~/orrama-next/build/2-COMMON.md`). It needs `ORRAMA_DATA_DIR`, keeps its own notes
+  in `~/Orrama` (`ORRAMA_DEFAULT_NOTES_DIR` overrides; from the checkout it stays
+  `<data>/vault`), says the shell's `ORRAMA_LAUNCH_ID` in `/api/health` (`launch`), logs
+  to `ORRAMA_LOG_FILE`, and stops (exit 0, WAL checkpointed) when its stdin closes or
+  reads `stop`: never under launchd, whose stdin is closed from the start. A module in
+  the bundle shares one `import.meta.url`, so only main.ts may call `isEntry` there
+  (package-server refuses the others); the version is `src/build.ts`'s `VERSION`.
 - **Outbound requests to user-typed URLs go through `safeFetch`** (calendar
   feeds, webhooks): http(s) only, every resolved address public (checked in the
   socket's own `lookup`, so DNS rebinding is caught), IPv6 ranges that wrap or
@@ -1366,7 +1376,7 @@ Note anything users must do (a schema bump, signing in again) under
 "Upgrading" in that version's entry.
 
 **CI** (`.github/workflows/`, private repo, so minutes are counted; macOS
-costs 10x, Windows 2x). On each push to `main` (and each PR): `ci.yml`, the
+costs 10x, Windows 2x; all on Node 24, the app's runtime). On each push to `main` (and each PR): `ci.yml`, the
 Ubuntu typecheck, lint, every test and the web build, and the dependency
 audit. A push to `sep-2026-redesign` runs nothing: it carries the same commit.
 `docker.yml` runs when `Dockerfile`, `.dockerignore`, `docker-compose.yml`,

@@ -9,6 +9,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- The desktop app starts Orrama's server itself: no terminal, no launchd. It carries its own
+  server and Node (`pnpm --dir apps/desktop prepare-bundle`), makes and keeps the server's two
+  secrets (Windows Credential Manager; on the Mac a file only you can read), keeps its port,
+  starts the server again if it stops, and stops it cleanly when you quit. New notes go to
+  `~/Orrama`.
+- Only one Orrama runs at a time; opening it again brings the window forward.
 - A project can be renamed from its title (or ⋯ → Rename…) and deleted from ⋯ → Delete the
   project…: the Confirm says which notes and documents go to the trash and which notes stay and
   leave the project; Undo in the toast, or Notes → Trash, brings it back.
@@ -199,6 +205,11 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Links to other sites, Sign in with ChatGPT's page and new windows open in your browser, not
+  inside the desktop app. Downloads go to your Downloads folder.
+- The desktop app's identifier is `com.orrama.desktop` (Jules's own window keeps
+  `dev.basalt.app` until he moves onto the packaged app).
+- CI runs on Node 24, the version the app ships.
 - Deleting a project document moves it to the trash instead of deleting it for good.
 - A new project's first step sits under "Tasks", where new steps go.
 - A second project with a name already used gets its own key instead of joining the first one;
@@ -436,6 +447,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- A notes folder typed as `~/…` works on Windows.
+- A notes folder inside Orrama's own data folder is refused (uninstalling may delete it).
 - Clearing a project's start or deadline left `start: ""` in the note.
 - The window title of a project page showed its address in words, not its name.
 - A project note put in the trash left an empty project on the owners' board.
