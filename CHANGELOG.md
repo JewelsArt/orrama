@@ -15,6 +15,19 @@ one is in CLAUDE.md, "Releases".
   starts the server again if it stops, and stops it cleanly when you quit. New notes go to
   `~/Orrama`.
 - Only one Orrama runs at a time; opening it again brings the window forward.
+- Orrama for the Mac comes as a .dmg (Apple silicon, macOS 13.5 or later) and for Windows as an
+  installer (per user, no administrator needed). Both show the AGPL before installing. Unsigned for
+  now: on a Mac, Open Anyway once in System Settings → Privacy & Security; on Windows, More info → Run
+  anyway.
+- Settings lists the third-party notices beside Source code (in the desktop app, its runtime's
+  and window's too).
+- First run asks how Orr should think: Sign in with ChatGPT, use a key from Anthropic or
+  Google (with where to get one), or later. Settings → Orr & AI uses the same form.
+- In the desktop app, "Use notes I already have" and Settings → Notes → Change… open your
+  computer's folder chooser.
+- "Forgot your password?" on the sign-in screen. In the desktop app you choose a new one
+  right there; every other device is signed out, nothing else changes. In a browser it says to do it
+  on the computer Orrama runs on.
 - A project can be renamed from its title (or ⋯ → Rename…) and deleted from ⋯ → Delete the
   project…: the Confirm says which notes and documents go to the trash and which notes stay and
   leave the project; Undo in the toast, or Notes → Trash, brings it back.
@@ -205,6 +218,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- The desktop app's own program is less than half the size it was (10.3 → 4.5 MB).
+- The Docker image runs on Node 24, like the desktop app and CI.
+- A pasted AI key is checked with Anthropic or Google before it is saved, and a wrong one
+  is said at once.
+- Sign in with ChatGPT opens in your browser from the desktop app; the app waits and moves
+  on once you're signed in, and the browser says you can close the tab. Offered to everyone.
 - Links to other sites, Sign in with ChatGPT's page and new windows open in your browser, not
   inside the desktop app. Downloads go to your Downloads folder.
 - The desktop app's identifier is `com.orrama.desktop` (Jules's own window keeps
@@ -447,6 +466,9 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- The desktop app no longer makes an empty `~/Orrama` before you choose where your notes are,
+  and no longer reads a folder left by an earlier install before you choose it.
+- First run's screens scroll on a phone or a small window instead of cutting off the top.
 - A notes folder typed as `~/…` works on Windows.
 - A notes folder inside Orrama's own data folder is refused (uninstalling may delete it).
 - Clearing a project's start or deadline left `start: ""` in the note.

@@ -96,7 +96,7 @@ readable `export.json` with every secret left out, and a README — to
 | `apps/server/src/ics.ts` | Minimal RFC 5545 parse/expand/build (RRULE subset, TZID via Intl) — no Google API; your own repeating events go through it too (`ownVEvent`), and out of the published feed as RRULE/EXDATE |
 | `apps/server/src/webhooks.ts` | Outgoing webhook dispatcher; HMAC-signed, ACL-filtered per hook owner when the event fires and again when a debounced delivery goes out (ACL-007) |
 | `apps/web/src/` | React. `App.tsx` maps addresses to screens inside the shell (`ui/shell/Shell.tsx`: rail, phone tabs, More); `ui/` is the design system (components, icons, Orr, overlays, router, keys, dates, theme); `styles/<area>.css` holds the older screens' styles, one file per area. Screens: `Today` (the default place: timetable and seven modules, `today/`), `Notes` (`Notes.tsx` holds the state and every request; the pieces are in `notes/`: tree, Notes home, the note's header, the side panel; `/notes/<path>`, `/notes` opens the last note until you close it), `orrery/` (the Orrery: `model.ts`, `layout.ts`, `physics.ts`, `engine.ts`, `Orrery.tsx`), `Planning` (`Planning.tsx` holds the state and every request; the pieces are in `planning/`: `model.ts` the item vocabulary, Lanes, Hours, Month, To plan, the item popover, the phone week; addresses `/planning/week/<Monday>`, `/planning/month/<yyyy-mm>`, `/planning/day/<date>`), `Overview` (Projects: one row per project, `OverviewHead.tsx`, the area filter and the shelves in the address) → `Project.tsx` (the project page; its Overview tab is `ProjectOverview.tsx`, the other three tabs `ProjectViews.tsx`, the Gantt under the Timeline), `entity/` (the entity pages, `/people/<slug>`, `/companies/<slug>`, `/conversations/<slug>`, `/documents/<path>`: `EntityPage.tsx` and its blocks in `parts.tsx`, the pure rules in `model.ts`, where a note opens in `links.ts`, the shared lists in `known.ts`; and the pieces the project page shares: header, status vocabulary, dates as text, relations), `noticed/` (Orr noticed, `/notes/health`: warnings as sentences with one fix, `model.ts` and `fixes.tsx`), `find/` (Find, ⌘K: `model.ts` matching and groups, `build.ts` what it finds), `people/` (People, `/people`: people and companies side by side as rows — ring or square, "Role · Company", the key relation from `/api/people/context`, the newest mention — one search and one sector select in the address; `/people/<slug>` and `/companies/<slug>` are entity pages; the A–Z rail is phone-only; its pickers in `people/pickers.tsx` (the company field, works at, a project) and the person's Edit sheet in `people/PersonEdit.tsx`), `Mail` (`Mail.tsx` holds the state and every request; the pieces are in `mail/`; addresses `/mail`, `/mail/<uid>`, `/mail/waiting`, the composer as `?write=…` or `?draft=<id>`), `Finance` (Money: `Finance.tsx` holds the state and requests, `money/` the pages, chart and pure helpers), `Settings` (a page, `/settings/<section>`; the eight sections are in `settings/`, each says where it lives — this device, your account or this server; Orr & AI is owners only; `settings/parts.tsx` holds the sections, the where-marks and `SETTINGS_INDEX`), the door (`Login`, `Lock`, `Setup`, `door/`: the dots, the gather, the boot), `AskPanel` (Ask Orr: the panel; its pieces in `ask/`: the Markdown reader, his working in words, where names lead, the history on this device), `QuickCapture` (Capture, a Dialog), `create/` (New: the menu, its four dialogs and what each page prefills), `ui/Icon.tsx` (line icons; no glyphs, no emoji), `ui/shell/SectionBar.tsx` (a page's sections: in place, or in Clay's top bar), `ui/wavy.ts` (Clay's reveal), `ui/CountUp.tsx` (a hero figure that counts up in Clay), `ws.ts` |
-| `apps/desktop/` | Tauri 2 shell: starts its own server (`server.rs`: Node + `server/server.mjs` from the bundle, restart with backoff, stop through stdin), keeps its secrets (`secrets.rs`: Credential Manager / `secrets.json` 600, never new ones over a database), keeps its port (`port.rs`, `desktop.json`), shows the server only when `/api/health` answers with its launch id (`health.rs`), sends every other address to the browser (`window.rs`). One window, no commands, no capability; bundled pages in `src-tauri/fallback/`. `externalBin`/`resources` are in `tauri.bundle.conf.json` (`tauri build --config …`). Building needs a Rust toolchain. The app carries its server: `scripts/fetch-node.mjs` puts the official Node (pinned in `node-version.json`) in `src-tauri/binaries/`, `scripts/package-server.mjs` the bundled server in `src-tauri/resources/server/` (both git-ignored; `pnpm --dir apps/desktop prepare-bundle`, README "Building the server bundle"; `test/bundle.test.ts` runs it) |
+| `apps/desktop/` | Tauri 2 shell: starts its own server (`server.rs`: Node + `server/server.mjs` from the bundle, restart with backoff, stop through stdin), keeps its secrets (`secrets.rs`: Credential Manager / `secrets.json` 600, never new ones over a database), keeps its port (`port.rs`, `desktop.json`), shows the server only when `/api/health` answers with its launch id (`health.rs`), sends every other address to the browser (`window.rs`). One window, no commands; the server's page gets the dialog's `open` (the folder chooser) through a run-time capability for its exact origin (`capability.rs`), every page the mark `window.__ORRAMA_DESKTOP__` (`apps/web/src/desktop.ts` reads it), and "Forgot your password?" is a path the window catches (`reset.rs`, `ORRAMA_SHELL_TOKEN`); bundled pages in `src-tauri/fallback/`. `externalBin`/`resources` are in `tauri.bundle.conf.json` (`tauri build --config …`). Building needs a Rust toolchain. The app carries its server: `scripts/fetch-node.mjs` puts the official Node (pinned in `node-version.json`) in `src-tauri/binaries/`, `scripts/package-server.mjs` the bundled server in `src-tauri/resources/server/` (both git-ignored; `pnpm --dir apps/desktop prepare-bundle`, README "Building the server bundle"; `test/bundle.test.ts` runs it); release builds: `scripts/release-build.mjs` (`release:mac`), `release.yml`, README "Release builds" |
 
 ## Permission model (memorize this)
 
@@ -674,13 +674,19 @@ OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan*
 (`apps/server/src/chatgpt.ts`, from OpenAI's documented protocol; their DevKit
 is noncommercial-licensed, so none of its code is used). OpenAI offers ChatGPT
 plan usage to open-source projects, personal projects that run locally and
-selected private apps. Orrama is under the AGPL (21 Oct 2026); until its
-repository is public it is a personal project, which covers Jules's own copy,
-and other people paste a key. Its rules shape the code:
+selected private apps. Orrama is under the AGPL (21 Oct 2026), so it is
+offered to everyone, in first run and Settings; that rests on the repository being
+public by the friends' release (2G), until which only Jules's own copy is covered. Its rules shape the code:
 
 - The redirect is fixed to `http://127.0.0.1:<port>/callback`, a root route,
-  so sign-in starts from a browser on this Mac; from anywhere else
+  so sign-in starts on the computer Orrama runs on: in the desktop app the system
+  browser opens OpenAI's page while the app's page waits for it (`start { wait: true }`,
+  the callback answers a "you can close this tab" page); in a browser tab that tab goes
+  there and back; from anywhere else
   `/api/admin/ai/chatgpt/start` refuses.
+- A pasted key is checked before it is saved (`POST /api/admin/ai/check`, `aiKeyCheck.ts`:
+  one GET of the model at Anthropic's or Google's fixed host, the key in a header); an
+  OpenAI-compatible server is not checked.
 - Credentials live encrypted in `meta` (`chatgpt_credentials`), apart from the
   API key, so switching back to Gemini still finds its key. Each refresh
   spends the refresh token and returns a new one: refreshes are serialised and
@@ -788,7 +794,10 @@ sent as `note-changed` to whoever could read it (`note-removed` and
 - **`ORRAMA_PACKAGED=1` is the server inside the desktop app** (the contract:
   `~/orrama-next/build/2-COMMON.md`). It needs `ORRAMA_DATA_DIR`, keeps its own notes
   in `~/Orrama` (`ORRAMA_DEFAULT_NOTES_DIR` overrides; from the checkout it stays
-  `<data>/vault`), says the shell's `ORRAMA_LAUNCH_ID` in `/api/health` (`launch`), logs
+  `<data>/vault`), reads an empty `<data>/notes-not-chosen` until the person chooses (Start
+  empty or the example then choose `~/Orrama`, kept in `notes-folder.json`), says the shell's
+  `ORRAMA_LAUNCH_ID` in `/api/health` (`launch`), takes the shell's `ORRAMA_SHELL_TOKEN` (never
+  said back), the one key to `POST /api/auth/reset/ticket`, logs
   to `ORRAMA_LOG_FILE`, and stops (exit 0, WAL checkpointed) when its stdin closes or
   reads `stop`: never under launchd, whose stdin is closed from the start. A module in
   the bundle shares one `import.meta.url`, so only main.ts may call `isEntry` there
@@ -983,7 +992,8 @@ sent as `note-changed` to whoever could read it (`note-removed` and
   them; a new credential route opts in and gets a row there. A password change
   (Settings → You, `POST /api/auth/password`, or the `account` command) and
   Settings → Sign out everywhere end every session, token and Touch ID device
-  and clear the passcode and feed link (`revokeEverything`, `sessions.ts`).
+  and clear the passcode and feed link (`revokeEverything`, `sessions.ts`), and so does
+  the app's reset (`POST /api/auth/reset`, which signs the window in afterwards).
   Settings' password change keeps the session that made it
   (`revokeEverything(…, keep)`); a wrong current password is a 403, never a 401
   (the page reads a 401 as the session ending), counted before Argon2. An API token is the only credential sent as
@@ -998,9 +1008,10 @@ sent as `note-changed` to whoever could read it (`note-removed` and
   password only). An unknown address is verified against a dummy hash, so
   timing does not say who has an account. Anything new that checks a secret
   counts first, then verifies.
-- **The door** (`Login.tsx`, `Lock.tsx`, `Setup.tsx`, `door/`; first run is three
+- **The door** (`Login.tsx`, `Lock.tsx`, `Setup.tsx`, `door/`; first run is four
   steps: the account, Where are your notes? (`door/NotesChoice.tsx`, also
-  Settings → Notes' Change…), and the count and gather; a signed-in founder with
+  Settings → Notes' Change…), How should Orr think? (`door/AiStep.tsx`, Settings → Orr & AI's
+  own form, `useAiForm`/`AiFields` in `settings/Ai.tsx`), and the count and gather; a signed-in founder with
   `chooseNotes` gets step 2 again, `resume`): before the
   server says yes it shows nothing of the vault, not a name, not a count; the
   halo's 520 dots are a fixed number. Once in, `door/shape.ts` asks the tree,
@@ -1011,6 +1022,9 @@ sent as `note-changed` to whoever could read it (`note-removed` and
   `useEnter` and Setup call `sessionStarted()`, and the session itself is the
   cookie the server set. The shell's keys (App.tsx)
   stand down while signed out, so the lock's digits are only a passcode.
+  Forgot your password? (Login) asks the app's shell for a reset (`desktop.ts`, `door/Reset.tsx`,
+  `POST /api/auth/reset`); in a browser it says to do it on the computer Orrama runs on. A first-run
+  card taller than the window scrolls (`.door-first`).
 - **Addresses** (`apps/web/src/ui/router.ts`): every place and thing has a URL
   (structure.md §1.2), `parseRoute`/`routeHref` round-trip it, and the server
   answers any non-API path with the app, so reloads and deep links work.
@@ -1375,13 +1389,30 @@ on a shipped commit, with an entry in `CHANGELOG.md`:
 Note anything users must do (a schema bump, signing in again) under
 "Upgrading" in that version's entry.
 
+**The desktop app's installers.** One script builds them, the same on the Mac and on CI's Windows
+runner (`scripts/release-build.mjs`): the licence guards, the web app into
+`node_modules/.cache/orrama-release/web` (never `apps/web/dist`), the pinned Node, the server
+bundle, the desktop notices, then `tauri build` with `tauri.bundle.conf.json`. The Mac .dmg is
+built here: `pnpm --dir apps/desktop release:mac` (Apple silicon only, macOS 13.5+, ad-hoc signed,
+~1.5 min warm, 45 MB), then `gh release upload v<X.Y.Z> <dmg>`. The Windows installer is built by
+`release.yml` on a `v*` tag (draft release `v<X.Y.Z>`) or by hand (`gh workflow run release.yml
+--ref main -f version=<X.Y.Z>`, a test draft `v<X.Y.Z>-test.<run>`, never published): NSIS, per
+user, unsigned; it then installs silently, runs and stops the installed server, uninstalls and
+checks the notes folder survived (`scripts/install-check.mjs`, which also runs on a built .app).
+~40 billed minutes; `-f mac=true` adds the Mac on a runner (~120 more) while the repo is private.
+Both installers show the AGPL first (`bundle.licenseFile`). `hardenedRuntime` is off because
+Tauri re-signs the bundled Node and would drop its JIT entitlement; with the Developer ID it comes
+back with an entitlements file (allow-jit, allow-unsigned-executable-memory,
+disable-library-validation).
+
 **CI** (`.github/workflows/`, private repo, so minutes are counted; macOS
 costs 10x, Windows 2x; all on Node 24, the app's runtime). On each push to `main` (and each PR): `ci.yml`, the
 Ubuntu typecheck, lint, every test and the web build, and the dependency
 audit. A push to `sep-2026-redesign` runs nothing: it carries the same commit.
 `docker.yml` runs when `Dockerfile`, `.dockerignore`, `docker-compose.yml`,
 `docker-entrypoint.sh` or `pnpm-lock.yaml` change. `macos.yml`, `windows.yml`
-and `desktop.yml` (cargo check) never run on a push: they run Sunday night
+and `desktop.yml` (the shell's clippy and `cargo test` on
+Windows) never run on a push: they run Sunday night
 (22:00–23:00 UTC, on `main`) and by hand. Before a release, and after touching
 `apps/desktop` (desktop) or paths, files and processes (Windows), run them:
 
@@ -1390,7 +1421,7 @@ for wf in macos windows desktop docker; do gh workflow run $wf.yml --ref main; d
 ```
 
 then `gh run list -L 6` and `gh run watch`. `test/ci-workflow.test.ts` pins
-these triggers.
+these triggers, and release.yml's (a `v*` tag, or by hand; its jobs alone may write, to draft the release).
 
 **Dependencies are audited**: `pnpm audit --prod --audit-level=high` must pass
 (CI blocks on it); an advisory judged unreachable goes into
@@ -1417,7 +1448,7 @@ as `source`. Someone who runs a changed copy for others points it at theirs.
 walks every workspace package's production dependencies (`productionPackages`,
 `apps/web/licenses.ts`) and fails on any licence outside `ALLOWED_LICENCES`:
 permissive ones (MIT, ISC, Apache-2.0, BSD-2/3-Clause, BlueOak-1.0.0, 0BSD,
-MIT-0, Zlib, Unlicense, Python-2.0, CC0-1.0, CC-BY-4.0) and the copyleft ones
+MIT-0, Zlib, Unlicense, Python-2.0, CC0-1.0, CC-BY-4.0, Unicode-3.0) and the copyleft ones
 compatible with GPLv3 (LGPL-2.1/3.0, MPL-2.0, GPL-2.0-or-later, GPL-3.0,
 AGPL-3.0), or a dual licence with one of them. GPL-2.0-only, SSPL, EPL-1.0, CDDL,
 source-available and unlicensed code fail. A package whose `package.json` states
@@ -1427,7 +1458,12 @@ version, with the reason: today only `duck@0.1.12` ("BSD", whose file is
 `unzipper: 0.11.6` override in pnpm-workspace.yaml. Every web build writes the
 third-party notices: `dist/THIRD_PARTY_NOTICES.txt` for the bundle and
 `dist/THIRD_PARTY_NOTICES_SERVER.txt` for the server's and the MCP server's
-`node_modules`.
+`node_modules`. The desktop app adds
+`THIRD_PARTY_NOTICES_DESKTOP.txt` (Node's licence and the Rust crates of its window,
+`scripts/desktop-notices.mjs`), and the crates are held to the same `ALLOWED_LICENCES` (plus
+`Unicode-3.0`, ICU's) through `apps/desktop/crate-licences.json` and `crateLicences.test.ts`: after a
+crate is added or bumped, run `node scripts/desktop-notices.mjs --licences` and that test. Settings
+links the notices under Source code.
 
 ## Dev loop
 
