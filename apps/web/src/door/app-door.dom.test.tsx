@@ -6,7 +6,7 @@ import "../test/app-harness.js";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App.js";
-import { api } from "../api.js";
+import { api, SESSION_ENDED } from "../api.js";
 import { at, ME, serve } from "../test/app-harness.js";
 
 const signedOut = () => serve({ "GET /api/me": new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }) });
@@ -17,6 +17,17 @@ afterEach(() => {
 });
 
 describe("the door in the app", () => {
+  it("after first run, signing out goes to the sign-in, not back to making an account (2C)", async () => {
+    serve({ "GET /api/me": new Response(JSON.stringify({ error: "unauthorized" }), { status: 401 }), "GET /api/auth/status": { needsSetup: true, chooseNotes: false, resetHere: true } });
+    at("/today");
+    render(<App />);
+    expect((await screen.findByTestId("view")).dataset.view).toBe("setup");
+    fireEvent.click(screen.getByRole("button", { name: "finish first run" }));
+    expect((await screen.findByTestId("view")).dataset.view).toBe("today");
+    window.dispatchEvent(new Event(SESSION_ENDED));
+    await waitFor(() => expect(screen.getByTestId("view").dataset.view).toBe("login"));
+  });
+
   it("the window the app's shell sends to /reset gets the reset form, and the ticket leaves the address (2C)", async () => {
     signedOut();
     at("/reset#ticket=t-1");

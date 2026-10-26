@@ -480,7 +480,18 @@ export function App() {
   const draftsWaiting = useDraftsWaiting(!!me, routeHref(route));
 
   if (me === undefined || needsSetup === undefined) return <Boot />;
-  if (me === null && needsSetup) return <Setup onDone={setMe} />;
+  if (me === null && needsSetup) {
+    // Once the first account exists this is no longer an empty install: signing out goes to the
+    // sign-in, never back to "Welcome to Orrama".
+    return (
+      <Setup
+        onDone={(m) => {
+          setNeedsSetup(false);
+          setMe(m);
+        }}
+      />
+    );
+  }
   if (me && chooseNotes && me.isOwner) {
     return (
       <Setup

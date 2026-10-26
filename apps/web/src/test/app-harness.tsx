@@ -148,7 +148,7 @@ vi.mock("../QuickCapture.js", async () => {
 });
 vi.mock("../Login.js", () => ({ Login: stub("login") }));
 vi.mock("../Lock.js", () => ({ Lock: stub("lock") }));
-vi.mock("../Setup.js", () => ({ Setup: stub("setup") }));
+vi.mock("../Setup.js", () => ({ Setup: stub("setup", (p) => [["finish first run", () => p.onDone({ ...ME })]]) }));
 
 export const ME = {
   id: "u-1",
