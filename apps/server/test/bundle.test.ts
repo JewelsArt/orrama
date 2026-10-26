@@ -143,6 +143,18 @@ describe.skipIf(!built)("the desktop bundle", () => {
       // Sign up (argon2), then the first-run choice, then Start empty (better-sqlite3, the vault).
       expect((await call("POST", "/api/auth/register", { email: "sam@example.test", username: "sam", displayName: "Sam", password: "correct horse battery" })).status).toBe(200);
       expect(await (await call("GET", "/api/auth/status")).json()).toEqual({ needsSetup: false, chooseNotes: true, resetHere: false });
+      // Nothing starts in the stand-in folder (2C): Start empty first chooses Orrama's own folder,
+      // which restarts the server in place to read it, as the first-run page does.
+      expect((await call("POST", "/api/settings/start", { example: false })).status).toBe(409);
+      expect(fs.readdirSync(s.notes)).toEqual([]);
+      expect(await (await call("PUT", "/api/settings/notes-folder", { folder: null })).json()).toMatchObject({ restart: true });
+      const until = Date.now() + 20_000;
+      for (;;) {
+        const own = await call("GET", "/api/settings/server").then((r) => (r.ok ? r.json() : null), () => null);
+        if ((own as { own?: boolean } | null)?.own === true) break;
+        if (Date.now() > until) throw new Error("the server didn't come back on its own folder");
+        await new Promise((r) => setTimeout(r, 200));
+      }
       expect(await (await call("POST", "/api/settings/start", { example: false })).json()).toMatchObject({ ontology: "written" });
       expect(fs.existsSync(path.join(s.notes, "Orrama", "What things are.md"))).toBe(true);
       const version = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
