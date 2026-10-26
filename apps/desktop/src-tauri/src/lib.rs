@@ -1,3 +1,6 @@
+// A lock held through a `match` on what it guards is how the reset hung the window (2C).
+#![warn(clippy::significant_drop_in_scrutinee)]
+
 /// The window around Orrama's own server.
 ///
 /// The app starts its server, keeps its two secrets, and shows the server's page
@@ -253,7 +256,12 @@ pub fn run() {
                 .initialization_script(DESKTOP_MARK)
                 .inner_size(1280.0, 820.0)
                 .min_inner_size(900.0, 600.0)
-                .on_navigation(move |url| match window::route(url, *nav.port.lock().unwrap()) {
+                .on_navigation(move |url| {
+                    // The port is read and its lock let go before anything is done: an action
+                    // (the reset) reads it again, and a lock held across the match hung the
+                    // window's main thread (clippy's significant_drop_in_scrutinee, above).
+                    let port = *nav.port.lock().unwrap();
+                    match window::route(url, port) {
                     Route::Stay => true,
                     Route::Browser => {
                         open_in_browser(&nav, url);
@@ -264,6 +272,7 @@ pub fn run() {
                         false
                     }
                     Route::Refuse => false,
+                    }
                 })
                 .on_new_window(move |url, _features| {
                     if window::route_new_window(&url) == Route::Browser {

@@ -299,7 +299,8 @@ fn run_once(shared: &Shared, config: &Config, secrets: &secrets::Secrets, on_sta
             break;
         }
         if started.elapsed() > BOOT_LIMIT {
-            if let Some(running) = shared.child.lock().unwrap().take() {
+            let running = shared.child.lock().unwrap().take();
+            if let Some(running) = running {
                 stop_child(running, &log_file);
             }
             return Outcome::Ended(format!("the server didn't answer within {} s", BOOT_LIMIT.as_secs()));

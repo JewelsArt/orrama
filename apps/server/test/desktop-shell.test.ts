@@ -44,6 +44,9 @@ describe("desktop shell", () => {
     expect([...source("capability.rs").matchAll(/"[a-z-]+:[a-z-]+"/g)].map((m) => m[0])).toEqual(['"dialog:allow-open"', '"dialog:allow-open"']);
     expect(source("capability.rs")).toMatch(/#\[test\]\s*fn the_page_gets_the_folder_chooser_and_nothing_else/);
     expect(source("capability.rs")).toMatch(/#\[test\]\s*fn only_for_our_own_server_at_its_port/);
+    // A lock held through a match hung the window when the reset action took it again (2C):
+    // clippy (desktop.yml, -D warnings) refuses that shape anywhere in the shell.
+    expect(source("lib.rs")).toMatch(/^\/\/.*\n#!\[warn\(clippy::significant_drop_in_scrutinee\)\]/);
   });
 
   it("is com.orrama.desktop, and its bundle carries Node and the server", () => {
