@@ -120,8 +120,13 @@ fn app_page(name: &str) -> Url {
     Url::parse(base).and_then(|b| b.join(name)).expect("a bundled page's URL")
 }
 
+/// An address as the log says it: no query and no fragment (the reset form's ticket is one).
+fn for_log(url: &Url) -> &str {
+    url.as_str().split(['?', '#']).next().unwrap_or("")
+}
+
 fn show(shell: &Shell, window: &WebviewWindow, url: Url) {
-    server::shell_log(&shell.log_file, &format!("the window shows {}", url.as_str().split('?').next().unwrap_or("")));
+    server::shell_log(&shell.log_file, &format!("the window shows {}", for_log(&url)));
     if let Err(e) = window.navigate(url) {
         eprintln!("orrama: the window can't move: {e}");
     }
@@ -316,4 +321,17 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_log_never_says_a_query_or_a_ticket() {
+        let u = |s: &str| Url::parse(s).unwrap();
+        assert_eq!(for_log(&u("http://localhost:50123/reset#ticket=Ab_9")), "http://localhost:50123/reset");
+        assert_eq!(for_log(&u("http://localhost:50123/today?x=1#y")), "http://localhost:50123/today");
+        assert_eq!(for_log(&u("tauri://localhost/index.html")), "tauri://localhost/index.html");
+    }
 }
