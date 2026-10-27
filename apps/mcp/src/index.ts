@@ -4,11 +4,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
-  ErrorCode,
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
-import { authHeader } from "./auth.js";
 import { renamedEnvProblems } from "./env.js";
+import { orramaApi } from "./http.js";
 import { callTool, TOOLS } from "./tools.js";
 
 const renamed = renamedEnvProblems(process.env);
@@ -37,31 +36,7 @@ const server = new Server(
   }
 );
 
-async function fetchOrrama(path: string, method: string = "GET", body?: any) {
-  const res = await fetch(`${url}${path}`, {
-    method,
-    headers: {
-      "Authorization": authHeader(token!),
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  
-  if (!res.ok) {
-    let msg = res.statusText;
-    try {
-      const errorData = await res.json();
-      if (errorData.error) msg = errorData.error;
-    } catch {
-      // ignore
-    }
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Orrama API error (${res.status}): ${msg}`
-    );
-  }
-  return res.json();
-}
+const fetchOrrama = orramaApi(url, token);
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 

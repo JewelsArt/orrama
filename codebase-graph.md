@@ -994,8 +994,12 @@
 ### `apps/mcp/src/graphQuery.ts`
 - **Exports**: GRAPH_TOOLS, GraphTool, isGraphTool, graphPath
 
+### `apps/mcp/src/http.ts`
+- **Exports**: orramaApi
+- **Imports**: @modelcontextprotocol/sdk/types.js, ./auth.js, ./tools.js
+
 ### `apps/mcp/src/index.ts`
-- **Imports**: @modelcontextprotocol/sdk/server/index.js, @modelcontextprotocol/sdk/server/stdio.js, @modelcontextprotocol/sdk/types.js, ./auth.js, ./env.js, ./tools.js
+- **Imports**: @modelcontextprotocol/sdk/server/index.js, @modelcontextprotocol/sdk/server/stdio.js, @modelcontextprotocol/sdk/types.js, ./env.js, ./http.js, ./tools.js
 
 ### `apps/mcp/src/tools.ts`
 - **Exports**: Api, ToolResult, TOOLS, callTool
