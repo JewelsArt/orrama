@@ -21,6 +21,11 @@ tauri-plugin-opener = "~2.5.5"
 # The folder chooser (2C, Jules 25 Oct: D5). Registered, and granted to the server's page for
 # its one `open` command only (lib.rs `server_page_capability`). 2.7.x is the last line on tauri 2.11.
 tauri-plugin-dialog = "~2.7.3"
+# Updates (2E, Jules 27 Oct: D10): the signed feed, driven from Rust only (updater.rs), never
+# granted to a page. 2.12.x is the last line on tauri 2.11 (2.13 needs tauri 2.12).
+tauri-plugin-updater = { version = "~2.12.0", default-features = false, features = ["native-tls", "system-proxy", "zip"] }
+# The updater's versions are semver's; already in the tree through tauri.
+semver = "1"
 getrandom = "0.3"
 # The secret store's keyring side (secrets.rs): Credential Manager on Windows, the Keychain on the Mac once the app is signed.
 keyring-core = "1.0.1"

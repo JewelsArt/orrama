@@ -29,12 +29,13 @@ describe("desktop shell", () => {
   it("registers no commands, and gives the server's page the folder chooser and nothing else", () => {
     const src = rust();
     expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler/);
-    // Two plugins are registered: single instance, and the dialog for the folder chooser (2C,
-    // Jules 25 Oct: D5). The opener is called from Rust, never registered (registering it
-    // would add its commands and a script to every page).
-    expect([...src.matchAll(/\.plugin\(([\w:]+)/g)].map((m) => m[1])).toEqual(["tauri_plugin_single_instance::init", "tauri_plugin_dialog::init"]);
+    // Three plugins are registered: single instance, the dialog for the folder chooser (2C,
+    // Jules 25 Oct: D5), and the updater, driven from Rust alone (2E; no capability grants a page
+    // any of its commands, below). The opener is called from Rust, never registered (registering
+    // it would add its commands and a script to every page).
+    expect([...src.matchAll(/\.plugin\(([\w:]+)/g)].map((m) => m[1])).toEqual(["tauri_plugin_single_instance::init", "tauri_plugin_dialog::init", "tauri_plugin_updater::Builder::new"]);
     const cargo = fs.readFileSync(path.join(shell, "Cargo.toml"), "utf8");
-    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-dialog", "tauri-plugin-opener", "tauri-plugin-single-instance"]);
+    expect([...cargo.matchAll(/^(tauri-plugin-[\w-]+)\s*=/gm)].map((m) => m[1]).sort()).toEqual(["tauri-plugin-dialog", "tauri-plugin-opener", "tauri-plugin-single-instance", "tauri-plugin-updater"]);
     expect(cargo).not.toMatch(/^notify\s*=/m);
     // No capability file: the one capability is made at run time, for the server's exact origin,
     // with the dialog's open only (capability.rs; `cargo test` holds its origin and its one permission).
@@ -47,6 +48,20 @@ describe("desktop shell", () => {
     // A lock held through a match hung the window when the reset action took it again (2C):
     // clippy (desktop.yml, -D warnings) refuses that shape anywhere in the shell.
     expect(source("lib.rs")).toMatch(/^\/\/.*\n#!\[warn\(clippy::significant_drop_in_scrutinee\)\]/);
+  });
+
+  it("updates from the signed feed of the newest GitHub release (2E)", () => {
+    const updater = (conf as unknown as { plugins: { updater: Record<string, unknown> } }).plugins.updater;
+    expect(updater.endpoints).toEqual(["https://github.com/JewelsArt/orrama/releases/latest/download/latest.json"]);
+    // Jules's public key (the private key and its password are his alone, never in the repo).
+    expect(Buffer.from(String(updater.pubkey), "base64").toString("utf8")).toMatch(/^untrusted comment: minisign public key: [0-9A-F]{16}\n[A-Za-z0-9+/=]{56}\n?$/);
+    // Not requireSignedVersion: Tauri CLI 2.11 signs without the version in the trusted comment,
+    // and the plugin would then refuse every update. updater.rs offers only a newer version; turn
+    // it on once the CLI records the version (2E's notes).
+    expect(updater.requireSignedVersion).toBeUndefined();
+    expect(updater.windows).toEqual({ installMode: "passive" });
+    expect(Object.keys(updater).filter((k) => k.startsWith("dangerous"))).toEqual([]);
+    expect((conf.bundle as Record<string, unknown>).createUpdaterArtifacts).toBe(true);
   });
 
   it("is com.orrama.desktop, and its bundle carries Node and the server", () => {

@@ -18,8 +18,9 @@
 /// catches, window.rs). Every page the window loads gets a mark,
 /// `window.__ORRAMA_DESKTOP__`, so the web app knows it is inside the app
 /// (desktop.ts) without reading the user agent. "Forgot your password?" is a link
-/// the shell catches too (reset.rs). Single instance and the dialog are the plugins
-/// registered; the opener is called from Rust, never registered.
+/// the shell catches too (reset.rs). Single instance, the dialog and the updater are the
+/// plugins registered; the opener is called from Rust, never registered. The updater is
+/// driven from Rust alone (updater.rs): no page is granted any of its commands.
 /// It used to register `read_vault_file` / `write_vault_file`, which took the vault
 /// root FROM THE CALLER — anything able to invoke them could read or write any file
 /// on the Mac. Removed with the never-initialised fs/dialog plugins and the `notify`
@@ -32,6 +33,7 @@ mod secrets;
 mod server;
 #[cfg(test)]
 mod testutil;
+mod updater;
 mod window;
 
 use std::ffi::OsString;
@@ -40,6 +42,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::webview::{DownloadEvent, NewWindowResponse};
 use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub use health::is_orrama;
 use server::{Launch, Status, Supervisor};
@@ -217,6 +221,77 @@ fn act(shell: &Arc<Shell>, action: Action) {
     }
 }
 
+/// The updater's side of the app (updater.rs `Feed`): the signed feed, the native dialog,
+/// and Restart now as the supervisor's stop, the plugin's install and the app's restart.
+struct AppFeed {
+    shell: Arc<Shell>,
+}
+
+impl updater::Feed for AppFeed {
+    type Ready = (Update, Vec<u8>);
+
+    fn check(&mut self) -> Result<Option<Self::Ready>, String> {
+        let found = self
+            .shell
+            .app
+            .updater_builder()
+            .version_comparator(|current, remote| updater::offered(&current, &remote.version))
+            .build()
+            .map_err(|e| e.to_string())?;
+        let Some(update) = tauri::async_runtime::block_on(found.check()).map_err(|e| e.to_string())? else {
+            return Ok(None);
+        };
+        self.log(&format!("Orrama {} is out: downloading it", update.version));
+        // The signature is checked against the public key in tauri.conf.json before the bytes are kept.
+        let bytes = tauri::async_runtime::block_on(update.download(|_, _| {}, || {})).map_err(|e| e.to_string())?;
+        self.log(&format!("Orrama {} is downloaded and its signature checks out", update.version));
+        Ok(Some((update, bytes)))
+    }
+
+    fn ask(&mut self, (update, _): &Self::Ready) -> updater::Answer {
+        let mut dialog = self
+            .shell
+            .app
+            .dialog()
+            .message(updater::message(&update.version, update.body.as_deref()))
+            .title("Orrama")
+            .kind(MessageDialogKind::Info)
+            .buttons(MessageDialogButtons::OkCancelCustom("Restart now".into(), "Later".into()));
+        if let Some(window) = self.shell.app.get_webview_window("main") {
+            dialog = dialog.parent(&window);
+        }
+        if dialog.blocking_show() {
+            updater::Answer::RestartNow
+        } else {
+            updater::Answer::Later
+        }
+    }
+
+    fn restart(&mut self, (update, bytes): Self::Ready) {
+        self.log(&format!("Restart now: stopping the server, then installing Orrama {}", update.version));
+        let shell = &self.shell;
+        updater::restart_into(
+            || {
+                if let Some(s) = shell.supervisor.get() {
+                    s.stop();
+                }
+            },
+            || update.install(&bytes).map_err(|e| e.to_string()),
+            || shell.app.request_restart(),
+            |msg| server::shell_log(&shell.log_file, msg),
+        );
+    }
+
+    fn wait(&mut self) -> bool {
+        std::thread::sleep(updater::EVERY);
+        true
+    }
+
+    fn log(&mut self, msg: &str) {
+        server::shell_log(&self.shell.log_file, msg);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -232,6 +307,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let (data_dir, overridden) = data_dir(app)?;
             let launch = launch(app, &data_dir)?;
@@ -310,6 +386,13 @@ pub fn run() {
             let status_shell = shell.clone();
             let supervisor = Supervisor::start(config, move |status| on_status(&handle, &status_shell, status));
             let _ = shell.supervisor.set(supervisor);
+            // Updates: release builds only (a `tauri dev` window is never replaced).
+            if cfg!(debug_assertions) {
+                server::shell_log(&shell.log_file, "a debug build: no looking for new versions");
+            } else {
+                let feed = shell.clone();
+                std::thread::spawn(move || updater::run(&mut AppFeed { shell: feed }));
+            }
             Ok(())
         })
         .build(tauri::generate_context!())
