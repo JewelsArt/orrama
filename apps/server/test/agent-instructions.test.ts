@@ -132,9 +132,10 @@ describe("API tokens (the MCP server)", async () => {
   });
 
   it("still does ordinary work: log a decision, append to a note, set the status", async () => {
-    expect((await mcp.tool("log_decision", { slug: "thesis", text: "One strategy, MRQ" })).isError).toBeUndefined();
+    expect((await mcp.tool("add_to_project", { slug: "thesis", kind: "decision", text: "One strategy, MRQ" })).isError).toBeUndefined();
     expect((await mcp.tool("append_to_note", { idOrPath: projectId, line: "" })).isError).toBeUndefined();
-    expect((await mcp.api("/api/projects/thesis", "PATCH", { status: "on-track" })).ok).toBe(true);
+    expect((await mcp.tool("update_project", { slug: "thesis", status: "on-track" })).isError).toBeUndefined();
+    expect((await mcp.tool("get_project", { slug: "thesis" })).json.prompt).toBe("Push me on deadlines.");
   });
 });
 
