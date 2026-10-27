@@ -149,6 +149,45 @@ export function addColumns(sqlite: Database.Database, columns: [table: string, c
   }
 }
 
+/** How many copies made before a schema upgrade are kept, newest first. */
+export const SCHEMA_BACKUPS_KEPT = 3;
+const SCHEMA_BACKUP = /^basalt-schema-\d+-.+\.db$/;
+
+/** Where the copies made before a schema upgrade go: `<data dir>/backups`, beside the database. */
+export function backupsDir(file: string): string {
+  return path.join(path.dirname(path.resolve(file)), "backups");
+}
+
+function hasTables(sqlite: Database.Database): boolean {
+  return sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' LIMIT 1").get() !== undefined;
+}
+
+/**
+ * A copy of the database as it is, before a newer build changes its schema: an update
+ * reaches every install (2E), and a migration that goes wrong must never cost a
+ * person their data. `backups/basalt-schema-<old>-<date>.db`, one file (VACUUM INTO
+ * holds what the WAL holds too), mode 600: it has password hashes and encrypted
+ * secrets. The newest three are kept. Jules's `pnpm ship` keeps its own copies in
+ * ~/.orrama-run/backups; this one is for every install.
+ */
+function backUpBeforeUpgrade(sqlite: Database.Database, file: string, from: number): string {
+  const dir = backupsDir(file);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const stamp = new Date().toISOString().replace(/\.\d+Z$/, "").replace(/:/g, "").replace("T", "-");
+  let copy = path.join(dir, `basalt-schema-${from}-${stamp}.db`);
+  for (let i = 2; fs.existsSync(copy); i++) copy = path.join(dir, `basalt-schema-${from}-${stamp}-${i}.db`);
+  sqlite.prepare("VACUUM INTO ?").run(copy);
+  fs.chmodSync(copy, 0o600);
+  const old = fs
+    .readdirSync(dir)
+    .filter((n) => SCHEMA_BACKUP.test(n))
+    .map((n) => ({ n, t: fs.statSync(path.join(dir, n)).mtimeMs }))
+    .sort((a, b) => b.t - a.t || b.n.localeCompare(a.n))
+    .slice(SCHEMA_BACKUPS_KEPT);
+  for (const { n } of old) fs.rmSync(path.join(dir, n), { force: true });
+  return copy;
+}
+
 export function createDb(file = dbPath()) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const sqlite = new Database(file);
@@ -163,8 +202,16 @@ export function createDb(file = dbPath()) {
     sqlite.close();
     throw new Error(
       `${file} was written by a newer Orrama (schema ${onDisk}; this build knows ${SCHEMA_VERSION}). ` +
-        "Running older code over it could drop what it does not know — update Orrama, or restore a backup.",
+        `Running older code over it could drop what it does not know — update Orrama, or restore a backup from ${backupsDir(file)}.`,
     );
+  }
+  if (onDisk < SCHEMA_VERSION && hasTables(sqlite)) {
+    try {
+      backUpBeforeUpgrade(sqlite, file, onDisk);
+    } catch (err) {
+      sqlite.close();
+      throw new Error(`${file} was not upgraded: the copy before the upgrade couldn't be made in ${backupsDir(file)} (${(err as Error).message}).`);
+    }
   }
   sqlite.exec(BOOTSTRAP);
   // Additive migrations for databases made by older builds. Each column is
