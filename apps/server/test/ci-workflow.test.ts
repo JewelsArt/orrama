@@ -20,8 +20,8 @@ const root = path.resolve(import.meta.dirname, "../../..");
 // The server does not depend on a YAML parser; core does.
 const { parse } = createRequire(path.join(root, "packages/core/package.json"))("yaml") as { parse(text: string): unknown };
 const dir = path.join(root, ".github/workflows");
-type Step = { uses?: string; run?: string; name?: string };
-type Job = { "runs-on": string; if?: string; steps: Step[]; "continue-on-error"?: boolean; permissions?: Record<string, string> };
+type Step = { uses?: string; run?: string; name?: string; env?: Record<string, string> };
+type Job = { "runs-on": string; if?: string; needs?: string; steps: Step[]; "continue-on-error"?: boolean; permissions?: Record<string, string> };
 type Workflow = { on: Record<string, unknown>; permissions?: Record<string, string>; jobs: Record<string, Job> };
 const workflows = Object.fromEntries(
   fs.readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).map((f) => [f, parse(fs.readFileSync(path.join(dir, f), "utf8")) as Workflow]),
@@ -85,6 +85,27 @@ describe("CI workflows", () => {
     expect(steps).not.toMatch(/pnpm build|tauri build/); // the one script builds, the same as on the Mac
     expect(mac!.if).toBe("inputs.mac");
     expect(runs(mac!)).toMatch(/release-build\.mjs --target aarch64-apple-darwin/);
+  });
+
+  it("signs the update bundles with the updater key from the secrets and puts them in the draft's feed (2E)", () => {
+    const { windows, mac } = workflows["release.yml"]!.jobs as Record<string, Job>;
+    for (const job of [windows!, mac!]) {
+      const build = job.steps.find((s) => /release-build\.mjs/.test(s.run ?? ""))!;
+      expect(build.env).toEqual({
+        TAURI_SIGNING_PRIVATE_KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+      });
+      // Only the build step sees the key.
+      expect(job.steps.filter((s) => JSON.stringify(s.env ?? {}).includes("secrets.TAURI_SIGNING_PRIVATE_KEY }}"))).toEqual([build]);
+      const feed = job.steps.find((s) => s.name === "update feed")!;
+      expect(feed.run).toMatch(/GITHUB_REF_TYPE" = "tag" \]; then .*exit 1/);
+      expect(feed.run).toMatch(/gh release download "\$TAG" -p latest\.json/);
+      expect(feed.run).toMatch(/gh release upload "\$TAG" .*feed\/latest\.json --clobber/);
+      expect(feed.run).not.toMatch(/gh release edit|--draft=false/); // publishing is Jules's
+    }
+    expect(runs(windows!)).toMatch(/release-feed\.mjs add .*--platform windows-x86_64/);
+    expect(runs(mac!)).toMatch(/release-feed\.mjs add .*--platform darwin-aarch64/);
+    expect(mac!.needs, "one job writes the feed at a time").toBe("windows");
   });
 
   it("names the release from the app's version: the tag, or a test build by hand", async () => {

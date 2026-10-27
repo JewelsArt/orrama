@@ -149,3 +149,40 @@ gh workflow run release.yml --ref main -f version=<v>      # the Windows install
   `node scripts/desktop-notices.mjs --licences` and that test, and commit both.
 - **Size:** `[profile.release]` in `Cargo.toml` (one codegen unit, LTO, `opt-level = "s"`,
   stripped) takes the shell from 10.3 MB to 4.5 MB. Node is ~117 MB of the 144 MB app.
+
+## Updates
+
+An installed Orrama updates itself (`src-tauri/src/updater.rs`, the official updater plugin,
+driven from Rust: no page gets its commands). At launch and every 6 hours it reads
+`https://github.com/JewelsArt/orrama/releases/latest/download/latest.json`
+(`plugins.updater.endpoints`). When that names a newer version it downloads the build, checks its
+signature against the public key in `tauri.conf.json`, and asks: "Orrama 0.2.0 is ready." with
+the release notes' first lines, **Restart now · Later** (Jules, 27 Oct 2026: D10). Later asks
+again at the next launch. Restart now stops the server first (stdin closed, as on quit), then
+installs, then starts the new version; the server copies the database to `<data>/backups` before
+any schema change (`db.ts`). Debug builds never look.
+
+**The key** (D11): Jules made it with `tauri signer generate`, with a password. The key file and
+its password live in his password manager, never in the repo, the vault or a chat; a lost key
+means every friend reinstalls by hand. Only its public half is in `tauri.conf.json`. CI reads both
+from the repository's secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+**A release, in order:**
+
+```sh
+git tag -a v<v> -m "Orrama <v>" && git push origin v<v>    # release.yml: the signed .exe, its .sig, latest.json (Windows)
+# on the Mac: the password typed (not echoed, not in the shell's history), for this shell only
+export TAURI_SIGNING_PRIVATE_KEY=~/.tauri/orrama-updater.key; read -rs TAURI_SIGNING_PRIVATE_KEY_PASSWORD; export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+pnpm --dir apps/desktop release:mac
+cd apps/desktop/src-tauri/target/release/bundle
+cp macos/Orrama.app.tar.gz Orrama_<v>_aarch64.app.tar.gz && cp macos/Orrama.app.tar.gz.sig Orrama_<v>_aarch64.app.tar.gz.sig
+gh release download v<v> -p latest.json
+node ../../../../../../scripts/release-feed.mjs add --feed latest.json --version <v> --platform darwin-aarch64 \
+  --asset Orrama_<v>_aarch64.app.tar.gz --base https://github.com/JewelsArt/orrama/releases/download/v<v>
+node ../../../../../../scripts/release-feed.mjs check --feed latest.json --version <v>
+gh release upload v<v> dmg/Orrama_<v>_aarch64.dmg Orrama_<v>_aarch64.app.tar.gz Orrama_<v>_aarch64.app.tar.gz.sig latest.json --clobber
+gh release edit v<v> --draft=false --latest                # now every installed Orrama sees it
+```
+
+A draft is never "latest", so nothing reaches anyone before the last line. Without the key in the
+environment, `release-build.mjs` still builds but makes no update bundle, and says so.

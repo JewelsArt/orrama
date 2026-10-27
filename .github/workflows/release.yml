@@ -18,6 +18,15 @@
 # A tag v<version> makes the draft release v<version>. By hand, the draft is a test build,
 # v<version>-test.<run number>, on this commit: delete it when done, never publish it. Only these
 # jobs may write to the repository (contents: write), and only to make the draft and upload to it.
+#
+# Updates (2E). Every installed Orrama reads releases/latest/download/latest.json at launch and
+# every 6 hours. With the updater key in the repository's secrets (TAURI_SIGNING_PRIVATE_KEY,
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD; Jules keeps the key and its password, never in the repo),
+# the build signs its update bundle, and the job puts it and its entry in the draft's latest.json
+# (`scripts/release-feed.mjs`). A tag run without the key fails; a run by hand without it is a test
+# build with no feed. The Mac entry is added on Jules's Mac (README "Updates", the same script).
+# Only then is the release published (`release-feed.mjs check`, then `gh release edit v<version>
+# --draft=false --latest`): a draft is never "latest", so no installed app sees it before.
 name: Release
 
 on:
@@ -76,6 +85,9 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: node scripts/release-version.mjs >> "$GITHUB_OUTPUT"
       - name: build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: node scripts/release-build.mjs --target x86_64-pc-windows-msvc
       # The Node it ships is nodejs.org's, its OpenJS signature intact (fetch-node checks a
       # certificate table is there; only Windows can say it is valid).
@@ -95,10 +107,29 @@ jobs:
         run: |
           gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" --notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA. Unsigned: Windows SmartScreen says More info, then Run anyway." || gh release view "$TAG" > /dev/null
           gh release upload "$TAG" "apps/desktop/src-tauri/target/release/bundle/nsis/Orrama_${{ steps.version.outputs.version }}_x64-setup.exe" --clobber
+      # The installer is also the Windows update bundle; its .sig is the updater key's signature.
+      - name: update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          EXE: apps/desktop/src-tauri/target/release/bundle/nsis/Orrama_${{ steps.version.outputs.version }}_x64-setup.exe
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ]; then echo "::error::a release needs the updater key: TAURI_SIGNING_PRIVATE_KEY and _PASSWORD in the repository's secrets"; exit 1; fi
+            echo "::notice::no updater key in the secrets: a test build with no update bundle and no feed"; exit 0
+          fi
+          mkdir -p feed
+          gh release download "$TAG" -p latest.json -D feed || true
+          node scripts/release-feed.mjs add --feed feed/latest.json --version "$VERSION" --platform windows-x86_64 --asset "$EXE" --base "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          gh release upload "$TAG" "$EXE.sig" feed/latest.json --clobber
 
   mac:
     name: Mac .dmg (build · run check · draft)
     if: inputs.mac
+    # After Windows: both jobs write the draft's latest.json.
+    needs: windows
     runs-on: macos-14
     timeout-minutes: 45
     permissions:
@@ -121,6 +152,9 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: node scripts/release-version.mjs >> "$GITHUB_OUTPUT"
       - name: build the .dmg
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: node scripts/release-build.mjs --target aarch64-apple-darwin
       - name: run the built app's server, stop it
         run: node scripts/install-check.mjs --app apps/desktop/src-tauri/target/release/bundle/macos/Orrama.app
@@ -132,3 +166,23 @@ jobs:
         run: |
           gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" --notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA." || gh release view "$TAG" > /dev/null
           gh release upload "$TAG" "apps/desktop/src-tauri/target/release/bundle/dmg/Orrama_${{ steps.version.outputs.version }}_aarch64.dmg" --clobber
+      # The update bundle is Orrama.app.tar.gz; uploaded under a name that says its version.
+      - name: update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          BUNDLE: apps/desktop/src-tauri/target/release/bundle
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            if [ "$GITHUB_REF_TYPE" = "tag" ]; then echo "::error::a release needs the updater key: TAURI_SIGNING_PRIVATE_KEY and _PASSWORD in the repository's secrets"; exit 1; fi
+            echo "::notice::no updater key in the secrets: a test build with no update bundle and no feed"; exit 0
+          fi
+          TGZ="$BUNDLE/Orrama_${VERSION}_aarch64.app.tar.gz"
+          cp "$BUNDLE/macos/Orrama.app.tar.gz" "$TGZ"
+          cp "$BUNDLE/macos/Orrama.app.tar.gz.sig" "$TGZ.sig"
+          mkdir -p feed
+          gh release download "$TAG" -p latest.json -D feed || true
+          node scripts/release-feed.mjs add --feed feed/latest.json --version "$VERSION" --platform darwin-aarch64 --asset "$TGZ" --base "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          gh release upload "$TAG" "$TGZ" "$TGZ.sig" feed/latest.json --clobber
