@@ -185,6 +185,16 @@ describe("your events over the API", () => {
     expect(noteText("2026-10")).toContain("| 2026-10-24 | all day |  | Open day |  | " + day.json.id + " |");
   });
 
+  it("a time that is not a number says so; a number out of range is refused as too small", async () => {
+    const typed = await call("POST", "/api/events", { title: "Call", date: "2026-10-20", startMin: "9:00", durationMin: 30 });
+    expect(typed.status).toBe(400);
+    expect(typed.json.error).toBe("startMin must be a number of minutes");
+    const negative = await call("POST", "/api/events", { title: "Call", date: "2026-10-20", startMin: 600, durationMin: -5 });
+    expect(negative.status).toBe(400);
+    expect(negative.json.error).not.toContain("must be a number of minutes");
+    expect(negative.json.error).toMatch(/too small/i);
+  });
+
   it("a repeating event lands on the days a subscribed calendar with the same rule lands on", async () => {
     const made = await call("POST", "/api/events", { title: "Choir", date: "2026-10-07", startMin: 18 * 60, durationMin: 90, repeat: { every: "week", interval: 2, until: "2026-12-31" } });
     expect(made.status).toBe(200);

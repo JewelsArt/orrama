@@ -45,3 +45,7 @@ auditConfig:
 # `xlsx.load` (JSZip) and never reaches unzipper.
 overrides:
   unzipper: 0.11.6
+  # body-parser 2.0-2.3 (via @modelcontextprotocol/sdk > express 5.2): denial of
+  # service, GHSA-27r3-jxmh-p828, fixed in 2.4.0. express 5.2 asks for ^2.2.1, so
+  # this only lifts the floor; it goes when express itself asks for ^2.4.
+  "body-parser@>=2.0.0 <2.4.0": 2.4.0

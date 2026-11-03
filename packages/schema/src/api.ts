@@ -319,6 +319,9 @@ export const eventRepeatSchema = z
   })
   .strict();
 
+/** The words for a value that is not a number at all; a number out of range keeps zod's own. */
+const notANumber = (field: string) => (iss: { code: string }) => (iss.code === "invalid_type" ? `${field} must be a number of minutes` : undefined);
+
 /**
  * One of your events, made or changed (`POST /api/events`, `PATCH /api/events/:id`). On a day of a
  * repeating event (`<id>@<day>`), `scope` says whether the change is that day's alone or the series'.
@@ -327,8 +330,8 @@ export const eventWriteSchema = z
   .object({
     title: z.string().trim().min(1, "title required (max 140)").max(140, "title required (max 140)").optional(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional(),
-    startMin: z.number({ invalid_type_error: "startMin must be a number of minutes" }).finite().min(0).max(24 * 60).optional(),
-    durationMin: z.number({ invalid_type_error: "durationMin must be a number of minutes" }).finite().positive().max(24 * 60).optional(),
+    startMin: z.number({ error: notANumber("startMin") }).finite().min(0).max(24 * 60).optional(),
+    durationMin: z.number({ error: notANumber("durationMin") }).finite().positive().max(24 * 60).optional(),
     allDay: z.boolean().optional(),
     place: z.string().max(300).optional(),
     notes: z.string().max(4000).optional(),

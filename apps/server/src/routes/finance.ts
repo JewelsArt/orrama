@@ -802,7 +802,7 @@ const payslipAddSchema = z
 
 /** A row as the screen saw it (core RowRef, the index in the address). */
 const rowRefSchema = z.object({ version: z.string().min(1).max(64), name: z.string().max(200) });
-const rowChangeSchema = rowRefSchema.extend({ set: z.record(z.string().max(2000)) });
+const rowChangeSchema = rowRefSchema.extend({ set: z.record(z.string(), z.string().max(2000)) });
 const rowMoveSchema = rowRefSchema.extend({ to: z.number().int().min(0).max(10_000) });
 const shopMoveSchema = z.object({ merchant: z.string().trim().min(1).max(200), category: z.string().trim().min(1).max(60) });
 

@@ -638,7 +638,7 @@ export const deckResponse = o({
   slideCount: z.number(),
   truncated: z.boolean(),
   /** data: URLs by key; a logo on every slide is sent once. */
-  media: z.record(z.string()),
+  media: z.record(z.string(), z.string()),
   omittedImages: z.number(),
 });
 
@@ -680,7 +680,7 @@ export const ledgerSchema = o({
   totals,
   items: z.array(moneyItemSchema),
   count: z.number(),
-  activity: z.record(activitySchema),
+  activity: z.record(z.string(), activitySchema),
   unreadable: z.array(unreadableRowSchema),
 });
 
@@ -739,7 +739,7 @@ const merchantTotal = o({ name: z.string(), total: z.number(), count: z.number()
  * A ledger's rows as written (core readLedgerTable): a row is changed by its index, its name and
  * the version it was read at, and every known column's cell is there as typed.
  */
-export const ledgerRowSchema = o({ index: z.number(), line: z.number(), name: z.string(), cells: z.record(z.string()) });
+export const ledgerRowSchema = o({ index: z.number(), line: z.number(), name: z.string(), cells: z.record(z.string(), z.string()) });
 const ledgerTable = o({ noteId: z.string(), version: z.string(), fields: z.array(z.string()), rows: z.array(ledgerRowSchema) }).nullable();
 
 export const financeResponse = o({
@@ -766,7 +766,7 @@ export const financeResponse = o({
     categories: o({
       noteId: nstr,
       rules: z.array(o({ category: z.string(), colour: nstr })),
-      months: z.array(o({ month: z.string(), byCategory: z.record(z.number()), committed: z.record(z.number()), total: z.number() })),
+      months: z.array(o({ month: z.string(), byCategory: z.record(z.string(), z.number()), committed: z.record(z.string(), z.number()), total: z.number() })),
       forecast: z.array(
         o({
           category: z.string(),
