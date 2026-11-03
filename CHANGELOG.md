@@ -9,6 +9,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Orrama updates itself. At launch and every 6 hours it looks for a new version; when one is
+  ready it asks "Restart now" or "Later", stops its server, installs and opens the new version.
+- Before a new version changes the database, a copy of it is kept in the data folder's
+  `backups/` (the newest three).
+- MCP tools `move_note` (rename, move, or to the trash), `update_project`, `save_contact`,
+  `list_events`, `edit_event`, `get_money` (read-only).
 - The desktop app starts Orrama's server itself: no terminal, no launchd. It carries its own
   server and Node (`pnpm --dir apps/desktop prepare-bundle`), makes and keeps the server's two
   secrets (Windows Credential Manager; on the Mac a file only you can read), keeps its port,
@@ -218,6 +224,13 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Orrama's MCP tools follow stage 1: `create_project` takes one of your life areas,
+  `list_projects` lists the areas too, `get_contacts` lists companies, events can have a
+  place, notes, all day and repeat. One `edit_task` changes a step as its card does
+  (status, words, dates, priority, key deadline, move to a project or the inbox, delete),
+  replacing `check_task`, `set_task_status` and `set_task_dates`; `add_to_project` adds a
+  step, inbox line, decision or goal, replacing `log_decision`; `get_today` replaces
+  `get_dashboard`, which needed a team.
 - The desktop app's own program is less than half the size it was (10.3 → 4.5 MB).
 - The Docker image runs on Node 24, like the desktop app and CI.
 - A pasted AI key is checked with Anthropic or Google before it is saved, and a wrong one
