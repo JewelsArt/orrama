@@ -559,7 +559,9 @@ process.stdin.resume();
         sup.stop();
         assert!(health::fetch(port).is_none(), "the server is gone");
         let text = fs::read_to_string(&log).unwrap();
-        assert!(text.contains("the server stopped (exit status: 0)"), "{text}");
+        // The exit as Rust's ExitStatus says it: "exit code: 0" on Windows, "exit status: 0" elsewhere.
+        let stopped = if cfg!(windows) { "the server stopped (exit code: 0)" } else { "the server stopped (exit status: 0)" };
+        assert!(text.contains(stopped), "{text}");
         assert!(!text.contains(&s.secret_key) && !text.contains(&s.jwt_secret), "no secret in the log");
         let _ = fs::remove_dir_all(&dir);
     }
