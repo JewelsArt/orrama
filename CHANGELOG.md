@@ -821,6 +821,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Security
 
+- zod 4.6.7 (an array of bad items no longer piles up one error per item without limit) and
+  body-parser 2.4.0 under the MCP server (a denial of service); the dependency audit passes again.
 - The 4-digit quick-unlock passcode can no longer be brute-forced by sending
   many guesses at once; at most ten are ever checked before the password is
   required.
@@ -908,6 +910,9 @@ one is in CLAUDE.md, "Releases".
 
 ### Internal
 
+- The Windows install check waits for the app's real executable, `orrama-desktop.exe`, and when an
+  install or uninstall times out it lists where the files went. The desktop's missing-key test
+  expects the platform's own secret store (the Credential Manager on Windows).
 - CI runs on pushes to `main` only (Ubuntu tests and the audit); the Docker image when its
   files or the lockfile change; macOS, Windows and the desktop crate weekly and by hand
   (`gh workflow run <file> --ref main`). A push used to cost about 66 billed Actions minutes
