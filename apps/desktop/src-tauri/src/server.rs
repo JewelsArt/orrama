@@ -533,11 +533,15 @@ process.stdin.resume();
         let log = config.log_file();
         let sup = Supervisor::start(config, move |s| tx.send(s).unwrap());
         let next = || rx.recv_timeout(Duration::from_secs(20)).expect("a status");
+        // The store the key is missing from is this platform's: the file, or on Windows the
+        // Credential Manager (an entry of this test's own, keyring_account).
+        let store = secrets::StoreKind::platform_default();
         assert_eq!(next(), Status::Starting);
-        assert_eq!(next(), Status::KeyMissing(secrets::StoreKind::File));
+        assert_eq!(next(), Status::KeyMissing(store));
         assert!(!dir.join(secrets::SECRETS_FILE).exists(), "no new key over a database");
 
-        // The key comes back (restored from a backup): Try again.
+        // The key comes back (restored from a backup): Try again. On Windows the file
+        // moves into the Credential Manager first.
         let s = secrets::Secrets::generate().unwrap();
         secrets::SecretStore::write(&secrets::FileStore::new(&dir), &s).unwrap();
         sup.retry();
@@ -545,6 +549,12 @@ process.stdin.resume();
         let Status::Ready { port } = next() else { panic!("not ready") };
         assert_eq!(port::read_desktop(&dir).port, Some(port), "the port is kept");
         assert!(health::fetch(port).is_some());
+        if store == secrets::StoreKind::Keyring {
+            assert!(!dir.join(secrets::SECRETS_FILE).exists(), "the file moved into the keyring");
+            let keyring = secrets::open(store, &dir, &secrets::keyring_account(&dir, true)).unwrap();
+            assert!(keyring.read().unwrap() == Some(s.clone()), "the keyring holds the restored key");
+            keyring.delete().unwrap();
+        }
 
         sup.stop();
         assert!(health::fetch(port).is_none(), "the server is gone");
