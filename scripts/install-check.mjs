@@ -20,16 +20,20 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { arg, fail } from "./bundle-common.mjs";
+import { arg, fail, mainBinaryName } from "./bundle-common.mjs";
 
 const NOTICES = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt", "THIRD_PARTY_NOTICES_SERVER.txt", "THIRD_PARTY_NOTICES_DESKTOP.txt"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const say = (line) => console.log(`  ${line}`);
+const MAIN = mainBinaryName();
 
-/** Where the shell finds Node and the server inside an installed app. */
+/** Where the app's executable, Node and the server are inside an installed app. */
 function layout(app) {
-  if (app.endsWith(".app")) return { node: path.join(app, "Contents", "MacOS", "node"), server: path.join(app, "Contents", "Resources", "server") };
-  return { node: path.join(app, "node.exe"), server: path.join(app, "server") };
+  if (app.endsWith(".app")) {
+    const bin = path.join(app, "Contents", "MacOS");
+    return { main: path.join(bin, MAIN), node: path.join(bin, "node"), server: path.join(app, "Contents", "Resources", "server") };
+  }
+  return { main: path.join(app, `${MAIN}.exe`), node: path.join(app, "node.exe"), server: path.join(app, "server") };
 }
 
 function freePort() {
@@ -43,23 +47,43 @@ function freePort() {
   });
 }
 
-async function waitFor(what, ms, check) {
+async function waitFor(what, ms, check, before = () => {}) {
   const until = Date.now() + ms;
   for (;;) {
     const result = await check().catch(() => null);
     if (result) return result;
-    if (Date.now() > until) fail(`${what} did not happen within ${ms / 1000} s`);
+    if (Date.now() > until) {
+      before();
+      fail(`${what} did not happen within ${ms / 1000} s`);
+    }
     await sleep(500);
   }
 }
 
+/** What is in each folder the app could have gone to, and where Windows says it went: a red run says why. */
+function showInstallPlaces(dir) {
+  const local = process.env.LOCALAPPDATA;
+  const places = [dir, ...(local ? [path.join(local, "Orrama"), path.join(local, "Programs", "Orrama")] : [])];
+  for (const place of places) {
+    if (!fs.existsSync(place)) {
+      console.log(`  ${place}: not there`);
+      continue;
+    }
+    const entries = fs.readdirSync(place, { withFileTypes: true }).map((e) => (e.isDirectory() ? `${e.name}${path.sep}` : e.name));
+    console.log(`  ${place}: ${entries.length ? entries.join(", ") : "empty"}`);
+  }
+  const key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Orrama";
+  const reg = spawnSync("reg", ["query", key], { encoding: "utf8", windowsHide: true });
+  console.log(reg.status === 0 ? reg.stdout.trim() : `  ${key}: not there`);
+}
+
 async function checkApp(app, scratch) {
-  const { node, server } = layout(app);
-  for (const f of [node, path.join(server, "server.mjs"), path.join(server, "web", "index.html"), ...NOTICES.map((n) => path.join(server, n))]) {
+  const { main, node, server } = layout(app);
+  for (const f of [main, node, path.join(server, "server.mjs"), path.join(server, "web", "index.html"), ...NOTICES.map((n) => path.join(server, n))]) {
     if (!fs.existsSync(f)) fail(`${path.relative(app, f)} is not in ${app}`);
   }
   if (!fs.readFileSync(path.join(server, "LICENSE"), "utf8").includes("GNU AFFERO GENERAL PUBLIC LICENSE")) fail("server/LICENSE is not the AGPL");
-  say(`Node, the server and ${NOTICES.length} licence and notices files are in place`);
+  say(`${path.basename(main)}, Node, the server and ${NOTICES.length} licence and notices files are in place`);
 
   const data = path.join(scratch, "data");
   const notes = path.join(scratch, "notes");
@@ -136,14 +160,15 @@ async function installAndCheck(installer, scratch) {
   // NSIS: /S is silent, /D= the folder (last, unquoted, even with spaces).
   const r = spawnSync(installer, ["/S", `/D=${dir}`], { stdio: "inherit", windowsHide: true });
   if (r.status !== 0) fail(`the installer exited with ${r.status}`);
-  await waitFor("Orrama.exe in the install folder", 60_000, async () => fs.existsSync(path.join(dir, "Orrama.exe")));
+  const main = layout(dir).main;
+  await waitFor(`${path.basename(main)} in the install folder`, 60_000, async () => fs.existsSync(main), () => showInstallPlaces(dir));
   say(`installed into ${dir}`);
   const notes = await checkApp(dir, path.join(scratch, "run"));
   const uninstaller = path.join(dir, "uninstall.exe");
   if (!fs.existsSync(uninstaller)) fail("there is no uninstall.exe in the install folder");
   // The uninstaller copies itself away and returns at once: wait for the app to be gone.
   spawnSync(uninstaller, ["/S"], { stdio: "inherit", windowsHide: true });
-  await waitFor("the uninstall", 120_000, async () => !fs.existsSync(path.join(dir, "Orrama.exe")));
+  await waitFor("the uninstall", 120_000, async () => !fs.existsSync(main), () => showInstallPlaces(dir));
   say("uninstalled");
   if (!fs.existsSync(path.join(notes, "Kept.md"))) fail("the uninstall took the notes folder with it");
   say("the notes folder is still there");

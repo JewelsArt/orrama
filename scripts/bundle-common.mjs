@@ -32,6 +32,23 @@ export function fail(message) {
   process.exit(1);
 }
 
+/**
+ * The app's own executable as Tauri names it: `mainBinaryName` (the bundle config over
+ * tauri.conf.json), else the crate's package name, `orrama-desktop`; never the product name.
+ * The Windows installer puts `<it>.exe` in the install folder, the Mac `Contents/MacOS/<it>`.
+ */
+export function mainBinaryName(tauriDir = TAURI) {
+  for (const conf of ["tauri.bundle.conf.json", "tauri.conf.json"]) {
+    const file = path.join(tauriDir, conf);
+    const name = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")).mainBinaryName : undefined;
+    if (name) return name;
+  }
+  const section = /^\[package\][ \t]*$([\s\S]*?)(?=^\[|(?![\s\S]))/m.exec(fs.readFileSync(path.join(tauriDir, "Cargo.toml"), "utf8"))?.[1];
+  const name = section && /^name\s*=\s*"([^"]+)"/m.exec(section)?.[1];
+  if (!name) fail(`no [package] name in ${path.join(tauriDir, "Cargo.toml")}`);
+  return name;
+}
+
 export function readPins() {
   return JSON.parse(fs.readFileSync(PINS_FILE, "utf8"));
 }

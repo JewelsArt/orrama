@@ -138,9 +138,13 @@ gh workflow run release.yml --ref main -f version=<v>      # the Windows install
   its own signature carried. The .dmg shows the AGPL before it opens (`licenseFile`).
 - **Windows:** the NSIS installer only (per user, no admin prompt; an MSI needs WiX and a
   per-machine install), English, the WebView2 bootstrapper when WebView2 is missing, the AGPL on
-  its licence page. Unsigned: SmartScreen's "More info → Run anyway". Built by `release.yml`
+  its licence page. Unsigned: SmartScreen's "More info → Run anyway". It installs into
+  `%LOCALAPPDATA%\Orrama` (Tauri's per-user default; `/D=` moves it), and the app's own
+  executable there is `orrama-desktop.exe`, the crate's name (Tauri's `mainBinaryName`, unset;
+  the shortcuts say Orrama), beside `node.exe` and `server\`. Built by `release.yml`
   (windows-latest), which then installs it silently into a temp folder, runs and stops the
-  installed server, uninstalls, and drafts the GitHub release.
+  installed server, uninstalls, and drafts the GitHub release; a failed install check lists the
+  install folder, `%LOCALAPPDATA%\Orrama` and the uninstall entry.
 - **Notices:** `resources/server/` carries `LICENSE`, `NOTICE` and three notices files: the web
   app's, the server's, and `THIRD_PARTY_NOTICES_DESKTOP.txt` (Node's licence and the Rust crates
   of the window, `scripts/desktop-notices.mjs`, also copied into `web/` so Settings can link it).
