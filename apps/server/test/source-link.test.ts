@@ -16,6 +16,7 @@ process.env.ORRAMA_SOURCE_URL = "https://git.example.com/a-friend/orrama";
 
 const { buildServer } = await import("../src/main.js");
 const { DEFAULT_SOURCE_URL } = await import("../src/env.js");
+const root = path.resolve(import.meta.dirname, "../../..");
 let app: Awaited<ReturnType<typeof buildServer>>["app"];
 
 beforeAll(async () => {
@@ -36,7 +37,11 @@ describe("the source link (AGPL §13)", () => {
     expect(res.json()).toMatchObject({ ok: true, source: "https://git.example.com/a-friend/orrama" });
   });
 
-  it("defaults to the GitHub repository", () => {
-    expect(DEFAULT_SOURCE_URL).toMatch(/^https:\/\/github\.com\/JewelsArt\/[\w.-]+$/);
+  // The public repository (2G, D1): the one the updater's feed and the friends' downloads live
+  // on (tauri.conf.json's endpoint), never the private Basalt-backup a stranger can't open.
+  it("defaults to the public GitHub repository, the one the updater reads", () => {
+    expect(DEFAULT_SOURCE_URL).toBe("https://github.com/JewelsArt/orrama");
+    const conf = JSON.parse(fs.readFileSync(path.join(root, "apps/desktop/src-tauri/tauri.conf.json"), "utf8"));
+    expect(conf.plugins.updater.endpoints[0].startsWith(`${DEFAULT_SOURCE_URL}/releases/`)).toBe(true);
   });
 });

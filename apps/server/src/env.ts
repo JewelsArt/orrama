@@ -65,7 +65,7 @@ assertNoRenamedEnv();
  * it). Someone who runs a changed copy for others sets ORRAMA_SOURCE_URL to
  * theirs; Settings links to it.
  */
-export const DEFAULT_SOURCE_URL = "https://github.com/JewelsArt/Basalt-backup";
+export const DEFAULT_SOURCE_URL = "https://github.com/JewelsArt/orrama";
 
 export const env = {
   port: Number(process.env.PORT ?? (DEV ? DEV_PORT : 4623)),

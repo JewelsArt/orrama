@@ -11,7 +11,7 @@ There is a shortcut at the top and the reasoning underneath it. If something bre
 ## Quickstart
 
 ```bash
-git clone https://github.com/JewelsArt/Basalt-backup.git orrama
+git clone https://github.com/JewelsArt/orrama.git
 cd orrama
 
 pnpm install                      # ~3s warm, ~1min on a cold pnpm store
