@@ -8,8 +8,13 @@
 # bundle, the notices, `tauri build` → Orrama_<version>_x64-setup.exe, unsigned: SmartScreen's "More
 # info → Run anyway" for the friends' round), then `scripts/install-check.mjs`: a silent install
 # into a temp folder, the installed Node runs the installed server on an empty data folder,
-# /api/health answers with its launch id, closing its stdin stops it with exit 0, a silent
-# uninstall, the notes folder still there. ~20 minutes on a 2x runner: ~40 billed minutes.
+# /api/health answers with its launch id, closing its stdin stops it with exit 0, then a silent
+# uninstall with "Delete the application data" ticked (/DELETEAPPDATA, src-tauri/windows/hooks.nsh,
+# 2F): the app's data folder and its Credential Manager entry gone, the notes folder and its note
+# still there. ~20 minutes on a 2x runner: ~40 billed minutes.
+#
+# A tag's draft carries the install guide's short version (.github/release-notes.md, 2F); a test
+# build by hand says only where it was built.
 #
 # The Mac is built on Jules's Mac while the repository is private (`pnpm --dir apps/desktop
 # release:mac`, then `gh release upload v<version> <dmg>`): a macOS runner costs 10x, about 120
@@ -97,7 +102,7 @@ jobs:
           $sig = Get-AuthenticodeSignature apps/desktop/src-tauri/binaries/node-x86_64-pc-windows-msvc.exe
           "$($sig.Status): $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "node.exe's signature is $($sig.Status)" }
-      - name: install, run, stop, uninstall
+      - name: install, run, stop, uninstall with the app data (the notes stay)
         run: node scripts/install-check.mjs --installer "apps/desktop/src-tauri/target/release/bundle/nsis/Orrama_${{ steps.version.outputs.version }}_x64-setup.exe"
       - name: draft release
         env:
@@ -105,7 +110,8 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           TITLE: ${{ steps.version.outputs.title }}
         run: |
-          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" --notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA. Unsigned: Windows SmartScreen says More info, then Run anyway." || gh release view "$TAG" > /dev/null
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then NOTES=(--notes-file .github/release-notes.md); else NOTES=(--notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA. Unsigned: Windows SmartScreen says More info, then Run anyway."); fi
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" "${NOTES[@]}" || gh release view "$TAG" > /dev/null
           gh release upload "$TAG" "apps/desktop/src-tauri/target/release/bundle/nsis/Orrama_${{ steps.version.outputs.version }}_x64-setup.exe" --clobber
       # The installer is also the Windows update bundle; its .sig is the updater key's signature.
       - name: update feed
@@ -164,7 +170,8 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           TITLE: ${{ steps.version.outputs.title }}
         run: |
-          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" --notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA." || gh release view "$TAG" > /dev/null
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then NOTES=(--notes-file .github/release-notes.md); else NOTES=(--notes "Built by $GITHUB_WORKFLOW run $GITHUB_RUN_ID from $GITHUB_SHA."); fi
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "$TITLE" "${NOTES[@]}" || gh release view "$TAG" > /dev/null
           gh release upload "$TAG" "apps/desktop/src-tauri/target/release/bundle/dmg/Orrama_${{ steps.version.outputs.version }}_aarch64.dmg" --clobber
       # The update bundle is Orrama.app.tar.gz; uploaded under a name that says its version.
       - name: update feed

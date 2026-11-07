@@ -5,7 +5,9 @@
 //   node scripts/install-check.mjs --installer <Orrama_<v>_x64-setup.exe>      (Windows)
 //
 // With --installer: installs silently (/S) into a temp folder, checks that folder as below,
-// uninstalls silently, and checks the notes folder is still there. With --app: checks a built
+// puts stand-ins for the app's data folder and its Credential Manager entry in place, uninstalls
+// silently with "Delete the application data" ticked (/DELETEAPPDATA, windows/hooks.nsh), and
+// checks the data folder and the entry are gone and the notes folder and its note are still there. With --app: checks a built
 // .app (macOS) or an install folder (Windows) as it is.
 //
 // The check: the app carries Node beside its executable and server/ in its resources, with the
@@ -166,12 +168,39 @@ async function installAndCheck(installer, scratch) {
   const notes = await checkApp(dir, path.join(scratch, "run"));
   const uninstaller = path.join(dir, "uninstall.exe");
   if (!fs.existsSync(uninstaller)) fail("there is no uninstall.exe in the install folder");
-  // The uninstaller copies itself away and returns at once: wait for the app to be gone.
-  spawnSync(uninstaller, ["/S"], { stdio: "inherit", windowsHide: true });
+  // What a friend's install leaves for the uninstaller: the app's data folder (the database, the
+  // logs, where the notes are) and its two secrets in the Credential Manager (secrets.rs). Stand-ins,
+  // on a runner that has never had Orrama: the real ones belong to a person.
+  const appData = path.join(process.env.LOCALAPPDATA ?? fail("no LOCALAPPDATA"), APP_ID);
+  if (fs.existsSync(appData)) fail(`${appData} already exists: run the uninstall check where Orrama never ran`);
+  fs.mkdirSync(path.join(appData, "logs"), { recursive: true });
+  fs.writeFileSync(path.join(appData, "basalt.db"), "a stand-in for the database\n");
+  fs.writeFileSync(path.join(appData, "notes-folder.json"), `${JSON.stringify({ folder: notes })}\n`);
+  if (credential("add").status !== 0) fail(`cmdkey could not add the stand-in for ${CREDENTIAL}`);
+  if (!credential("list").stdout.includes(CREDENTIAL)) fail(`the stand-in for ${CREDENTIAL} is not in the Credential Manager`);
+  // "Delete the application data" ticked; the uninstaller copies itself away and returns at once:
+  // wait for the app to be gone.
+  spawnSync(uninstaller, ["/S", "/DELETEAPPDATA"], { stdio: "inherit", windowsHide: true });
   await waitFor("the uninstall", 120_000, async () => !fs.existsSync(main), () => showInstallPlaces(dir));
-  say("uninstalled");
+  say("uninstalled, with the application data");
+  await waitFor(`${appData} to go`, 30_000, async () => !fs.existsSync(appData));
+  say("the app's data folder is gone");
+  if (credential("list").stdout.includes(CREDENTIAL)) {
+    credential("delete");
+    fail(`the uninstall left ${CREDENTIAL} in the Credential Manager`);
+  }
+  say("its Credential Manager entry is gone");
   if (!fs.existsSync(path.join(notes, "Kept.md"))) fail("the uninstall took the notes folder with it");
-  say("the notes folder is still there");
+  say("the notes folder and its note are still there");
+}
+
+/** The app's identifier: its data folder's name (tauri.conf.json). */
+const APP_ID = "com.orrama.desktop";
+/** The Credential Manager entry the app keeps its secrets in: "<user>.<service>" (secrets.rs, keyring). */
+const CREDENTIAL = `server secrets.${APP_ID}`;
+function credential(what) {
+  const args = { add: [`/generic:${CREDENTIAL}`, "/user:server secrets", `/pass:${crypto.randomBytes(16).toString("hex")}`], list: [`/list:${CREDENTIAL}`], delete: [`/delete:${CREDENTIAL}`] }[what];
+  return spawnSync("cmdkey", args, { encoding: "utf8", windowsHide: true });
 }
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-install-check-"));
