@@ -1,133 +1,90 @@
 # Orrama
 
-**A personal knowledge and life OS built on plain Markdown files.**
+Orrama keeps your notes, projects, plans, people, mail and money in one app, on top of a
+folder of plain Markdown files that stays yours. It runs on your own computer: nothing is
+sent anywhere unless you connect it (your mail, a calendar, an AI provider).
 
-Notes are real `.md` files in real folders, linked `[[wiki-style]]`. On top of that
-same vault sit a dashboard, a calendar, project workspaces, contacts, mail and
-finance — every one of them a *view over the files*, not a separate database with
-its own truth. The vault opens fine in Obsidian; Orrama reads and writes the same
-folder live.
+## Download
+
+Get the newest version from **[Releases](https://github.com/JewelsArt/orrama/releases/latest)**:
+
+- **Mac** (Apple silicon, macOS 13.5 or later): the `.dmg`. The app isn't signed by Apple yet,
+  so the first time macOS says it can't check it: open System Settings → Privacy & Security
+  and click Open Anyway, once.
+- **Windows** (10 or 11, 64-bit): the `-setup.exe`. It installs for you alone, no administrator
+  needed. It isn't signed yet either: on the blue SmartScreen box, click More info, then Run
+  anyway.
+
+Open Orrama, make your account, and choose where your notes live: a new folder, an example
+to look around in, or a folder of Markdown you already have (an Obsidian vault works as it
+is). Orrama updates itself when a new version is out.
 
 ## What it does
 
-| Surface | What it is |
+| Page | What it is |
 |---|---|
-| **Today** | The first screen: the day's timetable, what is due or late, unread mail and Orr's drafts, people you will see, what is coming up, projects, money against a typical month |
-| **Notes** | The vault itself: file tree, the live-preview Markdown editor (CodeMirror), pins, backlinks |
-| **Orrery** | A map of the vault: every file around Orr, in rings by kind and slices by life area, or one thing at the centre with what is one step away |
-| **Planning** | Week, day and month — dated tasks, deadlines and money as a band, time-blocks and events, ICS feeds in and out, "Plan my week" proposals |
-| **Projects** | One row per project; each opens a workspace whose goals, decisions and inbox are `##` sections of one note, with a timeline, documents and a to-do list |
-| **People** | People and companies side by side, from `#contact` and `#company` notes and their front-matter |
-| **Mail** | Gmail over IMAP/SMTP, in-app; the agent drafts, only you send |
-| **Money** | Bank statements, payslips, spending categories, subscriptions and savings — parsed in `packages/core`, rules authored as Markdown tables in the vault |
+| **Today** | The day's timetable, what is due or late, unread mail, who you'll see, what's coming up, your projects, money this month |
+| **Notes** | Your folder of notes: a live-preview Markdown editor, `[[links]]`, backlinks, pins, history |
+| **Orrery** | A map of everything, by kind and life area, or one thing in the middle with what it touches |
+| **Planning** | Week, day and month: dated steps, deadlines, time blocks and events, calendars in and out |
+| **Projects** | One row per project; each opens a workspace whose goals, decisions and inbox are sections of one note |
+| **People** | People and companies, from your contact notes |
+| **Mail** | Gmail in the app; the assistant can draft, only you send |
+| **Money** | Bank statements, payslips, categories, subscriptions and savings, with the rules kept as tables in your notes |
 
-Plus a command palette, quick capture, and **Ask** — retrieval over the vault using
-your own AI provider key.
+**Orr**, the assistant, answers questions about your notes with the AI you choose: sign in
+with ChatGPT, or a key from Anthropic or Google. Without one, everything else still works.
 
-## The idea that holds it together
+Your notes stay files. Any `- [ ]` line is a task, a project is a note with a tag, a
+calendar is a table: delete Orrama's database and it rebuilds them from the folder. The
+database keeps only what has no place in a note: your account, mail drafts, comments and
+each note's history.
 
-- **Your files stay files.** Valid CommonMark + YAML front-matter + wiki-links. No
-  lock-in, no proprietary store — `rsync` or `git init` the folder and you're backed up.
-- **The files are the truth.** SQLite holds an index of the Markdown, which
-  rebuilds from the files: notes, task status, time blocks, events, projects.
-  It also holds what has no place in a note — accounts and credentials, task
-  comments, mail drafts, and every note's history — so it is backed up with
-  `pnpm --dir apps/server export`, not deleted.
-- **Tasks without a second system.** Any `- [ ]` line in any note is a task
-  (`@assignee due:2026-07-10 !p1`). Promote one when it needs structure; the checkbox
-  in the file and the task object stay two-way bound, and the file wins.
-- **One engine, three surfaces.** `packages/core` does the parsing and the permission
-  checks, and server, web and desktop all run that same code.
-- **Your keys.** AI is bring-your-own-key against your own server. Anthropic, Google
-  and OpenAI are all supported and loaded on demand.
+## Running it from source
 
-## Stack
-
-TypeScript end to end, except a deliberately thin Rust shell.
-
-- **Server** — Fastify 5, SQLite (better-sqlite3) via Drizzle ORM, Zod, Yjs for CRDT
-  note merging, chokidar to pick up external edits, argon2 for passwords
-- **Web** — React 19, Vite 6, CodeMirror 6, d3-force, Vercel AI SDK
-- **Desktop** — Tauri 2: a native window on the local server, with no Tauri
-  commands; all product logic is the shared TypeScript
-- **Monorepo** — pnpm workspaces + Turborepo, Node ≥22
-- **Tests** — Vitest across core, sync, server, web and mcp; CI runs them (see Status)
-
-## Layout
-
-| Path | What |
-|---|---|
-| `packages/core` | Vault engine — parser, link graph, tags, tasks, sections, finance, **ACL** |
-| `packages/sync` | Y.Doc helpers, splice diffs, partial-checkout manifests |
-| `packages/schema` | Zod API schemas + Drizzle tables |
-| `packages/ui` | Design tokens and base styles, shared across surfaces |
-| `apps/server` | Fastify API, vault store, SQLite index, WebSocket bus |
-| `apps/web` | React app, served by the server in production |
-| `apps/desktop` | Tauri shell |
-
-## Running it
+For developers. The desktop app also needs a Rust toolchain; the server and the web app
+need Node 22 or later and pnpm.
 
 ```bash
+git clone https://github.com/JewelsArt/orrama.git
+cd orrama
 pnpm install
-pnpm --dir apps/web build       # the server serves a built bundle
+pnpm --dir apps/web build       # the server serves the built web app
 export ORRAMA_JWT_SECRET=$(openssl rand -hex 32)   # keep both: the next start
 export ORRAMA_SECRET_KEY=$(openssl rand -hex 32)   # needs the same values
 pnpm --dir apps/server start    # http://127.0.0.1:4623
 ```
 
-A fresh install asks you to create an account — the first one founds the workspace
-and owns it. The server refuses to start on missing or placeholder secrets. To look
-around with a sample vault instead, `pnpm --dir apps/server seed` then
-`pnpm --dir apps/server dev` (:4627, its own `data-dev` folder). Full walkthrough,
-including how to point Orrama at an existing Obsidian vault:
-**[INSTALL.md](INSTALL.md)**.
-
-> `pnpm build` and `pnpm dev` fan out to `apps/desktop`, which is a Tauri app and
-> needs a Rust toolchain. Use the scoped commands above unless you want a desktop
-> bundle. `pnpm --dir apps/web dev` (:4625) is for iterating on the frontend.
-
-After changing web code, `pnpm ship` — typecheck, test, build, restart. Editing
-source alone changes nothing in a running instance, because it serves the *built*
-bundle and registers static files at boot.
+The server refuses to start without real secrets. To look around with a sample vault instead,
+`pnpm --dir apps/server seed` then `pnpm --dir apps/server dev` (:4627, its own `data-dev`
+folder). [INSTALL.md](INSTALL.md) has the full walkthrough, Docker (`docker compose up`)
+and how to point Orrama at an existing vault; [apps/desktop/README.md](apps/desktop/README.md)
+builds the desktop app.
 
 ```bash
 pnpm test        # core, sync, server, web, mcp
 pnpm typecheck
 ```
 
-Self-hosting is `docker compose up`, with `ORRAMA_JWT_SECRET` and
-`ORRAMA_SECRET_KEY` exported first — the server refuses to boot on placeholder
-secrets. Builds on arm64 and x64, so a Raspberry Pi works.
+How the code is laid out:
 
-## Permissions
+| Path | What |
+|---|---|
+| `packages/core` | Parsing, links, tags, tasks, sections, finance, and the permission rules every surface goes through |
+| `packages/sync` | Note merging (Yjs) |
+| `packages/schema` | API and database schemas |
+| `packages/ui` | Design tokens and base styles |
+| `apps/server` | The API, the notes folder and its index, live updates |
+| `apps/web` | The app's pages (React) |
+| `apps/desktop` | The desktop app (Tauri), which starts its own server |
+| `apps/mcp` | An MCP server, so Claude Code and other agents can use your notes |
 
-Orrama has a full team permission model, and it is the most carefully tested part of
-the codebase — folder grants, two tag overlays (`#only/<team>` restricts,
-`#share/<team>` shares read-only), path-based personal vaults, and anti-lockout rules
-the server enforces on every write. Unreadable notes are filtered server-side and
-never reach a client (partial checkout, not client-side hiding), and every surface —
-search, graph, backlinks, tasks, dashboard, AI retrieval — goes through the same
-`packages/core` function.
+TypeScript throughout, except the desktop app's thin Rust shell.
 
-In practice Orrama runs single-user today. The model is infrastructure that works,
-not a feature with a finished onboarding flow around it.
+## Security and contributing
 
-## Status
-
-Honest state of things:
-
-- **Single user.** Accounts, teams and grants all exist, and a fresh install now
-  creates a real account rather than handing out demo logins — but there is still
-  no invite flow, so a second person cannot be added from the UI.
-- **CI** (`.github/workflows/`) runs typecheck, every package's tests, the web
-  build and a dependency audit on Ubuntu for each push to `main` and each pull
-  request. It builds and boots the Docker image when the image's files or the
-  lockfile change. Typecheck and tests on macOS and Windows, the Docker image
-  and the desktop crate also run weekly and by hand (CLAUDE.md, "Releases").
-- **Desktop needs a Rust toolchain** to build; there are no signed installers yet.
-- The original build spec ([docs/spec.md](docs/spec.md)) planned a team product for 5–50
-  person startups. What got built and used daily is this: a personal tool. The README
-  now describes the latter.
+Found a security hole? Please report it privately: [SECURITY.md](SECURITY.md).
+Want to contribute? Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
 ## Licence
 
