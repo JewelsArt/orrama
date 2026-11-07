@@ -151,6 +151,39 @@ export const folderLookResponse = o({
 });
 export const startResponse = o({ ontology: z.enum(["written", "there"]), example: z.number() });
 
+/** `POST /api/backup` (Settings → Notes → Back up now): the zip made, and where. */
+export const backupResponse = o({
+  name: z.string(),
+  /** The folder it went in (the app's chooser); null when a browser downloads it. */
+  folder: nstr,
+  bytes: z.number(),
+  notes: z.number(),
+  files: z.number(),
+  ms: z.number(),
+  /** Where a browser downloads it, once. */
+  download: nstr,
+});
+/** `POST /api/backup/restore/look`: what an uploaded backup holds, and where its notes would go. */
+export const backupLookResponse = o({
+  createdAt: z.string(),
+  version: nstr,
+  notes: z.number(),
+  files: z.number(),
+  account: o({ name: z.string(), email: z.string() }),
+  /** Whether its stored passwords open on this computer; null when it stores none. */
+  keyOpens: z.boolean().nullable(),
+  folder: z.string(),
+  folderFiles: z.number(),
+});
+/** `POST /api/backup/restore/folder`: a folder for the notes, looked at. */
+export const restoreFolderResponse = o({ folder: z.string(), problem: nstr, files: z.number() });
+/** `POST /api/backup/restore`: restored; the server restarts when `restart`. */
+export const restoreResponse = o({
+  folder: z.string(),
+  dropped: z.array(z.enum(["mail", "ai", "chatgpt", "calendars", "webhooks"])),
+  restart: z.boolean(),
+});
+
 export const aiConfigResponse = o({
   provider: nstr,
   model: nstr,
@@ -1116,6 +1149,10 @@ export type AiConfig = z.infer<typeof aiConfigResponse>;
 export type Member = z.infer<typeof membersResponse>[number];
 export type ServerSettings = z.infer<typeof serverSettingsResponse>;
 export type FolderLook = z.infer<typeof folderLookResponse>;
+export type BackupMade = z.infer<typeof backupResponse>;
+export type BackupLook = z.infer<typeof backupLookResponse>;
+export type RestoreFolder = z.infer<typeof restoreFolderResponse>;
+export type Restored = z.infer<typeof restoreResponse>;
 export type Health = z.infer<typeof healthResponse>;
 export type DashboardData = z.infer<typeof dashboardResponse>;
 export type TreeNote = z.infer<typeof treeResponse>[number];

@@ -37,6 +37,8 @@ import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { notesHomeRoutes } from "./routes/notesHome.js";
 import { areaRoutes } from "./routes/areas.js";
+import { backupRoutes } from "./routes/backup.js";
+import { applyPendingRestore } from "./backup.js";
 import { initWebhooks } from "./webhooks.js";
 import { sessionUser } from "./sessions.js";
 import { eq } from "drizzle-orm";
@@ -117,6 +119,8 @@ export function allowedHost(host: string | undefined, publicOrigins: string[]): 
 export async function buildServer(opts: { logStream?: NodeJS.WritableStream; restart?: () => void } = {}) {
   assertValidEnv();
   assertProductionSecrets();
+  // A backup restored in the app (routes/backup.ts) takes the database's place before it opens.
+  applyPendingRestore();
   const db = createDb();
   // Single-workspace server (spec §3): one company, one vault, one container.
   if (db.select().from(tables.workspace).all().length === 0) {
@@ -311,6 +315,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   await settingsRoutes(app, db, store, calendar, opts.restart);
   await notesHomeRoutes(app, store);
   await areaRoutes(app, store);
+  await backupRoutes(app, db, store, opts.restart);
   initWebhooks(db, store);
 
   // Serve the built web app when present (self-host: one container serves everything). The

@@ -25,6 +25,7 @@ import crypto from "node:crypto";
 import Database from "better-sqlite3";
 import { isEntry } from "./entry.js";
 import { dbPath } from "./env.js";
+import { COLUMNS } from "./encryptedColumns.js";
 
 const keyFrom = (secret: string) => crypto.createHash("sha256").update(secret).digest();
 
@@ -42,22 +43,7 @@ function encrypt(plain: string, secret: string): string {
   return [iv.toString("base64"), enc.toString("base64"), c.getAuthTag().toString("base64")].join(".");
 }
 
-/**
- * Every value encryptSecret() wrote. `where` narrows a key/value table to the
- * rows that hold one. The ChatGPT credentials (a long-lived refresh token)
- * were missing: a rotation left them undecryptable under the new key and
- * still readable under the old one — the one a rotation is meant to retire
- * (audit SEC-006). Anything new stored with encryptSecret() goes here too.
- */
-export const COLUMNS: { table: string; id: string; column: string; where?: string }[] = [
-  { table: "mail_accounts", id: "id", column: "password_encrypted" },
-  { table: "workspace", id: "id", column: "ai_key_encrypted" },
-  { table: "ics_feeds", id: "id", column: "url_encrypted" },
-  { table: "meta", id: "key", column: "value", where: "key = 'chatgpt_credentials'" },
-  // A row still in the clear (written before SEC-015, server not booted
-  // since) is sealed under whatever key the next boot runs with.
-  { table: "webhooks", id: "id", column: "secret", where: "substr(secret, 1, 6) <> 'whsec_'" },
-];
+export { COLUMNS } from "./encryptedColumns.js";
 
 export class RotateError extends Error {}
 
