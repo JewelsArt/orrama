@@ -24,6 +24,23 @@ export const downloadsDir = (dataDir = env.dataDir) => path.join(dataDir, "backu
 const FIXED = "Restoring isn't available here: the notes folder is set where Orrama starts.";
 
 /**
+ * Where a restore's notes go unless the person picks another folder: Orrama's own (`~/Orrama`),
+ * or, when that already has files (the notes in use now, an earlier install's), a new folder
+ * beside it, `Orrama (restored 2026-11-07)`, so nothing is written over without a yes.
+ */
+export function suggestedFolder(now = new Date()) {
+  const own = ownNotesFolder();
+  const first = lookAtTarget(own);
+  if (first.problem || first.files === 0) return first;
+  const p = (n: number) => String(n).padStart(2, "0");
+  const base = `${own} (restored ${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())})`;
+  for (let i = 1; ; i++) {
+    const look = lookAtTarget(i === 1 ? base : `${base.slice(0, -1)} ${i})`);
+    if (look.problem || look.files === 0) return look;
+  }
+}
+
+/**
  * Settings → Notes → Back up now, and Restore (Settings, and first run's "I have a backup").
  * backup.ts does the work; this says who may ask and in what words.
  *
@@ -125,7 +142,7 @@ export async function backupRoutes(app: FastifyInstance, db: Db, store: VaultSto
       });
       await pipeline(body, cap, fs.createWriteStream(uploadedZip(), { mode: 0o600 }));
       const look = await lookAtBackup(uploadedZip()).catch(refusal);
-      const suggested = lookAtTarget(ownNotesFolder());
+      const suggested = suggestedFolder();
       return {
         createdAt: look.createdAt,
         version: look.version,

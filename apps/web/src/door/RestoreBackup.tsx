@@ -189,7 +189,7 @@ export function RestoreBackup({ place, onCancel, onDone = () => window.location.
               </Button>
             </div>
           ) : (
-            <Field label="The notes go in" error={target?.problem ?? null} help="The whole path, like ~/Orrama. A new folder is made.">
+            <Field label="The notes go in" error={target?.problem ?? null} help="The whole path, like ~/Orrama. Orrama makes the folder if it isn't there.">
               <Input value={folder} onChange={(e) => setFolder(e.target.value)} spellCheck={false} autoCapitalize="off" autoComplete="off" disabled={!!busy} />
             </Field>
           )}

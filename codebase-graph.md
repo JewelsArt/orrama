@@ -159,7 +159,7 @@
 - **Imports**: node:crypto, @node-rs/argon2, drizzle-orm, fastify, zod, @simplewebauthn/server, @orrama/schema, ../db.js, ../loginLimit.js, ../sessions.js, ../usernames.js, ../env.js, ../firstRun.js, ../vaultStore.js
 
 ### `apps/server/src/routes/backup.ts`
-- **Exports**: downloadsDir, backupRoutes
+- **Exports**: downloadsDir, suggestedFolder, backupRoutes
 - **Imports**: node:fs, node:path, node:stream/promises, node:stream, fastify, zod, ../backup.js, ../db.js, ../env.js, ../firstRun.js, ../sessions.js, ../vaultStore.js, ./auth.js, ./settings.js
 
 ### `apps/server/src/routes/calendar.ts`

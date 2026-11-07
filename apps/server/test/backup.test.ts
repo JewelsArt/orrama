@@ -148,6 +148,14 @@ describe("Back up now", () => {
     expect((await built.app.inject({ method: "GET", url: "/api/backup/download/..%2Fbasalt.db", headers: signedIn(token) })).statusCode).toBe(400);
   });
 
+  it("suggests a new folder beside Orrama's own when that one has notes in it", async () => {
+    const look = await upload(path.join(OUT, made.name), signedIn(token));
+    expect(look.statusCode).toBe(200);
+    expect(look.json().folder).toMatch(/vault \(restored \d{4}-\d{2}-\d{2}\)$/);
+    expect(look.json().folderFiles).toBe(0);
+    fs.rmSync(backup.uploadDir(), { recursive: true, force: true });
+  });
+
   it("is the owner's, from a session", async () => {
     expect((await call("POST", "/api/backup", { folder: OUT }, {})).status).toBe(401);
     const tok = (await call("POST", "/api/tokens", { label: "x" })).json.token as string;
