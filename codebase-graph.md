@@ -364,7 +364,7 @@
 
 ### `apps/web/src/Setup.tsx`
 - **Exports**: Setup
-- **Imports**: react, @orrama/schema/responses, ./api.js, ./door/Door.js, ./door/AiStep.js, ./door/NotesChoice.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./door/Door.js, ./door/AiStep.js, ./door/NotesChoice.js, ./door/RestoreBackup.js, ./door/shape.js, ./door/voice.js, ./ui/controls.js, ./ui/router.js
 
 ### `apps/web/src/TaskCard.tsx`
 - **Exports**: PlannableTask, TaskCard
@@ -450,6 +450,10 @@
 ### `apps/web/src/door/Reset.tsx`
 - **Exports**: Reset
 - **Imports**: react, ../api.js, ../ui/controls.js, ./Door.js, ./voice.js
+
+### `apps/web/src/door/RestoreBackup.tsx`
+- **Exports**: madeOn, backupWords, OTHER_COMPUTER, RestoreBackup
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../desktop.js, ../ui/controls.js, ../ui/fields.js
 
 ### `apps/web/src/door/dots.ts`
 - **Exports**: MAX_DOTS, NARROW, AreaShape, VaultShape, areaSpans, assignDots, DotsOptions, DoorDots
@@ -836,6 +840,10 @@
 - **Exports**: ThemeChoice, AppearanceSection
 - **Imports**: react, ../Confirm.js, ../palette.js, ../ui/controls.js, ../ui/fields.js, ../ui/theme.js, ../VisionEditor.js, ./parts.js
 
+### `apps/web/src/settings/BackupSection.tsx`
+- **Exports**: sizeWords, madeWords, BackupSection
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../desktop.js, ../door/RestoreBackup.js, ../ui/controls.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./parts.js
+
 ### `apps/web/src/settings/Connections.tsx`
 - **Exports**: ConnectionsSection
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./parts.js
@@ -854,7 +862,7 @@
 
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../door/NotesChoice.js, ../ui/controls.js, ../ui/overlays.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js, ./LifeAreas.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../door/NotesChoice.js, ../ui/controls.js, ../ui/overlays.js, ../ui/Icon.js, ../ui/router.js, ../ui/states.js, ./parts.js, ./LifeAreas.js, ./BackupSection.js
 
 ### `apps/web/src/settings/SignedIn.tsx`
 - **Exports**: SignedInSection

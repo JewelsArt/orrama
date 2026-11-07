@@ -4,6 +4,7 @@ import { api, type Me, rememberEmail, sessionStarted, type SignedIn } from "./ap
 import { Door, DoorError, DoorField, DoorFoot, PasswordField, reducedMotion, type DoorHandle } from "./door/Door.js";
 import { AiStep } from "./door/AiStep.js";
 import { NotesChoice, type NotesWay } from "./door/NotesChoice.js";
+import { RestoreBackup } from "./door/RestoreBackup.js";
 import { countingLine, firstRunCounts, foundDetail, foundLine, type FirstCounts } from "./door/shape.js";
 import { doorError } from "./door/voice.js";
 import { Button } from "./ui/controls.js";
@@ -37,6 +38,9 @@ function readyWords(way: NotesWay, c: FirstCounts): { hi: string; detail: string
  *    they relate (the Orrery), or Start with today.
  *
  * The counts are real, asked once the folder is settled.
+ *
+ * "I have a backup", under step 1, restores one instead (door/RestoreBackup.tsx, 2F): no account
+ * is made, the backup's comes back and the page opens Today signed in as it.
  */
 export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: Me }) {
   const [displayName, setDisplayName] = useState("");
@@ -57,6 +61,8 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
   /** 0–1 while counting; 1 once counted. */
   const [counted, setCounted] = useState(0);
   const [done, setDone] = useState(false);
+  /** "I have a backup": restore it instead of making an account (door/RestoreBackup.tsx). */
+  const [restoring, setRestoring] = useState(false);
   const door = useRef<DoorHandle>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -168,7 +174,16 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
 
   return (
     <Door ref={door} screen="first" isIn={done && !!counts} dots={{ hidden: true }}>
-      {!me ? (
+      {!me && restoring ? (
+        <>
+          <div className="dr-card dr-first2">
+            <h1 className="dr-h">Restore a backup</h1>
+            <p className="dr-p">Pick the Orrama backup file. Your notes, your account and your settings come back, and you sign in as before.</p>
+            <RestoreBackup place="first" onCancel={() => setRestoring(false)} />
+          </div>
+          <DoorFoot />
+        </>
+      ) : !me ? (
         <>
           <div className="dr-card dr-first1">
             <h1 className="dr-h">Welcome to Orrama</h1>
@@ -189,6 +204,9 @@ export function Setup({ onDone, resume }: { onDone: (me: Me) => void; resume?: M
               <Button kind="solid" type="submit" className="dr-go" disabled={busy}>
                 {busy ? "Making your account…" : "Continue"}
               </Button>
+              <button type="button" className="dr-link" onClick={() => setRestoring(true)} disabled={busy}>
+                I have a backup
+              </button>
             </form>
           </div>
           <DoorFoot />

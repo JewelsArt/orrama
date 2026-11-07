@@ -3,7 +3,8 @@
  * areas (settings/LifeAreas.tsx), and the ontology with Orr noticed. The folder
  * is changed here with the first run's chooser (Change…, door/NotesChoice.tsx), unless it is set
  * where the server starts (ORRAMA_VAULT_DIR), and the example from first run is removed here.
- * The ontology is a note, so this section shows it and opens it.
+ * The ontology is a note, so this section shows it and opens it. Back up now and Restore from a
+ * backup… are owners' (settings/BackupSection.tsx).
  */
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import type { GraphSchema, ServerSettings, TreeNote } from "@orrama/schema/responses";
@@ -17,6 +18,7 @@ import { navigate, routeHref, type Route } from "../ui/router.js";
 import { Skeleton } from "../ui/states.js";
 import { SectionHead, StateLine, SubHead, type SectionMeta } from "./parts.js";
 import { LifeAreasSection } from "./LifeAreas.js";
+import { BackupSection } from "./BackupSection.js";
 
 const plain = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 const go = (to: Route) => (e: MouseEvent) => {
@@ -31,7 +33,6 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
   const [server, setServer] = useState<ServerSettings | null | undefined>(owner ? undefined : null);
   const [tree, setTree] = useState<TreeNote[] | null>(null);
   const [schema, setSchema] = useState<GraphSchema | null>(null);
-  const [how, setHow] = useState<"export" | null>(null);
   const [changing, setChanging] = useState(false);
   const [ask, setAsk] = useState<ConfirmRequest | null>(null);
 
@@ -163,22 +164,7 @@ export function NotesSection({ meta, owner }: { meta: SectionMeta; owner: boolea
         )}
       </div>
 
-      <div>
-        <SubHead>Export</SubHead>
-        <p className="set-help">
-          Everything only the database holds (task comments, settings, accounts) as a readable file and a restorable copy, with
-          every secret left out.{" "}
-          <button type="button" className="set-how" aria-expanded={how === "export"} onClick={() => setHow(how === "export" ? null : "export")}>
-            How?
-          </button>
-        </p>
-        {how === "export" && (
-          <p className="set-help">
-            In Terminal, in the Orrama folder, run <code>pnpm --dir apps/server export</code>. It writes to the server's data
-            folder, never into your notes.
-          </p>
-        )}
-      </div>
+      {owner && <BackupSection restoreHere={server?.fixed === false} />}
     </section>
   );
 }
