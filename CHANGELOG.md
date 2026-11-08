@@ -9,6 +9,14 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Settings → Notes → Back up now: one .zip with your notes and everything Orrama keeps beside
+  them, saved where you choose; the key to your mail and AI stays on this computer.
+- Restore from a backup, in Settings → Notes and as "I have a backup" in first run. On a new
+  computer, mail and Orr's AI are connected again once.
+- The Windows uninstaller's "Delete the application data" also removes Orrama's saved
+  secrets; uninstalling never deletes notes.
+- The install guide, `docs/install.md`.
+
 - Orrama updates itself. At launch and every 6 hours it looks for a new version; when one is
   ready it asks "Restart now" or "Later", stops its server, installs and opens the new version.
 - Before a new version changes the database, a copy of it is kept in the data folder's
@@ -223,6 +231,10 @@ one is in CLAUDE.md, "Releases".
   text.
 
 ### Changed
+
+- `pnpm --dir apps/server export` copies `notes-folder.json`, and its README says how to
+  restore without launchd.
+- Settings' Source code link goes to the public repository, `JewelsArt/orrama`.
 
 - Orrama's MCP tools follow stage 1: `create_project` takes one of your life areas,
   `list_projects` lists the areas too, `get_contacts` lists companies, events can have a
@@ -1103,5 +1115,5 @@ daily as Jules's assistant on `~/Obsidian Vault`. Everything below is in it.
 - AI settings moved from the old Admin screen, which is gone, to
   **Settings → AI**.
 
-[Unreleased]: https://github.com/JewelsArt/Basalt-backup/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/JewelsArt/Basalt-backup/releases/tag/v0.1.0
+[Unreleased]: https://github.com/JewelsArt/orrama/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/JewelsArt/orrama/releases/tag/v0.1.0

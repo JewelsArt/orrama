@@ -75,6 +75,11 @@ tables in `db.ts`. `pnpm --dir apps/server export`
 readable `export.json` with every secret left out, and a README — to
 `<data dir>/exports/` by default, never into the vault. Run it with the agent's
 `ORRAMA_VAULT_DIR` so the never-into-the-vault check knows the real vault.
+The app's Settings → Notes → Back up now writes the same plus the notes as one
+`Orrama backup <date>.zip` (`backup.ts`), never with the secret key (Jules, D13); Restore (Settings,
+first run's "I have a backup") stages it in `<data>/restore-pending/` and `applyPendingRestore`
+swaps the database in at the restart. export's work is `exportData.ts`: the bundle holds no module
+that runs itself.
 
 ## Layout
 
@@ -1404,6 +1409,9 @@ built here: `pnpm --dir apps/desktop release:mac` (Apple silicon only, macOS 13.
 --ref main -f version=<X.Y.Z>`, a test draft `v<X.Y.Z>-test.<run>`, never published): NSIS, per
 user, unsigned; it then installs silently, runs and stops the installed server, uninstalls and
 checks the notes folder survived (`scripts/install-check.mjs`, which also runs on a built .app).
+The Windows uninstaller's hooks (`src-tauri/windows/hooks.nsh`) make `/DELETEAPPDATA` tick Delete
+the application data and remove the Credential Manager entry with it; the install guide is
+`docs/install.md`, its short version `.github/release-notes.md` (a tag's draft).
 ~40 billed minutes; `-f mac=true` adds the Mac on a runner (~120 more) while the repo is private.
 With the updater key in the environment (`TAURI_SIGNING_PRIVATE_KEY`, `_PASSWORD`; Jules's password
 manager, the repo's secrets) the build signs the update bundle; `scripts/release-feed.mjs` puts it in
