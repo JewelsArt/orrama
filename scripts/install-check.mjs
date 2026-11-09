@@ -23,6 +23,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { arg, fail, mainBinaryName } from "./bundle-common.mjs";
+import { credentialExists, deleteCredential, writeCredential } from "./windows-credential.mjs";
 
 const NOTICES = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.txt", "THIRD_PARTY_NOTICES_SERVER.txt", "THIRD_PARTY_NOTICES_DESKTOP.txt"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -176,8 +177,10 @@ async function installAndCheck(installer, scratch) {
   fs.mkdirSync(path.join(appData, "logs"), { recursive: true });
   fs.writeFileSync(path.join(appData, "basalt.db"), "a stand-in for the database\n");
   fs.writeFileSync(path.join(appData, "notes-folder.json"), `${JSON.stringify({ folder: notes })}\n`);
-  if (credential("add").status !== 0) fail(`cmdkey could not add the stand-in for ${CREDENTIAL}`);
-  if (!credential("list").stdout.includes(CREDENTIAL)) fail(`the stand-in for ${CREDENTIAL} is not in the Credential Manager`);
+  writeCredential(CREDENTIAL, CREDENTIAL_USER);
+  showCmdkey("with the stand-in written");
+  if (!credentialExists(CREDENTIAL)) fail(`the stand-in for ${CREDENTIAL} is not in the Credential Manager`);
+  say(`the stand-in for ${CREDENTIAL} is in the Credential Manager`);
   // "Delete the application data" ticked; the uninstaller copies itself away and returns at once:
   // wait for the app to be gone.
   spawnSync(uninstaller, ["/S", "/DELETEAPPDATA"], { stdio: "inherit", windowsHide: true });
@@ -185,10 +188,17 @@ async function installAndCheck(installer, scratch) {
   say("uninstalled, with the application data");
   await waitFor(`${appData} to go`, 30_000, async () => !fs.existsSync(appData));
   say("the app's data folder is gone");
-  if (credential("list").stdout.includes(CREDENTIAL)) {
-    credential("delete");
-    fail(`the uninstall left ${CREDENTIAL} in the Credential Manager`);
+  // The hook runs last, after the folder has gone (Tauri's Section Uninstall): give it that moment.
+  const until = Date.now() + 30_000;
+  while (credentialExists(CREDENTIAL)) {
+    if (Date.now() > until) {
+      showCmdkey("after the uninstall");
+      deleteCredential(CREDENTIAL);
+      fail(`the uninstall left ${CREDENTIAL} in the Credential Manager`);
+    }
+    await sleep(1000);
   }
+  showCmdkey("after the uninstall");
   say("its Credential Manager entry is gone");
   if (!fs.existsSync(path.join(notes, "Kept.md"))) fail("the uninstall took the notes folder with it");
   say("the notes folder and its note are still there");
@@ -197,10 +207,12 @@ async function installAndCheck(installer, scratch) {
 /** The app's identifier: its data folder's name (tauri.conf.json). */
 const APP_ID = "com.orrama.desktop";
 /** The Credential Manager entry the app keeps its secrets in: "<user>.<service>" (secrets.rs, keyring). */
-const CREDENTIAL = `server secrets.${APP_ID}`;
-function credential(what) {
-  const args = { add: [`/generic:${CREDENTIAL}`, "/user:server secrets", `/pass:${crypto.randomBytes(16).toString("hex")}`], list: [`/list:${CREDENTIAL}`], delete: [`/delete:${CREDENTIAL}`] }[what];
-  return spawnSync("cmdkey", args, { encoding: "utf8", windowsHide: true });
+const CREDENTIAL_USER = "server secrets";
+const CREDENTIAL = `${CREDENTIAL_USER}.${APP_ID}`;
+/** cmdkey's own view, printed and never relied on (`/list:` only): a red run says what it saw. */
+function showCmdkey(when) {
+  const r = spawnSync("cmdkey", [`/list:${CREDENTIAL}`], { encoding: "utf8", windowsHide: true });
+  console.log(`  cmdkey ${when}: exit ${r.status}, stdout ${JSON.stringify(r.stdout)}, stderr ${JSON.stringify(r.stderr)}`);
 }
 
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "orrama-install-check-"));

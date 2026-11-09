@@ -7,8 +7,10 @@
  * the check asks for the data and looks for the notes afterwards, and the data folder the
  * uninstaller removes is the app's identifier, never where notes go.
  */
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../../..");
@@ -17,6 +19,13 @@ const conf = JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json")) as { ide
 const hooks = read("apps/desktop/src-tauri/windows/hooks.nsh");
 const secrets = read("apps/desktop/src-tauri/src/secrets.rs");
 const check = read("scripts/install-check.mjs");
+const helper = read("scripts/windows-credential.mjs");
+const credentials = (await import(pathToFileURL(path.join(root, "scripts/windows-credential.mjs")).href)) as {
+  credentialAnswer(result: { status: number | null; stdout?: string | null; stderr?: string | null; error?: Error }, expected: string[]): string;
+  writeCredential(target: string, user: string): void;
+  credentialExists(target: string): boolean;
+  deleteCredential(target: string): void;
+};
 
 /** The `!macro NAME` … `!macroend` body. */
 const macro = (name: string) => new RegExp(`!macro ${name}\\n([\\s\\S]*?)!macroend`).exec(hooks)?.[1] ?? "";
@@ -53,4 +62,45 @@ describe("the Windows uninstaller", () => {
     expect(check).toMatch(/the uninstall took the notes folder with it/);
     expect(read(".github/workflows/release.yml")).toMatch(/node scripts\/install-check\.mjs --installer/);
   });
+
+  it("is checked against the entry the app makes, written and read the way the app does", () => {
+    const service = /KEYRING_SERVICE: &str = "([^"]+)"/.exec(secrets)![1]!;
+    const user = /\} else \{\s+"([^"]+)"\.into\(\)/.exec(secrets)![1]!;
+    expect(check).toContain(`const CREDENTIAL_USER = "${user}"`);
+    expect(check).toContain("const CREDENTIAL = `${CREDENTIAL_USER}.${APP_ID}`");
+    expect(check).toContain(`const APP_ID = "${service}"`);
+    expect(check).toMatch(/writeCredential\(CREDENTIAL, CREDENTIAL_USER\)/);
+    expect(check).toMatch(/while \(credentialExists\(CREDENTIAL\)\)/);
+    // The hook deletes a generic credential (`i 1`): the stand-in must be one.
+    expect(helper).toMatch(/const uint Generic = 1, Enterprise = 3;/);
+    expect(helper).toMatch(/c\.Type = Generic;[\s\S]*c\.Persist = Enterprise;/);
+  });
+
+  it("never reads a broken Credential Manager as an entry that has gone", () => {
+    const expected = ["present", "absent"];
+    expect(credentials.credentialAnswer({ status: 0, stdout: "present\r\n" }, expected)).toBe("present");
+    expect(credentials.credentialAnswer({ status: 0, stdout: "absent\r\n" }, expected)).toBe("absent");
+    expect(() => credentials.credentialAnswer({ status: 0, stdout: "CredReadW failed with Windows error 1312\r\n" }, expected)).toThrow(/error 1312/);
+    expect(() => credentials.credentialAnswer({ status: 1, stdout: "absent", stderr: "Add-Type failed" }, expected)).toThrow(/Add-Type failed/);
+    expect(() => credentials.credentialAnswer({ status: null, stdout: null, error: new Error("ENOENT") }, expected)).toThrow(/ENOENT/);
+    expect(() => credentials.credentialAnswer({ status: 0, stdout: "" }, expected)).toThrow();
+  });
+
+  // The real Credential Manager, on the Windows workflow: proves the helper before a release run
+  // spends 40 minutes reaching it. Its own throwaway entry, removed again, never the app's.
+  it.runIf(process.platform === "win32")(
+    "can write, see and remove a credential on this Windows",
+    () => {
+      const target = `orrama test ${crypto.randomBytes(8).toString("hex")}.example`;
+      expect(credentials.credentialExists(target)).toBe(false);
+      try {
+        credentials.writeCredential(target, "orrama test");
+        expect(credentials.credentialExists(target)).toBe(true);
+      } finally {
+        credentials.deleteCredential(target);
+      }
+      expect(credentials.credentialExists(target)).toBe(false);
+    },
+    120_000,
+  );
 });
