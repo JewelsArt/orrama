@@ -11,7 +11,9 @@
 ## Board vs app: differences left on purpose
 - none
 ## Not done (and why) / needs Jules
-- The cause of cmdkey's silence is not established. The check now prints cmdkey's `/list:` output beside the API's answer, so the release run's log shows whether cmdkey's list sees an entry the API wrote.
+- Why cmdkey failed: run 42653923826 shows `cmdkey /list:<target>` answering "The command line parameters are incorrect." with exit 0. Node quotes the whole argument because the target has a space, and cmdkey refuses that form. So the old check's list could never see the entry, and exit 0 hid it.
+- That means the cmdkey line the check prints only shows the usage text. It is harmless and could be removed; left in because the scripts are what the release run proved.
+- Release run 42653923826 (031fe3a, draft `v0.1.0-test.4`, never publish) printed the data folder gone, the entry gone, the notes kept and "Install check passed.". Later commits change only `uninstall.test.ts` and this file.
 - Tagged releases still need the updater secrets (going-public step 7).
 ## Files touched outside my ownership
 - none (`scripts/install-check.mjs`, `scripts/windows-credential.mjs`, `apps/server/test/uninstall.test.ts`, `packages/core/test/safe-regex.test.ts`)

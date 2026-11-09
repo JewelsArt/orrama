@@ -7,10 +7,12 @@
  * the check asks for the data and looks for the notes afterwards, and the data folder the
  * uninstaller removes is the app's identifier, never where notes go.
  */
+import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../../..");
@@ -20,12 +22,11 @@ const hooks = read("apps/desktop/src-tauri/windows/hooks.nsh");
 const secrets = read("apps/desktop/src-tauri/src/secrets.rs");
 const check = read("scripts/install-check.mjs");
 const helper = read("scripts/windows-credential.mjs");
-const credentials = (await import(pathToFileURL(path.join(root, "scripts/windows-credential.mjs")).href)) as {
+const helperUrl = pathToFileURL(path.join(root, "scripts/windows-credential.mjs")).href;
+const credentials = (await import(helperUrl)) as {
   credentialAnswer(result: { status: number | null; stdout?: string | null; stderr?: string | null; error?: Error }, expected: string[]): string;
-  writeCredential(target: string, user: string): void;
-  credentialExists(target: string): boolean;
-  deleteCredential(target: string): void;
 };
+const run = promisify(execFile);
 
 /** The `!macro NAME` … `!macroend` body. */
 const macro = (name: string) => new RegExp(`!macro ${name}\\n([\\s\\S]*?)!macroend`).exec(hooks)?.[1] ?? "";
@@ -87,18 +88,27 @@ describe("the Windows uninstaller", () => {
   });
 
   // The real Credential Manager, on the Windows workflow: proves the helper before a release run
-  // spends 40 minutes reaching it. Its own throwaway entry, removed again, never the app's.
+  // spends 40 minutes reaching it. Its own throwaway entry, removed again, never the app's. In a
+  // child process: the helper is synchronous and takes minutes under the suite's load, and a worker
+  // blocked that long makes vitest's own messages time out (Windows run 42653918633).
   it.runIf(process.platform === "win32")(
     "can write, see and remove a credential on this Windows",
-    () => {
+    async () => {
       const target = `orrama test ${crypto.randomBytes(8).toString("hex")}.example`;
-      try {
-        credentials.writeCredential(target, "orrama test");
-        expect(credentials.credentialExists(target)).toBe(true);
-      } finally {
-        credentials.deleteCredential(target);
-      }
-      expect(credentials.credentialExists(target)).toBe(false);
+      const script = `
+        const { writeCredential, credentialExists, deleteCredential } = await import(${JSON.stringify(helperUrl)});
+        const target = process.argv[1];
+        let seen;
+        try {
+          writeCredential(target, "orrama test");
+          seen = credentialExists(target);
+        } finally {
+          deleteCredential(target);
+        }
+        console.log(JSON.stringify({ seen, after: credentialExists(target) }));
+      `;
+      const { stdout } = await run(process.execPath, ["--input-type=module", "-e", script, target]);
+      expect(JSON.parse(stdout)).toEqual({ seen: true, after: false });
     },
     // Each call starts PowerShell and compiles its helper: about 26 s under the suite's load.
     300_000,
