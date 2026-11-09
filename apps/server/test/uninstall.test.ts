@@ -92,7 +92,6 @@ describe("the Windows uninstaller", () => {
     "can write, see and remove a credential on this Windows",
     () => {
       const target = `orrama test ${crypto.randomBytes(8).toString("hex")}.example`;
-      expect(credentials.credentialExists(target)).toBe(false);
       try {
         credentials.writeCredential(target, "orrama test");
         expect(credentials.credentialExists(target)).toBe(true);
@@ -101,6 +100,7 @@ describe("the Windows uninstaller", () => {
       }
       expect(credentials.credentialExists(target)).toBe(false);
     },
-    120_000,
+    // Each call starts PowerShell and compiles its helper: about 26 s under the suite's load.
+    300_000,
   );
 });

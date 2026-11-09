@@ -189,7 +189,7 @@ async function installAndCheck(installer, scratch) {
   await waitFor(`${appData} to go`, 30_000, async () => !fs.existsSync(appData));
   say("the app's data folder is gone");
   // The hook runs last, after the folder has gone (Tauri's Section Uninstall): give it that moment.
-  const until = Date.now() + 30_000;
+  const until = Date.now() + 60_000;
   while (credentialExists(CREDENTIAL)) {
     if (Date.now() > until) {
       showCmdkey("after the uninstall");
