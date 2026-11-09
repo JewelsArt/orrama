@@ -4,7 +4,7 @@
  * linear in the text on patterns that make RegExp backtrack for minutes.
  */
 import { describe, expect, it } from "vitest";
-import { compileSafeRegex, MAX_PROGRAM } from "../src/index.js";
+import { compileSafeRegex, MAX_PROGRAM, type SafeRegex } from "../src/index.js";
 
 const must = (src: string, flags = "") => {
   const r = compileSafeRegex(src, flags);
@@ -75,15 +75,41 @@ describe("agrees with RegExp", () => {
 });
 
 describe("runs in linear time", () => {
-  const EVIL = ["^([^~]+)+~", "(a|a)*b", "(a*)*b", "(\\w+\\s?)+$", "^(a+)+$", "(x+x+)+y", "(.*a){12}"];
-  for (const src of EVIL) {
-    it(`/${src}/ on a long text`, () => {
+  // Each with the character that makes a backtracking engine try every way of splitting the text.
+  const EVIL: [string, string][] = [
+    ["^([^~]+)+~", "a"],
+    ["(a|a)*b", "a"],
+    ["(a*)*b", "a"],
+    ["(\\w+\\s?)+$", "a"],
+    ["^(a+)+$", "a"],
+    ["(x+x+)+y", "x"],
+    ["(.*a){12}$", "a"],
+  ];
+  const clock = (r: SafeRegex, s: string) => {
+    const t = performance.now();
+    r.test(s);
+    return performance.now() - t;
+  };
+  for (const [src, c] of EVIL) {
+    it(`/${src}/ costs four times as much on four times the text`, () => {
       const mine = must(src);
-      const text = `${"a".repeat(2000)}!`;
-      const t = performance.now();
-      mine.test(text);
-      mine.test(`01-me/journal/2026-10-04 a long realistic path name.md ${"x".repeat(200)}`);
-      expect(performance.now() - t).toBeLessThan(200);
+      const text = (n: number) => `${c.repeat(n)}!`;
+      // Exponential first, on a text short enough to end. These 26 characters keep a backtracking
+      // engine busy for seconds and a linear one for a few milliseconds even on the slowest runner.
+      expect(clock(mine, text(26))).toBeLessThan(500);
+      // Then anything else worse than linear. A ratio, because a clock limit fails on a slow
+      // Windows runner (286 ms against 200 on 9 Nov): a slow machine is slow on both sizes. Taken
+      // in turns, best of three, since a pause only ever adds time; the first run warms the JIT.
+      // Linear is 4, quadratic 16. Under 2 ms a ratio is only timer noise.
+      const small = text(500);
+      const large = text(2000);
+      mine.test(large);
+      let [best500, best2000] = [Infinity, Infinity];
+      for (let k = 0; k < 3; k++) {
+        best500 = Math.min(best500, clock(mine, small));
+        best2000 = Math.min(best2000, clock(mine, large));
+      }
+      expect(best2000, `${best500.toFixed(2)} ms on 500 characters`).toBeLessThan(10 * Math.max(best500, 2));
     });
   }
 });
