@@ -680,8 +680,7 @@ OpenAI-compatible endpoint (stored encrypted in `workspace`), or **ChatGPT plan*
 is noncommercial-licensed, so none of its code is used). OpenAI offers ChatGPT
 plan usage to open-source projects, personal projects that run locally and
 selected private apps. Orrama is under the AGPL (21 Oct 2026), so it is
-offered to everyone, in first run and Settings; that rests on the repository being
-public by the friends' release (2G), until which only Jules's own copy is covered. Its rules shape the code:
+offered to everyone, in first run and Settings; the repository is public (2G). Its rules shape the code:
 
 - The redirect is fixed to `http://127.0.0.1:<port>/callback`, a root route,
   so sign-in starts on the computer Orrama runs on: in the desktop app the system
@@ -1412,7 +1411,7 @@ checks the notes folder survived (`scripts/install-check.mjs`, which also runs o
 The Windows uninstaller's hooks (`src-tauri/windows/hooks.nsh`) make `/DELETEAPPDATA` tick Delete
 the application data and remove the Credential Manager entry with it; the install guide is
 `docs/install.md`, its short version `.github/release-notes.md` (a tag's draft).
-~40 billed minutes; `-f mac=true` adds the Mac on a runner (~120 more) while the repo is private.
+~40 billed minutes; `-f mac=true` adds the Mac on a runner (~120 more).
 With the updater key in the environment (`TAURI_SIGNING_PRIVATE_KEY`, `_PASSWORD`; Jules's password
 manager, the repo's secrets) the build signs the update bundle; `scripts/release-feed.mjs` puts it in
 the draft's `latest.json`; publish only after `release-feed.mjs check` (README "Updates").
@@ -1421,8 +1420,7 @@ Tauri re-signs the bundled Node and would drop its JIT entitlement; with the Dev
 back with an entitlements file (allow-jit, allow-unsigned-executable-memory,
 disable-library-validation).
 
-**CI** (`.github/workflows/`, private repo, so minutes are counted; macOS
-costs 10x, Windows 2x; all on Node 24, the app's runtime). On each push to `main` (and each PR): `ci.yml`, the
+**CI** (`.github/workflows/`, public repo, so minutes are free; all on Node 24, the app's runtime). On each push to `main` (and each PR): `ci.yml`, the
 Ubuntu typecheck, lint, every test and the web build, and the dependency
 audit. A push to `sep-2026-redesign` runs nothing: it carries the same commit.
 `docker.yml` runs when `Dockerfile`, `.dockerignore`, `docker-compose.yml`,
@@ -1453,7 +1451,8 @@ Orrama is free software under the **GNU AGPL v3.0 or later** (since 21 October
 its hash: never edit it), `NOTICE` holds the copyright line (© 2026 Jules
 Timothy Sekelj) and the AGPL notice, and every `package.json` and the desktop
 crate say `AGPL-3.0-or-later` (packages stay `"private": true`: nothing goes to
-npm). The repository is still private; going public waits for Jules.
+npm). The source is public at https://github.com/JewelsArt/orrama (since 10 November 2026).
+`scripts/prepublic-check.mjs` reads a history before it is published.
 
 **AGPL §13: whoever uses Orrama over a network is offered its source.** Settings
 shows a "Source code" link, for every account, to `ORRAMA_SOURCE_URL` (default
