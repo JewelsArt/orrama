@@ -149,6 +149,9 @@ export function scanPath(file, size) {
   return out;
 }
 
+/** This check and its test: their sample strings are what the check looks for. */
+const THE_CHECK_ITSELF = /^(scripts\/prepublic-check\.mjs|apps\/server\/test\/prepublic-check\.test\.ts)$/;
+
 /**
  * Findings looked at and judged fine, each with its reason. A finding matches when its rule
  * is the same and its value (or `path`, when given) matches the pattern.
@@ -162,6 +165,9 @@ export const ALLOWED = [
   { rule: "updater-key-path", value: /^~\/\.tauri\/orrama-updater\.key$/, why: "where the updater key is kept, documented for the release steps; the key itself is never in the repo (the signing-key rule reads every file)" },
   { rule: "phone", value: /^\+44 7700 900\d{3}$/, why: "Ofcom's range for fiction (seed.ts's demo people)" },
   { rule: "phone", value: /^\+31 (6 1234 5678|20 123 4567)$/, why: "made-up numbers in tests" },
+  { rule: "phone", value: /^\+44 7911 123456$/, path: THE_CHECK_ITSELF, why: "the made-up number this check's test says is not allowed elsewhere" },
+  { rule: "phone", value: /^\+31 \(6 1234 5678$/, path: THE_CHECK_ITSELF, why: "the text of the allow-list's own +31 pattern, read as a number" },
+  { rule: "vault-path", value: /^Obsidian Vault.01-Me.x.md$/, path: THE_CHECK_ITSELF, why: "the made-up path this check's test passes" },
 ];
 
 export function allowed(f, list = ALLOWED) {

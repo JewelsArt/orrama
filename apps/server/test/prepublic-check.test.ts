@@ -89,6 +89,18 @@ describe("what a file's text gives away", () => {
     expect(mod.allowed({ level: "personal", rule: "phone", value: "+44 7700 900021", paths: ["seed.ts"] })).toBe(true);
     expect(mod.allowed({ level: "personal", rule: "phone", value: "+44 7911 123456", paths: ["seed.ts"] })).toBe(false);
   });
+
+  it("allows its own sample strings only in the check and its test", () => {
+    const samples = [
+      { rule: "phone", value: "+44 7911 123456", paths: ["apps/server/test/prepublic-check.test.ts"] },
+      { rule: "phone", value: "+31 (6 1234 5678", paths: ["scripts/prepublic-check.mjs"] },
+      { rule: "vault-path", value: "Obsidian Vault/01-Me/x.md", paths: ["apps/server/test/prepublic-check.test.ts"] },
+    ];
+    for (const s of samples) {
+      expect(mod.allowed({ level: "personal", ...s })).toBe(true);
+      expect(mod.allowed({ level: "personal", ...s, paths: ["apps/server/src/seed.ts"] })).toBe(false);
+    }
+  });
 });
 
 describe("the whole history", () => {
