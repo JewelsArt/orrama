@@ -1,28 +1,28 @@
 {
   "about": "What the desktop app ships with the server: the official Node build per target and the two native modules built for its ABI. scripts/fetch-node.mjs and scripts/package-server.mjs refuse anything that does not match. A new Node: node scripts/fetch-node.mjs --pin <version> (pick one at least a week old). A new better-sqlite3 or @node-rs/argon2 in the lockfile: change the version here and each target's hash (better-sqlite3: the release asset's digest on GitHub; argon2: the npm registry's dist.integrity).",
   "node": {
-    "version": "24.22.0",
+    "version": "24.22.3",
     "abi": 137,
     "lts": "Krypton",
-    "released": "2026-10-14",
+    "released": "2026-11-10",
     "targets": {
       "aarch64-apple-darwin": {
-        "archive": "node-v24.22.0-darwin-arm64.tar.gz",
-        "sha256": "6a9724d9b50a5f22b4816cded441b5a8d9ddae546191a5e5b7efa5a5e2ee26d5",
-        "file": "node-v24.22.0-darwin-arm64/bin/node",
-        "binarySha256": "b468fb9c67427c9d3aec07ee1105e63020923a631a9a2a00beb71a7ba3768bfd"
+        "archive": "node-v24.22.3-darwin-arm64.tar.gz",
+        "sha256": "ff6e17d4874b76d272212b908cc020d6e815fba5a6c7eaaa06add725840307fd",
+        "file": "node-v24.22.3-darwin-arm64/bin/node",
+        "binarySha256": "ba7073582822078d8c90bca3facacc46690bc5366fab4b815aeef9148cd6e854"
       },
       "x86_64-apple-darwin": {
-        "archive": "node-v24.22.0-darwin-x64.tar.gz",
-        "sha256": "495e3f273c645f3c4677d438304cdfc701729ea5dec5728f5c8e76a2dece4b91",
-        "file": "node-v24.22.0-darwin-x64/bin/node",
-        "binarySha256": "83dc50ed654b9494c722c4b9a836ce423242a9bd3214b99935e5a5c483ca025b"
+        "archive": "node-v24.22.3-darwin-x64.tar.gz",
+        "sha256": "977614af0504c81045e7fd85596dbca0e5f951b96681516dadafedcca8c447f7",
+        "file": "node-v24.22.3-darwin-x64/bin/node",
+        "binarySha256": "796184b9a19ed300b1ba7cd0f7e49558fee9fc0f05080bb036025490a5a2edf3"
       },
       "x86_64-pc-windows-msvc": {
-        "archive": "node-v24.22.0-win-x64.zip",
-        "sha256": "f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f80c3",
-        "file": "node-v24.22.0-win-x64/node.exe",
-        "binarySha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c"
+        "archive": "node-v24.22.3-win-x64.zip",
+        "sha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+        "file": "node-v24.22.3-win-x64/node.exe",
+        "binarySha256": "86fc4785327db5f5c7558dc6156c543b433c313e813a222e088086222ab4afa6"
       }
     }
   },
