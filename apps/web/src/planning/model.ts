@@ -15,6 +15,7 @@
 import type { CalEvent, DayMarker, PlanTask, TimeBlock } from "@orrama/schema/responses";
 import { areasNow, type Category } from "../categories.js";
 import { DAY_MS, addDays, dayOf, isoDay } from "../calendarMath.js";
+import { dateLabel } from "../ui/dates.js";
 
 /** One block the auto-scheduler suggests. Nothing is written until it is booked. */
 export interface Proposal {
@@ -306,3 +307,9 @@ export function nowAlong(weekStart: Date, now: Date): number | null {
 
 /** The seven days of a week, as YYYY-MM-DD. */
 export const weekDays = (weekStart: Date) => Array.from({ length: 7 }, (_, i) => isoDay(addDays(weekStart, i)));
+
+/** How one of your events repeats, in words: "Every week", "Every 2 weeks until Mon 14 Dec". */
+export function repeatWords(r: NonNullable<CalEvent["repeat"]>): string {
+  const every = r.interval === 1 ? `Every ${r.every}` : `Every ${r.interval} ${r.every}s`;
+  return r.until ? `${every} until ${dateLabel(r.until)}` : every;
+}

@@ -34,11 +34,6 @@ const repeatOf = (c: RepeatChoice, until: string | null): Repeat | null =>
   c === "none" ? null : c === "2weeks" ? { every: "week", interval: 2, until } : { every: c, interval: 1, until };
 
 /** "Every week until Thu 31 Dec", "Every 2 weeks", "Every month": how a series is said. */
-export function repeatWords(r: Repeat): string {
-  const every = r.interval === 1 ? `Every ${r.every}` : `Every ${r.interval} ${r.every}s`;
-  return r.until ? `${every} until ${dateLabel(r.until)}` : every;
-}
-
 /** End of a typed end time: "0:00" or "24:00" after a start is midnight. */
 const endOf = (text: string, start: number | null): number | null => {
   if (/^\s*24(:00)?\s*$/.test(text)) return 24 * 60;

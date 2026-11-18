@@ -93,6 +93,39 @@ describe("Coming up", () => {
   });
 });
 
+describe("Coming up: a repeating event is one line (2L)", () => {
+  const ev = (o: Partial<CalEvent>): CalEvent => ({ id: "e", ownerId: "u", username: "jules", mine: true, title: "Event", date: TODAY, startMin: 600, durationMin: 60, ...o });
+  const weekly = { every: "week" as const, interval: 1, until: null };
+  it("on its next day, saying how it repeats; a day changed on its own counts as the series'", () => {
+    const rows = comingUp(
+      {
+        events: [
+          ev({ id: "s@2026-10-12", seriesId: "s", repeat: weekly, title: "Standup", date: "2026-10-12", startMin: 540 }),
+          // That week's day was moved earlier: it is the series' next day now.
+          ev({ id: "s@2026-10-19", seriesId: "s", repeat: weekly, title: "Standup", date: "2026-10-11", startMin: 600 }),
+          ev({ id: "s@2026-10-26", seriesId: "s", repeat: weekly, title: "Standup", date: "2026-10-26", startMin: 540 }),
+          ev({ id: "c@2026-10-14", seriesId: "c", repeat: { every: "week", interval: 2, until: "2026-12-16" }, title: "Choir", date: "2026-10-14", startMin: 1080 }),
+          ev({ id: "c@2026-10-28", seriesId: "c", repeat: { every: "week", interval: 2, until: "2026-12-16" }, title: "Choir", date: "2026-10-28", startMin: 1080 }),
+          ev({ id: "one", title: "Dentist", date: "2026-10-13" }),
+          // A subscribed calendar's days stay as they come, named by their calendar.
+          ev({ id: "f1", title: "Lecture", date: "2026-10-15", feedLabel: "Uni", source: "ics" }),
+          ev({ id: "f2", title: "Lecture", date: "2026-10-22", feedLabel: "Uni", source: "ics" }),
+        ],
+        tasks: [],
+        projects: [],
+      },
+      TODAY,
+    );
+    expect(rows.map((r) => [r.date, r.title, r.source])).toEqual([
+      ["2026-10-11", "Standup", "Every week"],
+      ["2026-10-13", "Dentist", null],
+      ["2026-10-14", "Choir", "Every 2 weeks until Wed 16 Dec"],
+      ["2026-10-15", "Lecture", "Uni"],
+      ["2026-10-22", "Lecture", "Uni"],
+    ]);
+  });
+});
+
 describe("Projects", () => {
   it("are the active ones, soonest date first, undated last", () => {
     const rows = projectsInMotion([

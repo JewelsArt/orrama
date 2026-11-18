@@ -13,8 +13,8 @@ import { Button, LinkButton } from "../ui/controls.js";
 import { dateLabel, minutesLabel } from "../ui/dates.js";
 import { Popover } from "../ui/overlays.js";
 import { cardDetails, type CardDetails } from "./details.js";
-import { EventFields, repeatWords, useEventForm, useWhen, WhenFields, type EventValue } from "./EventForm.js";
-import { type Item } from "./model.js";
+import { EventFields, useEventForm, useWhen, WhenFields, type EventValue } from "./EventForm.js";
+import { repeatWords, type Item } from "./model.js";
 
 export type Pop = { kind: "item"; item: Item; anchor: HTMLElement } | { kind: "new-event"; date: string; startMin: number; anchor: HTMLElement };
 

@@ -8,6 +8,7 @@
 import { addDays, daysTo } from "@orrama/core/dates";
 import type { CalEvent, Contact, DashboardTask, GraphRelations, HomeData, ProjectRow } from "@orrama/schema/responses";
 import { isProjectActive } from "../categories.js";
+import { repeatWords } from "../planning/model.js";
 
 /* ---- Due ------------------------------------------------------------------------------------ */
 
@@ -86,8 +87,8 @@ export interface ComingRow {
 }
 
 /**
- * The next three weeks after today: events, key deadlines and projects' own dates (start and
- * deadline), soonest first. Ordinary due dates stay in Due: thirty dated thesis questions would
+ * The next three weeks after today: events (a repeating one of yours once, on its next day),
+ * key deadlines and projects' own dates (start and deadline), soonest first. Ordinary due dates stay in Due: thirty dated thesis questions would
  * bury the three things that matter.
  */
 export function comingUp(
@@ -100,9 +101,18 @@ export function comingUp(
   const to = addDays(today, days);
   const inRange = (d: string | null | undefined): d is string => !!d && d >= from && d <= to;
   const rows: ComingRow[] = [];
+  // A repeating event of yours is one line, on its next day, saying how it repeats: a weekly
+  // standup took every line of the module (three weeks, four rows).
+  const nextOf = new Map<string, CalEvent>();
   for (const e of events) {
-    if (!inRange(e.date)) continue;
-    rows.push({ id: `e:${e.id}:${e.date}`, kind: "event", date: e.date, start: e.allDay ? null : e.startMin, title: e.title, source: e.feedLabel ?? null });
+    if (!inRange(e.date) || !e.seriesId) continue;
+    const had = nextOf.get(e.seriesId);
+    if (!had || e.date < had.date || (e.date === had.date && e.startMin < had.startMin)) nextOf.set(e.seriesId, e);
+  }
+  for (const e of events) {
+    if (!inRange(e.date) || (e.seriesId && nextOf.get(e.seriesId) !== e)) continue;
+    const source = e.seriesId && e.repeat ? repeatWords(e.repeat) : (e.feedLabel ?? null);
+    rows.push({ id: `e:${e.id}:${e.date}`, kind: "event", date: e.date, start: e.allDay ? null : e.startMin, title: e.title, source });
   }
   for (const t of tasks) {
     if (t.checked || !t.key || !inRange(t.due) || skip.has(taskKey(t))) continue;
