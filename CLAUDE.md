@@ -375,7 +375,8 @@ index, so every surface loses it; its id, history and task objects stay in the
 database and restoring brings the same note back (its front-matter id, or the
 notes table's for one that couldn't be stamped). Nothing in it is ever indexed:
 the walk and the watcher skip dot names and `resolvePath`/`resolveFolder`
-refuse it, so no write, create or move reaches it. The trash lists, restores and
+refuse it, so no write, create or move reaches it. No other dot name holds a note either: a
+write, a move or a folder move to one is a 400 (`hiddenPath`, after the caller's own guard). The trash lists, restores and
 empties by the ACL of the place each file came from (its folder and its own
 tags); Empty trash is the only permanent delete and removes only files under
 `.trash/`, links as links. A `.trash` that is not a plain folder is refused.

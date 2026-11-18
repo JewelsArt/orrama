@@ -130,6 +130,14 @@ function refuseTrash(rel: string): void {
   if (foldPath(rel.split("/")[0] ?? "") === TRASH_DIR) throw new HttpError(400, "That's the trash. Put the note back first.");
 }
 
+/**
+ * A name that starts with a dot is hidden: the boot walk and the watcher skip it, so nothing
+ * under one is ever a note. A write or a move into one was indexed until the next restart
+ * (searchable, in the tree, then gone), so it is refused instead.
+ */
+const HIDDEN_NAME = "A name that starts with a dot is hidden, so Orrama keeps no notes there.";
+const hiddenPath = (rel: string) => rel.split("/").some((s) => s.startsWith("."));
+
 /** `Personal/` and each person's own folder in it hold the path-based ACL (§5.3) and the
  *  capture inbox: they are never renamed, moved or trashed as folders. */
 function refusePersonalRoot(rel: string): void {
@@ -1232,6 +1240,11 @@ export class VaultStore {
    */
   write(user: AclUser, inputPath: string, content: string, baseHash?: string, baseContent?: string, opts: { create?: boolean; guard?: WriteGuard } = {}): IndexedNote {
     const { rel: relPath, abs } = this.resolvePath(inputPath);
+    if (hiddenPath(relPath)) {
+      // The caller's own rule first: an agent writing `.claude/` hears that it may not.
+      opts.guard?.({ path: relPath, before: null, content });
+      throw new HttpError(400, HIDDEN_NAME);
+    }
     const grants = this.grants();
     let existing = this.index.getByPath(relPath);
 
@@ -1392,6 +1405,7 @@ export class VaultStore {
     // destination folder the ACL judges must be where the file actually lands.
     const { rel: fromPath, abs: absFrom } = this.resolvePath(inputFrom);
     const { rel: toPath, abs: absTo, taken } = this.resolvePath(inputTo, { asNamed: true });
+    if (hiddenPath(toPath)) throw new HttpError(400, HIDDEN_NAME);
     const note = this.index.getByPath(fromPath);
     if (!note || !canRead(user, note, this.grants())) throw new HttpError(404, "note not found");
     // Edit on both ends first, then whether the destination is taken: the
@@ -1648,6 +1662,7 @@ export class VaultStore {
     if (!from.found || (!canRead(user, asFolder(from.rel), grants) && !notes.some((n) => canRead(user, n, grants)))) throw new HttpError(404, "folder not found");
     const to = this.resolveFolder(inputTo, { asNamed: true });
     refusePersonalRoot(to.rel);
+    if (hiddenPath(to.rel)) throw new HttpError(400, HIDDEN_NAME);
     if (foldPath(to.rel).startsWith(`${foldPath(from.rel)}/`)) throw new HttpError(400, "A folder can't go inside itself.");
     const landing = (n: IndexedNote) => `${to.rel}${n.path.slice(from.rel.length)}`;
     const folderOfPath = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
