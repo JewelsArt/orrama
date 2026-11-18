@@ -1045,6 +1045,17 @@ export const mailMessageResponse = o({
 
 export const tokensResponse = z.array(o({ id: z.string(), label: z.string(), prefix: z.string(), createdAt: z.number(), lastUsedAt: nnum }));
 
+/** Settings → Connections → Connect to Claude (apps/server/src/claudeConnect.ts `ClaudeStatus`). */
+export const claudeResponse = o({
+  available: z.boolean(),
+  why: nstr,
+  connected: o({ since: z.number(), lastUsedAt: nnum }).nullable(),
+  otherAccount: z.boolean(),
+  desktop: z.enum(["absent", "added", "missing", "broken"]),
+  desktopProblem: nstr,
+  command: nstr,
+});
+
 export const webhooksResponse = z.array(
   o({
     id: z.string(),
@@ -1224,4 +1235,5 @@ export type MailCategory = z.infer<typeof mailCategorySchema>;
 export type InboxItem = z.infer<typeof mailInboxResponse>["messages"][number];
 export type MailMessage = z.infer<typeof mailMessageResponse>;
 export type ApiToken = z.infer<typeof tokensResponse>[number];
+export type ClaudeConnection = z.infer<typeof claudeResponse>;
 export type Webhook = z.infer<typeof webhooksResponse>[number];

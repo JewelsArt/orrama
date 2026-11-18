@@ -38,6 +38,8 @@ import { settingsRoutes } from "./routes/settings.js";
 import { notesHomeRoutes } from "./routes/notesHome.js";
 import { areaRoutes } from "./routes/areas.js";
 import { backupRoutes } from "./routes/backup.js";
+import { claudeRoutes } from "./routes/claude.js";
+import { appHost, refreshClaude, type ClaudeHost } from "./claudeConnect.js";
 import { scopeAllows } from "./mcpScope.js";
 import { applyPendingRestore } from "./backup.js";
 import { initWebhooks } from "./webhooks.js";
@@ -117,7 +119,8 @@ export function allowedHost(host: string | undefined, publicOrigins: string[]): 
  * reads another notes folder (Settings → Notes, first run): the entry point below closes this
  * build and makes a new one in the same process.
  */
-export async function buildServer(opts: { logStream?: NodeJS.WritableStream; restart?: () => void } = {}) {
+/** `claude`: where Connect to Claude writes (tests give a scratch home and data folder); the app's own by default. */
+export async function buildServer(opts: { logStream?: NodeJS.WritableStream; restart?: () => void; claude?: ClaudeHost } = {}) {
   assertValidEnv();
   assertProductionSecrets();
   // A backup restored in the app (routes/backup.ts) takes the database's place before it opens.
@@ -319,6 +322,9 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   await notesHomeRoutes(app, store);
   await areaRoutes(app, store);
   await backupRoutes(app, db, store, opts.restart);
+  const claude = opts.claude ?? appHost();
+  await claudeRoutes(app, db, claude);
+  refreshClaude(claude, (line) => app.log.info(line));
   initWebhooks(db, store);
 
   // Serve the built web app when present (self-host: one container serves everything). The
