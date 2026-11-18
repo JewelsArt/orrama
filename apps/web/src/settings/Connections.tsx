@@ -1,8 +1,8 @@
 /**
  * Settings → Connections (structure.md §3.1 #5): calendars you follow (ICS feeds in; each can be
  * renamed and drawn in one of the five colours the life areas take, `PATCH /api/calendar/feeds/:id`), your mail
- * (Gmail with an app password), and Publish my planning (your blocks and events as a private
- * ICS link). Everything that cannot be undone asks first (WEB-017): removing a feed, the mail
+ * (Gmail with an app password), Publish my planning (your blocks and events as a private
+ * ICS link), and Claude (Connect to Claude, `Claude.tsx`). Everything that cannot be undone asks first (WEB-017): removing a feed, the mail
  * account (Google shows an app password once), and turning off or changing the published link
  * (every calendar subscribed to it stops updating).
  */
@@ -16,6 +16,7 @@ import { RowList } from "../ui/layout.js";
 import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
 import { dateTimeLabel } from "../ui/dates.js";
+import { ClaudePart } from "./Claude.js";
 import { SectionHead, StateLine, SubHead, said, type SectionMeta } from "./parts.js";
 
 export function ConnectionsSection({ meta }: { meta: SectionMeta }) {
@@ -26,6 +27,7 @@ export function ConnectionsSection({ meta }: { meta: SectionMeta }) {
       <Calendars ask={setAsk} />
       <MailAccountPart ask={setAsk} />
       <Publish ask={setAsk} />
+      <ClaudePart ask={setAsk} />
       <Confirm request={ask} onClose={() => setAsk(null)} />
     </section>
   );

@@ -2,6 +2,7 @@
  * WEB-017: Settings ran irreversible actions on one click of a small ✕ beside harmless buttons:
  * disconnecting mail (Google shows an app password once), turning off or changing the published
  * planning link (every subscribed calendar stops), revoking an API token (the MCP server stops),
+ * disconnecting Claude (its key stops working),
  * deleting a webhook, removing a calendar, a Touch ID device or a signed-in device. Each now asks
  * through Confirm, says what will happen, and does nothing on "Keep it".
  */
@@ -32,6 +33,7 @@ const ROUTES: Record<string, unknown> = {
   "GET /api/calendar/feeds": [{ id: "f1", label: "School", host: "example.edu", createdAt: 1, lastSyncedAt: null, lastError: null }],
   "GET /api/mail/account": { connected: true, email: "jules@example.com", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null },
   "GET /api/me/ics-token": { token: "tok123" },
+  "GET /api/claude": { available: true, why: null, connected: { since: 1, lastUsedAt: null }, otherAccount: false, desktop: "added", desktopProblem: null, command: "claude mcp add orrama --scope user --env ORRAMA_CONNECTION='/d/claude/connection.json' -- '/A/node' '/A/mcp.mjs'" },
   "POST /api/me/ics-token": { token: "tok456" },
   "GET /api/tokens": [{ id: "t1", label: "Claude Code", prefix: "bslt_ab", createdAt: 1, lastUsedAt: null }],
   "GET /api/webhooks": [{ id: "h1", url: "https://hooks.example.com/x", events: ["task.completed"], active: true, createdAt: 1, lastStatus: null, lastFiredAt: null }],
@@ -90,6 +92,7 @@ const CASES: { what: string; section: SettingsSection; button: string; confirm: 
   { what: "removing a calendar", section: "connections", button: "Remove School", confirm: "Remove calendar", request: "DELETE /api/calendar/feeds/f1" },
   { what: "disconnecting mail", section: "connections", button: "Disconnect", confirm: "Disconnect mail", request: "DELETE /api/mail/account" },
   { what: "a new planning link", section: "connections", button: "New link", confirm: "Make a new link", request: "POST /api/me/ics-token" },
+  { what: "disconnecting Claude", section: "connections", button: "Disconnect Claude", confirm: "Disconnect Claude", request: "POST /api/claude/disconnect" },
   { what: "turning the planning link off", section: "connections", button: "Stop publishing", confirm: "Stop publishing", request: "DELETE /api/me/ics-token" },
   { what: "revoking an API token", section: "developer", button: "Revoke Claude Code", confirm: "Revoke token", request: "DELETE /api/tokens/t1" },
   { what: "deleting a webhook", section: "developer", button: "Delete the webhook to https://hooks.example.com/x", confirm: "Delete webhook", request: "DELETE /api/webhooks/h1" },

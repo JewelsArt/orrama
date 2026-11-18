@@ -51,10 +51,10 @@ export const SECTIONS: SectionMeta[] = [
     blurb: "The model Orr answers with, and how he should work for you. Your key never leaves this Mac: requests go straight from here to the provider.",
   },
   { id: "notes", label: "Notes", where: "server", blurb: "Where your notes live, and what Orr knows about them." },
-  { id: "connections", label: "Connections", where: "account", blurb: "Calendars you follow, your mail, and your planning as a calendar others can add." },
+  { id: "connections", label: "Connections", where: "account", blurb: "Calendars you follow, your mail, your planning as a calendar others can add, and Claude." },
   { id: "device", label: "This device", where: "device", blurb: "Quick ways back in on this device. Your password always works, and is the way in after a lockout." },
   { id: "sessions", label: "Signed in", where: "account", blurb: "Every device and browser signed in to your account. Signing one out ends it at once." },
-  { id: "developer", label: "Developer", where: "server", blurb: "API tokens and webhooks for scripts, and the address Claude Code's MCP server talks to." },
+  { id: "developer", label: "Developer", where: "server", blurb: "API tokens and webhooks for scripts." },
   { id: "access", label: "Access", where: "server", blurb: "The accounts on this server and the teams that decide who reads what." },
 ];
 
@@ -134,12 +134,12 @@ export const SETTINGS_INDEX: { label: string; section: SettingsSection; words: s
   { label: "Calendars", section: "connections", words: "calendar feed ics subscribe google apple" },
   { label: "Mail", section: "connections", words: "mail gmail email app password imap" },
   { label: "Publish my planning", section: "connections", words: "publish feed ics share calendar url" },
+  { label: "Connect to Claude", section: "connections", words: "claude anthropic mcp connect ai assistant desktop code" },
   { label: "Passcode", section: "device", words: "passcode pin unlock lock" },
   { label: "Touch ID", section: "device", words: "touch id passkey fingerprint unlock" },
   { label: "Signed-in devices", section: "sessions", words: "sessions devices browsers sign out logout everywhere" },
   { label: "API tokens", section: "developer", words: "token api bearer script shortcut" },
   { label: "Webhooks", section: "developer", words: "webhook hook post hmac" },
-  { label: "MCP", section: "developer", words: "mcp claude code server address" },
 ];
 
 export function findSettings(q: string, visible: Set<SettingsSection>) {

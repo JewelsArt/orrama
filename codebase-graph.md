@@ -859,9 +859,13 @@
 - **Exports**: sizeWords, madeWords, BackupSection
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../desktop.js, ../door/RestoreBackup.js, ../ui/controls.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./parts.js
 
+### `apps/web/src/settings/Claude.tsx`
+- **Exports**: ClaudePart
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./parts.js
+
 ### `apps/web/src/settings/Connections.tsx`
 - **Exports**: ConnectionsSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./Claude.js, ./parts.js
 
 ### `apps/web/src/settings/Developer.tsx`
 - **Exports**: DeveloperSection

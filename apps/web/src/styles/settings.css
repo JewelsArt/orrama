@@ -373,3 +373,7 @@
   .vised-body { grid-template-columns: 1fr; }
   .vised-slots { border-right: none; border-bottom: 1px solid var(--border); }
 }
+
+/* Connections → Claude (2M): the Claude app's line under the connection, Claude Code's command under it. */
+.set-claude { margin-top: 8px; }
+.set-help.set-claude-code { margin: 14px 0 6px; }

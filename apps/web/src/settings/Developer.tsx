@@ -1,7 +1,7 @@
 /**
- * Settings → Developer (structure.md §3.1 #8): API tokens (scripts and the MCP server call the
- * API as you), outgoing webhooks (HMAC-signed), and the address Claude Code's MCP server talks
- * to. A new token or signing secret is shown once. Revoking a token and deleting a webhook ask
+ * Settings → Developer (structure.md §3.1 #8): API tokens (scripts call the API as you) and
+ * outgoing webhooks (HMAC-signed). Claude connects from Connections (`Claude.tsx`). A new token
+ * or signing secret is shown once. Revoking a token and deleting a webhook ask
  * first (WEB-017): whatever used them stops working.
  */
 import { useEffect, useState } from "react";
@@ -42,7 +42,6 @@ export function DeveloperSection({ meta }: { meta: SectionMeta }) {
       <SectionHead meta={meta} />
       <Tokens ask={setAsk} />
       <Webhooks ask={setAsk} />
-      <Mcp />
       <Confirm request={ask} onClose={() => setAsk(null)} />
     </section>
   );
@@ -237,32 +236,6 @@ function Webhooks({ ask }: { ask: Ask }) {
           </label>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Mcp() {
-  const [how, setHow] = useState(false);
-  const origin = location.origin;
-  return (
-    <div>
-      <SubHead>MCP</SubHead>
-      <div className="set-keyrow">
-        <Input readOnly value={origin} aria-label="The MCP address" onFocus={(e) => e.currentTarget.select()} />
-        <Button onClick={() => void copy(origin, "The address")}>Copy</Button>
-      </div>
-      <p className="set-help">
-        Claude Code's MCP server reads and writes your notes through this address with an API token.{" "}
-        <button type="button" className="set-how" aria-expanded={how} onClick={() => setHow(!how)}>
-          How?
-        </button>
-      </p>
-      {how && (
-        <p className="set-help">
-          Make a token above, then register the server at user scope, so the token stays in <code>~/.claude.json</code> and
-          out of your notes: <code>claude mcp add orrama --scope user --env ORRAMA_URL={origin} --env ORRAMA_TOKEN=bslt_… -- node …/apps/mcp/dist/index.js</code>
-        </p>
-      )}
     </div>
   );
 }
