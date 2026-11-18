@@ -9,6 +9,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Settings → Connections → Connect to Claude. One click lets the Claude app and Claude Code
+  on this computer work with your notes, steps, projects, calendar and mail drafts through Orrama's
+  own tools, which now come inside the app. The key Claude gets reaches only those tools, stays in
+  Orrama's own folder, and Disconnect turns it off.
+- Money → Documents: a statement or payslip goes to the trash from its ⋯ menu, with Undo. A
+  payslip's ledger row stays.
 - Settings → Notes → Back up now: one .zip with your notes and everything Orrama keeps beside
   them, saved where you choose; the key to your mail and AI stays on this computer.
 - Restore from a backup, in Settings → Notes and as "I have a backup" in first run. On a new
@@ -232,6 +238,15 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Calendar: a day of a repeating event changed on its own ("This one") stays in its series. A
+  later "All" change carries to it what it still shared with the series, and Delete all takes it.
+- Today's Coming up shows a repeating event once, on its next day, marked "Every week".
+- Planning's month header and "Nothing dated" count everything the month shows.
+- Notes → Trash names a project's files and board by the project ("from the Garden studio project").
+- New person and New company: the Private switch says who can see it, not a folder name.
+- Ask Orr's `create_project` takes the next free key, as the screens do, instead of refusing.
+- The desktop app's Node is 24.22.3 (October's security fixes).
+- Settings → Developer no longer explains the MCP server; Connections → Claude does.
 - `pnpm --dir apps/server export` copies `notes-folder.json`, and its README says how to
   restore without launchd.
 - Settings' Source code link goes to the public repository, `JewelsArt/orrama`.
@@ -491,6 +506,10 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- Today's Orr noticed says "Read from 1 note", not "1 notes".
+- Settings' footer note count follows the notes as they change.
+- A task card whose project can't be read leaves its extras out instead of failing.
+- A note can't be written or moved under a dot-named folder, which the vault walk never reads.
 - The desktop app no longer makes an empty `~/Orrama` before you choose where your notes are,
   and no longer reads a folder left by an earlier install before you choose it.
 - First run's screens scroll on a phone or a small window instead of cutting off the top.
@@ -1014,6 +1033,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Upgrading
 
+- Stage 2 wave 5: schema 6 (`api_tokens.scope`), added at start after the usual copy. An older
+  build refuses the database after.
 - Stage 1 wave 3: schema 5 (events place/notes/repeat/all day, feed colour); an older build
   won't open the database after.
 - Stage 1 wave 1: nothing to do. An existing database never sees the notes chooser (no
