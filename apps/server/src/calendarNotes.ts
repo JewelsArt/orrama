@@ -51,7 +51,20 @@ import { HttpError, type VaultStore } from "./vaultStore.js";
 export const CAL_DIR = "01-Me/Calendar";
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]?\d|2[0-4]):([0-5]\d)$/;
-const ID_RE = /^(blk|ev)-[\w-]{1,40}$/;
+/** A block's or an event's id; an event's may end in `@<day>`: one day of a series, changed on its own (`exceptionOf`). */
+const ID_RE = /^(?:blk-[\w-]{1,40}|ev-[\w-]{1,40}(?:@\d{4}-\d{2}-\d{2})?)$/;
+
+/**
+ * One day of a repeating event, changed on its own: a row of its own whose id is the series'
+ * id and the day it stands in for, `ev-1a2b3c4d@2026-10-30` (ICS says the same with a
+ * RECURRENCE-ID). The series leaves that day out (`skip`), so a reader that knows nothing of
+ * this (Obsidian, an older Orrama) still sees each day once, and an "All" change finds the day
+ * by its id and carries the change to it (routes/calendar.ts). Null for any other id.
+ */
+export function exceptionOf(id: string): { series: string; day: string } | null {
+  const m = /^(ev-[\w-]{1,40})@(\d{4}-\d{2}-\d{2})$/.exec(id);
+  return m && realDay(m[2]!) ? { series: m[1]!, day: m[2]! } : null;
+}
 const HEADER = "| Date | Start | End | What | Task | id |";
 const SEPARATOR = "| --- | --- | --- | --- | --- | --- |";
 const WIDE_HEADER = "| Date | Start | End | What | Task | id | Place | Notes | Repeat |";
@@ -322,7 +335,7 @@ export function seriesOf(e: EventRow): OwnSeries & { repeat: Repeat | null } {
 export interface OwnOccurrence {
   /** The event's id, or `<id>@<day>` for a day of a series (what PATCH and DELETE take). */
   id: string;
-  /** The repeating event this day belongs to, else null. */
+  /** The repeating event this day belongs to (a day changed on its own too), else null. */
   seriesId: string | null;
   title: string;
   date: string;
@@ -347,11 +360,24 @@ export function ownEvents(db: Db, ownerId: string, from: string, to: string): Ow
     .where(and(eq(tables.events.ownerId, ownerId), lte(tables.events.date, to), or(gte(tables.events.date, from), isNotNull(tables.events.repeat))))
     .all();
   const out: OwnOccurrence[] = [];
+  // A day changed on its own is still a day of its series: it says so, and how the series repeats.
+  const seriesById = new Map(rows.filter((e) => e.repeat).map((e) => [e.id, e]));
+  const seriesFor = (id: string) => {
+    const ex = exceptionOf(id);
+    if (!ex) return null;
+    const row = seriesById.get(ex.series) ?? db.select().from(tables.events).where(and(eq(tables.events.id, ex.series), eq(tables.events.ownerId, ownerId))).get();
+    const repeat = row ? parseRepeat(row.repeat) : null;
+    if (!row || !repeat) return null;
+    const { skip: _skip, ...rule } = repeat;
+    return { id: row.id, repeat: rule };
+  };
   for (const e of rows) {
     const s = seriesOf(e);
     const base = { title: e.title, startMin: s.allDay ? 0 : e.startMin, durationMin: s.allDay ? 1440 : e.durationMin, allDay: s.allDay, place: e.place ?? null, notes: e.notes ?? null };
     if (!s.repeat) {
-      if (e.date >= from) out.push({ ...base, id: e.id, seriesId: null, date: e.date, repeat: null });
+      if (e.date < from) continue;
+      const of = seriesFor(e.id);
+      out.push({ ...base, id: e.id, seriesId: of?.id ?? null, date: e.date, repeat: of?.repeat ?? null });
       continue;
     }
     const { skip: _skip, ...repeat } = s.repeat;

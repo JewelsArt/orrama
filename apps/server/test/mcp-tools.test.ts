@@ -377,7 +377,8 @@ describe("the calendar", () => {
     expect(days.map((e: { date: string; startMin: number }) => `${e.date} ${e.startMin}`)).toEqual(["2026-12-01 540", "2026-12-08 600", "2026-12-15 540"]);
     await jules.tool("edit_event", { id: `${series}@2026-12-15`, delete: true, scope: "all" });
     days = (await jules.tool("list_events", { from: "2026-12-01", to: "2026-12-31" })).json.filter((e: { title: string }) => e.title === "Allotment");
-    expect(days.map((e: { date: string }) => e.date)).toEqual(["2026-12-08"]); // the day changed alone is an event of its own
+    // The day changed alone stays the series' (2L), so Delete all takes it too.
+    expect(days.map((e: { date: string }) => e.date)).toEqual([]);
   });
   refuses("edit_event", "Mara can neither change nor delete Jules's event", async () => {
     const r = await jules.tool("create_event", { title: "Pruning", date: "2026-12-20", startMin: 600 });

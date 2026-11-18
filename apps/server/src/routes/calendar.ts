@@ -7,12 +7,12 @@
  * teammates who overlay your lane, like any shared work calendar.
  */
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { chargeDates, isoLocal, parseSubscriptions, type AclUser } from "@orrama/core";
 import { eventWriteSchema, taskPlaceSchema } from "@orrama/schema";
 import type { z } from "zod";
-import { ownEvents, parseRepeat, repeatCell, seriesOf, type CalendarNotes, type CalRow } from "../calendarNotes.js";
+import { exceptionOf, ownEvents, parseRepeat, repeatCell, seriesOf, type CalendarNotes, type CalRow, type Repeat } from "../calendarNotes.js";
 import { tables, type Db } from "../db.js";
 import { financeNote } from "./finance.js";
 import { expandIcsReport, ownVEvent } from "../ics.js";
@@ -205,7 +205,9 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
   const repeatFor = (repeat: EventWrite["repeat"], date: string, skip: string[] = []): string | undefined => {
     if (!repeat) return undefined;
     if (repeat.until && repeat.until < date) throw new HttpError(400, "the repeat ends before the event starts");
-    return repeatCell({ ...repeat, skip: skip.filter((d) => d > date && (!repeat.until || d <= repeat.until)) });
+    // The first day too: "this one" on a series' first day leaves that day out, and dropping it
+    // here brought the day back beside its changed copy at the next "All".
+    return repeatCell({ ...repeat, skip: skip.filter((d) => d >= date && (!repeat.until || d <= repeat.until)) });
   };
 
   /** `ev-1a2b3c4d@2026-10-30` → the event and the day of it; a bare id has no day. */
@@ -216,15 +218,31 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
 
   /** Your event by id (or a day of it), or a 404 / 403. */
   const ownEvent = (raw: string, userId: string, verb: string) => {
-    const { id, day } = splitId(raw);
-    const event = db.select().from(tables.events).where(eq(tables.events.id, id)).get();
+    // A day changed on its own is a row of its own, `<series>@<day>`: found by that whole id
+    // first (its day is left out of the series, so read as a day of it, it falls on none).
+    const own = db.select().from(tables.events).where(eq(tables.events.id, raw)).get();
+    const { id, day } = own ? { id: raw, day: null } : splitId(raw);
+    const event = own ?? db.select().from(tables.events).where(eq(tables.events.id, id)).get();
     if (!event) throw new HttpError(404, "event not found");
     if (event.ownerId !== userId) throw new HttpError(403, `only the owner can ${verb} an event`);
     const series = parseRepeat(event.repeat);
     // A day that is not one of the series' is no day of it (an old link, a skipped day).
     if (day && series && !expandIcsReport([ownVEvent(seriesOf(event))], day, day).occurrences.some((o) => o.date === day)) throw new HttpError(404, "the event doesn't fall on that day");
-    return { event, day: series ? day : null, series };
+    // The series a changed day belongs to, while it is still there and still repeats.
+    const ex = own ? exceptionOf(own.id) : null;
+    const parent = ex ? db.select().from(tables.events).where(and(eq(tables.events.id, ex.series), eq(tables.events.ownerId, userId))).get() : undefined;
+    const of = ex && parent && parseRepeat(parent.repeat) ? { series: parent, day: ex.day } : null;
+    return { event, day: series ? day : null, series, of };
   };
+
+  /** The days of `seriesId` changed on their own: rows `<seriesId>@<day>`. */
+  const exceptionsOf = (seriesId: string, ownerId: string) =>
+    db
+      .select()
+      .from(tables.events)
+      .where(and(eq(tables.events.ownerId, ownerId), like(tables.events.id, `${seriesId}@%`)))
+      .all()
+      .filter((e) => exceptionOf(e.id)?.series === seriesId);
 
   const shiftDay = (iso: string, days: number) => new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
   const daysFrom = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000);
@@ -233,6 +251,84 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
     const event = db.select().from(tables.events).where(eq(tables.events.id, id)).get();
     if (!event) throw new HttpError(409, "the event could not be put on your calendar");
     return event;
+  };
+
+  /** What an "All" change can carry to a day changed on its own: its words, where, notes, and when in the day. */
+  const PARTS = {
+    title: (r: CalRow) => r.title,
+    when: (r: CalRow) => (r.allDay ? "all day" : `${r.startMin}+${r.durationMin}`),
+    place: (r: CalRow) => r.place ?? "",
+    notes: (r: CalRow) => r.notes ?? "",
+  } as const;
+  type Part = keyof typeof PARTS;
+  const take = (r: CalRow, from: CalRow, part: Part): CalRow => {
+    if (part === "title") return { ...r, title: from.title };
+    if (part === "place") return { ...r, place: from.place };
+    if (part === "notes") return { ...r, notes: from.notes };
+    const { allDay: _a, ...rest } = r;
+    return { ...rest, startMin: from.startMin, durationMin: from.durationMin, ...(from.allDay && { allDay: true }) };
+  };
+  /** Whether `day` is a day of the series as `rule` repeats it from `start`, before any day is left out. */
+  const fallsOn = (row: CalRow, rule: Repeat, day: string) => {
+    const s = seriesOf({ ...eventRowOf(row), repeat: repeatCell({ ...rule, skip: [] }) });
+    return expandIcsReport([ownVEvent(s)], day, day).occurrences.some((o) => o.date === day);
+  };
+  const eventRowOf = (r: CalRow): typeof tables.events.$inferSelect => ({
+    id: r.id,
+    ownerId: "",
+    title: r.title,
+    date: r.date,
+    startMin: r.startMin,
+    durationMin: r.durationMin,
+    createdAt: 0,
+    calNoteId: null,
+    allDay: r.allDay ?? null,
+    place: r.place ?? null,
+    notes: r.notes ?? null,
+    repeat: r.repeat ?? null,
+  });
+
+  /**
+   * "All", from one day of a series (`shown`: that day as the page showed it, a series day or a
+   * day changed on its own, `fromId` then its id). What the change changed is worked out against
+   * that day, so a day that had its own time does not hand its time to the series when only the
+   * title was retyped. The series takes it, and so does every day changed on its own, part by
+   * part, where that day still had the series' own (a day moved to 14:00 keeps 14:00 when the
+   * series' title changes, and takes the new title); the day the change was made from takes all
+   * of it. A typed day moves the series and those days by as many days, their keys too. A day
+   * the new repeat no longer falls on becomes an event of its own, never lost.
+   */
+  const changeSeries = (user: AclUser, seriesEvent: typeof tables.events.$inferSelect, rule: Repeat, shown: CalRow, body: EventWrite, fromId: string | null) => {
+    const was = rowOf(seriesEvent);
+    const after = changed(shown, { ...body, date: undefined, repeat: undefined });
+    const parts = (Object.keys(PARTS) as Part[]).filter((p) => PARTS[p](after) !== PARTS[p](shown));
+    const shift = body.date ? daysFrom(shown.date, body.date) : 0;
+
+    let next: CalRow = { ...was, date: shiftDay(was.date, shift) };
+    for (const p of parts) next = take(next, after, p);
+    const skip = rule.skip.map((d) => shiftDay(d, shift));
+    const repeat = body.repeat === undefined ? repeatFor({ every: rule.every, interval: rule.interval, until: rule.until }, next.date, skip) : repeatFor(body.repeat, next.date, skip);
+    calendar.put(user, { ...next, repeat });
+    const newRule = parseRepeat(repeat);
+
+    // Moved later, the latest day goes first (earlier, the earliest), so a day's new key is
+    // never the old key of one not moved yet: placing it there would overwrite that row.
+    const days = exceptionsOf(seriesEvent.id, seriesEvent.ownerId).sort((a, b) => (shift > 0 ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id)));
+    for (const e of days) {
+      const key = exceptionOf(e.id)!.day;
+      const row = rowOf(e);
+      let out: CalRow = row;
+      for (const p of parts) if (e.id === fromId || PARTS[p](row) === PARTS[p](was)) out = take(out, after, p);
+      const newKey = shiftDay(key, shift);
+      // Its own day stays its own; a day still on the series' day moves with it.
+      const date = e.id === fromId || row.date === key ? shiftDay(row.date, shift) : row.date;
+      const still = newRule !== null && fallsOn({ ...next, repeat }, newRule, newKey);
+      const id = still ? `${seriesEvent.id}@${newKey}` : `ev-${crypto.randomUUID().slice(0, 8)}`;
+      // The new row first, then the old one out: a crash between shows the day twice, never not at all.
+      calendar.put(user, { ...out, id, date });
+      if (id !== e.id) calendar.remove(user, e.id);
+    }
+    return seriesEvent.id;
   };
 
   app.post("/api/events", auth, async (req) => {
@@ -249,43 +345,57 @@ export async function calendarRoutes(app: FastifyInstance, db: Db, store: VaultS
 
   /**
    * Change an event. On a day of a repeating one (`<id>@<day>`), `scope` "one" (the default:
-   * a drag moves the one you dragged) leaves that day out of the series and makes it an event
-   * of its own with the change; "all" changes the series, and a typed day moves every day of it
-   * by as many days. Jules, 23 Oct 2026: "this one" and "all" only, no "this and following".
+   * a drag moves the one you dragged) leaves that day out of the series and makes it a row of
+   * its own, `<id>@<day>` (`exceptionOf`), with the change; "all" changes the series and the
+   * days changed on their own with it (`changeSeries`), and a typed day moves every day of it
+   * by as many days. A day changed on its own answers to both too: "one" changes it alone,
+   * "all" changes the series from it. Jules, 23 Oct 2026: "this one" and "all" only, no "this
+   * and following".
    */
   app.patch<{ Params: { id: string } }>("/api/events/:id", auth, async (req) => {
     const body = eventWriteSchema.parse(req.body ?? {});
-    const { event, day, series } = ownEvent(req.params.id, req.userId, "edit");
+    const { event, day, series, of } = ownEvent(req.params.id, req.userId, "edit");
     const user = store.aclUser(req.userId);
     const row = rowOf(event);
+    if (of) {
+      if (body.scope === "all") return eventById(changeSeries(user, of.series, parseRepeat(of.series.repeat)!, row, body, event.id));
+      // This day alone: it keeps its place in the series, and never repeats itself.
+      calendar.put(user, changed(row, { ...body, repeat: undefined }));
+      return eventById(event.id);
+    }
     if (day && series && body.scope !== "all") {
-      const id = `ev-${crypto.randomUUID().slice(0, 8)}`;
+      const kept = `${event.id}@${day}`;
+      const id = db.select().from(tables.events).where(eq(tables.events.id, kept)).get() ? `ev-${crypto.randomUUID().slice(0, 8)}` : kept;
       const one = changed({ ...row, id, date: day, repeat: undefined }, { ...body, repeat: undefined });
       // The day of its own first, then out of the series: a crash between shows it twice, never not at all.
       calendar.put(user, one);
       calendar.put(user, { ...row, repeat: repeatCell({ ...series, skip: [...series.skip, day] }) });
       return eventById(id);
     }
-    if (day && series) {
-      const shift = body.date ? daysFrom(day, body.date) : 0;
-      const next = changed(row, { ...body, date: shiftDay(event.date, shift) });
-      const skip = series.skip.map((d) => shiftDay(d, shift));
-      const repeat = body.repeat === undefined ? repeatFor({ every: series.every, interval: series.interval, until: series.until }, next.date, skip) : repeatFor(body.repeat, next.date, skip);
-      calendar.put(user, { ...next, repeat });
-      return eventById(event.id);
-    }
+    if (day && series) return eventById(changeSeries(user, event, series, { ...row, date: day }, body, null));
     const next = changed(row, body);
     const repeat = body.repeat === undefined ? next.repeat : repeatFor(body.repeat, next.date, series?.skip);
     calendar.put(user, { ...next, repeat });
     return eventById(event.id);
   });
 
-  /** Delete an event; on a day of a repeating one, `?scope=one` (the default) leaves that day out, `all` deletes the series. */
+  /**
+   * Delete an event; on a day of a repeating one, `?scope=one` (the default) leaves that day out,
+   * `all` deletes the series and every day of it changed on its own. A day changed on its own
+   * goes alone with "one" (its day stays left out of the series) and takes the series with "all".
+   */
   app.delete<{ Params: { id: string }; Querystring: { scope?: string } }>("/api/events/:id", auth, async (req) => {
-    const { event, day, series } = ownEvent(req.params.id, req.userId, "delete");
+    const { event, day, series, of } = ownEvent(req.params.id, req.userId, "delete");
     const user = store.aclUser(req.userId);
-    if (day && series && req.query.scope !== "all") calendar.put(user, { ...rowOf(event), repeat: repeatCell({ ...series, skip: [...series.skip, day] }) });
-    else calendar.remove(user, event.id);
+    const all = req.query.scope === "all";
+    if (of && all) {
+      calendar.remove(user, of.series.id);
+      for (const e of exceptionsOf(of.series.id, of.series.ownerId)) calendar.remove(user, e.id);
+    } else if (day && series && !all) calendar.put(user, { ...rowOf(event), repeat: repeatCell({ ...series, skip: [...series.skip, day] }) });
+    else {
+      calendar.remove(user, event.id);
+      if (series) for (const e of exceptionsOf(event.id, event.ownerId)) calendar.remove(user, e.id);
+    }
     return { ok: true };
   });
 

@@ -440,7 +440,7 @@ export const calEventSchema = o({
   feedId: z.string().optional(),
   color: z.string().nullable().optional(),
   allDay: z.boolean().optional(),
-  /** On a day of your repeating event: how it repeats, and the series' id (the day's `id` is `<seriesId>@<date>`). */
+  /** On a day of your repeating event: how it repeats, and the series' id (the day's `id` is `<seriesId>@<day>`, the series day it stands for, also on a day changed on its own and moved). */
   repeat: o({ every: z.enum(["week", "month", "year"]), interval: z.number(), until: nstr }).optional(),
   seriesId: z.string().optional(),
   /** Where and what: a subscribed occurrence's location, description (plain text) and links (http(s) only); your event's place and notes. */

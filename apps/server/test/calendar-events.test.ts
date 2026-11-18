@@ -235,31 +235,133 @@ describe("your events over the API", () => {
     const id = made.json.id as string;
     const standups = async () => (await range("2026-10-01", "2026-12-31")).filter((e) => e.title.startsWith("Standup"));
 
-    // This one: the 19th moves to Tuesday at 10:00, renamed; every other Monday stays.
+    // This one: the 19th moves to Tuesday at 10:00, renamed; every other Monday stays. It is a
+    // row of its own that still says which day of which series it stands in for.
     const one = await call("PATCH", `/api/events/${id}@2026-10-19`, { scope: "one", date: "2026-10-20", startMin: 600, title: "Standup (moved)" });
     expect(one.status).toBe(200);
-    expect(one.json).toMatchObject({ date: "2026-10-20", startMin: 600, durationMin: 15, repeat: null });
+    expect(one.json).toMatchObject({ id: `${id}@2026-10-19`, date: "2026-10-20", startMin: 600, durationMin: 15, repeat: null });
     let list = await standups();
     expect(list.map((e) => `${e.date} ${e.startMin} ${e.title}`).slice(0, 4)).toEqual(["2026-10-05 540 Standup", "2026-10-12 540 Standup", "2026-10-20 600 Standup (moved)", "2026-10-26 540 Standup"]);
     expect(list).toHaveLength(11);
 
     // All: a typed day a day later moves every day of the series, and the left-out day with it.
+    // The day changed on its own keeps the day, time and title it was given, and its key moves.
     const all = await call("PATCH", `/api/events/${id}@2026-10-26`, { scope: "all", date: "2026-10-27", startMin: 570 });
     expect(all.status).toBe(200);
     list = (await standups()).filter((e) => e.title === "Standup");
     expect(list.map((e) => e.date)).toEqual(["2026-10-06", "2026-10-13", "2026-10-27", "2026-11-03", "2026-11-10", "2026-11-17", "2026-11-24", "2026-12-01", "2026-12-08"]);
     expect(list.every((e) => e.startMin === 570)).toBe(true);
     expect(noteText("2026-10")).toContain(`| 2026-10-06 | 09:30 | 09:45 | Standup |  | ${id} |  |  | weekly until 2026-12-14, skip 2026-10-20 |`);
+    expect((await standups()).find((e) => e.title === "Standup (moved)")).toMatchObject({ id: `${id}@2026-10-20`, date: "2026-10-20", startMin: 600, seriesId: id });
 
     // A day the series doesn't fall on is no day of it.
     expect((await call("PATCH", `/api/events/${id}@2026-10-28`, { title: "x" })).status).toBe(404);
     // A repeat that ends before it starts is refused, and nothing is written.
     expect((await call("PATCH", `/api/events/${id}@2026-10-27`, { scope: "all", repeat: { every: "week", interval: 1, until: "2026-01-01" } })).status).toBe(400);
 
-    // Delete all: the series goes; the day changed on its own stays (it is its own event now).
+    // Delete all: the series goes, and the day changed on its own with it.
     expect((await call("DELETE", `/api/events/${id}@2026-11-03?scope=all`)).status).toBe(200);
-    expect((await standups()).map((e) => e.title)).toEqual(["Standup (moved)"]);
-    await call("DELETE", `/api/events/${one.json.id}`);
+    expect(await standups()).toEqual([]);
+  });
+
+  describe("a day changed on its own stays in its series (2L: stage 1 detached it)", () => {
+    const series = async (title: string, date: string, extra: object = {}) =>
+      (await call("POST", "/api/events", { title, date, startMin: 540, durationMin: 30, repeat: { every: "week", interval: 1, until: null }, ...extra })).json.id as string;
+    const days = async (from: string, to: string, id: string) => (await range(from, to)).filter((e) => e.seriesId === id || e.id === id || e.id.startsWith(`${id}@`));
+    const line = (e: Ev) => `${e.date} ${e.startMin} ${e.title}${e.details?.location ? ` @${e.details.location}` : ""}`;
+
+    it("a later All change reaches it, part by part: what it changed stays its own", async () => {
+      const id = await series("Choir practice", "2027-01-04");
+      // This one: the 11th at 10:00.
+      expect((await call("PATCH", `/api/events/${id}@2027-01-11`, { scope: "one", startMin: 600 })).json.id).toBe(`${id}@2027-01-11`);
+      // All, from another day: a new name and a place.
+      expect((await call("PATCH", `/api/events/${id}@2027-01-18`, { scope: "all", title: "Choir", place: "De Kade" })).status).toBe(200);
+      expect((await days("2027-01-01", "2027-01-20", id)).map(line)).toEqual(["2027-01-04 540 Choir @De Kade", "2027-01-11 600 Choir @De Kade", "2027-01-18 540 Choir @De Kade"]);
+      // All again, now the time: the 11th keeps its own 10:00.
+      await call("PATCH", `/api/events/${id}@2027-01-18`, { scope: "all", startMin: 1080 });
+      expect((await days("2027-01-01", "2027-01-20", id)).map((e) => e.startMin)).toEqual([1080, 600, 1080]);
+      // In the note: a row of its own, named by the series and its day, the day left out of the series.
+      const note = noteText("2027-01");
+      expect(note).toContain(`| 2027-01-11 | 10:00 | 10:30 | Choir |  | ${id}@2027-01-11 | De Kade |  |  |`);
+      expect(note).toContain(`| ${id} | De Kade |  | weekly, skip 2027-01-11 |`);
+      await call("DELETE", `/api/events/${id}?scope=all`);
+    });
+
+    it("from the changed day itself: This one changes it alone, All changes the series by what was changed there", async () => {
+      const id = await series("Lab meeting", "2027-02-01");
+      await call("PATCH", `/api/events/${id}@2027-02-08`, { scope: "one", startMin: 780 });
+      const own = `${id}@2027-02-08`;
+      // The page shows it as a day of the series, so it offers This one and All.
+      expect((await days("2027-02-01", "2027-02-10", id)).find((e) => e.id === own)).toMatchObject({ seriesId: id, repeat: { every: "week", interval: 1, until: null } });
+      // This one, the whole form sent back as the page sends it: the day alone, still in the series.
+      await call("PATCH", `/api/events/${own}`, { scope: "one", title: "Lab meeting (room 2)", date: "2027-02-08", startMin: 780, durationMin: 30, place: "", notes: "", allDay: false, repeat: { every: "week", interval: 1, until: null } });
+      expect((await days("2027-02-01", "2027-02-16", id)).map(line)).toEqual(["2027-02-01 540 Lab meeting", "2027-02-08 780 Lab meeting (room 2)", "2027-02-15 540 Lab meeting"]);
+      // All from it, only the place typed: the series takes the place, not this day's 13:00 or its name.
+      await call("PATCH", `/api/events/${own}`, { scope: "all", title: "Lab meeting (room 2)", date: "2027-02-08", startMin: 780, durationMin: 30, place: "Room 2", notes: "", allDay: false, repeat: { every: "week", interval: 1, until: null } });
+      expect((await days("2027-02-01", "2027-02-16", id)).map(line)).toEqual(["2027-02-01 540 Lab meeting @Room 2", "2027-02-08 780 Lab meeting (room 2) @Room 2", "2027-02-15 540 Lab meeting @Room 2"]);
+      // Delete this one: it goes, and its day stays out of the series.
+      await call("DELETE", `/api/events/${own}`);
+      expect((await days("2027-02-01", "2027-02-16", id)).map((e) => e.date)).toEqual(["2027-02-01", "2027-02-15"]);
+      await call("DELETE", `/api/events/${id}?scope=all`);
+    });
+
+    it("All moves a day that kept its date with the series; Delete all from a changed day takes everything", async () => {
+      const id = await series("Run club", "2027-03-01");
+      await call("PATCH", `/api/events/${id}@2027-03-08`, { scope: "one", startMin: 420 });
+      await call("PATCH", `/api/events/${id}@2027-03-22`, { scope: "one", date: "2027-03-24" });
+      // Every day two days later, typed on the 15th.
+      await call("PATCH", `/api/events/${id}@2027-03-15`, { scope: "all", date: "2027-03-17" });
+      expect((await days("2027-03-01", "2027-03-31", id)).map((e) => `${e.id.replace(id, "S")} ${e.date} ${e.startMin}`)).toEqual([
+        "S@2027-03-03 2027-03-03 540",
+        "S@2027-03-10 2027-03-10 420",
+        "S@2027-03-17 2027-03-17 540",
+        // Its own day stays its own; its key moved with the series.
+        "S@2027-03-24 2027-03-24 540",
+        "S@2027-03-31 2027-03-31 540",
+      ]);
+      expect((await call("DELETE", `/api/events/${id}@2027-03-10?scope=all`)).status).toBe(200);
+      expect(await days("2027-03-01", "2027-03-31", id)).toEqual([]);
+      expect(noteText("2027-03")).not.toContain(id);
+    });
+
+    it("moved by a whole week, a day's new key is the old key of the next: neither is lost", async () => {
+      const id = await series("Swim", "2027-07-05");
+      await call("PATCH", `/api/events/${id}@2027-07-05`, { scope: "one", startMin: 420 });
+      await call("PATCH", `/api/events/${id}@2027-07-12`, { scope: "one", startMin: 1200 });
+      await call("PATCH", `/api/events/${id}@2027-07-19`, { scope: "all", date: "2027-07-26" });
+      expect((await days("2027-07-01", "2027-08-02", id)).map((e) => `${e.id.replace(id, "S")} ${e.startMin}`)).toEqual(["S@2027-07-12 420", "S@2027-07-19 1200", "S@2027-07-26 540", "S@2027-08-02 540"]);
+      await call("DELETE", `/api/events/${id}?scope=all`);
+    });
+
+    it("a day the new repeat no longer falls on becomes an event of its own, never lost", async () => {
+      const id = await series("Piano", "2027-04-05");
+      await call("PATCH", `/api/events/${id}@2027-04-12`, { scope: "one", title: "Piano recital" });
+      // Every two weeks from the 5th: the 12th is no longer a day of it.
+      await call("PATCH", `/api/events/${id}@2027-04-05`, { scope: "all", repeat: { every: "week", interval: 2, until: null } });
+      const april = await range("2027-04-01", "2027-04-30");
+      const recital = april.find((e) => e.title === "Piano recital")!;
+      expect(recital).toMatchObject({ date: "2027-04-12", startMin: 540 });
+      expect(recital.seriesId).toBeUndefined();
+      expect(recital.id).toMatch(/^ev-[0-9a-f]{8}$/);
+      expect(april.filter((e) => e.seriesId === id).map((e) => e.date)).toEqual(["2027-04-05", "2027-04-19"]);
+      await call("DELETE", `/api/events/${id}?scope=all`);
+      await call("DELETE", `/api/events/${recital.id}`);
+    });
+
+    it("the first day changed on its own does not come back at the next All", async () => {
+      const id = await series("Book club", "2027-05-03");
+      await call("PATCH", `/api/events/${id}@2027-05-03`, { scope: "one", startMin: 1140 });
+      await call("PATCH", `/api/events/${id}@2027-05-10`, { scope: "all", title: "Books" });
+      expect((await days("2027-05-01", "2027-05-12", id)).map(line)).toEqual(["2027-05-03 1140 Books", "2027-05-10 540 Books"]);
+      await call("DELETE", `/api/events/${id}?scope=all`);
+    });
+
+    it("read back from the note alone (an Obsidian edit, a rebuild), the day is still the series'", async () => {
+      const rows = parseCalendarRows("jules", `${TABLE}| 2027-06-08 | 10:00 | 11:00 | Moved |  | ev-1a2b3c4d@2027-06-07 |\n`);
+      expect(rows.map((r) => r.id)).toEqual(["ev-1a2b3c4d@2027-06-07"]);
+      // A block never takes a day's id.
+      expect(parseCalendarRows("jules", `${TABLE}| 2027-06-08 | 10:00 | 11:00 | Draft | [[A#^t-ab12cd]] | blk-1a2b3c4d@2027-06-07 |\n`)[0]!.id).toMatch(/^blk-[0-9a-f]{8}$/);
+    });
   });
 
   it("Today's week and the scheduler see every day of a series", async () => {
