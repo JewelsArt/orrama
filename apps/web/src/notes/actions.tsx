@@ -440,6 +440,12 @@ export function HistorySheet({
 /* ---- the Trash view ----------------------------------------------------------------------- */
 
 /**
+ * Where a trashed thing came from, as a friend knows it: a project's files and board by the
+ * project's name ("the Garden studio project"), anything else by its folder's words.
+ */
+export const trashPlace = (it: Pick<TrashItem, "project">, path: string) => (it.project ? `the ${it.project} project` : folderWords(folderOf(path)));
+
+/**
  * What is in the trash (/notes/trash): each note and file, where it came from and when it went
  * in, with Restore; and Empty trash behind a Confirm, the only permanent delete.
  */
@@ -463,7 +469,7 @@ export function TrashView({ onOpen, onChanged, ask }: { onOpen: (id: string) => 
       await load();
       onChanged();
       const moved = back.path !== it.from ? ` as “${nameOf(back.path)}”, beside the one there now` : "";
-      toast(`Put “${it.title}” back in ${folderWords(folderOf(back.path))}${moved}.`, back.id ? { action: { label: "Open", run: () => onOpen(back.id!) } } : {});
+      toast(`Put “${it.title}” back in ${trashPlace(it, back.path)}${moved}.`, back.id ? { action: { label: "Open", run: () => onOpen(back.id!) } } : {});
     });
   const removable = items?.filter((i) => i.canRestore) ?? [];
   const notes = removable.filter((i) => i.kind === "note").length;
@@ -512,7 +518,7 @@ export function TrashView({ onOpen, onChanged, ask }: { onOpen: (id: string) => 
                 <span className="x">
                   <span className="t">{it.title}</span>
                   <span className="m">
-                    from {folderWords(folderOf(it.from))} · {dateTimeLabel(it.at)}
+                    from {trashPlace(it, it.from)} · {dateTimeLabel(it.at)}
                   </span>
                 </span>
                 <span className="end">

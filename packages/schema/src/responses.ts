@@ -271,6 +271,8 @@ export const trashResponse = z.array(
     from: z.string(),
     title: z.string(),
     kind: z.enum(["note", "file"]),
+    /** The project's name, when it came from a project's folder (its files, its board): said instead of the folder. */
+    project: nstr,
     /** When it went in. */
     at: z.number(),
     canRestore: z.boolean(),

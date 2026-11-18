@@ -137,6 +137,13 @@ function refusePersonalRoot(rel: string): void {
   if (personalOwner(rel) !== null && parts.length <= 2) throw new HttpError(400, "Personal folders can't be renamed, moved or put in the trash.");
 }
 
+/** The project key whose folder `rel` is inside (`04-Projects/<key>/…`), else null. */
+function projectFolderOf(rel: string): string | null {
+  if (!rel.startsWith(`${PROJECTS_DIR}/`)) return null;
+  const parts = rel.slice(PROJECTS_DIR.length + 1).split("/");
+  return parts.length >= 2 && projectSlugOf(`project/${parts[0]}`) !== null ? parts[0]! : null;
+}
+
 /** A folder as the ACL judges it, with no tags of its own. */
 const asFolder = (folder: string) => ({ folder, onlyTeams: [] as string[], shareTeams: [] as string[] });
 
@@ -243,6 +250,12 @@ export interface TrashItem {
   from: string;
   title: string;
   kind: "note" | "file";
+  /**
+   * The project it came from, by name, when it lived in a project's folder
+   * (`04-Projects/<key>/…`): its files, its board, its other notes. A friend
+   * knows "Garden studio", not `04-Projects/garden-studio/files`.
+   */
+  project: string | null;
   /** When it went in (the file's change time). */
   at: number;
   canRestore: boolean;
@@ -1769,20 +1782,41 @@ export class VaultStore {
     if (!isRealDir(root)) return [];
     const grants = this.grants();
     const out: TrashItem[] = [];
+    const names = new Map<string, string | null>();
     for (const abs of filesIn(root)) {
       const from = path.relative(root, abs).split(path.sep).join("/");
       const judged = this.judgeTrashed(abs, from);
       if (!canRead(user, judged.acl, grants)) continue;
+      const slug = projectFolderOf(from);
+      if (slug !== null && !names.has(slug)) names.set(slug, this.projectNamed(user, slug, grants));
+      const project = slug === null ? null : (names.get(slug) ?? null);
       out.push({
         path: `${TRASH_DIR}/${from}`,
         from,
-        title: judged.title,
+        // The project's board is a file named by Orrama, not by the person.
+        title: project !== null && from === `${PROJECTS_DIR}/${slug}/documents.canvas` ? "Documents board" : judged.title,
+        project,
         kind: judged.note ? "note" : "file",
         at: Math.round(fs.lstatSync(abs).ctimeMs),
         canRestore: canEdit(user, judged.acl, grants),
       });
     }
     return out.sort((a, b) => b.at - a.at || a.from.localeCompare(b.from));
+  }
+
+  /**
+   * A project's name for the trash list: its note as it is now, when the reader can read it,
+   * else its note in the trash (the whole project was deleted: the note went with its files),
+   * else null and the folder's words are said instead.
+   */
+  private projectNamed(user: AclUser, slug: string, grants: FolderGrant[]): string | null {
+    const live = this.projectNote(`project/${slug}`);
+    if (live) return canRead(user, live, grants) ? projectName(live, live.title) : null;
+    const from = `${PROJECTS_DIR}/${slug}.md`;
+    const abs = path.join(this.root, TRASH_DIR, ...from.split("/"));
+    if (!isPlainFile(abs)) return null;
+    const judged = this.judgeTrashed(abs, from);
+    return canRead(user, judged.acl, grants) ? judged.title : null;
   }
 
   /** A trashed file as the ACL would see it where it came from. */

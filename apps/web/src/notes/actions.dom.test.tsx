@@ -10,7 +10,7 @@ import type { TreeNote } from "../api.js";
 const srv = vi.hoisted(() => ({
   calls: [] as { method: string; url: string; body?: unknown }[],
   refuse: null as null | { status: number; message: string },
-  trash: [] as { path: string; from: string; title: string; kind: "note" | "file"; at: number; canRestore: boolean }[],
+  trash: [] as { path: string; from: string; title: string; kind: "note" | "file"; project: string | null; at: number; canRestore: boolean }[],
 }));
 
 vi.mock("../api.js", async (orig) => {
@@ -47,6 +47,7 @@ vi.mock("../api.js", async (orig) => {
 const { MoveDialog, RenameNoteDialog, TrashView, HistorySheet, trashFolderRequest } = await import("./actions.js");
 const { FileTree } = await import("../FileTree.js");
 const { Confirm } = await import("../Confirm.js");
+const { Toaster } = await import("../ui/overlays.js");
 
 const posts = () => srv.calls.filter((c) => c.method === "POST");
 const settle = async (ms = 0) => {
@@ -142,8 +143,8 @@ describe("a folder to the trash", () => {
 describe("the Trash view", () => {
   it("lists what's there with where it came from; Restore puts one back", async () => {
     srv.trash = [
-      { path: ".trash/Ideas/Reading.md", from: "Ideas/Reading.md", title: "Reading", kind: "note", at: Date.UTC(2026, 9, 21, 9), canRestore: true },
-      { path: ".trash/04-Projects/x/scan.pdf", from: "04-Projects/x/scan.pdf", title: "scan.pdf", kind: "file", at: Date.UTC(2026, 9, 20, 9), canRestore: false },
+      { path: ".trash/Ideas/Reading.md", from: "Ideas/Reading.md", title: "Reading", kind: "note", project: null, at: Date.UTC(2026, 9, 21, 9), canRestore: true },
+      { path: ".trash/04-Projects/x/scan.pdf", from: "04-Projects/x/scan.pdf", title: "scan.pdf", kind: "file", project: null, at: Date.UTC(2026, 9, 20, 9), canRestore: false },
     ];
     const changed = vi.fn();
     render(<TrashView onOpen={() => {}} onChanged={changed} ask={() => {}} />);
@@ -159,8 +160,30 @@ describe("the Trash view", () => {
     expect(changed).toHaveBeenCalled();
   });
 
+  it("a project's file and board say the project's name, not its key and folders (2L)", async () => {
+    srv.trash = [
+      { path: ".trash/04-Projects/garden-studio/files/quote.pdf", from: "04-Projects/garden-studio/files/quote.pdf", title: "quote.pdf", kind: "file", project: "Garden studio", at: Date.UTC(2026, 9, 21, 9), canRestore: true },
+      { path: ".trash/04-Projects/garden-studio/documents.canvas", from: "04-Projects/garden-studio/documents.canvas", title: "Documents board", kind: "file", project: "Garden studio", at: Date.UTC(2026, 9, 21, 8), canRestore: true },
+    ];
+    render(
+      <>
+        <TrashView onOpen={() => {}} onChanged={() => {}} ask={() => {}} />
+        <Toaster />
+      </>,
+    );
+    const list = within(await screen.findByRole("list", { name: "In the trash" }));
+    expect(list.getAllByRole("listitem").map((r) => r.textContent)).toEqual([
+      expect.stringContaining("quote.pdffrom the Garden studio project"),
+      expect.stringContaining("Documents boardfrom the Garden studio project"),
+    ]);
+    expect(list.getAllByRole("listitem").map((r) => r.textContent).join(" ")).not.toMatch(/garden-studio|Projects \//);
+    fireEvent.click(list.getByRole("button", { name: "Restore “quote.pdf”" }));
+    srv.trash = [];
+    expect(await screen.findByText(/Put “quote\.pdf” back in the Garden studio project/)).toBeTruthy();
+  });
+
   it("Empty trash asks first, and only then deletes", async () => {
-    srv.trash = [{ path: ".trash/A.md", from: "A.md", title: "A", kind: "note", at: 1, canRestore: true }];
+    srv.trash = [{ path: ".trash/A.md", from: "A.md", title: "A", kind: "note", project: null, at: 1, canRestore: true }];
     const ask = vi.fn();
     render(<TrashView onOpen={() => {}} onChanged={() => {}} ask={ask} />);
     fireEvent.click(await screen.findByRole("button", { name: "Empty trash" }));
