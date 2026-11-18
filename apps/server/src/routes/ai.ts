@@ -5,7 +5,7 @@ import { askVaultSchema, taskDatesSchema } from "@orrama/schema";
 import crypto from "node:crypto";
 import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@orrama/core";
 import { graphFor, resolveRef } from "./graph.js";
-import { PROJECTS_DIR, asDomain, projectNoteScaffold, slugify } from "./projects.js";
+import { createProject } from "./projects.js";
 import { applyTaskDates, applyTaskStatus } from "./tasks.js";
 import { bookTaskBlock, clampSlot } from "./calendar.js";
 import type { CalendarNotes } from "../calendarNotes.js";
@@ -339,19 +339,15 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           }
         }),
         create_project: tool({
-          description: "Create a new project. Writes a project note under 04-Projects/ (tagged so it appears on the board with tasks, planning and dashboard progress). Add tasks as `- [ ]` checkboxes.",
+          description: "Create a new project. Writes a project note under 04-Projects/ (tagged so it appears on the board with tasks, planning and dashboard progress). Add tasks as `- [ ]` checkboxes. A name another project already has is fine: this one gets the next free key (`garden-2`), as the app's New → Project does.",
           inputSchema: z.object({ name: z.string(), domain: z.enum(["personal", "professional", "academic"]).optional() }),
           execute: async ({ name, domain }: { name: string, domain?: "personal" | "professional" | "academic" }) => {
-            const slug = slugify(name);
-            const relPath = `${PROJECTS_DIR}/${slug}.md`;
-            let note;
             try {
-              note = store.write(user, relPath, projectNoteScaffold(name, slug, asDomain(domain)), undefined, undefined, { create: true, guard: agentWriter });
+              const made = createProject(store, db, user, { name, domain }, agentWriter);
+              return { success: true, noteId: made.noteId, path: made.path, key: made.key };
             } catch (err) {
-              if (err instanceof HttpError && err.statusCode === 409) return { success: false, error: "a project with that name already exists", path: relPath };
-              throw err;
+              return refused(err);
             }
-            return { success: true, noteId: note.id, path: note.path, key: `project/${slug}` };
           }
         }),
         create_task: tool({

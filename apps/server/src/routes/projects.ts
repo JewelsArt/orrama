@@ -15,7 +15,7 @@ import { sanitizeDocHtml } from "../docHtml.js";
 import { isPageName, PAGE_CSP } from "../pageSandbox.js";
 import { readPptx, SLIDE_CAPS } from "../slides.js";
 import { DOCX_CAPS, officeRefusal, readOfficeFile, XLSX_CAPS } from "../zip.js";
-import { HttpError, type VaultStore } from "../vaultStore.js";
+import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
@@ -176,48 +176,65 @@ const MAX_COLS = 40;
 /** The wall-calendar date, in the timezone the server is standing in. */
 const iso = isoLocal;
 
+/**
+ * Whether a key is someone's already: registered (a project removed from the board too), a
+ * tag a note carries, or the conventional note's path (`04-Projects/<slug>.md`, in any case),
+ * which `projectNote` takes as the project whatever it carries. A new project or a promoted
+ * note given a taken key joined that project silently, or took it over.
+ */
+const slugTaken = (store: VaultStore, db: Db, slug: string): boolean => {
+  const key = `project/${slug}`;
+  if (db.select().from(tables.projects).where(eq(tables.projects.key, key)).get()) return true;
+  const conventional = `${PROJECTS_DIR}/${slug}.md`.toLowerCase();
+  return store.index.all().some((n) => n.path.toLowerCase() === conventional || n.tags.some((t) => t.line === 0 && t.tag === key));
+};
+/** The key itself when free, else `<key>-2`, `<key>-3`…: two projects may share a name, never a key. */
+const freeSlugs = function* (store: VaultStore, db: Db, base: string) {
+  for (let n = 1; n < 1000; n++) {
+    const slug = n === 1 ? base : `${base.slice(0, 48 - String(n).length - 1)}-${n}`;
+    if (!slugTaken(store, db, slug)) yield slug;
+  }
+};
+
+/**
+ * A new project: its note under 04-Projects/ at the first free key, on the board. One way to
+ * make one, so New → Project, MCP (through the route) and Ask Orr's create_project give the
+ * same key for the same name: "Garden" twice is `garden` and `garden-2`, never a refusal
+ * (the agent's tool used to stop at a taken key while the screens moved on to the next).
+ * `guard` is the caller's write rule (the agent's `agentWriter`).
+ */
+export function createProject(
+  store: VaultStore,
+  db: Db,
+  user: ReturnType<VaultStore["aclUser"]>,
+  input: { name?: string; domain?: unknown; area?: string },
+  guard?: WriteGuard,
+): { noteId: string; path: string; slug: string; key: string } {
+  const name = input.name?.trim();
+  if (!name || name.length > 120) throw new HttpError(400, "name required (max 120)");
+  for (const slug of freeSlugs(store, db, slugify(name))) {
+    // Create-only, so `04-Projects/Thesis.md` is never replaced by the scaffold for
+    // "thesis" (slugify lower-cases; an exact-case check missed it): a name taken on
+    // disk in any spelling moves on to the next key.
+    try {
+      const note = store.write(user, `${PROJECTS_DIR}/${slug}.md`, projectNoteScaffold(name, slug, asDomain(input.domain), input.area), undefined, undefined, { create: true, ...(guard && { guard }) });
+      return { noteId: note.id, path: note.path, slug, key: `project/${slug}` };
+    } catch (err) {
+      if (!(err instanceof HttpError && err.statusCode === 409)) throw err;
+    }
+  }
+  throw new HttpError(409, "There's no free name left for that project.");
+}
+
 export async function projectRoutes(app: FastifyInstance, store: VaultStore, db: Db) {
   const auth = { preHandler: [app.authenticate] };
-
-  /**
-   * Whether a key is someone's already: registered (a project removed from the board too), a
-   * tag a note carries, or the conventional note's path (`04-Projects/<slug>.md`, in any case),
-   * which `projectNote` takes as the project whatever it carries. A new project or a promoted
-   * note given a taken key joined that project silently, or took it over.
-   */
-  const slugTaken = (slug: string): boolean => {
-    const key = `project/${slug}`;
-    if (db.select().from(tables.projects).where(eq(tables.projects.key, key)).get()) return true;
-    const conventional = `${PROJECTS_DIR}/${slug}.md`.toLowerCase();
-    return store.index.all().some((n) => n.path.toLowerCase() === conventional || n.tags.some((t) => t.line === 0 && t.tag === key));
-  };
-  /** The key itself when free, else `<key>-2`, `<key>-3`…: two projects may share a name, never a key. */
-  const freeSlugs = function* (base: string) {
-    for (let n = 1; n < 1000; n++) {
-      const slug = n === 1 ? base : `${base.slice(0, 48 - String(n).length - 1)}-${n}`;
-      if (!slugTaken(slug)) yield slug;
-    }
-  };
 
   /** Scaffold a fresh project note under 04-Projects/ and put it on the board. */
   app.post("/api/projects", auth, async (req) => {
     const body = (req.body ?? {}) as { name?: string; domain?: string; area?: string };
-    const name = body.name?.trim();
-    if (!name || name.length > 120) throw new HttpError(400, "name required (max 120)");
     const user = store.aclUser(req.userId);
     const area = body.area === undefined ? undefined : areaNamed(user, body.area);
-    for (const slug of freeSlugs(slugify(name))) {
-      // Create-only, so `04-Projects/Thesis.md` is never replaced by the scaffold for
-      // "thesis" (slugify lower-cases; an exact-case check missed it): a name taken on
-      // disk in any spelling moves on to the next key.
-      try {
-        const note = store.write(user, `${PROJECTS_DIR}/${slug}.md`, projectNoteScaffold(name, slug, asDomain(body.domain), area), undefined, undefined, { create: true });
-        return { ok: true, noteId: note.id, path: note.path, slug, key: `project/${slug}` };
-      } catch (err) {
-        if (!(err instanceof HttpError && err.statusCode === 409)) throw err;
-      }
-    }
-    throw new HttpError(409, "There's no free name left for that project.");
+    return { ok: true, ...createProject(store, db, user, { name: body.name, domain: body.domain, area }) };
   });
 
   /** Promote an existing note: add the project tags so it joins the board. */
@@ -229,7 +246,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const already = note.tags.find(isProjectTag);
     if (already) return { ok: true, alreadyProject: true, key: already.tag };
 
-    const slug = freeSlugs(slugify(note.title)).next().value;
+    const slug = freeSlugs(store, db, slugify(note.title)).next().value;
     if (!slug) throw new HttpError(409, "There's no free name left for that project.");
     const domain = asDomain(body.domain);
     const updated = updateFrontmatter(note.content, (d) => {
