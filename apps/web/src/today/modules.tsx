@@ -597,6 +597,8 @@ export interface NoticedData {
   notes: number;
 }
 
+const notesWord = (n: number) => `${n} ${n === 1 ? "note" : "notes"}`;
+
 export function NoticedModule({ loaded, health, known }: { loaded: Loaded<NoticedData>; health: Link; known: Known }) {
   const n = loaded.state === "ok" ? loaded.data : null;
   const parts = n?.first ?? [];
@@ -643,7 +645,7 @@ export function NoticedModule({ loaded, health, known }: { loaded: Loaded<Notice
       )}
       {n && n.total === 0 && (
         <Plain step={n.typed ? undefined : { ...health, label: "What Orr checks" }}>
-          {n.typed ? `Nothing in the graph needs a look. Read from ${n.notes} notes.` : `Your notes have no types yet, so there is nothing to check. Read from ${n.notes} notes.`}
+          {n.typed ? `Nothing in the graph needs a look. Read from ${notesWord(n.notes)}.` : `Your notes have no types yet, so there is nothing to check. Read from ${notesWord(n.notes)}.`}
         </Plain>
       )}
     </Module>
