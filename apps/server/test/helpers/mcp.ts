@@ -6,7 +6,9 @@
  * refuses (a DELETE saying JSON with no body) fails here as it did live. An
  * error status throws, as the MCP server's fetch does.
  */
+import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
+import type { Db } from "../../src/db.js";
 import { orramaApi } from "../../../mcp/src/http.js";
 import { callTool } from "../../../mcp/src/tools.js";
 import { signedIn } from "./session.js";
@@ -25,9 +27,17 @@ const injectFetch = (app: FastifyInstance): typeof fetch =>
     return new Response(empty ? null : r.body, { status: r.statusCode, statusText: r.statusMessage, headers: Object.entries(r.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(", ") : String(v)] as [string, string]) });
   }) as typeof fetch;
 
-export async function mcpClient(app: FastifyInstance, sessionToken: string) {
+/**
+ * A client with an API token of `sessionToken`'s account. With `claudeOnly` (the server's
+ * database), the token is the kind Connect to Claude makes (scope "mcp", mcpScope.ts): every
+ * tool must work with it, since that is the token Claude holds in the desktop app.
+ */
+export async function mcpClient(app: FastifyInstance, sessionToken: string, claudeOnly?: Db) {
   const minted = await app.inject({ method: "POST", url: "/api/tokens", headers: signedIn(sessionToken), payload: { label: "mcp test" } });
   const token: string = minted.json().token;
+  // Imported here, not at the top: db.js reads the environment, which the test sets first.
+  const { tables } = await import("../../src/db.js");
+  if (claudeOnly) claudeOnly.update(tables.apiTokens).set({ scope: "mcp" }).where(eq(tables.apiTokens.id, minted.json().id as string)).run();
   const api = orramaApi("http://localhost", token, injectFetch(app));
   const tool = async (name: string, args: Record<string, unknown> = {}) => {
     const res = await callTool(name, args, api);

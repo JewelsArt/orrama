@@ -107,7 +107,10 @@
 
 ### `apps/server/src/main.ts`
 - **Exports**: WS_MAX_FRAME, allowedHost, buildServer
-- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./build.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./routes/backup.js, ./backup.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
+- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./build.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./routes/backup.js, ./mcpScope.js, ./backup.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
+
+### `apps/server/src/mcpScope.ts`
+- **Exports**: MCP_ROUTES, scopeAllows
 
 ### `apps/server/src/migrations.ts`
 - **Exports**: runDataMigrations

@@ -38,6 +38,7 @@ import { settingsRoutes } from "./routes/settings.js";
 import { notesHomeRoutes } from "./routes/notesHome.js";
 import { areaRoutes } from "./routes/areas.js";
 import { backupRoutes } from "./routes/backup.js";
+import { scopeAllows } from "./mcpScope.js";
 import { applyPendingRestore } from "./backup.js";
 import { initWebhooks } from "./webhooks.js";
 import { sessionUser } from "./sessions.js";
@@ -243,6 +244,8 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
       // route says so once, in its config, and it is refused here.
       const sessionOnly = req.routeOptions.config.sessionOnly;
       if (sessionOnly) return reply.code(403).send({ error: sessionOnly });
+      // A Claude-only token (Connect to Claude) reaches the MCP tools' routes and nothing else.
+      if (!scopeAllows(row.scope ?? null, req.method, req.routeOptions.url)) return reply.code(403).send({ error: "this token is for Orrama's tools in Claude only" });
       req.userId = row.userId;
       req.viaToken = true;
       db.update(tables.apiTokens).set({ lastUsedAt: Date.now() }).where(eq(tables.apiTokens.id, row.id)).run();

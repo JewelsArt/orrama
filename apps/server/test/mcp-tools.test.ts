@@ -32,8 +32,9 @@ const diary = write("Personal/jules/Diary.md", "# Diary\n\nThe zebracorn plan st
 write("Personal/jules/Contacts/Zora Quill.md", "---\ntitle: Zora Quill\ntags: [contact]\nrole: Broker\ncompany: \"[[Contacts/Companies/Northwind|Northwind]]\"\n---\n# Zora Quill\n");
 write("Personal/jules/Subscriptions.md", "---\ntags: [subscriptions]\n---\n# Subscriptions\n\n| Service | Amount | Every | Next |\n|---|---|---|---|\n| Spotify | 11.99 | monthly | 2026-11-05 |\n");
 
-const jules = await mcpClient(s.built.app, s.tokens.jules!);
-const mara = await mcpClient(s.built.app, s.tokens.mara!);
+// Claude-only tokens, as Connect to Claude makes them: a tool whose route mcpScope.ts lacks fails here.
+const jules = await mcpClient(s.built.app, s.tokens.jules!, s.built.db);
+const mara = await mcpClient(s.built.app, s.tokens.mara!, s.built.db);
 const file = (rel: string) => fs.readFileSync(path.join(s.vault, rel), "utf8");
 const exists = (rel: string) => fs.existsSync(path.join(s.vault, rel));
 const API_ERROR = /Orrama API error \(40[34]\)/;

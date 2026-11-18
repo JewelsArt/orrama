@@ -101,7 +101,7 @@ CREATE INDEX IF NOT EXISTS mail_drafts_user ON mail_drafts (user_id);
 CREATE TABLE IF NOT EXISTS api_tokens (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
   token_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL,
-  created_at INTEGER NOT NULL, last_used_at INTEGER
+  created_at INTEGER NOT NULL, last_used_at INTEGER, scope TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, label TEXT NOT NULL,
@@ -132,8 +132,11 @@ CREATE TABLE IF NOT EXISTS webhooks (
  *   5  — events.all_day, place, notes, repeat and ics_feeds.color; an older
  *        build would write an event's row back without its place, notes or
  *        repeat, and draw a series as its first day alone (1H, Oct 2026).
+ *   6  — api_tokens.scope: a token made by Connect to Claude is good for the
+ *        MCP tools' routes only; an older build would take it for a full
+ *        API token (2M, Nov 2026).
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /** `ALTER TABLE … ADD COLUMN` for each column its table lacks; a failure throws with the statement. */
 export function addColumns(sqlite: Database.Database, columns: [table: string, column: string, decl: string][]): void {
@@ -244,6 +247,8 @@ export function createDb(file = dbPath()) {
       ["events", "notes", "TEXT"],
       ["events", "repeat", "TEXT"],
       ["ics_feeds", "color", "TEXT"],
+      // What a token is good for: null everything a token may do, "mcp" the MCP tools (mcpScope.ts).
+      ["api_tokens", "scope", "TEXT"],
     ]);
   } catch (err) {
     sqlite.close();

@@ -8,7 +8,7 @@
  * mint itself siblings or redirect webhooks.
  */
 import crypto from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { tables, type Db } from "../db.js";
 import { HttpError, type VaultStore } from "../vaultStore.js";
@@ -23,11 +23,12 @@ export async function integrationRoutes(app: FastifyInstance, db: Db, _store: Va
 
   // ---- API tokens ----------------------------------------------------------
 
+  // Claude's own token (scope "mcp") is listed and revoked under Connect to Claude (claudeConnect.ts).
   app.get("/api/tokens", auth, async (req) => {
     return db
       .select()
       .from(tables.apiTokens)
-      .where(eq(tables.apiTokens.userId, req.userId))
+      .where(and(eq(tables.apiTokens.userId, req.userId), isNull(tables.apiTokens.scope)))
       .all()
       .map((t) => ({ id: t.id, label: t.label, prefix: t.prefix, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt }));
   });

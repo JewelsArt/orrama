@@ -234,6 +234,11 @@ export const apiTokens = sqliteTable("api_tokens", {
   prefix: text("prefix").notNull(),
   createdAt: integer("created_at").notNull(),
   lastUsedAt: integer("last_used_at"),
+  /**
+   * null: a full API token (scripts, Shortcuts). "mcp": made by Settings → Connections → Connect
+   * to Claude, and good only for the routes Orrama's MCP tools call (apps/server/src/mcpScope.ts).
+   */
+  scope: text("scope"),
 });
 
 /** Outgoing webhooks: HMAC-signed POSTs on vault activity the owner can read. */
