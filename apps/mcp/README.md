@@ -4,7 +4,28 @@ Orrama's MCP server: your notes, steps, projects, people, calendar, money and
 mail as tools for Claude (Claude Code, Claude Desktop), over Orrama's own API
 with a personal token.
 
-## Setup
+## In the Orrama app
+
+The desktop app carries this server (`mcp.mjs` beside its own server, run by the
+app's Node). Settings → Connections → **Connect to Claude** makes a key good for
+these tools only, keeps it in a file only you can read in Orrama's data folder
+(`claude/connection.json`), adds Orrama to the Claude app's settings
+(`claude_desktop_config.json`, every other entry kept, the old file kept beside
+it as `.orrama-backup`), and shows the one command Claude Code needs:
+
+```bash
+claude mcp add orrama --scope user --env ORRAMA_CONNECTION='<data>/claude/connection.json' -- '<app>/node' '<app>/mcp.mjs'
+```
+
+Neither Claude's settings nor that command hold the key: `ORRAMA_CONNECTION`
+names the file, which the server reads at every call, so a new port or a new
+key needs nothing changed in Claude. Disconnect revokes the key, deletes the
+file and takes Orrama out of the Claude app's settings; in Claude Code,
+`claude mcp remove orrama --scope user` takes its line away (without the file it
+only answers that Orrama isn't connected). A tool answers in words when Orrama
+is closed, not connected, or was disconnected.
+
+## From a copy of the source
 
 1. Build the server: `pnpm --dir apps/mcp build`
 2. Create an API token in Orrama under Settings → API tokens.
@@ -57,3 +78,7 @@ second account's token).
   webhooks, the mail account, the calendar feed link, the notes folder and
   workspace settings. Those routes answer 403 to a token, so a leaked token
   cannot turn itself into a session.
+
+The key Connect to Claude makes can do less again: only the routes these tools
+call (`apps/server/src/mcpScope.ts`), so not a note's history, export, a
+project's files or the trash's listing, nor anything a later screen adds.

@@ -1036,8 +1036,8 @@
 - **Exports**: GRAPH_TOOLS, GraphTool, isGraphTool, graphPath
 
 ### `apps/mcp/src/http.ts`
-- **Exports**: orramaApi
-- **Imports**: @modelcontextprotocol/sdk/types.js, ./auth.js, ./tools.js
+- **Exports**: orramaApi, NOT_CONNECTED, NOT_OPEN, TURNED_OFF, connectionApi
+- **Imports**: node:fs, @modelcontextprotocol/sdk/types.js, ./auth.js, ./tools.js
 
 ### `apps/mcp/src/index.ts`
 - **Imports**: @modelcontextprotocol/sdk/server/index.js, @modelcontextprotocol/sdk/server/stdio.js, @modelcontextprotocol/sdk/types.js, ./env.js, ./http.js, ./tools.js

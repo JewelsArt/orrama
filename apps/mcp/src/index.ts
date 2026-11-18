@@ -7,7 +7,7 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { renamedEnvProblems } from "./env.js";
-import { orramaApi } from "./http.js";
+import { connectionApi, orramaApi } from "./http.js";
 import { callTool, TOOLS } from "./tools.js";
 
 const renamed = renamedEnvProblems(process.env);
@@ -16,11 +16,14 @@ if (renamed.length) {
   process.exit(1);
 }
 
+// The desktop app (Connect to Claude) names a connection file; a server run from a checkout
+// is given its address and an API token (README).
+const connection = process.env.ORRAMA_CONNECTION;
 const url = process.env.ORRAMA_URL || "http://localhost:4623";
 const token = process.env.ORRAMA_TOKEN;
 
-if (!token) {
-  console.error("ORRAMA_TOKEN environment variable is required");
+if (!connection && !token) {
+  console.error("ORRAMA_TOKEN environment variable is required (or ORRAMA_CONNECTION, which the Orrama app sets)");
   process.exit(1);
 }
 
@@ -36,7 +39,7 @@ const server = new Server(
   }
 );
 
-const fetchOrrama = orramaApi(url, token);
+const fetchOrrama = connection ? connectionApi(connection) : orramaApi(url, token!);
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
