@@ -15,6 +15,7 @@ const server = vi.hoisted(() => ({
   conflict: false,
   card: null as unknown as TaskCardData,
   reads: 0,
+  projectFails: false,
 }));
 
 vi.mock("./api.js", async (orig) => {
@@ -26,6 +27,7 @@ vi.mock("./api.js", async (orig) => {
         server.reads++;
         return server.card;
       }
+      if (method === "GET" && url === "/api/projects/graduation-thesis" && server.projectFails) throw new real.ApiError(500, "the server fell over");
       if (method === "GET" && url === "/api/projects/graduation-thesis")
         return {
           status: "on track",
@@ -84,6 +86,7 @@ beforeEach(() => {
   server.fail = false;
   server.conflict = false;
   server.reads = 0;
+  server.projectFails = false;
   server.card = cardData();
 });
 afterEach(() => vi.useRealTimers());
@@ -342,5 +345,25 @@ describe("tickStep, for lists that show open steps only (Today, a person's page)
   it("unticks a step that is done", async () => {
     await act(async () => void (await tickStep({ ...step, checked: true, status: "done" }, said)));
     expect(server.calls.map((c) => (c.body as { checked: boolean }).checked)).toEqual([false]);
+  });
+});
+
+describe("the card's project, when it can't be read (2L)", () => {
+  it("leaves the project's people out and throws nothing nobody catches", async () => {
+    const loose: unknown[] = [];
+    const note = (e: unknown) => loose.push(e);
+    process.on("unhandledRejection", note);
+    try {
+      server.projectFails = true;
+      const { dialog } = await card();
+      await settle();
+      // Let any rejection nobody caught reach the process.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(loose).toEqual([]);
+      expect(within(dialog).queryByText("Ines Vermaat")).toBeNull();
+      expect(within(dialog).getAllByText("Graduation thesis").length).toBeGreaterThan(0);
+    } finally {
+      process.off("unhandledRejection", note);
+    }
   });
 });

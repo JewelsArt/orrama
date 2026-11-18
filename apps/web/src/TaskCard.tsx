@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ProjectWorkspace, TaskCardData } from "@orrama/schema/responses";
-import { api, ApiError, unlessAborted } from "./api.js";
+import { api, ApiError } from "./api.js";
 import { isoDay, parseDayInput, parseDurationInput, parsePlanInput, parseTimeInput } from "./calendarMath.js";
 import { parseDateInput } from "./entity/dateInput.js";
 import { Button, DeadlineChip, Ring, Segmented, Square, Status, type StatusWord } from "./ui/controls.js";
@@ -132,7 +132,9 @@ export function TaskCard({
     setProject(null);
     if (!slug) return;
     const ac = new AbortController();
-    api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(slug)}`, undefined, { signal: ac.signal }).then(setProject).catch(unlessAborted);
+    // Only the card's extras (status, deadline, people): one that can't be read leaves them out,
+    // and is never thrown into nowhere (an unhandled rejection was all a failed read did).
+    api<ProjectWorkspace>("GET", `/api/projects/${encodeURIComponent(slug)}`, undefined, { signal: ac.signal }).then(setProject, () => {});
     return () => ac.abort();
   }, [slug]);
 
