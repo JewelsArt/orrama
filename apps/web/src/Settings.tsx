@@ -15,7 +15,7 @@
  * serves beside the web app: the web app's and the server's, and in the desktop app (a server
  * its shell started, `/api/health`'s `launch`) the runtime's and the window's.
  */
-import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { AiConfig, Feed, Health, MailAccount, Member, ServerSettings } from "@orrama/schema/responses";
 import { api, type Me, type SessionInfo } from "./api.js";
 import type { VisionProfile } from "./palette.js";
@@ -35,6 +35,7 @@ import { SearchField } from "./ui/fields.js";
 import { Icon } from "./ui/Icon.js";
 import { Avatar, avatarName, AVATAR_NAMES } from "./ui/orr/Orr.js";
 import { navigate, routeHref, type SettingsSection } from "./ui/router.js";
+import { onWs } from "./ws.js";
 import { Skeleton } from "./ui/states.js";
 
 export type { ThemeChoice };
@@ -83,11 +84,32 @@ export function Settings(props: SettingsProps) {
     api<Member[]>("GET", "/api/members")
       .then(setMembers)
       .catch(() => setMembers([]));
-    if (me.isOwner)
-      api<ServerSettings>("GET", "/api/settings/server")
-        .then(setServer)
-        .catch(() => setServer(null));
+  }, []);
+
+  /**
+   * The foot's "reading N notes in …" (and the phone's Notes row): asked again a second after
+   * the notes change, from here or anywhere (a note made, the example removed, a folder chosen
+   * and the server back). Read once, it went on saying the count the page opened with.
+   */
+  const loadServer = useCallback(() => {
+    if (!me.isOwner) return;
+    api<ServerSettings>("GET", "/api/settings/server")
+      .then(setServer)
+      .catch(() => setServer(null));
   }, [me.isOwner]);
+  useEffect(() => {
+    loadServer();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = onWs((msg) => {
+      if (msg.type !== "note-changed") return;
+      clearTimeout(timer);
+      timer = setTimeout(loadServer, 1000);
+    });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
+  }, [loadServer]);
 
   /** Orr & AI is the owner's; Access only exists with a second account (§3.1). */
   const visible = useMemo(
