@@ -313,3 +313,11 @@ export function repeatWords(r: NonNullable<CalEvent["repeat"]>): string {
   const every = r.interval === 1 ? `Every ${r.every}` : `Every ${r.interval} ${r.every}s`;
   return r.until ? `${every} until ${dateLabel(r.until)}` : every;
 }
+
+/**
+ * What a span holds that has a date: every item the month draws (your events and booked time,
+ * a subscribed calendar's days, due steps, key deadlines, milestones, money), Orr's unbooked
+ * proposals aside. The month header's "N dated" and its "Nothing dated" both count this: the
+ * header counted the dated band alone and said "0 dated" over a month of events.
+ */
+export const datedIn = (items: Item[], from: string, to: string): Item[] => items.filter((i) => i.date >= from && i.date <= to && i.kind !== "pp");

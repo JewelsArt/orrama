@@ -5,6 +5,7 @@ import {
   CALENDAR_LANE,
   DATED_LANE,
   buildItems,
+  datedIn,
   dueCounts,
   dueWords,
   firstScroll,
@@ -156,6 +157,21 @@ describe("the header's counts and To plan", () => {
   it("counts what is due in the span and what is late anywhere", () => {
     const items = buildItems({ tasks: [], events: [], markers: [marker({ id: "a", date: "2026-10-09", title: "a" }), marker({ id: "b", date: "2026-10-10", title: "b", key: true })], proposals: [], areaOf, ...week });
     expect(dueCounts(items, backlog, "2026-10-08")).toEqual({ due: 2, late: 1 });
+  });
+  it("the month's \"N dated\" counts everything dated in it, events too, Orr's proposals aside (2L)", () => {
+    const month = { from: "2026-10-01", to: "2026-10-31" };
+    const items = buildItems({
+      tasks: [],
+      events: [event({ id: "e1", date: "2026-10-06", title: "Dentist" }), event({ id: "e2", date: "2026-10-20", title: "Lunch" }), event({ id: "e3", date: "2026-11-02", title: "Later" })],
+      markers: [marker({ id: "a", date: "2026-10-09", title: "a" })],
+      proposals: [{ noteId: "n-report", line: 3, text: "Write", date: "2026-10-07", startMin: 540, durationMin: 60, project: null } as Proposal],
+      areaOf,
+      ...month,
+    });
+    expect(datedIn(items, month.from, month.to).map((i) => i.kind).sort()).toEqual(["du", "ev", "ev"]);
+    // A month of events alone is not "0 dated".
+    const eventsOnly = buildItems({ tasks: [], events: [event({ id: "e1", date: "2026-10-06", title: "Dentist" })], markers: [], proposals: [], areaOf, ...month });
+    expect(datedIn(eventsOnly, month.from, month.to)).toHaveLength(1);
   });
   it("cuts the backlog into late, this week (from today) and all, soonest first", () => {
     const cuts = toPlanCuts(backlog, "2026-10-08", "2026-10-05", "2026-10-11");

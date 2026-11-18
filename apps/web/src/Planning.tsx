@@ -17,7 +17,7 @@ import { onWs } from "./ws.js";
 import { Hours, type DraggedStep } from "./planning/Hours.js";
 import { ItemPopover, type Pop, type PopActions } from "./planning/ItemPopover.js";
 import { Lanes } from "./planning/Lanes.js";
-import { CALENDAR_LANE, DATED_LANE, buildItems, dueCounts, proposalWords, taskKey, toPlanCuts, weekDays, type Item, type Proposal, type ToPlanCut } from "./planning/model.js";
+import { CALENDAR_LANE, DATED_LANE, buildItems, datedIn, dueCounts, proposalWords, taskKey, toPlanCuts, weekDays, type Item, type Proposal, type ToPlanCut } from "./planning/model.js";
 import { Month, PhoneMonth } from "./planning/Month.js";
 import { PhoneWeek } from "./planning/PhoneWeek.js";
 import { ToPlanPanel, ToPlanSheet } from "./planning/ToPlan.js";
@@ -378,7 +378,7 @@ export function Planning({
         ? { from: isoDay(theDay), to: isoDay(theDay) }
         : { from: days[0]!, to: days[6]! };
   const counts = dueCounts(inSpan(span.from, span.to), backlog, today);
-  const dated = inSpan(span.from, span.to).filter((i) => i.kind === "du" || i.kind === "key" || i.kind === "ms" || i.kind === "mn").length;
+  const dated = datedIn(items, span.from, span.to).length;
   const title = scale === "month" ? `${longMonth(first)} ${first.getFullYear()}` : scale === "day" ? `${longWeekday(theDay)} ${theDay.getDate()} ${longMonth(theDay)}` : `Week ${isoWeek(weekStart).week}`;
   const meta =
     scale === "month"
@@ -475,7 +475,7 @@ export function Planning({
       Estimates are {plan.refining ? "heuristic until AI refines them" : plan.source === "ai" ? "refined by AI" : "heuristic"}; a day holds {plan.hoursPerDay}h of focused work.
     </p>
   );
-  const monthEmpty = scale === "month" && plan && inSpan(isoDay(first), isoDay(new Date(first.getFullYear(), first.getMonth() + 1, 0, 12))).length === 0;
+  const monthEmpty = scale === "month" && plan && dated === 0;
 
   let body: ReactNode;
   if (failed) {

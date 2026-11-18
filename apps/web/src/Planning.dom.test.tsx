@@ -196,6 +196,26 @@ describe("addresses", () => {
   });
 });
 
+describe("the month's header (2L)", () => {
+  it("\"N dated\" counts what the month holds, its events too: one event is not \"0 dated\"", async () => {
+    server.tasks = [];
+    server.markers = [];
+    server.events = [event({ id: "ev-dentist", date: "2026-10-20", title: "Dentist", startMin: 600, durationMin: 30 })];
+    await open("/planning/month/2026-10");
+    expect(screen.getByRole("button", { name: "1 dated" })).toBeTruthy();
+    expect(screen.queryByText("Nothing dated in October.")).toBeNull();
+  });
+
+  it("an empty month says 0 dated and Nothing dated, the same count", async () => {
+    server.tasks = [];
+    server.markers = [];
+    server.events = [];
+    await open("/planning/month/2026-10");
+    expect(screen.getByRole("button", { name: "0 dated" })).toBeTruthy();
+    expect(screen.getByText("Nothing dated in October.")).toBeTruthy();
+  });
+});
+
 describe("Lanes and Hours", () => {
   it("opens in Lanes; Hours is remembered", async () => {
     const first = await open();
