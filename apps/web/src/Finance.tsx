@@ -14,7 +14,7 @@
  * level of src/ for GETs); the pages it draws are in money/.
  */
 import { monthKey } from "@orrama/core/dates";
-import type { CategoryDetail, FinanceData, MerchantDetail, MonthDetail, Recurring } from "@orrama/schema/responses";
+import type { CategoryDetail, FileTrashed, FinanceData, MerchantDetail, MonthDetail, Recurring } from "@orrama/schema/responses";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { api, unlessAborted } from "./api.js";
 import { DocViewer } from "./DocViewer.js";
@@ -25,6 +25,8 @@ import { LineSheet } from "./money/LineSheet.js";
 import { OwnAccounts, OwnAccountSheet } from "./money/OwnAccounts.js";
 import { PayslipSheet } from "./money/PayslipSheet.js";
 import { rowAt, type EditReq } from "./money/writes.js";
+import { restoreFromTrash } from "./noteActions.js";
+import { attempt } from "./ui/writes.js";
 import { toast } from "./ui/overlays.js";
 import { navigate, useRoute } from "./ui/router.js";
 import { Notice, Skeleton } from "./ui/states.js";
@@ -109,7 +111,7 @@ function useMerchant(name: string | null, year: string | null, rev: number) {
 }
 
 /** The rows of a box, in order: what ↑ and ↓ move between (§1.7 #7). */
-const ROWS = "a.row, button.row:not(:disabled), a.mcat, div.row[tabindex]";
+const ROWS = "a.row, button.row:not(:disabled), a.mcat, div.row[tabindex], button.mdoc-open";
 
 /** ↑ and ↓ move between the rows of the box you are in; Enter opens one (it is a link). */
 export function rowKeys(e: { key: string; target: EventTarget | null; preventDefault: () => void; altKey?: boolean; metaKey?: boolean; ctrlKey?: boolean }) {
@@ -209,6 +211,16 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
     await load();
   };
   const pick = () => fileInput.current?.click();
+
+  /** A statement or payslip to the trash; Undo puts it back, and Notes → Trash keeps it too. */
+  const trash = (name: string) =>
+    void attempt(`${name} wasn't moved to the trash.`, async () => {
+      const res = await api<FileTrashed>("DELETE", `/api/finance/files/${encodeURIComponent(name)}`);
+      await changed();
+      toast(`${name} is in the trash.`, {
+        action: { label: "Undo", run: () => void attempt(`${name} wasn't put back.`, () => restoreFromTrash(res.trashPath).then(changed)) },
+      });
+    });
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer?.files?.length) return;
     e.preventDefault();
@@ -448,7 +460,7 @@ export function Money({ onOpenNote }: { onOpenNote: (id: string) => void }) {
           <OwnAccounts d={d} onEdit={(line) => setEdit({ kind: "account", line })} onOpenNote={onOpenNote} />
         </>
       ) : (
-        <DocumentsPage d={d} onRead={setReading} onUpload={pick} />
+        <DocumentsPage d={d} onRead={setReading} onUpload={pick} onTrash={trash} />
       )}
       {reader}
       {sheet}

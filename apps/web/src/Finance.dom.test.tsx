@@ -536,3 +536,41 @@ describe("Money in screens: payslips and own accounts", () => {
     await waitFor(() => expect(writes(sent)[1]).toEqual({ method: "DELETE", url: "/api/finance/own-accounts/0", body: { version: "v-own", name: "Broker" } }));
   });
 });
+
+describe("Money → Documents: a file to the trash (2L)", () => {
+  it("the row's ⋯ moves it to the trash, the figures load again, and the toast's Undo puts it back", async () => {
+    const { sent } = stubMoney({
+      writes: {
+        "DELETE /api/finance/files/revolut-2026.csv": { status: 200, body: { ok: true, trashPath: ".trash/02-Areas/finance/files/revolut-2026.csv" } },
+        "POST /api/vault/trash/restore": { status: 200, body: { path: "02-Areas/finance/files/revolut-2026.csv", id: null } },
+      },
+    });
+    at("/money/documents");
+    const user = userEvent.setup();
+    render(
+      <>
+        <Money onOpenNote={vi.fn()} />
+        <Toaster />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "More for revolut-2026.csv" }));
+    const loads = gets(sent, "/api/finance").filter((u) => u === "/api/finance").length;
+    await user.click(await screen.findByRole("menuitem", { name: "Move to the trash" }));
+    await waitFor(() => expect(writes(sent)).toEqual([{ method: "DELETE", url: "/api/finance/files/revolut-2026.csv", body: undefined }]));
+    await waitFor(() => expect(gets(sent, "/api/finance").filter((u) => u === "/api/finance").length).toBe(loads + 1));
+    expect(await screen.findByText("revolut-2026.csv is in the trash.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(writes(sent).slice(1)).toEqual([{ method: "POST", url: "/api/vault/trash/restore", body: { path: ".trash/02-Areas/finance/files/revolut-2026.csv" } }]));
+  });
+
+  it("the file's name still opens it: the ⋯ is beside it, not inside it", async () => {
+    stubMoney();
+    at("/money/documents");
+    const user = userEvent.setup();
+    render(<Money onOpenNote={vi.fn()} />);
+    const open = await screen.findByRole("button", { name: /^csv revolut-2026\.csv/ });
+    expect(open.contains(screen.getByRole("button", { name: "More for revolut-2026.csv" }))).toBe(false);
+    await user.click(open);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+});

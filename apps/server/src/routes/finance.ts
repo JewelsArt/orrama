@@ -126,16 +126,22 @@ const MAX_SHEETS = 12;
 const MAX_SHEET_ROWS = 500;
 const MAX_SHEET_COLS = 40;
 
+/** One name inside the files folder, whatever its kind: no separator, no dot-dot, no dot file. */
+function plainFileName(raw: unknown): string {
+  const name = String(raw ?? "").trim();
+  if (!name || name.length > 120) throw new HttpError(400, "filename required (max 120 chars)");
+  if (name.includes("/") || name.includes("\\") || name.includes("..") || name.startsWith(".") || CONTROL_CHARS.test(name))
+    throw new HttpError(400, "invalid filename");
+  return name;
+}
+
 /**
  * A filename we are willing to create. Anything with a separator or a dot-dot
  * is rejected outright rather than flattened by basename(): a request that
  * tried to escape is a request to refuse, not to quietly rewrite.
  */
 function safeUploadName(raw: unknown): string {
-  const name = String(raw ?? "").trim();
-  if (!name || name.length > 120) throw new HttpError(400, "filename required (max 120 chars)");
-  if (name.includes("/") || name.includes("\\") || name.includes("..") || name.startsWith(".") || CONTROL_CHARS.test(name))
-    throw new HttpError(400, "invalid filename");
+  const name = plainFileName(raw);
   // Statements come out of Revolut as .xlsx or .csv; payslips as .pdf.
   if (!/\.(pdf|csv|xlsx)$/i.test(name)) throw new HttpError(415, "only .pdf, .csv and .xlsx are accepted");
   return name;
@@ -1716,6 +1722,26 @@ export async function financeRoutes(app: FastifyInstance, _db: Db, store: VaultS
       };
     });
     return { sheets, sheetCount: wb.worksheets.length };
+  });
+
+  /**
+   * A statement or payslip to the trash (`.trash/`, where Notes → Trash restores it), never
+   * deleted for good: the figures it fed leave every total until it is put back, and a
+   * payslip's row in the payslips list stays, figures and all. The answer's `trashPath` is
+   * what the toast's Undo restores (`POST /api/vault/trash/restore`).
+   */
+  app.delete<{ Params: { name: string } }>("/api/finance/files/:name", auth, async (req) => {
+    const user = store.aclUser(req.userId);
+    requireFinanceFiles(store, user, true);
+    // Any file the Documents page lists, not only the kinds an upload takes.
+    const name = plainFileName(req.params.name);
+    const dir = filesDir(store.vaultRoot);
+    const abs = path.join(dir, name);
+    if (path.dirname(abs) !== dir || !fs.existsSync(abs)) throw new HttpError(404, "not found");
+    const rel = path.relative(store.vaultRoot, abs).split(path.sep).join("/");
+    // A .md dropped in the folder by hand is a note: it goes as one.
+    const done = store.index.getByPath(rel) ? store.trashNote(user, rel) : store.trashFile(user, rel);
+    return { ok: true as const, trashPath: done.trashPath };
   });
 
   /** Serve a stored document. Never inline: a downloaded attachment only. */

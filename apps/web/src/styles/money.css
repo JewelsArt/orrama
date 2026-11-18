@@ -184,7 +184,13 @@
 .money .mline .r span { display: block; font-size: 12px; font-weight: 450; color: var(--ink-3); }
 .money .mrun { display: flex; gap: 2px; margin-top: 5px; }
 .money .mrun i { width: 8px; height: 8px; border-radius: 2px; background: var(--ink-3); opacity: 0.55; }
-.money .row.mdoc { grid-template-columns: 44px minmax(0, 1fr) auto; }
+.money .row.mdoc { grid-template-columns: minmax(0, 1fr) auto; gap: 4px; cursor: default; }
+/* The file's name opens it and fills the row; its ⋯ sits beside it, never inside. */
+.money .mdoc-open { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-width: 0; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.money .mdoc-open::after { content: ""; position: absolute; inset: 0; }
+.money .mdoc-open:focus-visible { outline: none; }
+.money .row.mdoc:has(.mdoc-open:focus-visible) { box-shadow: var(--focus-ring); }
+.money .row.mdoc > .btn { position: relative; z-index: 1; }
 .money .mdoc .ext { display: inline-block; padding: 2px 6px; border-radius: 5px; background: var(--panel); color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 
 /* A shop in figures */

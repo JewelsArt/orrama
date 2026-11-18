@@ -8,7 +8,7 @@ import { Gantt } from "./Gantt.js";
 import { PRIORITY_WORDS, STATUS_MENU } from "./steps.js";
 import { TaskCard, type PlannableTask } from "./TaskCard.js";
 import type { ProjectWorkspace } from "./Project.js";
-import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, GroupNode, ProjectTask } from "@orrama/schema/responses";
+import type { Board, BoardEdge, BoardNode, DashboardTask, FileNode, FileTrashed, GroupNode, ProjectTask } from "@orrama/schema/responses";
 import { Bar, Button, Checkbox, Segmented, Tabs, type TaskState } from "./ui/controls.js";
 import { dateLabel, dayMonthLabel } from "./ui/dates.js";
 import { Field, Input, SearchField, Switch } from "./ui/fields.js";
@@ -598,7 +598,7 @@ function TodoRow({ t, today, canEdit, onOpen, onCheck, onStatus }: { t: ProjectT
 /** A document to the trash, with Undo in the toast (Notes → Trash keeps it too). */
 export async function trashProjectFile(w: ProjectWorkspace, name: string, onChanged: () => Promise<void>) {
   await attempt(`${name} wasn't moved to the trash.`, async () => {
-    const res = await api<{ trashPath: string }>("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(name)}`);
+    const res = await api<FileTrashed>("DELETE", `/api/projects/${encodeURIComponent(w.slug)}/files/${encodeURIComponent(name)}`);
     await onChanged();
     toast(`${name} is in the trash.`, {
       action: { label: "Undo", run: () => void attempt(`${name} wasn't put back.`, () => restoreFromTrash(res.trashPath).then(onChanged)) },

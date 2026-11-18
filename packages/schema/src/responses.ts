@@ -255,6 +255,13 @@ export const treeResponse = z.array(
 /** GET /api/vault/folders: every folder the reader may see, empty ones too (1C). */
 export const foldersResponse = z.array(z.string());
 
+/**
+ * DELETE /api/finance/files/:name and /api/projects/:slug/files/:name: the file is in the
+ * trash, and `trashPath` is what `POST /api/vault/trash/restore` takes to put it back (Undo).
+ */
+export const fileTrashedResponse = o({ ok: z.literal(true), trashPath: z.string() });
+export type FileTrashed = z.infer<typeof fileTrashedResponse>;
+
 /** GET /api/vault/trash: what is in the trash that the reader could read where it came from (1C). */
 export const trashResponse = z.array(
   o({
