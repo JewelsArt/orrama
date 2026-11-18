@@ -102,7 +102,9 @@ pnpm --dir apps/server exec vitest run test/bundle.test.ts               # the s
   binary its own pin, or nothing is written. A new Node:
   `node scripts/fetch-node.mjs --pin <version>` (a release at least a week old).
 - `package-server` builds `src-tauri/resources/server/`: `server.mjs` (the server and the
-  workspace packages, esbuild, ESM), `pdfText.worker.mjs`, `node_modules/` with only
+  workspace packages, esbuild, ESM), `pdfText.worker.mjs`, `mcp.mjs` (Orrama's MCP server,
+  `apps/mcp`, which Claude starts with this Node after Settings → Connections → Connect to
+  Claude; `apps/mcp/README.md`), `node_modules/` with only
   better-sqlite3 and @node-rs/argon2, downloaded prebuilt for the target and the pinned
   Node's ABI and checked by hash and by their headers, `web/`, `package.json`, the licence and
   the notices. It refuses a bundle that would pull in another command's entry point, leave out

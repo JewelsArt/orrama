@@ -9,7 +9,9 @@
  * ABI (sign-up hashes with argon2, everything writes through better-sqlite3), the PDF worker
  * beside server.mjs, the dynamic imports bundled in (mammoth, exceljs), the web app beside it,
  * the version without a package.json two folders up; and the contract: weak secrets refused,
- * the launch id in /api/health, a clean stop when stdin closes.
+ * the launch id in /api/health, a clean stop when stdin closes. And Orrama's MCP server beside
+ * it (mcp.mjs): Connect to Claude names it in Claude Desktop's settings, and Claude starts it
+ * with the app's Node.
  */
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -18,7 +20,10 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { TOOLS } from "../../mcp/src/tools.js";
+import { desktopConfigPath } from "../src/claudeConfig.js";
 import { pdf, textLine } from "./helpers/pdf.js";
+import { stdioClient } from "./helpers/stdio.js";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 const TAURI = path.join(ROOT, "apps/desktop/src-tauri");
@@ -62,7 +67,7 @@ function shellEnv(extra: Record<string, string>): NodeJS.ProcessEnv {
   return { ...env, ...extra };
 }
 
-async function boot(name: string, secrets: { jwt: string; key: string }) {
+async function boot(name: string, secrets: { jwt: string; key: string }, extra: Record<string, string> = {}) {
   const data = path.join(tmp, name, "data");
   const notes = path.join(tmp, name, "notes");
   const cwd = path.join(tmp, name, "elsewhere"); // nothing may depend on where the app was started from
@@ -87,6 +92,7 @@ async function boot(name: string, secrets: { jwt: string; key: string }) {
       ORRAMA_JWT_SECRET: secrets.jwt,
       ORRAMA_SECRET_KEY: secrets.key,
       ORRAMA_LAUNCH_ID: launch,
+      ...extra,
     }),
     stdio: ["pipe", fd, fd],
     windowsHide: true,
@@ -195,6 +201,60 @@ describe.skipIf(!built)("the desktop bundle", () => {
       expect(fs.existsSync(path.join(s.data, "basalt.db-wal"))).toBe(false);
     } finally {
       if (s.child.exitCode === null) s.child.kill("SIGKILL");
+      await s.exited;
+    }
+  }, 120_000);
+
+  it("connects Claude: the bundled MCP server answers over stdio on the app's own Node", async () => {
+    // A home of the test's own, with Claude Desktop's folder and someone's other server in its settings.
+    const home = path.join(tmp, "claude", "home");
+    const homeEnv = { HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), XDG_CONFIG_HOME: path.join(home, ".config") };
+    const config = desktopConfigPath(process.platform, homeEnv, home);
+    fs.mkdirSync(path.dirname(config), { recursive: true });
+    const OTHERS = '{\n  "mcpServers": {\n    "weather": { "command": "uvx", "args": ["weather-mcp"] }\n  }\n}\n';
+    fs.writeFileSync(config, OTHERS);
+    const s = await boot("claude", real(), homeEnv);
+    const origin = `http://localhost:${s.port}`;
+    let cookie = "";
+    const call = async (method: string, p: string, body?: unknown) => {
+      const r = await fetch(`${origin}${p}`, {
+        method,
+        headers: { origin, ...(cookie ? { cookie } : {}), ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+      const set = r.headers.getSetCookie().find((c) => c.startsWith(`orrama_session_${s.port}=`));
+      if (set) cookie = set.split(";")[0]!;
+      return r;
+    };
+    let mcp: ReturnType<typeof stdioClient> | null = null;
+    try {
+      expect(s.listening, fs.readFileSync(s.log, "utf8").slice(-2000)).toBe(true);
+      expect((await call("POST", "/api/auth/register", { email: "sam@example.test", username: "sam", displayName: "Sam", password: "correct horse battery" })).status).toBe(200);
+      expect(await (await call("POST", "/api/claude/connect")).json()).toMatchObject({ available: true, desktop: "added", connected: expect.any(Object) });
+      const text = fs.readFileSync(config, "utf8");
+      expect(text).toContain('"weather": { "command": "uvx", "args": ["weather-mcp"] }');
+      const entry = JSON.parse(text).mcpServers.orrama as { command: string; args: string[]; env: Record<string, string> };
+      expect(entry).toEqual({ command: NODE, args: [path.join(fs.realpathSync(APP), "mcp.mjs")], env: { ORRAMA_CONNECTION: path.join(s.data, "claude", "connection.json") } });
+
+      // What Claude Desktop does with that entry: start it, shake hands, list the tools, call one.
+      mcp = stdioClient(entry.command, entry.args, { ...shellEnv(homeEnv), ...entry.env });
+      expect((await mcp.initialize()).serverInfo.name).toBe("orrama-mcp");
+      const listed = (await mcp.request("tools/list")).tools as { name: string }[];
+      expect(listed.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
+      expect(listed).toHaveLength(28);
+      const today = await mcp.request("tools/call", { name: "list_projects", arguments: {} });
+      expect(today.isError).toBeFalsy();
+      expect(JSON.parse(today.content[0].text)).toMatchObject({ projects: [] });
+
+      // Disconnect: the entry leaves Claude's settings, and the running server says so in words.
+      expect(await (await call("POST", "/api/claude/disconnect")).json()).toMatchObject({ connected: null, desktop: "missing" });
+      expect(fs.readFileSync(config, "utf8")).toBe(OTHERS);
+      await expect(mcp.request("tools/call", { name: "list_projects", arguments: {} })).rejects.toThrow(/Orrama isn't connected to Claude/);
+      expect(mcp.stderr()).not.toContain("bslt_");
+    } finally {
+      await mcp?.close();
+      s.child.stdin!.end();
+      if ((await exitWithin(s.exited)) !== 0) s.child.kill("SIGKILL");
       await s.exited;
     }
   }, 120_000);

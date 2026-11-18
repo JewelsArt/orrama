@@ -14,6 +14,8 @@
 // licence and every notices file; that Node runs server/server.mjs with the contract's environment
 // (~/orrama-next/build/2-COMMON.md) on an empty data folder and a notes folder of its own, in a
 // home of its own; /api/health answers with this launch's id and the desktop notices are served;
+// Connect to Claude adds Orrama to a Claude settings file in that home, and the command it names
+// (the app's Node and server/mcp.mjs) answers an MCP handshake, lists the tools and answers one;
 // closing its stdin stops it with exit 0 and no SQLite WAL left behind. Nothing outside temp
 // folders is read or written, and no window opens.
 import { spawn, spawnSync } from "node:child_process";
@@ -82,7 +84,7 @@ function showInstallPlaces(dir) {
 
 async function checkApp(app, scratch) {
   const { main, node, server } = layout(app);
-  for (const f of [main, node, path.join(server, "server.mjs"), path.join(server, "web", "index.html"), ...NOTICES.map((n) => path.join(server, n))]) {
+  for (const f of [main, node, path.join(server, "server.mjs"), path.join(server, "mcp.mjs"), path.join(server, "web", "index.html"), ...NOTICES.map((n) => path.join(server, n))]) {
     if (!fs.existsSync(f)) fail(`${path.relative(app, f)} is not in ${app}`);
   }
   if (!fs.readFileSync(path.join(server, "LICENSE"), "utf8").includes("GNU AFFERO GENERAL PUBLIC LICENSE")) fail("server/LICENSE is not the AGPL");
@@ -101,6 +103,7 @@ async function checkApp(app, scratch) {
     ...basics,
     HOME: home,
     USERPROFILE: home,
+    APPDATA: path.join(home, "AppData", "Roaming"),
     ORRAMA_PACKAGED: "1",
     ORRAMA_DATA_DIR: data,
     ORRAMA_DEFAULT_NOTES_DIR: notes,
@@ -134,6 +137,7 @@ async function checkApp(app, scratch) {
     // A missing file is answered with the app's page (200), so the text is what tells.
     if (!notices.ok || !text.startsWith("Orrama's desktop app includes")) fail(`/THIRD_PARTY_NOTICES_DESKTOP.txt is not served (${notices.status}, ${notices.headers.get("content-type")})`);
     say("the desktop notices are served");
+    await checkClaude(port, home, basics);
   } catch (e) {
     child.kill();
     throw e;
@@ -155,6 +159,95 @@ async function checkApp(app, scratch) {
   if (wal.length) fail(`the database was left open: ${wal.join(", ")}`);
   say("closing its stdin stopped it: exit 0, no WAL left");
   return notes;
+}
+
+/** Where Claude Desktop keeps its settings in `home` (apps/server/src/claudeConfig.ts `desktopConfigPath`). */
+const claudeConfigIn = (home) =>
+  process.platform === "darwin"
+    ? path.join(home, "Library", "Application Support", "Claude", "claude_desktop_config.json")
+    : path.join(home, "AppData", "Roaming", "Claude", "claude_desktop_config.json");
+
+/** One MCP request over stdio, the way Claude sends it: a JSON-RPC line in, its answer's line out. */
+function mcpOver(child) {
+  let buf = "";
+  const waiting = new Map();
+  child.stdout.setEncoding("utf8").on("data", (chunk) => {
+    buf += chunk;
+    for (let nl = buf.indexOf("\n"); nl >= 0; nl = buf.indexOf("\n")) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (line) {
+        const msg = JSON.parse(line);
+        waiting.get(msg.id)?.(msg);
+      }
+    }
+  });
+  let id = 0;
+  return (method, params = {}) =>
+    new Promise((resolve, reject) => {
+      const n = ++id;
+      const timer = setTimeout(() => reject(new Error(`no answer to ${method} in 30 s`)), 30_000);
+      waiting.set(n, (msg) => {
+        clearTimeout(timer);
+        if (msg.error) reject(new Error(`${method}: ${msg.error.message}`));
+        else resolve(msg.result);
+      });
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: n, method, params })}\n`);
+    });
+}
+
+/**
+ * Connect to Claude on the installed app (2M): an account, Connect, Orrama's entry in the Claude
+ * settings file of this home (Claude's other entry kept), then what Claude does with the entry:
+ * start it, shake hands, list the tools, call one. Then Disconnect takes the entry out again.
+ */
+async function checkClaude(port, home, basics) {
+  const base = `http://127.0.0.1:${port}`;
+  let cookie = "";
+  const call = async (method, p, body) => {
+    const r = await fetch(`${base}${p}`, {
+      method,
+      headers: { origin: base, ...(cookie ? { cookie } : {}), ...(body ? { "content-type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const set = r.headers.getSetCookie().find((c) => c.startsWith(`orrama_session_${port}=`));
+    if (set) cookie = set.split(";")[0];
+    if (!r.ok) fail(`${method} ${p} answered ${r.status}: ${await r.text()}`);
+    return r.json();
+  };
+  const config = claudeConfigIn(home);
+  const OTHER = '{\n  "mcpServers": {\n    "weather": { "command": "uvx", "args": ["weather-mcp"] }\n  }\n}\n';
+  fs.mkdirSync(path.dirname(config), { recursive: true });
+  fs.writeFileSync(config, OTHER);
+  await call("POST", "/api/auth/register", { email: "check@example.test", username: "check", displayName: "Check", password: "install check password" });
+  const connected = await call("POST", "/api/claude/connect");
+  if (!connected.available || connected.desktop !== "added") fail(`Connect to Claude answered ${JSON.stringify({ ...connected, command: undefined })}`);
+  const text = fs.readFileSync(config, "utf8");
+  if (!text.includes('"weather": { "command": "uvx", "args": ["weather-mcp"] }')) fail("Connect to Claude changed Claude's other entry");
+  const entry = JSON.parse(text).mcpServers.orrama;
+  say(`Connect to Claude added Orrama to Claude's settings: ${path.basename(entry.command)} ${entry.args.map((a) => path.basename(a)).join(" ")}`);
+
+  const child = spawn(entry.command, entry.args, { env: { ...basics, HOME: home, USERPROFILE: home, ...entry.env }, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  let stderr = "";
+  child.stderr.setEncoding("utf8").on("data", (c) => (stderr += c));
+  const ask = mcpOver(child);
+  try {
+    const init = await ask("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "install-check", version: "0" } });
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
+    const { tools } = await ask("tools/list");
+    const answer = await ask("tools/call", { name: "list_projects", arguments: {} });
+    if (init.serverInfo?.name !== "orrama-mcp" || tools.length < 20 || answer.isError) fail(`the MCP server answered ${JSON.stringify({ init, tools: tools.length, answer })}`);
+    say(`the MCP server shook hands over stdio, listed ${tools.length} tools and answered list_projects`);
+  } catch (e) {
+    console.log(stderr);
+    throw e;
+  } finally {
+    child.stdin.end();
+    child.kill();
+  }
+  await call("POST", "/api/claude/disconnect");
+  if (fs.readFileSync(config, "utf8") !== OTHER) fail("Disconnect didn't leave Claude's settings as they were");
+  say("Disconnect took Orrama out of Claude's settings again");
 }
 
 async function installAndCheck(installer, scratch) {

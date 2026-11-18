@@ -7,6 +7,8 @@
 // What goes in (the contract in ~/orrama-next/build/2-COMMON.md):
 //   server.mjs               apps/server and the workspace packages in one ESM file (esbuild)
 //   pdfText.worker.mjs       the PDF worker, beside it, bundled with unpdf
+//   mcp.mjs                  Orrama's MCP server (apps/mcp) in one file: Claude Desktop and Claude
+//                            Code start it with the app's Node (Settings → Connect to Claude, 2M)
 //   node_modules/            only the two native modules, built for <triple> and the pinned
 //                            Node's ABI: better-sqlite3 (+ bindings, file-uri-to-path) and
 //                            @node-rs/argon2 with its one platform package
@@ -40,6 +42,7 @@ import {
 } from "./bundle-common.mjs";
 
 const SERVER = path.join(ROOT, "apps", "server");
+const MCP = path.join(ROOT, "apps", "mcp");
 const WEB_DIST = path.resolve(arg("web", path.join(ROOT, "apps", "web", "dist")));
 export const OUT = path.join(TAURI, "resources", "server");
 /** Built here, then put in place whole: a refusal halfway never leaves a folder that looks built. */
@@ -82,7 +85,7 @@ function checkBinary(file, data, triple) {
 async function bundle(version) {
   const result = await esbuild.build({
     absWorkingDir: ROOT,
-    entryPoints: { server: path.join(SERVER, "src", "main.ts"), "pdfText.worker": path.join(SERVER, "src", "pdfText.worker.mjs") },
+    entryPoints: { server: path.join(SERVER, "src", "main.ts"), "pdfText.worker": path.join(SERVER, "src", "pdfText.worker.mjs"), mcp: path.join(MCP, "src", "index.ts") },
     outdir: BUILD,
     outExtension: { ".js": ".mjs" },
     bundle: true,
@@ -111,6 +114,10 @@ async function bundle(version) {
   if (unexpected.length) fail(`the bundle would need ${unexpected.join(", ")} at run time, which the app does not carry`);
   const main = fs.readFileSync(path.join(BUILD, "server.mjs"), "utf8");
   if (!main.includes('new URL("./pdfText.worker.mjs", import.meta.url)')) fail("server.mjs no longer starts the PDF worker from ./pdfText.worker.mjs beside it");
+  // Connect to Claude names it beside server.mjs (apps/server/src/claudeConnect.ts `appHost`).
+  if (!main.includes('"mcp.mjs"')) fail("server.mjs no longer names mcp.mjs beside it for Connect to Claude");
+  const mcpOut = Object.keys(result.metafile.outputs).filter((o) => o.endsWith("mcp.mjs"));
+  if (mcpOut.length !== 1) fail("the MCP server was not bundled into mcp.mjs");
 }
 
 async function natives(triple, pins) {
@@ -174,5 +181,5 @@ fs.renameSync(BUILD, OUT);
 
 const part = (p) => mb(fs.statSync(path.join(OUT, p)).isDirectory() ? folderSize(path.join(OUT, p)) : fs.statSync(path.join(OUT, p)).size);
 console.log(`Orrama ${version} server for ${triple} in ${path.relative(ROOT, OUT)} (${((Date.now() - started) / 1000).toFixed(1)} s)`);
-console.log(`  server.mjs ${part("server.mjs")}, pdfText.worker.mjs ${part("pdfText.worker.mjs")}, node_modules ${part("node_modules")}, web ${part("web")}`);
+console.log(`  server.mjs ${part("server.mjs")}, pdfText.worker.mjs ${part("pdfText.worker.mjs")}, mcp.mjs ${part("mcp.mjs")}, node_modules ${part("node_modules")}, web ${part("web")}`);
 console.log(`  total ${mb(folderSize(OUT))}`);
