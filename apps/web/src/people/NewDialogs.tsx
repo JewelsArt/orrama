@@ -43,11 +43,18 @@ export const SECTOR_SUGGESTIONS = ["Finance", "Marketing", "Leadership", "Operat
 /** A failure said for a person: a name already taken, or the server not answering. */
 export function failureOf(err: unknown, what: "person" | "company"): { title: string; text: string } {
   if (err instanceof ApiError && err.status === 409)
-    return { title: `There's already a note with this name`, text: `${err.message} Open it from People, or give this ${what} a fuller name.` };
+    // The server's sentence names the file and its folder; a friend knows people and companies, not folders.
+    return { title: `There's already a note with this name`, text: `Open it from People, or give this ${what} a fuller name.` };
   if (err instanceof ApiError && (err.status === 400 || err.status === 403))
     return { title: "Not saved", text: "This name can't be a note's file name here. Leave out slashes and try again." };
   return { title: "Not saved", text: "The server didn't answer. Check that Orrama is running, then try again." };
 }
+
+/**
+ * What Private means, in the words of who can see it: never the folder it lands in
+ * (`Contacts/`, `Personal/<you>/`), which the ontology keeps out of sight (1-COMMON §3).
+ */
+export const privateHelp = (on: boolean) => (on ? "Only you can see it." : "Anyone you share your notes with can see it.");
 
 function Sectors({ id }: { id: string }) {
   return (
@@ -131,7 +138,7 @@ export function NewPerson({ me: given, onClose, onSaved }: { me?: Me; onClose: (
           </Field>
         </div>
         <Sectors id="pp-sectors" />
-        <Field label="Private" help={priv ? `Saved in Personal/${me?.username ?? "you"}/Contacts, for you only.` : "Saved in Contacts."}>
+        <Field label="Private" help={privateHelp(priv)}>
           <Switch checked={priv} onChange={setPriv} label="Private" />
         </Field>
         {failure && <Notice title={failure.title} text={failure.text} />}
@@ -207,7 +214,7 @@ export function NewCompany({ me: given, name: initial = "", onClose, onSaved }: 
         <Field label="Positions seen there" help="Separate them with commas.">
           <Input value={f.positions} onChange={set("positions")} placeholder="Data analyst, Marketing intern" />
         </Field>
-        <Field label="Private" help={priv ? `Saved in Personal/${me?.username ?? "you"}/Companies, for you only.` : "Saved in Contacts/Companies."}>
+        <Field label="Private" help={privateHelp(priv)}>
           <Switch checked={priv} onChange={setPriv} label="Private" />
         </Field>
         {failure && <Notice title={failure.title} text={failure.text} />}

@@ -221,6 +221,19 @@ describe("People: New", () => {
     expect(puts[1]!.content).toContain('\ncompany: "[[Contacts/Companies/Oost Runners|Oost Runners]]"\n');
   });
 
+  it("says what Private means in who can see it, never the folder the note lands in (2L)", async () => {
+    stub();
+    const user = userEvent.setup();
+    render(<People me={me} />);
+    await rowOf("Ines Vermaat");
+    await user.click(screen.getAllByRole("button", { name: "Person" })[0]!);
+    const dialog = await screen.findByRole("dialog", { name: "New person" });
+    expect(within(dialog).getByText("Anyone you share your notes with can see it.")).toBeTruthy();
+    await user.click(within(dialog).getByRole("switch", { name: "Private" }));
+    expect(within(dialog).getByText("Only you can see it.")).toBeTruthy();
+    expect(dialog.textContent).not.toMatch(/Contacts|Personal\//);
+  });
+
   it("says a taken name in a Notice, keeps what was typed, and replaces nothing", async () => {
     stub(TYPED, { "PUT /api/vault/note": () => json({ error: "A note already exists at Contacts/Ines Vermaat.md." }, 409) });
     const user = userEvent.setup();
@@ -233,7 +246,8 @@ describe("People: New", () => {
     const notice = await within(dialog).findByRole("alert");
     expect(notice.classList.contains("notice")).toBe(true);
     expect(notice.textContent).toContain("There's already a note with this name");
-    expect(notice.textContent).toContain("Contacts/Ines Vermaat.md");
+    // The server's sentence names the folder; the notice doesn't.
+    expect(notice.textContent).not.toContain("Contacts/");
     expect(dialog.querySelector(".form-error")).toBeNull();
     expect((within(dialog).getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toBe("Ines Vermaat");
   });
