@@ -299,7 +299,7 @@
 
 ### `apps/web/src/App.tsx`
 - **Exports**: FinancePage, View, routeOfView, viewOfRoute, titleOf, App
-- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./door/Reset.js, ./desktop.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/wavy.js, ./ui/writes.js, ./ws.js, ./noteSync.js
+- **Imports**: react, ./api.js, ./Notes.js, ./noticed/Noticed.js, ./entity/EntityPage.js, ./entity/title.js, ./AskPanel.js, ./Me.js, ./create/New.js, ./Finance.js, ./people/People.js, ./Project.js, ./Today.js, ./today/mailDot.js, ./today/title.js, ./Lock.js, ./Login.js, ./door/Reset.js, ./desktop.js, ./Mail.js, ./Overview.js, ./palette.js, ./Planning.js, ./planning/title.js, ./QuickCapture.js, ./find/Find.js, ./Settings.js, ./settings/parts.js, ./Setup.js, ./storage.js, ./door/Boot.js, ./ui/keys.js, ./ui/overlays.js, ./ui/router.js, ./ui/shell/KeysSheet.js, ./ui/ErrorBoundary.js, ./ui/shell/Shell.js, ./ui/theme.js, ./ui/wavy.js, ./ui/writes.js, ./ws.js, ./noteSync.js
 
 ### `apps/web/src/AskPanel.tsx`
 - **Exports**: AskPanel
@@ -344,6 +344,10 @@
 ### `apps/web/src/Mail.tsx`
 - **Exports**: Mail
 - **Imports**: react, @orrama/schema/responses, ./api.js, ./Confirm.js, ./storage.js, ./ui/controls.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/overlays.js, ./mail/Composer.js, ./mail/compose.js, ./mail/DraftCard.js, ./mail/MailList.js, ./mail/MessageBody.js, ./mail/people.js, ./mail/Reader.js, ./mail/tabs.js, ./mail/Waiting.js
+
+### `apps/web/src/Me.tsx`
+- **Exports**: Me
+- **Imports**: react, @orrama/core/persona-graph, @orrama/schema/responses, ./api.js, ./ui/controls.js, ./ui/Icon.js, ./ui/overlays.js, ./ui/orr/Orr.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/shell/SectionBar.js, ./me/context.js, ./me/Empty.js, ./me/generation.js, ./me/Introduce.js, ./me/model.js, ./me/Overview.js, ./me/Side.js, ./me/Views.js
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
@@ -597,7 +601,7 @@
 - **Imports**: react, @orrama/schema/responses, ../ui/orr/Orr.js, ../ui/states.js
 
 ### `apps/web/src/mail/compose.ts`
-- **Exports**: Draft, Compose, composeOf, composeHref, emptyDraft, replyDraft, htmlText, forwardDraft, stagedDraft
+- **Exports**: Draft, Compose, composeOf, composeHref, emptyDraft, holdForComposer, peekHeld, clearHeld, replyDraft, htmlText, forwardDraft, stagedDraft
 - **Imports**: @orrama/schema/responses, ../ui/dates.js
 
 ### `apps/web/src/mail/people.ts`
@@ -616,7 +620,43 @@
 - **Imports**: ../ui/dates.js
 
 ### `apps/web/src/main.tsx`
-- **Imports**: react, react-dom/client, @orrama/ui/fonts.css, @orrama/ui/tokens.css, @orrama/ui/vision.css, @orrama/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, @orrama/ui/clay.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
+- **Imports**: react, react-dom/client, @orrama/ui/fonts.css, @orrama/ui/tokens.css, @orrama/ui/vision.css, @orrama/ui/base.css, ./styles/shared.css, ./styles/door.css, ./styles/notes.css, ./styles/find.css, ./styles/settings.css, ./styles/planning.css, ./styles/ask.css, ./styles/new.css, ./styles/orrery.css, ./styles/reader.css, ./styles/people.css, ./styles/me.css, ./styles/editor.css, ./styles/today.css, ./styles/entity.css, ./styles/noticed.css, ./styles/project.css, ./styles/mail.css, ./styles/money.css, ./styles/projects.css, ./styles/shell.css, ./ui/ui.css, @orrama/ui/clay.css, ./App.js, ./storage.js, ./ui/ErrorBoundary.js, ./ui/reloadKey.js, ./noteSync.js, ./ui/writes.js
+
+### `apps/web/src/me/Empty.tsx`
+- **Exports**: Sources, Empty
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/router.js
+
+### `apps/web/src/me/Introduce.tsx`
+- **Exports**: Introduce
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../mail/compose.js, ./Side.js
+
+### `apps/web/src/me/Overview.tsx`
+- **Exports**: Overview
+- **Imports**: react, @orrama/core/persona-graph, ../ui/Icon.js, ../ui/controls.js, ../ui/CountUp.js, ../ui/overlays.js, ../ui/controls.js, ./context.js, ./model.js, ./Story.js
+
+### `apps/web/src/me/Side.tsx`
+- **Exports**: TreeNote, Side, Seg
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../entity/links.js, ../mail/compose.js, ./context.js, ./model.js
+
+### `apps/web/src/me/Story.tsx`
+- **Exports**: Story
+- **Imports**: react, @orrama/core/persona-graph, ./model.js, ./context.js
+
+### `apps/web/src/me/Views.tsx`
+- **Exports**: StoryView, WorkView, SkillsView, VoiceView
+- **Imports**: react, ../ui/controls.js, ./context.js, ./model.js
+
+### `apps/web/src/me/context.ts`
+- **Exports**: MeShared, MeContext, useMe, useLink
+- **Imports**: react, @orrama/schema/responses, @orrama/core/persona-graph
+
+### `apps/web/src/me/generation.ts`
+- **Exports**: watchGeneration
+- **Imports**: @orrama/schema/responses, ../api.js, ../ui/overlays.js, ../ui/router.js
+
+### `apps/web/src/me/model.ts`
+- **Exports**: laneColor, thisMonth, nameOf, shortOrg, factText, HeaderFact, headerFacts, vouches, relationOf, openQuestions, sourceNote, contactFor, workGroups, newestFirst, pitchLanguages
+- **Imports**: @orrama/schema/responses, @orrama/core/persona-graph
 
 ### `apps/web/src/money/Categories.tsx`
 - **Exports**: CategoriesSheet, ShopMove
@@ -777,7 +817,7 @@
 
 ### `apps/web/src/people/People.tsx`
 - **Exports**: People, default
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ws.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ../ui/router.js, ../storage.js, ./model.js, ./NewDialogs.js, ./rows.js
 
 ### `apps/web/src/people/PersonEdit.tsx`
 - **Exports**: PersonEdit
@@ -1004,7 +1044,7 @@
 - **Exports**: installReloadKey
 
 ### `apps/web/src/ui/router.ts`
-- **Exports**: Place, PLACES, MoneyPage, ProjectTab, ProjectShelf, SettingsSection, Route, parseRoute, routeHref, placeOf, placeRoute, isDeep, navigate, canGoBack, goBack, useLocation, useRoute, canonical
+- **Exports**: Place, PLACES, MoneyPage, ProjectTab, ProjectShelf, MeTab, SettingsSection, Route, parseRoute, routeHref, placeOf, placeRoute, isDeep, navigate, canGoBack, goBack, useLocation, useRoute, canonical
 - **Imports**: react
 
 ### `apps/web/src/ui/shell/KeysSheet.tsx`
@@ -1101,8 +1141,12 @@
 - **Imports**: ./money.js, ./table.js
 
 ### `packages/core/src/persona.ts`
-- **Exports**: PERSONA_TAG, Month, monthOf, yearOfMonth, Period, PersonaExperience, PersonaProject, PersonaSkill, PersonaProof, PersonaPerson, PersonaQuestion, PersonaVoice, PitchLength, PersonaUnread, Persona, PERSONA_SECTIONS, PersonaSection, sectionOf, plain, parsePeriod, namesIn, parsePersona, personaText, PersonaGraph, personaGraph, StoryYear, StoryBar, Story, LANE_ORDER, storyOf, answerQuestion, numbersIn, unsourcedNumbers, blankPersona
-- **Imports**: ./frontmatter.js, ./parse.js, ./table.js
+- **Exports**: PERSONA_TAG, PersonaExperience, PersonaProject, PersonaSkill, PersonaProof, PersonaPerson, PersonaQuestion, PersonaVoice, PitchLength, PersonaUnread, Persona, PERSONA_SECTIONS, PersonaSection, sectionOf, plain, parsePeriod, namesIn, parsePersona, personaText, answerQuestion, numbersIn, unsourcedNumbers, blankPersona
+- **Imports**: ./frontmatter.js, ./parse.js, ./table.js, ./personaGraph.js
+
+### `packages/core/src/personaGraph.ts`
+- **Exports**: Month, monthOf, yearOfMonth, Period, PersonaGraph, personaGraph, StoryYear, StoryBar, Story, LANE_ORDER, storyOf
+- **Imports**: ./persona.js
 
 ### `packages/core/src/recurring.ts`
 - **Exports**: RecurringCharge, findRecurring, unclaimedRecurring

@@ -27,6 +27,8 @@ export const PLACES: { place: Place; label: string; key: string }[] = [
 export type MoneyPage = "spending" | "documents" | "subscriptions" | "income" | "savings";
 export type ProjectTab = "timeline" | "documents" | "todo" | "reader";
 export type ProjectShelf = "paused" | "cancelled" | "done" | "removed";
+/** The Me page's sections (ME): Overview is `/me`. */
+export type MeTab = "story" | "work" | "skills" | "voice";
 export type SettingsSection = "you" | "appearance" | "ai" | "notes" | "connections" | "device" | "sessions" | "developer" | "access";
 
 export type Route =
@@ -48,7 +50,9 @@ export type Route =
   | { kind: "document"; path: string }
   | { kind: "mail"; id?: string; waiting?: boolean }
   | { kind: "money"; page?: MoneyPage; category?: string; merchant?: string; month?: string }
-  | { kind: "settings"; section?: SettingsSection };
+  | { kind: "settings"; section?: SettingsSection }
+  /** Your page (ME): reached from the account menu and People's first row; it lights People. */
+  | { kind: "me"; tab?: MeTab };
 
 const MONEY_PAGES = new Set<MoneyPage>(["spending", "documents", "subscriptions", "income", "savings"]);
 const PROJECT_TABS = new Set<ProjectTab>(["timeline", "documents", "todo", "reader"]);
@@ -64,6 +68,7 @@ const PROJECT_SHELVES = new Map<string, ProjectShelf>([
 ]);
 const SECTIONS = new Set<SettingsSection>(["you", "appearance", "ai", "notes", "connections", "device", "sessions", "developer", "access"]);
 const SCALES = new Set(["day", "week", "month"]);
+const ME_TABS = new Set<MeTab>(["story", "work", "skills", "voice"]);
 
 const dec = (s: string) => {
   try {
@@ -144,6 +149,8 @@ export function parseRoute(pathname: string, search = ""): Route | null {
     }
     case "settings":
       return rest[0] && SECTIONS.has(rest[0] as SettingsSection) ? { kind: "settings", section: rest[0] as SettingsSection } : { kind: "settings" };
+    case "me":
+      return rest[0] && ME_TABS.has(rest[0] as MeTab) ? { kind: "me", tab: rest[0] as MeTab } : { kind: "me" };
     default:
       return null;
   }
@@ -190,6 +197,8 @@ export function routeHref(r: Route): string {
     }
     case "settings":
       return `/settings${r.section ? `/${r.section}` : ""}`;
+    case "me":
+      return `/me${r.tab ? `/${r.tab}` : ""}`;
   }
 }
 
@@ -213,6 +222,7 @@ export function placeOf(r: Route): Place | null {
     case "people":
     case "person":
     case "company":
+    case "me":
       return "people";
     case "mail":
       return "mail";

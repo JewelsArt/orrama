@@ -106,6 +106,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("People: you first", () => {
+  it("your page is the first row, and leaves while you search", async () => {
+    stub();
+    const user = userEvent.setup();
+    render(<People me={me} />);
+    const you = await screen.findByRole("link", { name: /^Jules/ });
+    expect(you.getAttribute("href")).toBe("/me");
+    await user.type(screen.getAllByRole("searchbox")[0]!, "Ines");
+    await waitFor(() => expect(screen.queryByRole("link", { name: /^Jules/ })).toBeNull());
+  });
+});
+
 describe("People: the rows", () => {
   it("says role, company and the relation that speaks for them, and when they were last mentioned", async () => {
     stub();

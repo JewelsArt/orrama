@@ -183,7 +183,7 @@ describe("the shell", () => {
     expect(rail.textContent).not.toMatch(/Reload|Back|your vault|Ask vault/);
     expect(rail.querySelector("kbd, .kbd, .rail-kbd")).toBeNull(); // keys live in tooltips (§8 #5)
     expect(rail.querySelector(".ri[data-tip]")?.getAttribute("data-tip")).toBe("Today  1");
-    expect(screen.getByRole("link", { name: "Jules: Settings" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Jules: your page and Settings" })).toBeTruthy();
   });
 
   it("lights the place you are in, and its address is the rail's link", async () => {
@@ -200,14 +200,31 @@ describe("the shell", () => {
     expect(document.title).toBe("Projects · Orrama");
   });
 
-  it("your Orr opens Settings → You", async () => {
+  it("your Orr is a menu: your page (ME) and Settings → You", async () => {
     const user = userEvent.setup();
     at("/today");
     render(<App />);
     await view();
-    await user.click(screen.getByRole("link", { name: "Jules: Settings" }));
+    await user.click(screen.getByRole("button", { name: "Jules: your page and Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Your page" }));
+    expect(path()).toBe("/me");
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["me"]);
+    // It lives with People: the rail lights People.
+    expect(screen.getAllByRole("link", { name: /^People/ })[0]!.getAttribute("aria-current")).toBe("page");
+    await user.click(screen.getByRole("button", { name: "Jules: your page and Settings" }));
+    await user.click(screen.getByRole("menuitem", { name: "Settings" }));
     expect(path()).toBe("/settings/you");
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toEqual(["settings"]);
+  });
+
+  it("the Me page can hand Ask Orr a question to start from", async () => {
+    const user = userEvent.setup();
+    at("/me");
+    render(<App />);
+    await view();
+    await user.click(screen.getByRole("button", { name: "ask about me" }));
+    expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("ask");
+    expect(screen.getAllByTestId("view").find((v) => v.dataset.view === "ask")!.textContent).toContain("seed=Help me answer this");
   });
 
   it("on the phone, More holds the other places and Settings, with your Orr on top", async () => {
@@ -217,7 +234,7 @@ describe("the shell", () => {
     await view();
     await user.click(screen.getByRole("button", { name: /^More/ }));
     const more = screen.getByRole("dialog", { name: "More" });
-    expect([...more.querySelectorAll(".more-row")].map((e) => e.textContent)).toEqual(["Orrery", "Projects", "People", "Mail", "Money", "Settings"]);
+    expect([...more.querySelectorAll(".more-row")].map((e) => e.textContent)).toEqual(["Your page", "Orrery", "Projects", "People", "Mail", "Money", "Settings"]);
     expect(more.querySelector(".more-me")?.textContent).toMatch(/Jules/);
     await user.click([...more.querySelectorAll<HTMLElement>(".more-row")].find((e) => e.textContent === "Money")!);
     expect(path()).toBe("/money");

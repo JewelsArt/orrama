@@ -77,6 +77,7 @@ vi.mock("../Project.js", () => {
 // People holds what was typed in it: its own addresses (a person, ?q=) must not remount it.
 vi.mock("../people/People.js", () => ({ People: stub("contacts", () => [], () => <input aria-label="people draft" />) }));
 vi.mock("../Mail.js", () => ({ Mail: stub("mail") }));
+vi.mock("../Me.js", () => ({ Me: stub("me", (p) => [["ask about me", () => p.onAsk("Help me answer this")]]) }));
 // The entity pages and Orr noticed (R11): each says the address it was given.
 vi.mock("../entity/EntityPage.js", async () => {
   const { routeHref } = await import("../ui/router.js");

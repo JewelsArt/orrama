@@ -21,7 +21,7 @@ import { EmptyState, Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { toast } from "./ui/overlays.js";
 import { Composer } from "./mail/Composer.js";
-import { composeHref, composeOf, emptyDraft, forwardDraft, replyDraft, stagedDraft, type Compose, type Draft } from "./mail/compose.js";
+import { composeHref, composeOf, emptyDraft, forwardDraft, replyDraft, stagedDraft, clearHeld, peekHeld, type Compose, type Draft } from "./mail/compose.js";
 import { DraftCard } from "./mail/DraftCard.js";
 import { MailList, type RowLook } from "./mail/MailList.js";
 import { imagesAllowed, setImagesAllowed } from "./mail/MessageBody.js";
@@ -240,8 +240,12 @@ export function Mail(_props: { me: Me }) {
     [leaveComposer, path],
   );
   /** Close the composer: back to the page it opened over. */
+  // What the Me page wrote, for the first new message (taken once, when Mail opens).
+  const [held, setHeld] = useState(peekHeld);
+  useEffect(clearHeld, []);
   const closeComposer = useCallback(() => {
     dirty.current = false;
+    setHeld(null);
     goBack(at);
   }, [at]);
 
@@ -355,7 +359,7 @@ export function Mail(_props: { me: Me }) {
     );
 
   let draft: Draft | null | "gone" = null;
-  if (compose?.kind === "new") draft = emptyDraft();
+  if (compose?.kind === "new") draft = held ? { ...emptyDraft(), ...held } : emptyDraft();
   else if (compose?.kind === "reply") draft = shown ? replyDraft(shown) : null;
   else if (compose?.kind === "forward") draft = shown ? forwardDraft(shown) : null;
   else if (compose?.kind === "draft") {

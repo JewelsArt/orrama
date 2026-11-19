@@ -57,7 +57,7 @@ describe("the section bar", () => {
     const top = sections().closest(".ctop");
     expect(top).not.toBeNull();
     expect(within(top as HTMLElement).getByRole("button", { name: "Find" })).toBeTruthy();
-    expect(within(top as HTMLElement).getByRole("link", { name: "Erin Vale: Settings" }).getAttribute("href")).toBe("/settings/you");
+    expect(within(top as HTMLElement).getByRole("button", { name: "Erin Vale: your page and Settings" }).getAttribute("aria-haspopup")).toBe("menu");
     expect(screen.getByTestId("page").contains(sections())).toBe(false);
     expect(screen.getByTestId("page").dataset.look).toBe("clay");
   });
@@ -74,7 +74,7 @@ describe("the section bar", () => {
     expect(document.querySelector(".ctop")).toBeNull();
     expect(screen.getByTestId("page").contains(sections())).toBe(true);
     expect(within(rail()).getByRole("button", { name: "Find" })).toBeTruthy();
-    expect(within(rail()).getByRole("link", { name: "Erin Vale: Settings" })).toBeTruthy();
+    expect(within(rail()).getByRole("button", { name: "Erin Vale: your page and Settings" })).toBeTruthy();
   });
 });
 

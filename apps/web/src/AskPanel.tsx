@@ -96,7 +96,8 @@ interface Status {
   provider: string | null;
 }
 
-export function AskPanel({ onClose }: { onClose: () => void }) {
+/** `seed`: a question to start from, typed in the field and not sent (the Me page's open questions). */
+export function AskPanel({ onClose, seed }: { onClose: () => void; seed?: string }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [vault, setVault] = useState<Vault>(EMPTY_VAULT);
   const route = useRoute();
@@ -130,11 +131,15 @@ export function AskPanel({ onClose }: { onClose: () => void }) {
   // Which conversation is open: the one left open, else a new one.
   const [history, setHistory] = useState<Conversation[]>(readHistory);
   const [open, setOpen] = useState<Conversation | null>(() => {
+    // A question handed in starts a conversation of its own.
+    if (seed) return null;
     const id = readKey(OPEN_KEY);
     return (id && readHistory().find((c) => c.id === id)) || null;
   });
   const [fresh, setFresh] = useState(() => crypto.randomUUID());
   const id = open?.id ?? fresh;
+  // The handed-in question goes to the first conversation shown only.
+  const [firstId] = useState(id);
   useEffect(() => writeKey(OPEN_KEY, id), [id]);
   const startNew = () => {
     removeKey(OPEN_KEY);
@@ -212,6 +217,7 @@ export function AskPanel({ onClose }: { onClose: () => void }) {
         vault={vault}
         route={route}
         onSaved={setHistory}
+        seed={id === firstId ? seed : undefined}
       />
     </aside>
   );
@@ -225,6 +231,7 @@ function Chat({
   vault,
   route,
   onSaved,
+  seed,
 }: {
   id: string;
   initial: UIMessage[];
@@ -232,8 +239,9 @@ function Chat({
   vault: Vault;
   route: Route | null;
   onSaved: (all: Conversation[]) => void;
+  seed?: string;
 }) {
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(seed ?? "");
   const scroller = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
 

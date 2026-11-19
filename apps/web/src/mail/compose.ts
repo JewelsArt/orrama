@@ -38,6 +38,20 @@ export function composeHref(path: string, c: Compose): string {
 
 export const emptyDraft = (): Draft => ({ to: "", subject: "", body: "", title: "New message" });
 
+/**
+ * A message written elsewhere in the app (the Me page's Write as me, ME) handed to the next new
+ * message: held in memory, never in the address or on disk, and used once.
+ */
+let held: { subject: string; body: string } | null = null;
+export function holdForComposer(d: { subject: string; body: string }): void {
+  held = d;
+}
+/** What is held, without taking it (a state initializer may run twice): clearHeld() once it is shown. */
+export const peekHeld = (): { subject: string; body: string } | null => held;
+export function clearHeld(): void {
+  held = null;
+}
+
 /** A reply, threaded under the message (In-Reply-To and References). */
 export function replyDraft(m: MailMessage): Draft {
   return {

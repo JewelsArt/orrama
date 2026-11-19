@@ -15,10 +15,11 @@ import { api, isAbort, type Me } from "../api.js";
 import { onWs } from "../ws.js";
 import { Button, Segmented, Tabs } from "../ui/controls.js";
 import { SearchField, Select } from "../ui/fields.js";
-import { Group, RowList } from "../ui/layout.js";
+import { Group, Row, RowList } from "../ui/layout.js";
+import { Avatar } from "../ui/orr/Orr.js";
 import { Menu } from "../ui/overlays.js";
 import { EmptyState, Notice, Skeleton } from "../ui/states.js";
-import { navigate, useRoute, type Route } from "../ui/router.js";
+import { navigate, routeHref, useRoute, type Route } from "../ui/router.js";
 import { readKey, writeKey } from "../storage.js";
 import {
   byName,
@@ -296,6 +297,19 @@ export function People({ me, onAsk }: { me: Me; onAsk?: () => void }) {
             <span className="c">{shownPeople.length}</span>
             {sortControl("people")}
           </div>
+          {/* You come first: your page (ME), who you are for Orr. Not while searching. */}
+          {!filtering && (
+            <RowList label="You">
+              <Row
+                className="pp pp-you"
+                href={routeHref({ kind: "me" })}
+                onOpen={() => navigate({ kind: "me" })}
+                lead={<Avatar name={me.avatar} size={32} />}
+                title={me.displayName}
+                meta="You · your page"
+              />
+            </RowList>
+          )}
           {shownPeople.length === 0 ? noMatch("person") : personRows(shownPeople, sort.people === "az")}
         </section>
         <section className="mod pp-firms" aria-label="Companies">

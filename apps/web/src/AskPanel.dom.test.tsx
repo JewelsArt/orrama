@@ -56,6 +56,16 @@ describe("a run stops when you stop it (AI-006, the web half)", () => {
   });
 });
 
+describe("a question handed in (the Me page's open questions)", () => {
+  it("is typed in a new conversation's field, not sent", async () => {
+    const calls = serveAsk();
+    render(<AskPanel onClose={() => {}} seed="Help me answer this question about me: Target role" />);
+    const box = (await screen.findByRole("textbox", { name: /question/i })) as HTMLTextAreaElement;
+    expect(box.value).toBe("Help me answer this question about me: Target role");
+    expect(calls).toHaveLength(0);
+  });
+});
+
 describe("an ended session (WEB-013)", () => {
   it("signs the app out from Ask Orr too, like any other request", async () => {
     serveAsk({ askStatus: 401 });

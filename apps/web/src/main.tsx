@@ -20,6 +20,7 @@ import "./styles/new.css";
 import "./styles/orrery.css";
 import "./styles/reader.css";
 import "./styles/people.css";
+import "./styles/me.css";
 import "./styles/editor.css";
 import "./styles/today.css";
 import "./styles/entity.css";

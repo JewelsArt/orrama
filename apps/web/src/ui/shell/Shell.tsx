@@ -2,8 +2,8 @@
  * Orrama's frame (structure.md §1.1, §1.6), from the Today board's rail and phone tabs.
  *
  * Desktop: a rail on the paper ground with the eight places in order, then the update note
- * (only after a ship), Find, Ask Orr (his head) and your Orr at the foot, which opens
- * Settings → You. Reload and Back left the rail (§8 #4): ⌘R and the browser's own Back do
+ * (only after a ship), Find, Ask Orr (his head) and your Orr at the foot, a menu with your page
+ * (the Me page, ME) and Settings. Reload and Back left the rail (§8 #4): ⌘R and the browser's own Back do
  * those now. Dark came back (Jules, 13 Oct, F3) as one button above Find; since 19 Oct it is a
  * sun and a moon at the top of the rail in both looks, the lit one the mode you're in (Jules
  * chose Clay's pair for Paper too). No keycaps on screen (§8 #5): a place's key is in its
@@ -19,11 +19,11 @@
  * then the Orrery, Projects, People, Mail, Money and Settings, so Settings is reachable on
  * the phone (§1.6).
  */
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type Ref } from "react";
 import { Icon, type IconName } from "../Icon.js";
 import { Avatar, HeadMark } from "../orr/Orr.js";
 import type { Look, Shown } from "../theme.js";
-import { Sheet } from "../overlays.js";
+import { Menu, Sheet } from "../overlays.js";
 import { goBack, isDeep, navigate, PLACES, placeOf, placeRoute, routeHref, type Place, type Route } from "../router.js";
 import { ShellLookContext } from "./SectionBar.js";
 
@@ -68,6 +68,7 @@ export interface ShellProps {
 }
 
 const YOU: Route = { kind: "settings", section: "you" };
+const MY_PAGE: Route = { kind: "me" };
 
 export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, onNew, mailDot = 0, shown, look = "paper", onTheme, children }: ShellProps) {
   const here = placeOf(route);
@@ -124,15 +125,13 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
           Ask Orr
         </button>
         {!topBar && (
-          <a
-            className={inSettings ? "me on" : "me"}
-            href={routeHref(YOU)}
-            data-tip={`${me.displayName} · Settings  ⌘,`}
-            aria-label={`${me.displayName}: Settings`}
-            onClick={follow(YOU)}
-          >
-            <Avatar name={me.avatar} size={38} />
-          </a>
+          <AccountMenu me={me}>
+            {(props) => (
+              <button type="button" className={inSettings || route.kind === "me" ? "me on" : "me"} data-tip={`${me.displayName}  ⌘,`} {...props}>
+                <Avatar name={me.avatar} size={38} />
+              </button>
+            )}
+          </AccountMenu>
         )}
       </nav>
 
@@ -162,14 +161,18 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
               <button type="button" className="btn icon" aria-label="Find" data-tip="Find  ⌘K" onClick={onFind}>
                 <Icon name="search" />
               </button>
-              <a className="cme" href={routeHref(YOU)} aria-label={`${me.displayName}: Settings`} data-tip="Settings  ⌘," onClick={follow(YOU)}>
-                <Avatar name={me.avatar} size={30} />
-                <span className="cmn">
-                  <b>{me.displayName}</b>
-                  <small>Settings</small>
-                </span>
-                <Icon name="chev-d" size={16} />
-              </a>
+              <AccountMenu me={me}>
+                {(props) => (
+                  <button type="button" className="cme" {...props}>
+                    <Avatar name={me.avatar} size={30} />
+                    <span className="cmn">
+                      <b>{me.displayName}</b>
+                      <small>Your page · Settings</small>
+                    </span>
+                    <Icon name="chev-d" size={16} />
+                  </button>
+                )}
+              </AccountMenu>
             </div>
           </div>
         )}
@@ -219,6 +222,10 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
             </button>
           )}
           <nav aria-label="More places">
+            <a className={route.kind === "me" ? "more-row on" : "more-row"} href={routeHref(MY_PAGE)} onClick={follow(MY_PAGE)} aria-current={route.kind === "me" ? "page" : undefined}>
+              <Icon name="person" />
+              Your page
+            </a>
             {MORE.map((p) => {
               const { label } = PLACES.find((x) => x.place === p)!;
               return (
@@ -241,6 +248,32 @@ export function Shell({ route, title, me, updateReady, askOpen, onFind, onAsk, o
       )}
     </div>
     </ShellLookContext.Provider>
+  );
+}
+
+/**
+ * You, at the rail's foot in Paper and in Clay's top bar: a menu with your page (ME: who you are,
+ * from your persona note) and Settings. ⌘, still goes straight to Settings.
+ */
+function AccountMenu({ me, children }: { me: { displayName: string }; children: (props: { ref: Ref<HTMLButtonElement>; "aria-label": string; "aria-haspopup": "menu"; "aria-expanded": boolean; onClick: () => void }) => ReactNode }) {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {children({ ref: anchor, "aria-label": `${me.displayName}: your page and Settings`, "aria-haspopup": "menu", "aria-expanded": open, onClick: () => setOpen((v) => !v) })}
+      {open && (
+        <Menu
+          anchor={anchor}
+          label={me.displayName}
+          align="end"
+          onClose={() => setOpen(false)}
+          items={[
+            { label: "Your page", icon: <Icon name="person" size={16} />, onSelect: () => navigate(MY_PAGE) },
+            { label: "Settings", icon: <Icon name="settings" size={16} />, onSelect: () => navigate(YOU) },
+          ]}
+        />
+      )}
+    </>
   );
 }
 

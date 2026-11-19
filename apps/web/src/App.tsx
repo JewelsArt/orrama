@@ -5,6 +5,7 @@ import { Noticed } from "./noticed/Noticed.js";
 import { EntityPage } from "./entity/EntityPage.js";
 import { usePageTitleFor } from "./entity/title.js";
 import { AskPanel } from "./AskPanel.js";
+import { Me as MePage } from "./Me.js";
 import { New } from "./create/New.js";
 import { Money } from "./Finance.js";
 import { People } from "./people/People.js";
@@ -121,6 +122,7 @@ export function viewOfRoute(r: Route, idOf: (path: string) => string | undefined
     case "people":
     case "person":
     case "company":
+    case "me":
       return { kind: "contacts" };
     case "mail":
       return { kind: "mail" };
@@ -166,6 +168,8 @@ export function titleOf(r: Route): string {
       return r.merchant ?? r.category ?? (r.page ? MONEY_TITLES[r.page] : "Money");
     case "settings":
       return (r.section && SETTINGS_SECTIONS.find((s) => s.id === r.section)?.label) || "Settings";
+    case "me":
+      return "Your page";
     case "planning":
       return planningTitle(r);
     default:
@@ -259,6 +263,13 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
+  // A question another page hands Ask Orr to start from (the Me page's open questions); a new
+  // one opens a fresh panel with it typed in, never sent.
+  const [askSeed, setAskSeed] = useState<{ text: string; n: number } | null>(null);
+  const askWith = useCallback((text: string) => {
+    setAskSeed((s) => ({ text, n: (s?.n ?? 0) + 1 }));
+    setAskOpen(true);
+  }, []);
   const closeAsk = useCallback(() => setAskOpen(false), []);
   const [newAt, setNewAt] = useState<HTMLElement | null>(null);
   const newAnchor = useMemo(() => ({ current: newAt }), [newAt]);
@@ -590,6 +601,8 @@ export function App() {
           <Noticed me={me} />
         ) : shown.kind === "person" || shown.kind === "company" || shown.kind === "conversation" || shown.kind === "document" ? (
           <EntityPage me={me} route={shown} />
+        ) : shown.kind === "me" ? (
+          <MePage me={me} tab={shown.tab} onAsk={askWith} />
         ) : shown.kind === "money" ? (
           <Money onOpenNote={openNote} />
         ) : view.kind === "dashboard" ? (
@@ -615,8 +628,8 @@ export function App() {
           system's own Palette, Sheet or Panel in its wave. */}
       {askOpen && (
         <ErrorBoundary what="Ask Orr" onLeave={{ label: "Close", run: () => setAskOpen(false) }}>
-          <Layer kind="panel" label="Ask Orr" role={null} modal={false} trap={false} focus={false} onClose={() => setAskOpen(false)}>
-            <AskPanel onClose={closeAsk} />
+          <Layer key={askSeed?.n ?? 0} kind="panel" label="Ask Orr" role={null} modal={false} trap={false} focus={false} onClose={() => setAskOpen(false)}>
+            <AskPanel onClose={closeAsk} seed={askSeed?.text} />
           </Layer>
         </ErrorBoundary>
       )}

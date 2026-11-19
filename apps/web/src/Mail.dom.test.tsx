@@ -79,6 +79,24 @@ describe("Mail: staged drafts in the composer (WEB-006)", () => {
     expect(field("To").value).toBe("");
   });
 
+  it("a message written on the Me page (Write as me) is the next new message, once", async () => {
+    const { holdForComposer } = await import("./mail/compose.js");
+    stubMailbox();
+    holdForComposer({ subject: "Plans", body: "Hi Zora,\n\nThe plans are ready.\n\nBest, Sam" });
+    history.replaceState(null, "", "/mail?write=new");
+    const user = userEvent.setup();
+    const { unmount } = render(<Mail me={me} />);
+    await waitFor(() => expect(composer().value).toBe("Hi Zora,\n\nThe plans are ready.\n\nBest, Sam"));
+    expect(field("Subject").value).toBe("Plans");
+    expect(field("To").value).toBe("");
+    void user;
+    unmount();
+    // Taken once: the next new message is empty.
+    history.replaceState(null, "", "/mail?write=new");
+    render(<Mail me={me} />);
+    await waitFor(() => expect(composer().value).toBe(""));
+  });
+
   it("opening a message while the composer holds text asks first, and Keep it keeps the text", async () => {
     stubMailbox();
     const user = userEvent.setup();

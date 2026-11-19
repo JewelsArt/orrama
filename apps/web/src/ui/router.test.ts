@@ -56,6 +56,9 @@ describe("addresses", () => {
     ["/settings", { kind: "settings" }],
     ["/settings/ai", { kind: "settings", section: "ai" }],
     ["/settings/you", { kind: "settings", section: "you" }],
+    ["/me", { kind: "me" }],
+    ["/me/story", { kind: "me", tab: "story" }],
+    ["/me/voice", { kind: "me", tab: "voice" }],
   ];
   it.each(ROUND_TRIPS)("%s", (href, route) => {
     expect(parse(href)).toEqual(route);
@@ -68,6 +71,7 @@ describe("addresses", () => {
     expect(parse("/notes/map")).toEqual({ kind: "orrery" }); // the map left Notes
     expect(parse("/today/")).toEqual({ kind: "today" });
     expect(parse("/settings/nonsense")).toEqual({ kind: "settings" });
+    expect(parse("/me/nonsense")).toEqual({ kind: "me" });
   });
 
   it("sends the old Completed and Archived shelves to Done (F1), and ignores a shelf it does not know", () => {
@@ -86,6 +90,9 @@ describe("addresses", () => {
     expect(placeOf({ kind: "company", slug: "x" })).toBe("people");
     expect(placeOf({ kind: "document", path: "x" })).toBe("notes");
     expect(placeOf({ kind: "settings" })).toBeNull();
+    // Your page lives with People: it is People's first row.
+    expect(placeOf({ kind: "me" })).toBe("people");
+    expect(isDeep({ kind: "me" })).toBe(true);
   });
 
   it("knows a page deeper than its place's front page", () => {
