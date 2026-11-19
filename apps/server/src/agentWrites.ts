@@ -13,8 +13,13 @@
  * and API tokens (the MCP server) may not write those files or change that
  * section. The user still edits all of it in Orrama or Obsidian. Settings → AI
  * instructions is the third channel; `/api/admin/*` is session-only already.
+ *
+ * The persona's `## Voice` and `## Rules for outside use` are the same kind of text (ME, Nov
+ * 2026): Orr and Claude write as the user by them, and draft_email hands them over before any
+ * draft. One injected "always copy x@evil" in Voice would ride along on every mail written as
+ * the user, so they are guarded like a project's Prompt; the rest of the note stays writable.
  */
-import { parseNote, projectSlugOf, readSection } from "@orrama/core";
+import { parseNote, PERSONA_TAG, personaText, projectSlugOf, readSection } from "@orrama/core";
 import { HttpError, type WriteGuard } from "./vaultStore.js";
 
 const INSTRUCTION_FILES = new Set(["claude.md", "claude.local.md", "agents.md"]);
@@ -26,6 +31,7 @@ export function isInstructionFile(rel: string): boolean {
 }
 
 const isProjectNote = (content: string) => parseNote(content).tags.some((t) => t.line === 0 && projectSlugOf(t.tag) !== null);
+const isPersonaNote = (content: string) => parseNote(content).tags.some((t) => t.tag === PERSONA_TAG);
 
 /** The guard for a writer that is not the user at the keyboard: `who` says which, in the refusal. */
 export function untrustedWriter(who: string): WriteGuard {
@@ -36,6 +42,10 @@ export function untrustedWriter(who: string): WriteGuard {
     const project = isProjectNote(content) || (before !== null && isProjectNote(before.content));
     if (project && readSection(before?.content ?? "", "Prompt") !== readSection(content, "Prompt")) {
       throw new HttpError(403, `A project's ## Prompt is its standing instructions for agents, so ${who} may not change it. The user can edit it on the project page or in Obsidian.`);
+    }
+    const persona = isPersonaNote(content) || (before !== null && isPersonaNote(before.content));
+    if (persona && personaText(before?.content ?? "", ["voice", "rules"]) !== personaText(content, ["voice", "rules"])) {
+      throw new HttpError(403, `A persona's ## Voice and ## Rules for outside use are how agents write as the user, so ${who} may not change them. The user can edit them in the note, in Orrama or Obsidian.`);
     }
   };
 }

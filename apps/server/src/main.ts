@@ -37,6 +37,7 @@ import { integrationRoutes, hashToken } from "./routes/integrations.js";
 import { settingsRoutes } from "./routes/settings.js";
 import { notesHomeRoutes } from "./routes/notesHome.js";
 import { areaRoutes } from "./routes/areas.js";
+import { personaRoutes } from "./routes/persona.js";
 import { backupRoutes } from "./routes/backup.js";
 import { claudeRoutes } from "./routes/claude.js";
 import { appHost, refreshClaude, type ClaudeHost } from "./claudeConnect.js";
@@ -321,6 +322,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   await settingsRoutes(app, db, store, calendar, opts.restart);
   await notesHomeRoutes(app, store);
   await areaRoutes(app, store);
+  await personaRoutes(app, db, store);
   await backupRoutes(app, db, store, opts.restart);
   const claude = opts.claude ?? appHost();
   await claudeRoutes(app, db, claude);

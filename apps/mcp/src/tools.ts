@@ -412,6 +412,19 @@ export const TOOLS = [
     },
   },
 
+  // ---- You -------------------------------------------------------------------
+  {
+    name: "get_persona",
+    description:
+      "The user's persona note (their Me page): who they are, for introducing them or writing as them. Sections: short (their pitch in one line, 30 seconds and 2 minutes, by language), now, experience, projects, skills, proof (the only numbers you may quote about them), people, voice (how they write), rules (rules for outside use: what never leaves), interests, questions (what is still open). Returns the note's own Markdown for the sections asked, or all. Read it only when the task is about the user or writing as them; it is changed in Orrama.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        sections: { type: "array", items: { type: "string", enum: ["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"] }, description: "Only these sections (default: all)" },
+      },
+    },
+  },
+
   // ---- Money ----------------------------------------------------------------
   {
     name: "get_money",
@@ -443,7 +456,7 @@ export const TOOLS = [
   },
   {
     name: "draft_email",
-    description: "Prepare an email from the user's connected mailbox. The draft waits in Orrama for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email.",
+    description: "Prepare an email from the user's connected mailbox. The draft waits in Orrama for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their voice and rules for outside use instead of drafting: write the body in that voice, quoting no number their persona doesn't hold, then call again with voiceRead: true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,6 +465,7 @@ export const TOOLS = [
         body: { type: "string" },
         inReplyTo: { type: "string", description: "Message-ID being replied to (optional)" },
         references: { type: "string", description: "References header for threading (optional)" },
+        voiceRead: { type: "boolean", description: "true once the body follows the voice and rules a first call returned" },
       },
       required: ["to", "subject", "body"],
     },
@@ -751,7 +765,22 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     case "read_email":
       return answer(await api(`/api/mail/message/${encodeURIComponent(Number(args.uid))}`));
 
+    case "get_persona": {
+      const sections = Array.isArray(args.sections) ? args.sections.map(String) : [];
+      const r = await api(`/api/persona/text${sections.length ? `?section=${encodeURIComponent(sections.join(","))}` : ""}`);
+      return r.exists ? answer({ name: r.name, path: r.path, text: r.text }) : answer({ exists: false, note: "The user has no persona note yet: they can make one on their Me page in Orrama." });
+    }
+
     case "draft_email": {
+      // Written as the user: in their voice and by their rules, when their persona says what those are.
+      if (args.voiceRead !== true) {
+        const p = await api(`/api/persona/text?section=${encodeURIComponent("voice,rules")}`);
+        if (p?.exists && p.text) {
+          return refusal(
+            `not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below (quote no number that isn't in their persona's proof points), then call draft_email again with voiceRead: true.\n\n${p.text}`,
+          );
+        }
+      }
       // Staging, not sending: /api/mail/send refuses API tokens outright.
       const res = await api(`/api/mail/drafts`, "POST", { to: args.to, subject: args.subject, body: args.body, inReplyTo: args.inReplyTo, references: args.references });
       return answer({ ...res, status: "awaiting_confirmation", note: "The user must review and send this draft in Orrama." });

@@ -241,7 +241,7 @@ describe.skipIf(!built)("the desktop bundle", () => {
       expect((await mcp.initialize()).serverInfo.name).toBe("orrama-mcp");
       const listed = (await mcp.request("tools/list")).tools as { name: string }[];
       expect(listed.map((t) => t.name).sort()).toEqual(TOOLS.map((t) => t.name).sort());
-      expect(listed).toHaveLength(28);
+      expect(listed).toHaveLength(29);
       const today = await mcp.request("tools/call", { name: "list_projects", arguments: {} });
       expect(today.isError).toBeFalsy();
       expect(JSON.parse(today.content[0].text)).toMatchObject({ projects: [] });

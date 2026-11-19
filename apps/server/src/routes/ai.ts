@@ -3,7 +3,7 @@ import { convertToModelMessages, pipeUIMessageStreamToResponse, stepCountIs, str
 import { z } from "zod";
 import { askVaultSchema, taskDatesSchema } from "@orrama/schema";
 import crypto from "node:crypto";
-import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, suggestRelated, vaultSchema, writeSection, type IndexedNote } from "@orrama/core";
+import { appendLine, appendToSection, findEntities, findPath, getRelations, isoLocal, listSummaries, PERSONA_SECTIONS, personaText, suggestRelated, vaultSchema, writeSection, type IndexedNote, type PersonaSection } from "@orrama/core";
 import { graphFor, resolveRef } from "./graph.js";
 import { createProject } from "./projects.js";
 import { applyTaskDates, applyTaskStatus } from "./tasks.js";
@@ -16,6 +16,7 @@ import { credsFor, getMessage, listInbox } from "../mail.js";
 import { stageDraft } from "./mail.js";
 import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
 import { agentWriter, both } from "../agentWrites.js";
+import { personaNote } from "../persona.js";
 
 /**
  * AI layer (spec §9): BYO key, requests go direct from THIS server to the provider.
@@ -50,7 +51,8 @@ How Orrama works:
 - TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
 - STATUS: set_task_status with todo | in-progress | blocked | done. Every status is the checkbox in the file: \`[ ]\` todo, \`[/]\` in progress, \`[b]\` blocked, \`[x]\` done.
 - DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
-- EMAIL: if the user has connected a mailbox, list_email/read_email survey the inbox and draft_email prepares a message or reply (thread a reply with inReplyTo from read_email). You cannot send mail — every draft waits for the user to press Send — so say "I've drafted it for you to review", never "I've sent it".
+- EMAIL: if the user has connected a mailbox, list_email/read_email survey the inbox and draft_email prepares a message or reply (thread a reply with inReplyTo from read_email). You cannot send mail — every draft waits for the user to press Send — so say "I've drafted it for you to review", never "I've sent it". When the user has a persona (get_persona), a draft written as them follows its Voice and Rules for outside use, and quotes only numbers the persona holds.
+- THE USER THEMSELVES: get_persona reads the user's persona note (who they are, their experience, projects, skills, proof points, people, voice). Read it only when the task is about them or writing as them.
 - KNOWLEDGE GRAPH: the vault's notes are typed (person, company, project, document, area, conversation) and connected by relations (works_at, involves, part_of, about, supervises…). For a question about people, companies, projects, their status or deadlines, or saved conversations, QUERY FIRST — vault_schema (the map, start here), find_entities (list by type/status/fields/relation), get_relations (what one note connects to), find_path (how two notes connect), list_summaries (one line per note, to pick the right conversation) — and only then search_vault or read a note. They answer in a fraction of the tokens and see links inside long notes that a preview cuts off.
 - Always search_vault before answering a question about text inside notes, and cite notes as [[Note Title]]. search_vault shows only an excerpt of each note (truncated: true says so): read_note gives the whole text.
 - EDITING A NOTE: add with append_to_note, change one ## section with replace_section — neither makes you resend text you did not change. write_note replaces a whole note: for an existing note it needs the hash read_note returned, and is refused without it or if the note changed since. Make small, concrete edits; confirm anything destructive.
@@ -444,12 +446,31 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
             }
           }
         }),
+        get_persona: tool({
+          description: `The user's persona note: who they are, for introducing them and writing as them. Sections: ${PERSONA_SECTIONS.join(", ")} (short = their pitch at three lengths, proof = the only numbers you may quote about them, rules = rules for outside use, questions = what is still open). Pass sections to read only some. Read it only when the task is about the user or writing as them.`,
+          inputSchema: z.object({ sections: z.array(z.enum(PERSONA_SECTIONS)).optional() }),
+          execute: async ({ sections }: { sections?: PersonaSection[] }) => {
+            const note = personaNote(db, store, user);
+            if (!note) return { exists: false, note: "The user has no persona note yet: they can make one on their Me page." };
+            return { exists: true, path: note.path, text: personaText(note.content, sections) };
+          },
+        }),
         draft_email: tool({
-          description: "Prepare an email from the user's connected mailbox. The draft is shown to the user, who sends it themselves — you cannot send mail directly, so tell them the draft is ready for review rather than claiming it was sent. To reply in-thread, pass inReplyTo (and references) from read_email.",
-          inputSchema: z.object({ to: z.string(), subject: z.string(), body: z.string(), inReplyTo: z.string().optional(), references: z.string().optional() }),
-          execute: async ({ to, subject, body, inReplyTo, references }: { to: string; subject: string; body: string; inReplyTo?: string; references?: string }) => {
+          description: "Prepare an email from the user's connected mailbox. The draft is shown to the user, who sends it themselves — you cannot send mail directly, so tell them the draft is ready for review rather than claiming it was sent. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their Voice and Rules for outside use: write the body in that voice, then call again with voiceRead: true.",
+          inputSchema: z.object({ to: z.string(), subject: z.string(), body: z.string(), inReplyTo: z.string().optional(), references: z.string().optional(), voiceRead: z.boolean().optional() }),
+          execute: async ({ to, subject, body, inReplyTo, references, voiceRead }: { to: string; subject: string; body: string; inReplyTo?: string; references?: string; voiceRead?: boolean }) => {
             const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
             if (!acct) return { success: false, error: "no mail account connected" };
+            // A draft is written as the user: in their voice, by their rules, when they have said what those are.
+            const persona = voiceRead ? undefined : personaNote(db, store, user);
+            const voice = persona ? personaText(persona.content, ["voice", "rules"]) : "";
+            if (voice) {
+              return {
+                success: false,
+                error: "Not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below (quote no number that isn't in their persona's proof points), then call draft_email again with voiceRead: true.",
+                voice,
+              };
+            }
             const draft = stageDraft(db, req.userId, { to, subject, body, inReplyTo, references }, "agent");
             return { success: true, status: "awaiting_confirmation", draftId: draft.id, to: draft.to, subject: draft.subject };
           }

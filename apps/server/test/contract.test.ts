@@ -96,6 +96,9 @@ beforeAll(async () => {
   await must("POST", "/api/vault/trash", { path: "Scratch/Thrown away.md" });
   await must("POST", "/api/vault/folder", { folder: "Scratch/Empty" });
   seq = ((await must("GET", `/api/vault/note/${noteId}/history`))["revisions"] as { seq: number }[])[0]!.seq;
+  // A persona note (the Me page), in Jules's own folder: the seed's teams can read 01-Me.
+  const { SAMPLE_PERSONA } = await import("../../../packages/core/test/persona-fixture.js");
+  await must("PUT", "/api/vault/note", { path: "Personal/jules/persona.md", content: SAMPLE_PERSONA, create: true });
 }, 60_000);
 
 afterAll(async () => {
@@ -168,6 +171,8 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/tokens", () => "/api/tokens", R.tokensResponse],
   ["/api/claude", () => "/api/claude", R.claudeResponse],
   ["/api/webhooks", () => "/api/webhooks", R.webhooksResponse],
+  ["/api/persona", () => "/api/persona", R.personaResponse],
+  ["/api/persona/generate", () => "/api/persona/generate", R.personaJobResponse],
 ];
 
 /** GETs the web app makes that no fixture can answer — named, with why. */

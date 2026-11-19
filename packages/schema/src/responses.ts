@@ -1181,6 +1181,72 @@ export type Linkers = z.infer<typeof linkersResponse>;
 export type NoteHistory = z.infer<typeof historyResponse>;
 export type Revision = z.infer<typeof revisionResponse>;
 export type NotesOverview = z.infer<typeof notesOverviewResponse>;
+// ---------- the Me page (ME): the persona note, read by core parsePersona ----------
+
+const periodSchema = o({ start: z.number(), end: nnum }).nullable();
+/** A persona as core reads it (Persona): every section, and what couldn't be read. */
+export const personaSchema = o({
+  name: z.string(),
+  updated: nstr,
+  short: o({ line: z.record(z.string(), z.string()), s30: z.record(z.string(), z.string()), min2: z.record(z.string(), z.string()) }),
+  now: z.array(o({ label: z.string(), value: z.string() })),
+  experience: z.array(o({ key: z.string(), period: z.string(), when: periodSchema, role: z.string(), org: z.string(), what: z.string(), lane: z.string(), source: nstr })),
+  projects: z.array(
+    o({
+      key: z.string(),
+      name: z.string(),
+      star: z.boolean(),
+      period: z.string(),
+      when: periodSchema,
+      what: z.string(),
+      part: z.string(),
+      outcome: z.string(),
+      skills: z.array(z.string()),
+      people: z.array(z.string()),
+      partOf: z.array(z.string()),
+      outside: z.string(),
+      source: nstr,
+    }),
+  ),
+  skills: z.array(o({ key: z.string(), name: z.string(), level: nnum, proof: z.array(z.string()) })),
+  skillsAlso: z.string(),
+  skillNotes: z.array(z.string()),
+  proof: z.array(o({ key: z.string(), number: z.string(), what: z.string(), source: nstr })),
+  proofWords: z.string(),
+  proofInternal: z.string(),
+  people: z.array(o({ key: z.string(), name: z.string(), role: z.string(), how: z.string() })),
+  voice: z.array(o({ label: nstr, text: z.string() })),
+  rules: z.array(z.string()),
+  interests: z.string(),
+  questions: z.array(o({ key: z.string(), raw: z.string(), name: z.string(), detail: z.string(), options: z.array(z.string()), answer: nstr })),
+  sections: z.array(z.enum(["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"])),
+  unread: z.array(o({ section: z.string(), text: z.string(), reason: z.string() })),
+});
+
+/** GET /api/persona: the account's persona note, or what an empty page needs to offer one. */
+export const personaResponse = o({
+  note: o({ id: z.string(), path: z.string(), title: z.string(), mtimeMs: nnum, hash: z.string() }).nullable(),
+  persona: personaSchema.nullable(),
+  /** Other notes tagged #persona this account could have meant (the page says which one it reads). */
+  others: z.array(z.string()),
+  ai: o({ configured: z.boolean(), provider: nstr }),
+  /** With no note: what Orr could read, whether that is enough, and where the note would go. */
+  sources: o({ projects: z.number(), notes: z.number(), people: z.number(), chats: z.number(), mail: z.boolean(), enough: z.boolean(), home: z.string() }).nullable(),
+});
+
+/** GET /api/persona/generate: the "Generate my persona" job, or null. */
+export const personaJobResponse = o({
+  id: z.string(),
+  state: z.enum(["running", "done", "failed", "stopped"]),
+  steps: z.array(o({ id: z.string(), label: z.string(), state: z.enum(["waiting", "running", "done", "skipped"]), ms: nnum })),
+  error: nstr,
+  persona: personaSchema.nullable(),
+  found: o({ places: z.number(), projects: z.number(), skills: z.number(), proof: z.number(), people: z.number(), questions: z.number() }).nullable(),
+}).nullable();
+
+/** POST /api/persona/write: Introduce me / Write as me. */
+export const personaWriteResponse = o({ text: z.string(), subject: z.string(), unsourced: z.array(z.string()) });
+
 export type LifeAreas = z.infer<typeof lifeAreasResponse>;
 export type GraphData = z.infer<typeof graphResponse>;
 export type NoteDetail = z.infer<typeof noteResponse>;
@@ -1237,3 +1303,7 @@ export type MailMessage = z.infer<typeof mailMessageResponse>;
 export type ApiToken = z.infer<typeof tokensResponse>[number];
 export type ClaudeConnection = z.infer<typeof claudeResponse>;
 export type Webhook = z.infer<typeof webhooksResponse>[number];
+export type PersonaData = z.infer<typeof personaResponse>;
+export type Persona = z.infer<typeof personaSchema>;
+export type PersonaJob = z.infer<typeof personaJobResponse>;
+export type PersonaWrite = z.infer<typeof personaWriteResponse>;

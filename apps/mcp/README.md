@@ -62,8 +62,9 @@ second account's token).
 | Projects | `list_projects` (with your life areas), `get_project`, `create_project`, `update_project` (name, status, area, group, dates), `add_to_project` (a step, inbox line, decision or goal) |
 | People | `get_contacts` (people and companies), `save_contact` (make or change a person or company, where someone works) |
 | Calendar | `list_events`, `create_event` (place, notes, all day, repeating), `edit_event` (one day of a series or all of it; change or delete) |
+| You | `get_persona` (your Me page: who you are, your voice and rules, read-only) |
 | Money | `get_money` (read-only) |
-| Mail | `list_email`, `read_email`, `draft_email` (a draft waits in Orrama for you to send) |
+| Mail | `list_email`, `read_email`, `draft_email` (a draft waits in Orrama for you to send; with a persona, written in your voice first) |
 
 ## What a token can't do
 

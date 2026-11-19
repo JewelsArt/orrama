@@ -115,7 +115,7 @@
 
 ### `apps/server/src/main.ts`
 - **Exports**: WS_MAX_FRAME, allowedHost, buildServer
-- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./build.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./routes/backup.js, ./routes/claude.js, ./claudeConnect.js, ./mcpScope.js, ./backup.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
+- **Imports**: node:crypto, node:fs, node:path, @fastify/cors, @fastify/jwt, @fastify/static, @fastify/websocket, fastify, zod, ./db.js, ./env.js, ./vaultStore.js, ./migrations.js, ./calendarNotes.js, ./history.js, ./build.js, ./entry.js, ./routes/auth.js, ./routes/vault.js, ./routes/tasks.js, ./routes/projects.js, ./routes/dashboard.js, ./routes/admin.js, ./routes/ai.js, ./routes/ws.js, ./routes/plan.js, ./routes/calendar.js, ./routes/contacts.js, ./routes/graph.js, ./routes/noticed.js, ./routes/people.js, ./routes/finance.js, ./routes/home.js, ./routes/ics.js, ./routes/mail.js, ./routes/integrations.js, ./routes/settings.js, ./routes/notesHome.js, ./routes/areas.js, ./routes/persona.js, ./routes/backup.js, ./routes/claude.js, ./claudeConnect.js, ./mcpScope.js, ./backup.js, ./webhooks.js, ./sessions.js, drizzle-orm, ./logging.js
 
 ### `apps/server/src/mcpScope.ts`
 - **Exports**: MCP_ROUTES, scopeAllows
@@ -134,6 +134,10 @@
 ### `apps/server/src/pdfText.ts`
 - **Exports**: PDF_LIMITS, PdfText, readPdfText
 - **Imports**: node:worker_threads
+
+### `apps/server/src/persona.ts`
+- **Exports**: personaCandidates, personaNote, personaHome, isPrivate, PersonaSources, personaSources, ENOUGH, enoughToRead
+- **Imports**: @orrama/core, ./db.js, ./vaultStore.js
 
 ### `apps/server/src/portableName.ts`
 - **Exports**: unportableName
@@ -159,7 +163,7 @@
 
 ### `apps/server/src/routes/ai.ts`
 - **Exports**: aiRoutes
-- **Imports**: fastify, ai, zod, @orrama/schema, node:crypto, @orrama/core, ./graph.js, ./projects.js, ./tasks.js, ./calendar.js, ../calendarNotes.js, drizzle-orm, ../db.js, ../aiProvider.js, ../mail.js, ./mail.js, ../vaultStore.js, ../agentWrites.js
+- **Imports**: fastify, ai, zod, @orrama/schema, node:crypto, @orrama/core, ./graph.js, ./projects.js, ./tasks.js, ./calendar.js, ../calendarNotes.js, drizzle-orm, ../db.js, ../aiProvider.js, ../mail.js, ./mail.js, ../vaultStore.js, ../agentWrites.js, ../persona.js
 
 ### `apps/server/src/routes/areas.ts`
 - **Exports**: areaRoutes
@@ -224,6 +228,10 @@
 ### `apps/server/src/routes/people.ts`
 - **Exports**: peopleRoutes
 - **Imports**: fastify, @orrama/core, ../vaultStore.js, ./graph.js
+
+### `apps/server/src/routes/persona.ts`
+- **Exports**: writeAsPrompt, sourcesText, checkDraft, personaRoutes
+- **Imports**: node:crypto, fastify, drizzle-orm, zod, @orrama/core, ../db.js, ../aiProvider.js, ../persona.js, ../vaultStore.js, ../agentWrites.js
 
 ### `apps/server/src/routes/plan.ts`
 - **Exports**: EstimateCache, EstimateRefiner, refiner, buildPlan, Proposal, planRoutes
@@ -1154,7 +1162,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, backupResponse, backupLookResponse, restoreFolderResponse, restoreResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, fileTrashedResponse, FileTrashed, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, contactProjectsResponse, ContactProject, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, projectRemovalResponse, projectCandidatesResponse, hiddenProjectsResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, claudeResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, BackupMade, BackupLook, RestoreFolder, Restored, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, ProjectRemoval, ProjectCandidate, HiddenProject, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, ClaudeConnection, Webhook
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, backupResponse, backupLookResponse, restoreFolderResponse, restoreResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, fileTrashedResponse, FileTrashed, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, contactProjectsResponse, ContactProject, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, projectRemovalResponse, projectCandidatesResponse, hiddenProjectsResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, claudeResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, BackupMade, BackupLook, RestoreFolder, Restored, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, personaSchema, personaResponse, personaJobResponse, personaWriteResponse, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, ProjectRemoval, ProjectCandidate, HiddenProject, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, ClaudeConnection, Webhook, PersonaData, Persona, PersonaJob, PersonaWrite
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`

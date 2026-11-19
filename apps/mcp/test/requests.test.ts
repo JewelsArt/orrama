@@ -152,8 +152,10 @@ const ROWS: Record<string, Row & { apart?: string[] }> = {
   get_money: { args: {}, calls: [{ path: "/api/finance", method: "GET" }] },
   list_email: { args: { limit: 5 }, calls: [{ path: "/api/mail/inbox?limit=5", method: "GET" }] },
   read_email: { args: { uid: 4021 }, calls: [{ path: "/api/mail/message/4021", method: "GET" }] },
+  get_persona: { args: { sections: ["voice", "proof"] }, calls: [{ path: "/api/persona/text?section=voice%2Cproof", method: "GET" }] },
   draft_email: {
-    args: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>" },
+    args: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>", voiceRead: true },
+    unsent: ["voiceRead"],
     calls: [{ path: "/api/mail/drafts", method: "POST", body: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>" } }],
   },
 };
@@ -464,8 +466,29 @@ describe("draft_email only ever stages a draft", () => {
   it("posts to the drafts and nowhere that sends, and says the user must send it", async () => {
     const { calls, api } = recorder(() => ({ id: "d-1" }));
     const res = await callTool("draft_email", { to: "mara@example.com", subject: "Hi", body: "Hello" }, api);
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /api/mail/drafts"]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules", "POST /api/mail/drafts"]);
     expect(JSON.parse(res.content[0]!.text)).toMatchObject({ id: "d-1", status: "awaiting_confirmation" });
+  });
+
+  it("with a persona, the first call hands back the voice and the rules and stages nothing; voiceRead stages it", async () => {
+    const voice = "## Voice\n\n- Warm but plain.\n\n## Rules for outside use\n\n- Never name clients.";
+    const { calls, api } = recorder((c) => (c.path.startsWith("/api/persona/text") ? { exists: true, name: "Sam", path: "Me/persona.md", text: voice } : { id: "d-2" }));
+    const first = await callTool("draft_email", { to: "a@example.com", subject: "Hi", body: "Yo" }, api);
+    expect(first.isError).toBe(true);
+    expect(first.content[0]!.text).toContain("Never name clients.");
+    expect(calls.map((c) => c.method)).toEqual(["GET"]);
+    const second = await callTool("draft_email", { to: "a@example.com", subject: "Hi", body: "Hi,\n\nBest, Sam", voiceRead: true }, api);
+    expect(second.isError).toBeFalsy();
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules", "POST /api/mail/drafts"]);
+  });
+});
+
+describe("get_persona", () => {
+  it("asks for every section by default, and says when there is no persona", async () => {
+    const { calls, api } = recorder(() => ({ exists: false, name: "", path: null, text: "" }));
+    const res = await callTool("get_persona", {}, api);
+    expect(calls).toEqual([{ path: "/api/persona/text", method: "GET" }]);
+    expect(JSON.parse(res.content[0]!.text)).toMatchObject({ exists: false });
   });
 });
 

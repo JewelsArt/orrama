@@ -51,6 +51,8 @@ export const MCP_ROUTES: ReadonlySet<string> = new Set([
   "GET /api/mail/inbox",
   "GET /api/mail/message/:uid",
   "POST /api/mail/drafts",
+  // you (the Me page): read only
+  "GET /api/persona/text",
 ]);
 
 /** Whether a token of `scope` may call `method` on the route registered as `route`. */

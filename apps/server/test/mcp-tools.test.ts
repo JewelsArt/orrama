@@ -401,6 +401,20 @@ describe("money", () => {
   });
 });
 
+describe("you", () => {
+  does("get_persona", "reads the owner's persona note, the sections asked", async () => {
+    write("Personal/jules/persona.md", "---\ntags: [persona]\n---\n# Persona — Jules\n\n## Voice\n\n- Plain and warm.\n\n## Proof points\n\n| Number | What |\n|---|---|\n| 12 | Zebracorn beds |\n");
+    const r = await jules.tool("get_persona", { sections: ["proof"] });
+    expect(r.json.text).toContain("| 12 | Zebracorn beds |");
+    expect(r.json.text).not.toContain("Plain and warm");
+  });
+  refuses("get_persona", "Mara's token never reads Jules's persona", async () => {
+    const r = await mara.tool("get_persona");
+    expect(r.json).toMatchObject({ exists: false });
+    expect(JSON.stringify(r.json)).not.toContain("Zebracorn");
+  });
+});
+
 describe("mail", () => {
   does("list_email", "without a connected account says so", async () => {
     await expect(jules.tool("list_email", { limit: 5 })).rejects.toThrow(/no mail account connected/);
@@ -427,7 +441,11 @@ describe("mail", () => {
         lastError: null,
       })
       .run();
-    const r = await jules.tool("draft_email", { to: "mara@example.com", subject: "Seeds", body: "Thursday works." });
+    // Jules has a persona (above): the first call hands back his voice and stages nothing.
+    const first = await jules.tool("draft_email", { to: "mara@example.com", subject: "Seeds", body: "Yo." });
+    expect(first.isError).toBe(true);
+    expect(first.text).toContain("Plain and warm");
+    const r = await jules.tool("draft_email", { to: "mara@example.com", subject: "Seeds", body: "Thursday works.", voiceRead: true });
     expect(r.json).toMatchObject({ status: "awaiting_confirmation", to: "mara@example.com", subject: "Seeds" });
     const drafts = (await s.call("jules", "GET", "/api/mail/drafts")).json as { id: string; subject: string }[];
     expect(drafts.map((d) => d.subject)).toContain("Seeds");
