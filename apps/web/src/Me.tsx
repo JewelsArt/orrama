@@ -10,11 +10,15 @@
  *
  * With no note the page offers Generate my persona (AI, and enough to read) or a blank one. This
  * file holds the state and every request; the pieces are in me/.
+ *
+ * What is open in the panel is in the address (`?open=<key>`), so Back from a person's page comes
+ * back to it; the page follows the note live (an edit in Obsidian or by an agent redraws it).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { LANE_ORDER, personaGraph } from "@orrama/core/persona-graph";
 import type { Contact, PersonaData, PersonaJob } from "@orrama/schema/responses";
 import { api, type Me as Account } from "./api.js";
+import { onWs } from "./ws.js";
 import { Button, Tabs } from "./ui/controls.js";
 import { Icon } from "./ui/Icon.js";
 import { Menu, toast, topLayer } from "./ui/overlays.js";
@@ -48,7 +52,11 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [tree, setTree] = useState<TreeNote[]>([]);
   const [lit, setLit] = useState<Set<string> | null>(null);
-  const [trail, setTrail] = useState<string[]>([]);
+  // What the panel shows comes back from the address: Back from a person's page returns to it.
+  const [trail, setTrail] = useState<string[]>(() => {
+    const open = new URLSearchParams(location.search).get("open");
+    return open ? [open] : [];
+  });
   const [intro, setIntro] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -71,6 +79,33 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
     void api<Contact[]>("GET", "/api/contacts").then(setContacts, () => {});
     void api<TreeNote[]>("GET", "/api/vault/tree").then(setTree, () => {});
   }, [load, loadJob]);
+
+  // The note changed elsewhere (Obsidian, an agent, another window): read it again, quietly.
+  const noteId = data?.note?.id ?? null;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = onWs((m) => {
+      if (m.type !== "note-changed") return;
+      if (!(m.resync || (noteId ? m.noteId === noteId : true))) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void load(), 400);
+    });
+    return () => {
+      clearTimeout(timer);
+      off();
+    };
+  }, [load, noteId]);
+
+  // The panel's top in the address, replaced (never a history entry of its own).
+  const top = trail[trail.length - 1] ?? null;
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    if ((q.get("open") ?? null) === top || top?.startsWith("write:")) return;
+    if (top) q.set("open", top);
+    else q.delete("open");
+    const search = q.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ""}`, { replace: true });
+  }, [top]);
 
   // Esc closes the panel even when focus is on the page (the stack only hands a panel the keys
   // pressed inside it, and following a chip replaces the chip that had focus).
@@ -110,11 +145,16 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
       light: (key) => setLit(key ? new Set(g.related(key)) : null),
       open: (key) => setTrail((t) => (t[t.length - 1] === key ? t : [...t, key])),
       draft: !!draft,
+      draftId: draft ? (job?.id ?? null) : null,
+      mail: !!data?.mail,
+      ai: !!data?.ai.configured,
+      openNote: () => {
+        if (data?.note) navigate({ kind: "notes", path: data.note.path.replace(/\.md$/, "") });
+      },
     };
-  }, [p, lit, draft]);
+  }, [p, lit, draft, job?.id, data]);
 
-  const noteTo = data?.note ? { kind: "notes" as const, path: data.note.path.replace(/\.md$/, "") } : null;
-  const openNote = () => noteTo && navigate(noteTo);
+  const openNote = () => shared?.openNote();
 
   if (data === undefined) return <div className="me-page"><Skeleton rows={6} label="Opening your page" /></div>;
   if (data === null)
@@ -176,7 +216,7 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
     <MeContext.Provider value={shared}>
       {/* Pointing at nothing lights nothing. */}
       <div
-        className={lit ? "me-page linking" : "me-page"}
+        className={["me-page", lit && "linking", trail.length > 0 && "side-open"].filter(Boolean).join(" ")}
         onPointerLeave={() => setLit(null)}
         onPointerOver={(e) => {
           if (lit && !(e.target as Element).closest("[data-key]")) setLit(null);
@@ -221,6 +261,7 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
         <Header
           name={name}
           avatar={me.avatar}
+          headline={p.headline}
           facts={facts.map((f) =>
             f.key ? (
               <button key={f.full} type="button" className="me-lchip" title={f.full} style={{ "--lc": laneColor(f.lane ?? "", shared.lanes) } as CSSProperties} onClick={() => shared.open(f.key!)}>
@@ -271,11 +312,6 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
             </ul>
           </details>
         )}
-        {data.others.length > 0 && !draft && (
-          <p className="me-org">
-            Also tagged #persona: {data.others.join(", ")}. This page reads {data.note!.path}.
-          </p>
-        )}
         {tab === "story" ? (
           <StoryView />
         ) : tab === "work" ? (
@@ -283,9 +319,31 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
         ) : tab === "skills" ? (
           <SkillsView />
         ) : tab === "voice" ? (
-          <VoiceView onTry={() => shared.open("write:")} />
+          <VoiceView onTry={(register) => shared.open(`write:register:${register}`)} />
         ) : (
-          <Overview notePath={draft ? null : (data.note?.path ?? null)} onTab={(t) => navigate(hrefOf(t))} onOpenNote={openNote} />
+          <Overview onTab={(t) => navigate(hrefOf(t))} />
+        )}
+        {!draft && data.note && (
+          <footer className="me-foot">
+            <p>
+              Orr reads all of this from one note you can edit:{" "}
+              <a
+                href={routeHref({ kind: "notes", path: data.note.path.replace(/\.md$/, "") })}
+                onClick={(e) => {
+                  e.preventDefault();
+                  openNote();
+                }}
+              >
+                {data.note.title}
+              </a>
+              .{p.learnedFrom && <> Learned from {p.learnedFrom}.</>}
+            </p>
+            {data.others.length > 0 && (
+              <p className="me-others">
+                {data.others.length === 1 ? "Another note is" : `${data.others.length} other notes are`} tagged #persona too ({data.others.map((o) => o.title).join(", ")}); this page reads only the one above.
+              </p>
+            )}
+          </footer>
         )}
         {trail.length > 0 && (
           <Side
@@ -305,13 +363,13 @@ export function Me({ me, tab = "overview", onAsk }: { me: Account; tab?: Tab; on
             }}
           />
         )}
-        {intro && <Introduce langs={pitchLanguages(p)} ai={data.ai.configured} onClose={() => setIntro(false)} />}
+        {intro && <Introduce langs={pitchLanguages(p)} onClose={() => setIntro(false)} />}
       </div>
     </MeContext.Provider>
   );
 }
 
-function Header({ name, avatar, facts, actions }: { name: string; avatar: string; facts: ReactNode; actions?: ReactNode }) {
+function Header({ name, avatar, headline, facts, actions }: { name: string; avatar: string; headline?: string; facts: ReactNode; actions?: ReactNode }) {
   return (
     <header className="me-ph">
       <span className="me-photo">
@@ -319,6 +377,7 @@ function Header({ name, avatar, facts, actions }: { name: string; avatar: string
       </span>
       <div className="me-ph-x">
         <h1>{name}</h1>
+        {headline && <p className="me-headline">{headline}</p>}
         <div className="me-pm">{facts}</div>
       </div>
       {actions && <div className="me-acts">{actions}</div>}

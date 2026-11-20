@@ -416,11 +416,11 @@ export const TOOLS = [
   {
     name: "get_persona",
     description:
-      "The user's persona note (their Me page): who they are, for introducing them or writing as them. Sections: short (their pitch in one line, 30 seconds and 2 minutes, by language), now, experience, projects, skills, proof (the only numbers you may quote about them), people, voice (how they write), rules (rules for outside use: what never leaves), interests, questions (what is still open). Returns the note's own Markdown for the sections asked, or all. Read it only when the task is about the user or writing as them; it is changed in Orrama.",
+      "The user's persona note (their Me page): who they are, for introducing them or writing as them. Sections: short (their pitch in one line, 30 seconds and 2 minutes, by language), now, experience, projects, skills, proof (the only numbers you may quote about them), people, voice (how they write), rules (rules for outside use: what never leaves), interests, growing (what they want to learn), terms (finance words in plain language), questions (what is still open, with the answers they gave). Returns the note's own Markdown for the sections asked, or all. Read it only when the task is about the user or writing as them; it is changed in Orrama.",
     inputSchema: {
       type: "object",
       properties: {
-        sections: { type: "array", items: { type: "string", enum: ["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"] }, description: "Only these sections (default: all)" },
+        sections: { type: "array", items: { type: "string", enum: ["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "growing", "terms", "questions"] }, description: "Only these sections (default: all)" },
       },
     },
   },
@@ -774,10 +774,11 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
     case "draft_email": {
       // Written as the user: in their voice and by their rules, when their persona says what those are.
       if (args.voiceRead !== true) {
-        const p = await api(`/api/persona/text?section=${encodeURIComponent("voice,rules")}`);
-        if (p?.exists && p.text) {
+        // The proof points come with the voice: "only these numbers" means nothing without them.
+        const p = await api(`/api/persona/text?section=${encodeURIComponent("voice,rules,proof")}`);
+        if (p?.exists && /^## (voice|rules)\b/im.test(p.text ?? "")) {
           return refusal(
-            `not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below (quote no number that isn't in their persona's proof points), then call draft_email again with voiceRead: true.\n\n${p.text}`,
+            `not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below, quoting no number about them that isn't in their Proof points (also below), then call draft_email again with voiceRead: true.\n\n${p.text}`,
           );
         }
       }

@@ -466,7 +466,7 @@ describe("draft_email only ever stages a draft", () => {
   it("posts to the drafts and nowhere that sends, and says the user must send it", async () => {
     const { calls, api } = recorder(() => ({ id: "d-1" }));
     const res = await callTool("draft_email", { to: "mara@example.com", subject: "Hi", body: "Hello" }, api);
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules", "POST /api/mail/drafts"]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules%2Cproof", "POST /api/mail/drafts"]);
     expect(JSON.parse(res.content[0]!.text)).toMatchObject({ id: "d-1", status: "awaiting_confirmation" });
   });
 
@@ -479,7 +479,20 @@ describe("draft_email only ever stages a draft", () => {
     expect(calls.map((c) => c.method)).toEqual(["GET"]);
     const second = await callTool("draft_email", { to: "a@example.com", subject: "Hi", body: "Hi,\n\nBest, Sam", voiceRead: true }, api);
     expect(second.isError).toBeFalsy();
-    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules", "POST /api/mail/drafts"]);
+    expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(["GET /api/persona/text?section=voice%2Crules%2Cproof", "POST /api/mail/drafts"]);
+  });
+
+  it("the proof points come with the voice, and a persona with proof points but no voice drafts at once", async () => {
+    const withProof = "## Voice\n\n- Warm but plain.\n\n## Proof points\n\n| Number | What |\n|---|---|\n| 14 | Studio plans |";
+    const a = recorder((c) => (c.path.startsWith("/api/persona/text") ? { exists: true, name: "Sam", path: "Me/persona.md", text: withProof } : { id: "d-3" }));
+    const first = await callTool("draft_email", { to: "a@example.com", subject: "Hi", body: "Yo" }, a.api);
+    expect(first.isError).toBe(true);
+    expect(first.content[0]!.text).toContain("| 14 | Studio plans |");
+    const onlyProof = "## Proof points\n\n| Number | What |\n|---|---|\n| 14 | Studio plans |";
+    const b = recorder((c) => (c.path.startsWith("/api/persona/text") ? { exists: true, name: "Sam", path: "Me/persona.md", text: onlyProof } : { id: "d-4" }));
+    const staged = await callTool("draft_email", { to: "a@example.com", subject: "Hi", body: "Yo" }, b.api);
+    expect(staged.isError).toBeFalsy();
+    expect(b.calls.map((c) => c.method)).toEqual(["GET", "POST"]);
   });
 });
 

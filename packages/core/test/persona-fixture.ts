@@ -50,6 +50,7 @@ Then I moved to Lisbon for landscape design.
 | Based in | Lisbon |
 | Languages | Portuguese and English (both native), French (beginner) |
 | Lonely label | |
+| | A value with no label |
 
 ## Experience
 

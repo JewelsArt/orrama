@@ -13,8 +13,9 @@
  *   DELETE /api/persona/generate     Start again (the draft is thrown away)
  *   POST /api/persona/accept         the reviewed draft becomes the note
  *
- * Everything is the note: no second store. The draft lives in memory until it is accepted
- * (the page says "the draft stays on this device"); a restart drops it.
+ * Everything is the note: no second store. A finished draft waits in `meta`
+ * (`persona-draft:<user id>`) until it is kept or thrown away, so a restart (a ship, an update)
+ * doesn't lose it; nothing is written into the vault until the person keeps it.
  */
 import crypto from "node:crypto";
 import type { FastifyInstance } from "fastify";
@@ -28,6 +29,7 @@ import {
   PERSONA_SECTIONS,
   personaText,
   plain,
+  quotableText,
   unsourcedNumbers,
   type AclUser,
   type IndexedNote,
@@ -46,8 +48,10 @@ const writeSchema = z.object({
   length: z.enum(["line", "s30", "min2"]).default("s30"),
   language: z.string().regex(/^[A-Za-z]{2}$/).default("EN"),
   purpose: z.string().max(500).optional(),
-  /** What it is about: a project, place, skill or proof point of the page, by its name. */
+  /** What it is about: a project, place, skill or proof point of the page, in words. */
   about: z.string().max(300).optional(),
+  /** Write from the draft under review (Generate's), not the note: the page reviewing it says which. */
+  draftId: z.string().min(1).optional(),
 });
 const generateSchema = z.object({
   sources: z.object({ projects: z.boolean().default(true), notes: z.boolean().default(true), people: z.boolean().default(true), chats: z.boolean().default(false) }).default({ projects: true, notes: true, people: true, chats: false }),
@@ -68,9 +72,17 @@ const AUDIENCE: Record<string, string> = {
 };
 const LENGTH: Record<string, string> = { line: "one sentence", s30: "about 30 seconds read aloud (60 to 90 words)", min2: "about 2 minutes read aloud (250 to 320 words)" };
 
-/** The persona as Orr is given it to write: everything but the open questions, which are not facts yet. */
-function personaForPrompt(content: string): string {
-  return personaText(content, PERSONA_SECTIONS.filter((s) => s !== "questions"));
+/**
+ * The persona as Orr is given it to write: everything but the open questions, which are not facts
+ * yet, and the answers the person gave to them, which are (review, 20 Nov: an answer used to be
+ * written into the note and never read again).
+ */
+export function personaForPrompt(content: string): string {
+  const text = personaText(content, PERSONA_SECTIONS.filter((s) => s !== "questions"));
+  const answered = parsePersona(content).questions.filter((q) => q.answer);
+  if (answered.length === 0) return text;
+  const lines = answered.map((q) => `- ${q.name}${q.detail ? ` (${q.detail.replace(/\s*\?$/, "")})` : ""}: ${q.answer}`);
+  return `${text}\n\n## Settled with me\n\nThese answers are facts, and win over anything above that says otherwise.\n\n${lines.join("\n")}`;
 }
 
 export function writeAsPrompt(name: string, content: string, body: z.infer<typeof writeSchema>): { system: string; prompt: string } {
@@ -78,7 +90,7 @@ export function writeAsPrompt(name: string, content: string, body: z.infer<typeo
   const system = [
     `You write as ${name || "the user"}, in the first person, for them to send or say themselves.`,
     "Use ONLY the facts in the persona note below. Never add a fact, a name or a number that is not in it.",
-    "Numbers: quote only numbers that appear in the note, above all in Proof points, exactly as written. If a number you would want is not there, leave it out; never estimate one.",
+    "Numbers: quote only numbers that appear in the note, above all in Proof points, exactly as written. If a number you would want is not there, leave it out; never estimate one. Never quote a number from an open question or one the note marks internal only.",
     "Follow the note's Voice and Rules for outside use to the letter. Never use anything the note marks as internal only.",
     lang === "FR" ? "Write in French." : lang === "EN" ? "Write in English." : `Write in the language with the code ${lang}.`,
     "Answer with the text only: no preamble, no notes, no quotation marks around it.",
@@ -230,22 +242,50 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
   const mailConnected = (userId: string) => !!db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, userId)).get();
   const today = () => isoLocal(new Date());
 
+  // A finished draft outlives the process: kept in meta until it is kept or thrown away.
+  const draftKey = (userId: string) => `persona-draft:${userId}`;
+  const saveDraft = (j: Job) =>
+    db
+      .insert(tables.meta)
+      .values({ key: draftKey(j.userId), value: JSON.stringify({ id: j.id, draft: j.draft, steps: j.steps, at: j.startedAt }) })
+      .onConflictDoUpdate({ target: tables.meta.key, set: { value: JSON.stringify({ id: j.id, draft: j.draft, steps: j.steps, at: j.startedAt }) } })
+      .run();
+  const dropDraft = (userId: string) => db.delete(tables.meta).where(eq(tables.meta.key, draftKey(userId))).run();
+  /** The account's job: the one running here, else a finished draft kept from before a restart. */
+  const jobOf = (userId: string): Job | undefined => {
+    const live = jobs.get(userId);
+    if (live) return live;
+    const raw = db.select().from(tables.meta).where(eq(tables.meta.key, draftKey(userId))).get()?.value;
+    if (!raw) return undefined;
+    try {
+      const d = JSON.parse(raw) as { id: string; draft: string; steps: Step[]; at: number };
+      if (typeof d.id !== "string" || typeof d.draft !== "string") return undefined;
+      const j: Job = { id: d.id, userId, state: "done", steps: d.steps ?? [], startedAt: d.at ?? 0, draft: d.draft, error: null, abort: new AbortController() };
+      jobs.set(userId, j);
+      return j;
+    } catch {
+      return undefined;
+    }
+  };
+
   app.get("/api/persona", auth, async (req) => {
     const user = store.aclUser(req.userId);
     const [note, ...others] = personaCandidates(db, store, user);
     const c = aiConfig(db);
     const ai = { configured: !!c, provider: c?.provider ?? null };
+    const mail = mailConnected(req.userId);
     if (note) {
       return {
         note: { id: note.id, path: note.path, title: note.title, mtimeMs: note.mtimeMs ?? null, hash: store.noteHash(note) },
         persona: parsePersona(note.content, nameOf(req.userId)),
-        others: others.map((n) => n.path),
+        others: others.map((n) => ({ path: n.path, title: n.title })),
         ai,
+        mail,
         sources: null,
       };
     }
     const { counts: n } = counts(user);
-    return { note: null, persona: null, others: [], ai, sources: { ...n, mail: mailConnected(req.userId), enough: enoughToRead(n), home: personaHome(db, store, user) } };
+    return { note: null, persona: null, others: [], ai, mail, sources: { ...n, mail, enough: enoughToRead(n), home: personaHome(db, store, user) } };
   });
 
   app.get<{ Querystring: { section?: string } }>("/api/persona/text", auth, async (req) => {
@@ -283,12 +323,15 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
   app.post("/api/persona/write", auth, async (req, reply) => {
     const body = writeSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const note = personaNote(db, store, user);
-    if (!note) throw new HttpError(404, "You have no persona note.");
+    // Reviewing Generate's draft: Introduce me and Write as me work on it before it is kept.
+    const job = body.draftId ? jobOf(req.userId) : undefined;
+    if (body.draftId && (!job || job.id !== body.draftId || !job.draft)) throw new HttpError(404, "That draft is gone. Generate it again.");
+    const content = job?.draft ?? personaNote(db, store, user)?.content;
+    if (content === undefined) throw new HttpError(404, "You have no persona note.");
     const c = aiConfig(db);
     if (!c) throw new HttpError(400, "AI is not set up. Connect it in Settings → Orr & AI.");
-    const name = parsePersona(note.content, nameOf(req.userId)).name;
-    const { system, prompt } = writeAsPrompt(name, note.content, body);
+    const name = parsePersona(content, nameOf(req.userId)).name;
+    const { system, prompt } = writeAsPrompt(name, content, body);
     const run = new AbortController();
     const deadline = setTimeout(() => run.abort(new Error("timed out")), 120_000);
     deadline.unref();
@@ -314,7 +357,7 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
       }
     }
     // Never a number the note doesn't hold: said, so the person checks it before it goes anywhere.
-    return { text, subject, unsourced: unsourcedNumbers(`${subject}\n${text}`, note.content) };
+    return { text, subject, unsourced: unsourcedNumbers(`${subject}\n${text}`, quotableText(content)) };
   });
 
   /* ---- Generate my persona ------------------------------------------------------------------ */
@@ -334,12 +377,12 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
     };
   };
 
-  app.get("/api/persona/generate", auth, async (req) => jobView(jobs.get(req.userId)));
+  app.get("/api/persona/generate", auth, async (req) => jobView(jobOf(req.userId)));
 
   app.post("/api/persona/generate", auth, async (req) => {
     const body = generateSchema.parse(req.body ?? {});
     const user = store.aclUser(req.userId);
-    if (jobs.get(req.userId)?.state === "running") throw new HttpError(409, "Orr is already writing your page.");
+    if (jobOf(req.userId)?.state === "running") throw new HttpError(409, "Orr is already writing your page.");
     if (personaNote(db, store, user)) throw new HttpError(409, "You already have a persona note.");
     const c = aiConfig(db);
     if (!c) throw new HttpError(400, "AI is not set up. Connect it in Settings → Orr & AI.");
@@ -358,6 +401,7 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
     ];
     const job: Job = { id: crypto.randomUUID(), userId: req.userId, state: "running", steps, startedAt: Date.now(), draft: null, error: null, abort: new AbortController() };
     jobs.set(req.userId, job);
+    dropDraft(req.userId);
     const step = async <T>(id: string, run: () => Promise<T> | T): Promise<T> => {
       const s = job.steps.find((x) => x.id === id)!;
       s.state = "running";
@@ -383,6 +427,7 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
         if (job.state !== "running") return;
         job.draft = await step("check", () => withFrontmatter(name, today(), checkDraft(draft, text)));
         job.state = "done";
+        saveDraft(job);
       } catch (err) {
         if (job.state !== "running") return;
         req.log.error({ err: err instanceof Error ? err.message : String(err) }, "persona/generate");
@@ -410,18 +455,20 @@ export async function personaRoutes(app: FastifyInstance, db: Db, store: VaultSt
     const job = jobs.get(req.userId);
     job?.abort.abort(new Error("thrown away"));
     jobs.delete(req.userId);
+    dropDraft(req.userId);
     return { ok: true };
   });
 
   app.post("/api/persona/accept", auth, async (req) => {
     const body = acceptSchema.parse(req.body);
     const user = store.aclUser(req.userId);
-    const job = jobs.get(req.userId);
+    const job = jobOf(req.userId);
     if (!job || job.id !== body.id || job.state !== "done" || !job.draft) throw new HttpError(404, "That draft is gone. Generate it again.");
     if (personaNote(db, store, user)) throw new HttpError(409, "You already have a persona note.");
     // The draft's Voice and Rules become how agents write as the user: a token may not put them there.
     const note = store.write(user, personaHome(db, store, user), job.draft, undefined, undefined, { create: true, guard: req.viaToken ? tokenWriter : undefined });
     jobs.delete(req.userId);
+    dropDraft(req.userId);
     return { id: note.id, path: note.path };
   });
 

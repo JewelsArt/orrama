@@ -47,7 +47,10 @@ export function Empty({
     { id: "people", name: "People", count: s.people ? plural(s.people, "person or company", "people and companies") : "none yet", none: s.people === 0 },
     { id: "chats", name: "Saved chats", count: s.chats ? plural(s.chats, "conversation", "conversations") : "none yet", none: s.chats === 0 },
   ];
-  const enough = (on.projects ? s.projects : 0) >= 3 || (on.notes ? s.notes : 0) >= 20;
+  // What is switched on is what counts, and what the lines say (review, 20 Nov).
+  const readProjects = on.projects ? s.projects : 0;
+  const readNotes = on.notes ? s.notes : 0;
+  const enough = readProjects >= 3 || readNotes >= 20;
   const ready = data.ai.configured && enough;
 
   let body;
@@ -143,12 +146,12 @@ export function Empty({
           {enough ? (
             <div className="ok">
               <Icon name="check" size={18} />
-              Enough to read: {plural(s.projects, "project", "projects")} and {plural(s.notes, "note", "notes")}
+              Enough to read: {plural(readProjects, "project", "projects")} and {plural(readNotes, "note", "notes")}
             </div>
           ) : (
             <div className="no">
               <Icon name="warn" size={18} />
-              Not much to read yet: {plural(s.projects, "project", "projects")} and {plural(s.notes, "note", "notes")}. Orr needs at least 3 projects or 20 notes.
+              Not much to read{on.projects && on.notes ? " yet" : " with these switched on"}: {plural(readProjects, "project", "projects")} and {plural(readNotes, "note", "notes")}. Orr needs at least 3 projects or 20 notes.
             </div>
           )}
         </div>

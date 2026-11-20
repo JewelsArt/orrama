@@ -225,6 +225,13 @@ describe("the shell", () => {
     await user.click(screen.getByRole("button", { name: "ask about me" }));
     expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).toContain("ask");
     expect(screen.getAllByTestId("view").find((v) => v.dataset.view === "ask")!.textContent).toContain("seed=Help me answer this");
+    // Closed and opened again (the rail's Ask Orr, twice), it is back to the conversation: the question doesn't stick.
+    const askButton = () => screen.getAllByRole("button", { name: /^Ask Orr/ })[0]!;
+    await user.click(askButton());
+    await waitFor(() => expect(screen.getAllByTestId("view").map((v) => v.dataset.view)).not.toContain("ask"));
+    await user.click(askButton());
+    const ask = await waitFor(() => screen.getAllByTestId("view").find((v) => v.dataset.view === "ask")!);
+    expect(ask.textContent).not.toContain("seed=Help me answer this");
   });
 
   it("on the phone, More holds the other places and Settings, with your Orr on top", async () => {

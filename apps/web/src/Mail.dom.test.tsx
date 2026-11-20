@@ -97,7 +97,18 @@ describe("Mail: staged drafts in the composer (WEB-006)", () => {
     await waitFor(() => expect(composer().value).toBe(""));
   });
 
-  it("opening a message while the composer holds text asks first, and Keep it keeps the text", async () => {
+  it("a Mail that isn't connected yet keeps what the Me page wrote, for when it is", async () => {
+    const { holdForComposer, peekHeld, clearHeld } = await import("./mail/compose.js");
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => (String(input).startsWith("/api/mail/account") ? new Response(JSON.stringify({ connected: false }), { status: 200, headers: { "content-type": "application/json" } }) : new Response("[]", { status: 200, headers: { "content-type": "application/json" } }))));
+    holdForComposer({ subject: "", body: "Hi Zora" });
+    history.replaceState(null, "", "/mail?write=new");
+    render(<Mail me={me} />);
+    await screen.findByText("Mail isn't connected yet.");
+    expect(peekHeld()).toEqual({ subject: "", body: "Hi Zora" });
+    clearHeld();
+  });
+
+    it("opening a message while the composer holds text asks first, and Keep it keeps the text", async () => {
     stubMailbox();
     const user = userEvent.setup();
     render(<Mail me={me} />);

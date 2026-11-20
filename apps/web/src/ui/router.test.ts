@@ -59,6 +59,10 @@ describe("addresses", () => {
     ["/me", { kind: "me" }],
     ["/me/story", { kind: "me", tab: "story" }],
     ["/me/voice", { kind: "me", tab: "voice" }],
+    // What the panel shows and Work's filter survive a reload and Back (review, 20 Nov).
+    ["/me?open=person%3Azora-quill", { kind: "me", open: "person:zora-quill" }],
+    ["/me/work?group=Built", { kind: "me", tab: "work", group: "Built" }],
+    ["/me/work?group=Scooperz&open=project%3Aorrama", { kind: "me", tab: "work", group: "Scooperz", open: "project:orrama" }],
   ];
   it.each(ROUND_TRIPS)("%s", (href, route) => {
     expect(parse(href)).toEqual(route);

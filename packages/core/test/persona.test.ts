@@ -19,18 +19,19 @@ const p = parsePersona(SAMPLE_PERSONA);
 
 describe("periods as people write them", () => {
   it.each([
-    ["2023", monthOf(2023, 1), monthOf(2023, 12)],
-    ["May 2026", monthOf(2026, 5), monthOf(2026, 5)],
-    ["Spring 2026", monthOf(2026, 3), monthOf(2026, 5)],
-    ["2021–2022", monthOf(2021, 1), monthOf(2022, 12)],
-    ["Jan–Jun 2025", monthOf(2025, 1), monthOf(2025, 6)],
-    ["Aug 2025 – Jan 2026", monthOf(2025, 8), monthOf(2026, 1)],
-    ["Feb – Mar 2026", monthOf(2026, 2), monthOf(2026, 3)],
-    ["Nov – Feb 2026", monthOf(2025, 11), monthOf(2026, 2)],
-    ["September 2025 to January 2026", monthOf(2025, 9), monthOf(2026, 1)],
-    ["2025 - 2026", monthOf(2025, 1), monthOf(2026, 12)],
-  ])("%s", (text, start, end) => {
-    expect(parsePeriod(text)).toEqual({ start, end });
+    // A year written alone ends in December only roughly: the timeline knows (endRough).
+    ["2023", monthOf(2023, 1), monthOf(2023, 12), true],
+    ["May 2026", monthOf(2026, 5), monthOf(2026, 5), false],
+    ["Spring 2026", monthOf(2026, 3), monthOf(2026, 5), false],
+    ["2021–2022", monthOf(2021, 1), monthOf(2022, 12), true],
+    ["Jan–Jun 2025", monthOf(2025, 1), monthOf(2025, 6), false],
+    ["Aug 2025 – Jan 2026", monthOf(2025, 8), monthOf(2026, 1), false],
+    ["Feb – Mar 2026", monthOf(2026, 2), monthOf(2026, 3), false],
+    ["Nov – Feb 2026", monthOf(2025, 11), monthOf(2026, 2), false],
+    ["September 2025 to January 2026", monthOf(2025, 9), monthOf(2026, 1), false],
+    ["2025 - 2026", monthOf(2025, 1), monthOf(2026, 12), true],
+  ])("%s", (text, start, end, rough) => {
+    expect(parsePeriod(text)).toEqual(rough ? { start, end, endRough: true } : { start, end });
   });
 
   it("an open end goes on", () => {
@@ -48,8 +49,10 @@ describe("the note's sections", () => {
     expect(sectionOf("Check with Jules")).toBe("questions");
     expect(sectionOf("Rules for outside use")).toBe("rules");
     expect(sectionOf("Proof points")).toBe("proof");
-    expect(sectionOf("Growing")).toBeNull();
-    expect(p.sections).toEqual(["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"]);
+    expect(sectionOf("Growing")).toBe("growing");
+    expect(sectionOf("Plain-language terms")).toBe("terms");
+    expect(sectionOf("Hobbies")).toBeNull();
+    expect(p.sections).toEqual(["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "growing", "questions"]);
   });
 
   it("names the person from the title, else front matter, else the account", () => {
@@ -72,7 +75,10 @@ describe("the note's sections", () => {
 
   it("reads Now as label and value, and says which row it couldn't read", () => {
     expect(p.now.map((n) => n.label)).toEqual(["Role", "Study", "Based in", "Languages"]);
-    expect(p.unread).toContainEqual(expect.objectContaining({ section: "Now", reason: "a row needs a label and a value" }));
+    expect(p.unread).toContainEqual(expect.objectContaining({ section: "Now", text: "| | A value with no label |", reason: "a row needs a label and a value" }));
+    // A label waiting for its value is a template, not a mistake: a blank note reads clean.
+    expect(p.unread.some((u) => u.text.includes("Lonely label"))).toBe(false);
+    expect(parsePersona(blankPersona("Ada", "2026-11-20")).unread).toEqual([]);
   });
 
   it("reads Experience with its lanes; an unreadable period is listed but said, an empty row skipped", () => {
@@ -159,7 +165,8 @@ describe("what links to what", () => {
     expect(g.expsOfProject("garden-studio-plans")).toEqual(["oakline-builders-intern-garden-studios"]);
     // Two Oakline rows; the rooftop beds (Oct 2026 on) fall in the second.
     expect(g.expsOfProject("rooftop-beds")).toEqual(["oakline-builders-garden-designer", "lisbon-school-of-design-lisbon-landscape-design"]);
-    expect(g.expsOfProject("plotter")).toEqual([]);
+    // "Own time" names no place, but the Builder row's own words name Plotter: that is its row.
+    expect(g.expsOfProject("plotter")).toEqual(["plotter-own-app-builder"]);
   });
 
   it("skills come from the project's column and from each skill's Proof", () => {
@@ -198,13 +205,18 @@ describe("the story", () => {
     }
   });
 
-  it("places bars by date: later starts sit further right, an open one runs to the end, now inside the last year", () => {
+  it("places bars by date: later starts sit further right, one still going stops at now, now inside the last year", () => {
     const at = (org: string) => s.bars.find((b) => b.label.startsWith(org))!;
     expect(at("University of Porto").left).toBe(0);
     expect(at("Verde Nursery").left).toBeGreaterThan(at("University of Porto").left);
     expect(at("Plotter").open).toBe(true);
-    expect(at("Plotter").left + at("Plotter").width).toBeCloseTo(100);
+    expect(at("Plotter").left + at("Plotter").width).toBeCloseTo(s.now);
     expect(at("Plotter").now).toBe(true);
+    // "2021–2026" ends in a year still going: it runs on to the edge, open, and never stretches
+    // the timeline past now (its December is a guess).
+    expect(at("Lisbon School of Design").left + at("Lisbon School of Design").width).toBeCloseTo(100);
+    expect(at("Lisbon School of Design").open).toBe(true);
+    expect(s.years.at(-1)!.year).toBe(2026);
     expect(at("Verde Nursery").now).toBe(false);
     const y2026 = s.years.find((y) => y.year === 2026)!;
     expect(s.now).toBeGreaterThan(y2026.left);
@@ -264,9 +276,9 @@ describe("the note's own text", () => {
     expect(t).toContain("## Rules for outside use\n\n- Never name Oakline's clients.");
     expect(t).not.toContain("## Skills");
     const all = personaText(SAMPLE_PERSONA);
-    expect(all).not.toContain("## Growing");
+    expect(all).toContain("## Growing");
     expect(all).not.toContain("a fenced heading");
-    expect(all.match(/^## /gm)).toHaveLength(11);
+    expect(all.match(/^## /gm)).toHaveLength(12);
   });
 });
 

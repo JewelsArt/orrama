@@ -17,6 +17,13 @@ export interface MeShared {
   open: (key: string) => void;
   /** A draft under review: nothing writes to a note yet. */
   draft: boolean;
+  /** Its id, for Introduce me and Write as me while it is reviewed (they write from the draft). */
+  draftId: string | null;
+  /** A mailbox is connected: "Use in an email" can open the composer. */
+  mail: boolean;
+  ai: boolean;
+  /** Open the persona note in Notes. */
+  openNote: () => void;
 }
 
 export const MeContext = createContext<MeShared | null>(null);
@@ -34,6 +41,8 @@ export function useLink(key: string) {
     className: lit ? (lit.has(key) ? "lit" : "faded") : "",
     onPointerEnter: () => light(key),
     onFocus: () => light(key),
+    // Tabbing away un-lights it: a highlight never outlives what it was about.
+    onBlur: () => light(null),
     onClick: () => open(key),
     "data-key": key,
   };

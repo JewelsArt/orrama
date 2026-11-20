@@ -136,7 +136,7 @@
 - **Imports**: node:worker_threads
 
 ### `apps/server/src/persona.ts`
-- **Exports**: personaCandidates, personaNote, personaHome, isPrivate, PersonaSources, personaSources, ENOUGH, enoughToRead
+- **Exports**: isPersonaTagged, personaCandidates, personaNote, personaHome, isPrivate, PersonaSources, personaSources, ENOUGH, enoughToRead
 - **Imports**: @orrama/core, ./db.js, ./vaultStore.js
 
 ### `apps/server/src/portableName.ts`
@@ -230,7 +230,7 @@
 - **Imports**: fastify, @orrama/core, ../vaultStore.js, ./graph.js
 
 ### `apps/server/src/routes/persona.ts`
-- **Exports**: writeAsPrompt, sourcesText, checkDraft, personaRoutes
+- **Exports**: personaForPrompt, writeAsPrompt, sourcesText, checkDraft, personaRoutes
 - **Imports**: node:crypto, fastify, drizzle-orm, zod, @orrama/core, ../db.js, ../aiProvider.js, ../persona.js, ../vaultStore.js, ../agentWrites.js
 
 ### `apps/server/src/routes/plan.ts`
@@ -347,7 +347,7 @@
 
 ### `apps/web/src/Me.tsx`
 - **Exports**: Me
-- **Imports**: react, @orrama/core/persona-graph, @orrama/schema/responses, ./api.js, ./ui/controls.js, ./ui/Icon.js, ./ui/overlays.js, ./ui/orr/Orr.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/shell/SectionBar.js, ./me/context.js, ./me/Empty.js, ./me/generation.js, ./me/Introduce.js, ./me/model.js, ./me/Overview.js, ./me/Side.js, ./me/Views.js
+- **Imports**: react, @orrama/core/persona-graph, @orrama/schema/responses, ./api.js, ./ws.js, ./ui/controls.js, ./ui/Icon.js, ./ui/overlays.js, ./ui/orr/Orr.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/shell/SectionBar.js, ./me/context.js, ./me/Empty.js, ./me/generation.js, ./me/Introduce.js, ./me/model.js, ./me/Overview.js, ./me/Side.js, ./me/Views.js
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
@@ -628,15 +628,15 @@
 
 ### `apps/web/src/me/Introduce.tsx`
 - **Exports**: Introduce
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../mail/compose.js, ./Side.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../mail/compose.js, ./context.js, ./copy.js, ./Side.js
 
 ### `apps/web/src/me/Overview.tsx`
-- **Exports**: Overview
-- **Imports**: react, @orrama/core/persona-graph, ../ui/Icon.js, ../ui/controls.js, ../ui/CountUp.js, ../ui/overlays.js, ../ui/controls.js, ./context.js, ./model.js, ./Story.js
+- **Exports**: Overview, radioKeys
+- **Imports**: react, @orrama/core/persona-graph, ../ui/Icon.js, ../ui/controls.js, ../ui/CountUp.js, ../ui/overlays.js, ../ui/controls.js, ../ui/router.js, ../storage.js, ../mail/compose.js, ./context.js, ./copy.js, ./model.js, ./Story.js
 
 ### `apps/web/src/me/Side.tsx`
 - **Exports**: TreeNote, Side, Seg
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../entity/links.js, ../mail/compose.js, ./context.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/controls.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/writes.js, ../entity/links.js, ../mail/compose.js, ./context.js, ./copy.js, ./Overview.js, ./model.js
 
 ### `apps/web/src/me/Story.tsx`
 - **Exports**: Story
@@ -644,18 +644,22 @@
 
 ### `apps/web/src/me/Views.tsx`
 - **Exports**: StoryView, WorkView, SkillsView, VoiceView
-- **Imports**: react, ../ui/controls.js, ./context.js, ./model.js
+- **Imports**: react, ../ui/controls.js, ../ui/router.js, ./context.js, ./model.js
 
 ### `apps/web/src/me/context.ts`
 - **Exports**: MeShared, MeContext, useMe, useLink
 - **Imports**: react, @orrama/schema/responses, @orrama/core/persona-graph
+
+### `apps/web/src/me/copy.ts`
+- **Exports**: copyText
+- **Imports**: ../ui/overlays.js
 
 ### `apps/web/src/me/generation.ts`
 - **Exports**: watchGeneration
 - **Imports**: @orrama/schema/responses, ../api.js, ../ui/overlays.js, ../ui/router.js
 
 ### `apps/web/src/me/model.ts`
-- **Exports**: laneColor, thisMonth, nameOf, shortOrg, factText, HeaderFact, headerFacts, vouches, relationOf, openQuestions, sourceNote, contactFor, workGroups, newestFirst, pitchLanguages
+- **Exports**: laneColor, thisMonth, nameOf, aboutOf, shortOrg, factText, HeaderFact, headerFacts, languagesOf, otherNow, vouches, relationOf, openQuestions, answeredQuestions, sourceNote, contactFor, workGroups, newestFirst, pitchLanguages
 - **Imports**: @orrama/schema/responses, @orrama/core/persona-graph
 
 ### `apps/web/src/money/Categories.tsx`
@@ -1141,11 +1145,11 @@
 - **Imports**: ./money.js, ./table.js
 
 ### `packages/core/src/persona.ts`
-- **Exports**: PERSONA_TAG, PersonaExperience, PersonaProject, PersonaSkill, PersonaProof, PersonaPerson, PersonaQuestion, PersonaVoice, PitchLength, PersonaUnread, Persona, PERSONA_SECTIONS, PersonaSection, sectionOf, plain, parsePeriod, namesIn, parsePersona, personaText, answerQuestion, numbersIn, unsourcedNumbers, blankPersona
+- **Exports**: PERSONA_TAG, PersonaExperience, PersonaProject, PersonaSkill, PersonaProof, PersonaPerson, PersonaQuestion, PersonaVoice, PitchLength, PersonaUnread, Persona, PERSONA_SECTIONS, PersonaSection, sectionOf, plain, parsePeriod, namesIn, parsePersona, personaText, answerQuestion, numbersIn, quotableText, unsourcedNumbers, blankPersona
 - **Imports**: ./frontmatter.js, ./parse.js, ./table.js, ./personaGraph.js
 
 ### `packages/core/src/personaGraph.ts`
-- **Exports**: Month, monthOf, yearOfMonth, Period, PersonaGraph, personaGraph, StoryYear, StoryBar, Story, LANE_ORDER, storyOf
+- **Exports**: Month, monthOf, yearOfMonth, Period, nameWords, nameScore, PersonaGraph, personaGraph, StoryYear, StoryBar, Story, LANE_ORDER, storyOf
 - **Imports**: ./persona.js
 
 ### `packages/core/src/recurring.ts`

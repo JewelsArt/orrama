@@ -63,7 +63,8 @@ key, the mail account and the ChatGPT sign-in (`meta`); task comments and
 descriptions, an assignee set through `PATCH /api/tasks/:id` over the line's
 `@user`, the legacy `planned_date` (nothing in the app writes it any more); a project's hidden flag; retired usernames (`meta`,
 `usernames.ts`: a removed or renamed account's name is never handed out again,
-since `Personal/<name>/` answers to it); staged mail drafts;
+since `Personal/<name>/` answers to it); staged mail drafts; a generated persona draft
+waiting for review (`meta`, `persona-draft:<user id>`);
 webhooks and calendar feeds; and **note history** (`ydoc_updates`, the Yjs log),
 the only copy of a note's text before it was overwritten. History is the note's ⋯ →
 History (versions, a diff against now, Restore this version as a normal save);
@@ -283,10 +284,16 @@ it (`agentWrites.ts`).
 ## Your page is a note too
 
 `/me` (ME, Nov 2026) reads the account's `#persona` note (`src/persona.ts` decides which:
-one the account can edit, never in another account's `Personal/`, ranked like the finance
-ledgers; on Jules's vault `01-Me/persona-data.md`). Edit opens it, answers are written onto
-their question's line, Generate's draft is written only when kept. Numbers Orr writes as you
-must be in the note (`unsourcedNumbers`). MCP and Ask read it with `get_persona`.
+tagged in its **front matter** (`isPersonaTagged`; a "#persona" in prose is a word), one the
+account can edit, never in another account's `Personal/`, ranked like the finance ledgers; on
+Jules's vault `01-Me/persona-data.md`). Edit opens it, answers are written onto their question's
+line (a second answer replaces the first) and reach Orr as facts (`personaForPrompt`'s "Settled
+with me"), Generate's draft is written only when kept and waits in `meta`
+(`persona-draft:<user id>`) until then. Numbers Orr writes as you must be in the quotable part of
+the note (`quotableText`: not the open questions, not the "Internal only" line). Agents and
+tokens may not change Voice or Rules, nor tag or untag a persona (`agentWrites.ts`). The panel's
+thing and Work's filter are in the address (`/me?open=…`, `/me/work?group=…`). MCP and Ask read
+it with `get_persona`.
 
 ## Projects are bound by tag, not by folder
 

@@ -26,13 +26,19 @@ function exposed(db: Db, store: VaultStore, user: AclUser, note: AclNote): boole
 
 const rank = (n: IndexedNote, me: string) => (personalOwner(n.folder) === me ? 0 : n.path.startsWith("01-Me/") ? 1 : 2);
 
+/**
+ * Tagged #persona in its front matter. A "#persona" in prose (a log line that mentions the
+ * page) is a word, not a choice of which note is you.
+ */
+export const isPersonaTagged = (n: IndexedNote) => n.tags.some((t) => t.tag === PERSONA_TAG && t.line === 0);
+
 /** Every note that could be the account's persona, best first. */
 export function personaCandidates(db: Db, store: VaultStore, user: AclUser): IndexedNote[] {
   const grants = store.grants();
   const me = user.username.toLowerCase();
   return store
     .readable(user)
-    .filter((n) => n.tags.some((t) => t.tag === PERSONA_TAG))
+    .filter(isPersonaTagged)
     .filter((n) => {
       const owner = personalOwner(n.folder);
       if (owner === me) return true;
@@ -56,15 +62,25 @@ export function personaHome(db: Db, store: VaultStore, user: AclUser): string {
 
 /**
  * What Orr leaves out when it writes a persona, whatever is switched on: money, an address,
- * health and family (Jules, 3 Nov). Judged on a note's path and tags, so a note filed under
- * Finance or tagged #health is never read.
+ * health and family (Jules, 3 Nov). Judged on a note's tags and the folders it sits in, so a
+ * note filed under Finance or tagged #health is never read.
+ *
+ * Personal matters are judged on every tag and folder. Money words only on the person's own
+ * money: Orrama's ledger tags, and folders outside the projects. A finance student's project
+ * ("Finance & Legal mail desk", an invoice router) is work, and is read (review, 20 Nov).
  */
-const PRIVATE = /\b(finance|finances|money|bank|banking|budget|salary|salaries|payslips?|subscriptions?|income|spending|tax|taxes|invoices?|health|medical|doctor|therapy|family|address|addresses|passwords?)\b/i;
+const PERSONAL = /\b(health|medical|doctor|therapy|family|address|addresses|passwords?)\b/i;
+const MONEY = /\b(finance|finances|money|bank|banking|budget|salary|salaries|payslips?|subscriptions?|income|spending|tax|taxes|invoices?)\b/i;
 const MONEY_TAGS = new Set(["income", "subscriptions", "payslips", "spending-categories", "own-accounts", "finance"]);
+const words = (s: string) => s.replace(/[/_-]/g, " ");
 
 export function isPrivate(n: IndexedNote): boolean {
-  if (n.tags.some((t) => MONEY_TAGS.has(t.tag) || PRIVATE.test(t.tag.replace(/[/_-]/g, " ")))) return true;
-  return PRIVATE.test(n.path.replace(/[/_-]/g, " "));
+  const folders = n.path.split("/").slice(0, -1);
+  if (n.tags.some((t) => MONEY_TAGS.has(t.tag) || PERSONAL.test(words(t.tag)))) return true;
+  if (PERSONAL.test(words(n.path))) return true;
+  // Money: a tag that is not a project's, or a folder outside 04-Projects.
+  if (n.tags.some((t) => !t.tag.startsWith("project/") && MONEY.test(words(t.tag)))) return true;
+  return !/^04-projects$/i.test(folders[0] ?? "") && folders.some((f) => MONEY.test(words(f)));
 }
 
 export interface PersonaSources {
@@ -78,7 +94,7 @@ const isContact = (n: IndexedNote) => n.tags.some((t) => t.tag === "contact" || 
 
 /** What Orr could read for a persona: the account's readable notes, private ones left out, by kind. */
 export function personaSources(store: VaultStore, user: AclUser): PersonaSources {
-  const readable = store.readable(user).filter((n) => !isPrivate(n) && !n.tags.some((t) => t.tag === PERSONA_TAG));
+  const readable = store.readable(user).filter((n) => !isPrivate(n) && !isPersonaTagged(n));
   const projectIds = new Set(
     store
       .projects(user)

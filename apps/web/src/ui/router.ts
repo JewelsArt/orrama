@@ -51,8 +51,11 @@ export type Route =
   | { kind: "mail"; id?: string; waiting?: boolean }
   | { kind: "money"; page?: MoneyPage; category?: string; merchant?: string; month?: string }
   | { kind: "settings"; section?: SettingsSection }
-  /** Your page (ME): reached from the account menu and People's first row; it lights People. */
-  | { kind: "me"; tab?: MeTab };
+  /**
+   * Your page (ME): reached from the account menu and People's first row; it lights People.
+   * `open` is what the panel shows (`?open=person:…`), `group` Work's filter (`?group=…`).
+   */
+  | { kind: "me"; tab?: MeTab; open?: string; group?: string };
 
 const MONEY_PAGES = new Set<MoneyPage>(["spending", "documents", "subscriptions", "income", "savings"]);
 const PROJECT_TABS = new Set<ProjectTab>(["timeline", "documents", "todo", "reader"]);
@@ -149,8 +152,11 @@ export function parseRoute(pathname: string, search = ""): Route | null {
     }
     case "settings":
       return rest[0] && SECTIONS.has(rest[0] as SettingsSection) ? { kind: "settings", section: rest[0] as SettingsSection } : { kind: "settings" };
-    case "me":
-      return rest[0] && ME_TABS.has(rest[0] as MeTab) ? { kind: "me", tab: rest[0] as MeTab } : { kind: "me" };
+    case "me": {
+      const open = q.get("open") || undefined;
+      const group = rest[0] === "work" ? q.get("group") || undefined : undefined;
+      return { kind: "me", ...(rest[0] && ME_TABS.has(rest[0] as MeTab) ? { tab: rest[0] as MeTab } : {}), ...(open ? { open } : {}), ...(group ? { group } : {}) };
+    }
     default:
       return null;
   }
@@ -198,7 +204,7 @@ export function routeHref(r: Route): string {
     case "settings":
       return `/settings${r.section ? `/${r.section}` : ""}`;
     case "me":
-      return `/me${r.tab ? `/${r.tab}` : ""}`;
+      return `/me${r.tab ? `/${r.tab}` : ""}${query({ group: r.tab === "work" ? r.group : undefined, open: r.open })}`;
   }
 }
 

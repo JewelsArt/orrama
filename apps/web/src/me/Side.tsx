@@ -16,7 +16,9 @@ import { useWrite } from "../ui/writes.js";
 import { slugOf } from "../entity/links.js";
 import { holdForComposer } from "../mail/compose.js";
 import { useMe } from "./context.js";
-import { contactFor, nameOf, pitchLanguages, shortOrg, sourceNote } from "./model.js";
+import { copyText } from "./copy.js";
+import { radioKeys } from "./Overview.js";
+import { aboutOf, contactFor, nameOf, pitchLanguages, shortOrg, sourceNote } from "./model.js";
 
 export interface TreeNote {
   id: string;
@@ -77,8 +79,9 @@ function Chips({ title, keys }: { title: string; keys: string[] }) {
   );
 }
 
-function NoteLink({ source, tree }: { source: string | null; tree: TreeNote[] }) {
-  const note = sourceNote(source, tree);
+/** The note a row names in its Source column, else (quietly) the note named like it. */
+function NoteLink({ source, name, tree }: { source: string | null; name?: string; tree: TreeNote[] }) {
+  const note = sourceNote(source, tree) ?? (name ? sourceNote(name, tree) : undefined);
   if (!note) return source ? <p className="me-org">From {source}</p> : null;
   const to = { kind: "notes" as const, path: note.path.replace(/\.md$/, "") };
   return (
@@ -127,8 +130,13 @@ function useView(
         body: (
           <>
             <h2>{pr.name}</h2>
-            <p className="me-org">{exps.length ? exps.map((e) => nameOf(p, `exp:${e}`)).join(" · ") : pr.partOf.join(" · ") || "On my own time"}</p>
+            <p className="me-org">
+              {exps.length
+                ? [...new Set(exps.map((e) => shortOrg(p.experience.find((x) => x.key === e)?.org ?? "")))].filter(Boolean).join(" · ")
+                : pr.partOf.join(" · ") || "On my own time"}
+            </p>
             {pr.what && <p>{pr.what}</p>}
+            {pr.details && <p className="me-details">{pr.details}</p>}
             {(pr.part || pr.outcome) && (
               <div className="me-kv">
                 {pr.part && (
@@ -150,7 +158,7 @@ function useView(
             <Chips title="People" keys={pr.people.map((n) => p.people.find((x) => x.name === n)).filter((x) => !!x).map((x) => `person:${x!.key}`)} />
             <Chips title="Part of" keys={exps.map((e) => `exp:${e}`)} />
             <Safe text={pr.outside} />
-            <NoteLink source={pr.source} tree={ctx.tree} />
+            <NoteLink source={pr.source} name={pr.name} tree={ctx.tree} />
           </>
         ),
       };
@@ -213,7 +221,7 @@ function useView(
     if (f) {
       return {
         kind: "Proof point · safe to share",
-        foot: f.source ? mailButton(f.source) : undefined,
+        foot: mailButton(key),
         body: (
           <>
             <div className="me-big">{f.number}</div>
@@ -259,59 +267,118 @@ function useView(
     }
   }
   if (t === "question") {
-    const q = p.questions[Number(id)];
-    if (q) return { kind: "Check with you", body: <Answer index={Number(id)} q={q} onAnswered={ctx.onAnswered} onAsk={ctx.onAsk} /> };
+    const q = p.questions.find((x) => x.index === Number(id));
+    if (q) return { kind: q.answer ? "Answered" : "Check with you", body: <Answer key={q.index} index={q.index} q={q} onAnswered={ctx.onAnswered} onAsk={ctx.onAsk} /> };
   }
   if (t === "write") return { kind: "Write as me", body: <WriteAsMe about={id} ai={ctx.ai} onClose={ctx.onClose} /> };
   return { kind: "Gone", body: <p className="me-org">This isn't in your persona note any more.</p> };
 }
 
-function Answer({ index, q, onAnswered, onAsk }: { index: number; q: { raw: string; name: string; detail: string; options: string[]; answer: string | null }; onAnswered: () => void; onAsk: (text: string) => void }) {
+function Answer({
+  index,
+  q,
+  onAnswered,
+  onAsk,
+}: {
+  index: number;
+  q: { raw: string; name: string; detail: string; options: string[]; answer: string | null; evidence: string[] };
+  onAnswered: () => void;
+  onAsk: (text: string) => void;
+}) {
   const { draft } = useMe();
+  // An option is chosen, then saved: one click never writes the note (review, 20 Nov).
+  const [pick, setPick] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [changing, setChanging] = useState(false);
   const w = useWrite();
-  const save = (answer: string) =>
+  const answer = (pick ?? text).trim();
+  const save = () =>
     void w
       .run("The answer wasn't saved.", () => api("POST", "/api/persona/answer", { index, raw: q.raw, answer }))
       .then((ok) => {
         if (!ok) return;
-        toast("Saved in your persona note.");
+        toast(q.answer ? "Changed in your persona note." : "Saved in your persona note.");
         onAnswered();
       });
+  const form = (
+    <>
+      <h4>{q.answer ? "Your new answer" : "Your answer"}</h4>
+      {q.options.length > 0 && (
+        <div className="me-opt" role="radiogroup" aria-label="Options" onKeyDown={radioKeys}>
+          {q.options.map((o) => (
+            <button
+              key={o}
+              type="button"
+              role="radio"
+              aria-checked={pick === o}
+              tabIndex={pick === o || (pick === null && o === q.options[0]) ? 0 : -1}
+              disabled={w.busy}
+              onClick={() => {
+                setPick(o);
+                setText("");
+              }}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+      <form
+        className="me-ans"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (answer) save();
+        }}
+      >
+        <input
+          className="input"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setPick(null);
+          }}
+          placeholder={q.options.length ? "Or in your own words" : "In your own words"}
+          aria-label="Your answer"
+        />
+        <Button type="submit" kind="solid" size="sm" disabled={w.busy || !answer}>
+          Save
+        </Button>
+      </form>
+      {w.error && <p className="me-err">{w.error}</p>}
+      <p className="me-note">Your answer is written into your persona note, on the question's line. Orr uses it as a fact from then on.</p>
+    </>
+  );
   return (
     <>
       <h2>{q.name}</h2>
       {q.detail && <p>{q.detail}</p>}
-      {q.answer ? (
-        <p className="me-org">Answered: {q.answer}</p>
-      ) : draft ? (
+      {q.evidence.length > 0 && (
+        <>
+          <h4>Also found</h4>
+          <ul className="me-ev-list">
+            {q.evidence.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {draft ? (
         <p className="me-org">Answer it once the draft is kept.</p>
-      ) : (
+      ) : q.answer ? (
         <>
           <h4>Your answer</h4>
-          {q.options.length > 0 && (
-            <div className="me-opt">
-              {q.options.map((o) => (
-                <button key={o} type="button" disabled={w.busy} onClick={() => save(o)}>
-                  {o}
-                </button>
-              ))}
-            </div>
-          )}
-          <form
-            className="me-ans"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (text.trim()) save(text.trim());
-            }}
-          >
-            <input className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder={q.options.length ? "Or in your own words" : "In your own words"} aria-label="Your answer" />
-            <Button type="submit" size="sm" disabled={w.busy || !text.trim()}>
-              Save
+          <p className="me-given">{q.answer}</p>
+          {changing ? (
+            form
+          ) : (
+            <Button size="sm" onClick={() => setChanging(true)}>
+              Change it
             </Button>
-          </form>
-          {w.error && <p className="me-err">{w.error}</p>}
-          <p className="me-note">Your answer is written into your persona note, on the question's line, and Orr stops asking.</p>
+          )}
+        </>
+      ) : (
+        <>
+          {form}
           <Button size="sm" orr onClick={() => onAsk(`Help me answer this question about me: ${q.name}${q.detail ? `: ${q.detail}` : ""}`)}>
             Talk it over with Orr
           </Button>
@@ -336,9 +403,9 @@ const LENGTHS = [
 
 export function Seg<T extends string>({ label, value, items, onChange }: { label: string; value: T; items: readonly (readonly [T, string])[]; onChange: (v: T) => void }) {
   return (
-    <span className="me-seg2" role="radiogroup" aria-label={label}>
+    <span className="me-seg2" role="radiogroup" aria-label={label} onKeyDown={radioKeys}>
       {items.map(([id, text]) => (
-        <button key={id} type="button" role="radio" aria-checked={value === id} onClick={() => onChange(id)}>
+        <button key={id} type="button" role="radio" aria-checked={value === id} tabIndex={value === id ? 0 : -1} onClick={() => onChange(id)}>
           {text}
         </button>
       ))}
@@ -346,38 +413,71 @@ export function Seg<T extends string>({ label, value, items, onChange }: { label
   );
 }
 
-/** Write as me: an email in your voice, from the persona alone, then into Mail's composer. */
+/** The register a "Try it" on the Voice tab asked for: its language and who it is for. */
+function registerOf(label: string): { lang?: string; who?: (typeof AUDIENCES)[number][0] } {
+  const l = label.toLowerCase();
+  const lang = /french|français/.test(l) ? "FR" : /dutch|nederlands/.test(l) ? "NL" : /english/.test(l) ? "EN" : undefined;
+  const who = /application/.test(l) ? "recruiter" : /work|colleague/.test(l) ? "colleague" : /client|proposal|memo/.test(l) ? "client" : undefined;
+  return { ...(lang ? { lang } : {}), ...(who ? { who } : {}) };
+}
+
+/** A link that looks like one. */
+function SettingsLink() {
+  return (
+    <a
+      className="me-notelink"
+      href="/settings/ai"
+      onClick={(e) => {
+        e.preventDefault();
+        navigate({ kind: "settings", section: "ai" });
+      }}
+    >
+      Connect AI in Settings
+    </a>
+  );
+}
+
+/**
+ * Write as me: an email in your voice, from the persona alone (or the draft under review), then
+ * into Mail's composer when a mailbox is connected, else copied (Mail drops a draft it can't show).
+ */
 function WriteAsMe({ about, ai, onClose }: { about: string; ai: boolean; onClose: () => void }) {
-  const { p } = useMe();
-  const langs = [...new Set(["EN", ...pitchLanguages(p), "FR"])];
-  const [who, setWho] = useState<(typeof AUDIENCES)[number][0]>("recruiter");
+  const { p, draftId, mail } = useMe();
+  const register = about.startsWith("register:") ? about.slice(9) : "";
+  const preset = registerOf(register);
+  const langs = [...new Set(["EN", ...pitchLanguages(p), "FR", ...(preset.lang ? [preset.lang] : [])])];
+  const [who, setWho] = useState<(typeof AUDIENCES)[number][0]>(preset.who ?? "recruiter");
   const [len, setLen] = useState<(typeof LENGTHS)[number][0]>("s30");
-  const [lang, setLang] = useState("EN");
+  const [lang, setLang] = useState(preset.lang ?? "EN");
   const [purpose, setPurpose] = useState("");
   const [out, setOut] = useState<PersonaWrite | null>(null);
   const w = useWrite();
-  const aboutName = about ? nameOf(p, about) : "";
+  const subject = register ? "" : about ? aboutOf(p, about) : "";
+  const aboutName = register ? `My "${register}" register` : about ? nameOf(p, about) : "";
   const write = () =>
     void w.run("Orr couldn't write it.", async () => {
-      setOut(await api<PersonaWrite>("POST", "/api/persona/write", { kind: "email", audience: who, length: len, language: lang, ...(purpose.trim() ? { purpose: purpose.trim() } : {}), ...(aboutName ? { about: aboutName } : {}) }));
+      const said = [register && `Write it in my "${register}" register from the Voice section.`, purpose.trim()].filter(Boolean).join(" ");
+      setOut(
+        await api<PersonaWrite>("POST", "/api/persona/write", {
+          kind: "email",
+          audience: who,
+          length: len,
+          language: lang,
+          ...(said ? { purpose: said } : {}),
+          ...(subject ? { about: subject } : {}),
+          ...(draftId ? { draftId } : {}),
+        }),
+      );
     });
   if (!ai)
     return (
       <>
         <h2>An email in your voice</h2>
-        <p>Orr needs AI to write as you.</p>
-        <a
-          className="me-notelink"
-          href="/settings/ai"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate({ kind: "settings", section: "ai" });
-          }}
-        >
-          Connect AI in Settings
-        </a>
+        <p>Orr needs AI to write as you. Until then, your pitch is in In short, ready to copy, and the Voice tab says how you write.</p>
+        <SettingsLink />
       </>
     );
+  const full = out ? (out.subject ? `${out.subject}\n\n${out.text}` : out.text) : "";
   return (
     <>
       <h2>An email in your voice</h2>
@@ -416,29 +516,25 @@ function WriteAsMe({ about, ai, onClose }: { about: string; ai: boolean; onClose
           )}
           <p className="me-note">Facts only from your persona note, in your voice.</p>
           <div className="me-wacts">
-            <Button
-              size="sm"
-              onClick={() =>
-                void navigator.clipboard?.writeText(out.subject ? `${out.subject}\n\n${out.text}` : out.text).then(
-                  () => toast("Copied."),
-                  () => toast("It couldn't be copied. Select the text instead."),
-                )
-              }
-            >
+            <Button size="sm" onClick={() => void copyText(full)}>
               Copy
             </Button>
-            <Button
-              kind="solid"
-              size="sm"
-              icon="mail"
-              onClick={() => {
-                holdForComposer({ subject: out.subject, body: out.text });
-                onClose();
-                navigate("/mail?write=new");
-              }}
-            >
-              Open in Mail
-            </Button>
+            {mail ? (
+              <Button
+                kind="solid"
+                size="sm"
+                icon="mail"
+                onClick={() => {
+                  holdForComposer({ subject: out.subject, body: out.text });
+                  onClose();
+                  navigate("/mail?write=new");
+                }}
+              >
+                Open in Mail
+              </Button>
+            ) : (
+              <span className="me-note">Mail isn't connected in Orrama: copy it to send it.</span>
+            )}
           </div>
         </>
       )}

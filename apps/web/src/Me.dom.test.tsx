@@ -23,6 +23,7 @@ const withNote = (content: string): PersonaData =>
     persona: parsePersona(content, "Sam"),
     others: [],
     ai: { configured: true, provider: "anthropic" },
+    mail: true,
     sources: null,
   }) as PersonaData;
 const noNote = (over: Partial<NonNullable<PersonaData["sources"]>> = {}, ai = true): PersonaData => ({
@@ -30,6 +31,7 @@ const noNote = (over: Partial<NonNullable<PersonaData["sources"]>> = {}, ai = tr
   persona: null,
   others: [],
   ai: { configured: ai, provider: ai ? "chatgpt" : null },
+  mail: false,
   sources: { projects: 4, notes: 30, people: 2, chats: 0, mail: false, enough: true, home: "Me/persona.md", ...over },
 });
 
@@ -73,8 +75,11 @@ describe("the Overview", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Sam Rivera" })).toBeTruthy();
     for (const region of ["Story", "In short", "Proof points", "Check with you", "Skills", "Who vouches"]) expect(screen.getByRole("region", { name: region })).toBeTruthy();
     expect(screen.getByText(/^I'm Sam, a landscape student/)).toBeTruthy();
-    // Answered questions are not asked again.
-    expect(within(screen.getByRole("region", { name: "Check with you" })).queryByText("Portfolio")).toBeNull();
+    // Answered questions are not asked again: they wait, folded, under Answered.
+    const checks = screen.getByRole("region", { name: "Check with you" });
+    const answered = within(checks).getByText(/^Answered \(\d+\)$/).closest("details")!;
+    expect(within(answered).getByText("Portfolio")).toBeTruthy();
+    expect([...checks.querySelectorAll(":scope > .me-chk")].some((b) => b.textContent?.includes("Portfolio"))).toBe(false);
     // The header's facts: the study and the role as chips opening their place.
     expect(screen.getByRole("button", { name: "Garden designer, Oakline Builders" })).toBeTruthy();
     // What couldn't be read is said.
@@ -144,7 +149,10 @@ describe("everything opens in the panel", () => {
     const sent = stub(withNote(SAMPLE_PERSONA), { "POST /api/persona/answer": () => json({ id: "n-p", path: "Me/persona.md" }) });
     render(<Me me={me} onAsk={() => {}} />);
     await user.click(await screen.findByRole("button", { name: /^Target role/ }));
-    await user.click(await screen.findByRole("button", { name: "landscape architect" }));
+    // An option is chosen, then saved: one click never writes the note.
+    await user.click(await screen.findByRole("radio", { name: "landscape architect" }));
+    expect(sent.some((s) => s.method === "POST")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(sent.find((s) => s.method === "POST")?.body).toEqual({ index: 0, raw: expect.stringMatching(/^Target role/), answer: "landscape architect" }));
     await waitFor(() => expect(sent.filter((s) => s.method === "GET" && s.url === "/api/persona")).toHaveLength(2));
   });
@@ -188,5 +196,91 @@ describe("with no persona note", () => {
     expect(await screen.findByText("Writing the draft")).toBeTruthy();
     expect(sent.find((s) => s.method === "POST")!.body).toEqual({ sources: { projects: true, notes: true, people: true, chats: false } });
     expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
+  });
+});
+
+describe("the review's fixes (20 Nov)", () => {
+  const NOTE = [
+    "---",
+    "tags: [persona]",
+    "sources: the vault and the CV",
+    "---",
+    "# Persona — Sam",
+    "",
+    "## In short",
+    "",
+    "### One line",
+    "",
+    "- **EN:** I plant gardens.",
+    "",
+    "## Now",
+    "",
+    "| | |",
+    "|---|---|",
+    "| Role | Gardener, Oakline |",
+    "| Looking for | A design studio in Lisbon |",
+    "",
+    "## Proof points",
+    "",
+    "| Number | What |",
+    "|---|---|",
+    ...Array.from({ length: 8 }, (_, i) => `| ${i + 11} | Proof ${i + 1} |`),
+    "",
+    "Words from others: Zora called my plans the clearest she had seen.",
+    "",
+    "## People",
+    "",
+    "| Person | Role | How we work together |",
+    "|---|---|---|",
+    "| Zora Quill | Studio lead, Oakline | My supervisor, a reference |",
+    "| Ana Lee | Neighbour | Lends tools |",
+    "",
+    "## Interests",
+    "",
+    "Drawing and seed swaps.",
+  ].join("\n");
+
+  it("shows what the note had and the page didn't: Now, every proof point, what others said, everyone", async () => {
+    const user = userEvent.setup();
+    stub({ ...withNote(NOTE), others: [{ path: "Projects/persona.md", title: "Persona project" }] });
+    render(<Me me={me} onAsk={() => {}} />);
+    const now = await screen.findByRole("region", { name: "Now" });
+    expect(within(now).getByText("A design studio in Lisbon")).toBeTruthy();
+    const proof = screen.getByRole("region", { name: "Proof points" });
+    expect(within(proof).queryByText("Proof 8")).toBeNull();
+    await user.click(within(proof).getByRole("button", { name: "Show all 8" }));
+    expect(within(proof).getByText("Proof 8")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "What others said" }).textContent).toContain("clearest she had seen");
+    expect(screen.getByRole("region", { name: "Outside work" }).textContent).toContain("seed swaps");
+    const who = screen.getByRole("region", { name: "Who vouches" });
+    expect(within(who).queryByText("Ana Lee")).toBeNull();
+    await user.click(within(who).getByRole("button", { name: /Everyone you work with/ }));
+    expect(within(who).getByText("Ana Lee")).toBeTruthy();
+    // The note, what it was learned from, and the other tagged note, said at the foot, not on top.
+    const foot = document.querySelector(".me-foot")!;
+    expect(foot.textContent).toContain("Learned from the vault and the CV.");
+    expect(foot.textContent).toContain("Persona project");
+  });
+
+  it("without a mailbox, the pitch is copied for an email, never sent to a Mail that would drop it", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    stub({ ...withNote(NOTE), mail: false });
+    render(<Me me={me} onAsk={() => {}} />);
+    await user.click(await screen.findByRole("button", { name: "Copy for an email" }));
+    expect(writeText).toHaveBeenCalledWith("I plant gardens.");
+    expect(location.pathname).toBe("/me");
+  });
+
+  it("what the panel shows is in the address, so coming back opens it again", async () => {
+    const user = userEvent.setup();
+    stub(withNote(NOTE));
+    const { unmount } = render(<Me me={me} onAsk={() => {}} />);
+    await user.click(await screen.findByRole("button", { name: /^Zora Quill/ }));
+    await waitFor(() => expect(new URLSearchParams(location.search).get("open")).toBe("person:zora-quill"));
+    unmount();
+    render(<Me me={me} onAsk={() => {}} />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Zora Quill" })).toBeTruthy();
   });
 });

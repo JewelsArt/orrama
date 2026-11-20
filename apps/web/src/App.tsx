@@ -271,6 +271,11 @@ export function App() {
     setAskOpen(true);
   }, []);
   const closeAsk = useCallback(() => setAskOpen(false), []);
+  // A question handed in is for that one opening, however Ask Orr closes (its ×, Esc, the rail's
+  // toggle): opened again later, it goes back to the open conversation.
+  useEffect(() => {
+    if (!askOpen) setAskSeed((s) => (s?.text ? { ...s, text: "" } : s));
+  }, [askOpen]);
   const [newAt, setNewAt] = useState<HTMLElement | null>(null);
   const newAnchor = useMemo(() => ({ current: newAt }), [newAt]);
   const closeNew = useCallback(() => setNewAt(null), []);

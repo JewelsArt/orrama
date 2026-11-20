@@ -517,6 +517,21 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- Your page, after a review on 20 Nov: the timeline stops at now (a study written "2022–2027"
+  no longer runs into next December); answers you give in Check with you reach Orr when he
+  writes as you, and can be changed; every proof point, what others said, your interests, your
+  headline, what else is true now and each project's longer story are on the page; places and
+  proof points link to what the note says they belong to; the columns balance, and the panel
+  makes room beside the page (a bottom sheet on the phone); names in Who vouches aren't cut.
+- Your page: "Use in an email" puts an already written pitch straight into Mail, and copies it
+  when no mailbox is connected (Mail used to drop it); Copy works without the clipboard API;
+  Introduce me and Write as me work on a generated draft before it is kept, and the draft
+  survives a restart; what the panel shows and Work's filter are in the address.
+- Your page: a "#persona" written in a note's text no longer makes it a persona; only the front
+  matter does. Agents and API tokens can't tag or untag a persona note.
+- Ask Orr opened after "Talk it over with Orr" goes back to your conversation instead of the
+  old question.
+
 - Today's Orr noticed says "Read from 1 note", not "1 notes".
 - Settings' footer note count follows the notes as they change.
 - A task card whose project can't be read leaves its extras out instead of failing.

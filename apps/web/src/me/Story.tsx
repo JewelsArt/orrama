@@ -3,9 +3,15 @@
  * Experience row in its lane's colour, the "now" line in --sun, years given room by how much
  * happened in them and each labelled, so the scale is honest (core storyOf).
  *
- * A bar's label sits inside it; if it doesn't fit, the place alone; if that doesn't either, beside
- * the bar when there is room before the next one, else shortened with the whole name in its tooltip. Measured after layout and on
- * resize. Where the story is narrower than 720 px it scrolls sideways in its box and opens on now.
+ * A bar's label sits inside it; if it doesn't fit, the place alone, shortened with the whole name
+ * in its tooltip. Only a bar too short to hold a few letters puts its place beside it, where there
+ * is room before the next one (review, 20 Nov: a label floating beside an empty bar read as
+ * belonging to the next). Measured after layout and on resize. Where the story is narrower than
+ * 720 px it scrolls sideways in its box and opens on now, and goes on following now as the window
+ * changes until the person scrolls it themselves.
+ *
+ * Bars grow in only once the page is really drawn (the class is set in a frame): a window that
+ * never draws a frame (hidden, in the background) shows them still, never as an empty timeline.
  */
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import type { Story as StoryData } from "@orrama/core/persona-graph";
@@ -23,7 +29,7 @@ function placeLabels(box: HTMLElement) {
       if (fits()) return;
       // Too long: the place alone, then beside the bar when there is room, else cut short.
       label.textContent = bar.dataset.short ?? "";
-      if (fits()) return;
+      if (fits() || bar.offsetWidth >= 56) return;
       const next = bars[i + 1];
       const room = (next ? next.offsetLeft : row.clientWidth) - (bar.offsetLeft + bar.offsetWidth) - 12;
       if (label.scrollWidth <= room) bar.dataset.place = "beside";
@@ -38,13 +44,33 @@ export function Story({ story }: { story: StoryData }) {
     const el = box.current;
     if (!el) return;
     placeLabels(el);
-    // A story that scrolls opens at now.
-    if (el.scrollWidth > el.clientWidth + 1) el.scrollLeft = Math.max(0, (el.scrollWidth * story.now) / 100 - el.clientWidth * 0.75);
-    if (typeof ResizeObserver === "undefined") return;
-    const watch = new ResizeObserver(() => placeLabels(el));
+    // A story that scrolls opens at now, and follows now until the person scrolls it.
+    let own = false;
+    let ours = false;
+    const toNow = () => {
+      if (own || el.scrollWidth <= el.clientWidth + 1) return;
+      ours = true;
+      el.scrollLeft = Math.max(0, (el.scrollWidth * story.now) / 100 - el.clientWidth * 0.75);
+    };
+    const onScroll = () => {
+      if (ours) ours = false;
+      else own = true;
+    };
+    toNow();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    const frame = requestAnimationFrame(() => el.classList.add("grow"));
+    if (typeof ResizeObserver === "undefined") return () => el.removeEventListener("scroll", onScroll);
+    const watch = new ResizeObserver(() => {
+      placeLabels(el);
+      toNow();
+    });
     watch.observe(el);
     void document.fonts?.ready.then(() => placeLabels(el));
-    return () => watch.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("scroll", onScroll);
+      watch.disconnect();
+    };
   }, [story]);
   let i = 0;
   return (
@@ -96,6 +122,7 @@ function Bar({ bar, color, order }: { bar: StoryData["bars"][number]; color: str
       className={["me-bar", bar.open && "open", bar.now && "now", link.className].filter(Boolean).join(" ")}
       style={{ left: `${bar.left}%`, width: `${bar.width}%`, "--lc": color, "--i": order } as CSSProperties}
       title={bar.label}
+      aria-label={bar.label}
       data-label={bar.label}
       data-short={bar.short}
       data-left={bar.left.toFixed(2)}

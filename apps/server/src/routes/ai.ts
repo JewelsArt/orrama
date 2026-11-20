@@ -447,7 +447,7 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           }
         }),
         get_persona: tool({
-          description: `The user's persona note: who they are, for introducing them and writing as them. Sections: ${PERSONA_SECTIONS.join(", ")} (short = their pitch at three lengths, proof = the only numbers you may quote about them, rules = rules for outside use, questions = what is still open). Pass sections to read only some. Read it only when the task is about the user or writing as them.`,
+          description: `The user's persona note: who they are, for introducing them and writing as them. Sections: ${PERSONA_SECTIONS.join(", ")} (short = their pitch at three lengths, proof = the only numbers you may quote about them, rules = rules for outside use, growing = what they want to learn, terms = finance words in plain language for non-specialists, questions = what is still open, with the answers they gave). Pass sections to read only some. Read it only when the task is about the user or writing as them.`,
           inputSchema: z.object({ sections: z.array(z.enum(PERSONA_SECTIONS)).optional() }),
           execute: async ({ sections }: { sections?: PersonaSection[] }) => {
             const note = personaNote(db, store, user);
@@ -467,8 +467,9 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
             if (voice) {
               return {
                 success: false,
-                error: "Not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below (quote no number that isn't in their persona's proof points), then call draft_email again with voiceRead: true.",
-                voice,
+                error: "Not drafted yet: this is written as the user. Rewrite the body in their voice and by their rules below, quoting no number about them that isn't in their Proof points (also below), then call draft_email again with voiceRead: true.",
+                // The proof points travel with the voice: "only these numbers" means nothing without them.
+                voice: personaText(persona!.content, ["voice", "rules", "proof"]),
               };
             }
             const draft = stageDraft(db, req.userId, { to, subject, body, inReplyTo, references }, "agent");

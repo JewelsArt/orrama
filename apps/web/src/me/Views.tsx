@@ -2,12 +2,14 @@
  * The Me page's other tabs (ME): the full tables, readable, each row opening its thing; kept
  * simple, the Overview is the design. Story is every place newest first; Work the projects as
  * tiles grouped by where they were done (a project can sit in two); Skills each with the work
- * that proves it; Voice the registers, each with "Try it", and the rules Orr writes by.
+ * that proves it, and what you want to learn; Voice the registers, each with "Try it", the rules Orr
+ * writes by and the plain words for finance terms. Work's filter is in the address (`?group=`).
  */
 import { useState, type CSSProperties } from "react";
 import { Bar } from "../ui/controls.js";
+import { navigate } from "../ui/router.js";
 import { useLink, useMe } from "./context.js";
-import { laneColor, newestFirst, shortOrg, workGroups } from "./model.js";
+import { laneColor, newestFirst, shortOrg, thisMonth, workGroups } from "./model.js";
 
 export function StoryView() {
   const { p, lanes } = useMe();
@@ -18,7 +20,7 @@ export function StoryView() {
         <p>Every place you studied and worked, newest first. Click one to see what came out of it.</p>
       </div>
       <section className="mod">
-        {newestFirst(p).map((e) => (
+        {newestFirst(p, thisMonth()).map((e) => (
           <XpRow key={e.key} k={`exp:${e.key}`} period={e.period} role={e.role} org={e.org} what={e.what} color={laneColor(e.lane, lanes)} />
         ))}
       </section>
@@ -43,7 +45,14 @@ function XpRow({ k, period, role, org, what, color }: { k: string; period: strin
 export function WorkView() {
   const { p, g, lanes } = useMe();
   const groups = workGroups(p, g.expsOfProject);
-  const [on, setOn] = useState<string>("all");
+  const [on, setOnState] = useState<string>(() => {
+    const want = new URLSearchParams(location.search).get("group");
+    return want && (want === "strongest" || groups.some((x) => x.name === want)) ? (want === "strongest" ? "★" : want) : "all";
+  });
+  const setOn = (v: string) => {
+    setOnState(v);
+    navigate(v === "all" ? "/me/work" : `/me/work?group=${encodeURIComponent(v === "★" ? "strongest" : v)}`, { replace: true });
+  };
   const star = p.projects.some((x) => x.star);
   const shown = p.projects.filter((pr) => on === "all" || (on === "★" ? pr.star : groups.find((x) => x.name === on)?.keys.has(pr.key)));
   return (
@@ -82,10 +91,8 @@ function WorkTile(props: { k: string; color: string; when: string; where: string
   return (
     <button type="button" {...link} className={`me-wt ${link.className}`} style={{ "--lc": props.color } as CSSProperties}>
       <span className="w">{[props.when, props.where].filter(Boolean).join(" · ")}</span>
-      <b>
-        {props.star && <span aria-label="One of the strongest">★ </span>}
-        {props.name}
-      </b>
+      {props.star && <span className="me-strong">Strongest</span>}
+      <b>{props.name}</b>
       {props.what && <span className="me-what">{props.what}</span>}
       {props.outcome && <span className="o">{props.outcome}</span>}
     </button>
@@ -124,11 +131,29 @@ export function SkillsView() {
           </p>
         ))}
       </section>
+      {p.growing.length > 0 && (
+        <section className="mod">
+          <div className="mh">
+            <h2>Growing</h2>
+          </div>
+          <ul className="me-rules">
+            {p.growing.map((v) => (
+              <li key={v.text}>
+                {v.label && <b>{v.label}: </b>}
+                {v.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }
 
-export function VoiceView({ onTry }: { onTry: () => void }) {
+/** A register Orr may try: not one the note says not to write in ("don't write in Dutch for me unless I ask"). */
+const tryable = (text: string) => !/\b(don't|do not|never) write\b/i.test(text);
+
+export function VoiceView({ onTry }: { onTry: (register: string) => void }) {
   const { p } = useMe();
   const registers = p.voice.filter((v) => v.label);
   const general = p.voice.filter((v) => !v.label);
@@ -153,16 +178,11 @@ export function VoiceView({ onTry }: { onTry: () => void }) {
             <section key={v.label} className="mod">
               <div className="mh">
                 <h2>{v.label}</h2>
-                <a
-                  className="go"
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onTry();
-                  }}
-                >
-                  Try it
-                </a>
+                {tryable(v.text) && (
+                  <button type="button" className="go me-try" onClick={() => onTry(v.label!)}>
+                    Try it
+                  </button>
+                )}
               </div>
               <p>{v.text}</p>
             </section>
@@ -187,6 +207,22 @@ export function VoiceView({ onTry }: { onTry: () => void }) {
             <h2>Never outside</h2>
           </div>
           <p>{p.proofInternal}</p>
+        </section>
+      )}
+      {p.terms.length > 0 && (
+        <section className="mod">
+          <div className="mh">
+            <h2>In plain words</h2>
+            <span className="c">for readers outside finance</span>
+          </div>
+          <dl className="me-now me-terms">
+            {p.terms.map((t) => (
+              <div key={t.term}>
+                <dt>{t.term}</dt>
+                <dd>{t.plain}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
     </>

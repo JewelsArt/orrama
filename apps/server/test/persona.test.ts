@@ -66,6 +66,8 @@ describe("Generate my persona", () => {
     write("jules", "Personal/jules/Finance/Rent.md", "# Rent\n\nZEBRA-RENT 1450 a month.\n");
     write("jules", "Personal/jules/Health check.md", "# Health check\n\nZEBRA-HEALTH notes.\n");
     write("jules", "Personal/jules/Bank.md", "---\ntags: [income]\n---\n# Income\n\nZEBRA-INCOME\n");
+    // Work that only sounds like money is read: a finance student's invoice router is a project.
+    write("jules", "Personal/jules/Invoice router.md", "# Invoice router\n\nZEBRA-ROUTER sorts the invoice inbox.\n");
     const before = s.llm.requests.length;
     s.queue.push({
       text: [
@@ -93,6 +95,7 @@ describe("Generate my persona", () => {
     const sent = sentText(s.llm.requests[before]);
     expect(sent).toContain("Planted the bed number 7");
     for (const secret of ["ZEBRA-RENT", "ZEBRA-HEALTH", "ZEBRA-INCOME"]) expect(sent).not.toContain(secret);
+    expect(sent).toContain("ZEBRA-ROUTER");
     expect(sent).toMatch(/Never invent a fact, a date, a name or a number/);
     // The made-up number is taken out and asked about; the sourced one stays.
     expect(job.persona!.proof.map((p) => p.number)).toEqual(["19"]);
@@ -102,11 +105,27 @@ describe("Generate my persona", () => {
     expect(exists("Personal/jules/persona.md")).toBe(false);
   });
 
+  it("a finished draft is kept until it is kept or thrown away, and Introduce me works on it before it is", async () => {
+    const job = personaJobResponse.parse((await s.call("jules", "GET", "/api/persona/generate")).json)!;
+    const { tables } = await import("../src/db.js");
+    const rows = s.built.db.select().from(tables.meta).all().filter((r) => r.key.startsWith("persona-draft:"));
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]!.value)).toMatchObject({ id: job.id, draft: expect.stringContaining("I plant beds.") });
+    s.queue.push({ text: "I plant beds, twenty of them." });
+    const before = s.llm.requests.length;
+    const r = await s.call("jules", "POST", "/api/persona/write", { kind: "intro", draftId: job.id });
+    expect(r.status).toBe(200);
+    expect(sentText(s.llm.requests[before])).toContain("I plant beds.");
+    expect((await s.call("jules", "POST", "/api/persona/write", { kind: "intro", draftId: "not-it" })).status).toBe(404);
+  });
+
   it("Start again throws the draft away; accepting a draft that is gone is refused", async () => {
     const job = personaJobResponse.parse((await s.call("jules", "GET", "/api/persona/generate")).json)!;
     expect((await s.call("jules", "DELETE", "/api/persona/generate")).status).toBe(200);
     expect((await s.call("jules", "GET", "/api/persona/generate")).json).toBeNull();
     expect((await s.call("jules", "POST", "/api/persona/accept", { id: job.id })).status).toBe(404);
+    const { tables } = await import("../src/db.js");
+    expect(s.built.db.select().from(tables.meta).all().filter((r) => r.key.startsWith("persona-draft:"))).toEqual([]);
   });
 
   it("Stop stops it; a failed AI says so in words", async () => {
@@ -203,8 +222,9 @@ describe("with the persona", () => {
     expect(sent).toMatch(/quote only numbers that appear in the note, above all in Proof points/);
     expect(sent).toContain("| 9 | Courtyard survey grade |");
     expect(sent).toContain("Never name Oakline's clients.");
-    // The open questions are not facts: not sent.
+    // The open questions are not facts: not sent. An answer given is, and wins.
     expect(sent).not.toContain("Target role");
+    expect(sent).toMatch(/## Settled with me[\s\S]*- Graduation date[^\n]*: June 2027/);
     // Nothing else of the vault rides along.
     expect(sent).not.toContain("Planted the bed number");
   });
@@ -258,6 +278,8 @@ describe("Orr uses it", () => {
     expect(outs[0]).toMatchObject({ success: false });
     expect(outs[0].voice).toContain("## Voice");
     expect(outs[0].voice).toContain("Never name Oakline's clients.");
+    // The proof points come with it: "only these numbers" means nothing without them.
+    expect(outs[0].voice).toContain("| 9 | Courtyard survey grade |");
     expect(outs[1]).toMatchObject({ success: true, status: "awaiting_confirmation" });
     const drafts = (await s.call("jules", "GET", "/api/mail/drafts")).json as { body: string }[];
     expect(drafts.map((d) => d.body)).toEqual(["Hi Zora,\n\nThe plans are ready.\n\nBest, Sam"]);
@@ -272,6 +294,26 @@ describe("Orr uses it", () => {
 });
 
 describe("the voice is the user's", () => {
+  it("a #persona in prose makes no note the persona, and nobody but the user may tag or untag one", async () => {
+    write("jules", "Personal/jules/Log.md", "# Log\n\n- Built the page that reads the #persona note.\n");
+    expect((await persona()).others.map((o) => o.path)).not.toContain("Personal/jules/Log.md");
+    const rel = "Personal/jules/persona-data.md";
+    const token = (await s.call("jules", "POST", "/api/tokens", { label: "persona tag test" })).json.token as string;
+    // Taking the tag off: Voice and Rules unchanged, but the note would stop being "you".
+    const now = (await s.call("jules", "GET", `/api/vault/note/${(await persona()).note!.id}`)).json;
+    const untag = await s.call(token, "PUT", "/api/vault/note", { path: rel, content: now.content.replace(/^ {2}- persona\n/m, "").replace(/tags: \[persona\]/, "tags: []"), baseHash: now.hash });
+    expect(untag.status).toBe(403);
+    expect((await persona()).note!.path).toBe(rel);
+    // A new note tagged #persona in your own folder would rank first, with no rules at all.
+    const made = await s.call(token, "PUT", "/api/vault/note", { path: "Personal/jules/me.md", content: "---\ntags: [persona]\n---\n# Me\n", create: true });
+    expect(made.status).toBe(403);
+    expect(exists("Personal/jules/me.md")).toBe(false);
+    s.queue.push({ tool: "write_note", args: { path: "Personal/jules/me2.md", content: "---\ntags: [persona]\n---\n# Me\n" } }, { text: "Done." });
+    const outs = toolOutputs((await s.call("jules", "POST", "/api/ai/ask", ask("make me a new persona"))).body);
+    expect(outs[0].error ?? JSON.stringify(outs[0])).toMatch(/tag a note #persona/);
+    expect(exists("Personal/jules/me2.md")).toBe(false);
+  });
+
   it("neither the agent nor an API token may change Voice or Rules for outside use; the rest stays writable", async () => {
     const rel = "Personal/jules/persona-data.md";
     const before = file(rel);

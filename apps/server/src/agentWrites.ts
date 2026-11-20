@@ -31,7 +31,8 @@ export function isInstructionFile(rel: string): boolean {
 }
 
 const isProjectNote = (content: string) => parseNote(content).tags.some((t) => t.line === 0 && projectSlugOf(t.tag) !== null);
-const isPersonaNote = (content: string) => parseNote(content).tags.some((t) => t.tag === PERSONA_TAG);
+/** A persona note: tagged #persona in its front matter (persona.ts isPersonaTagged, the same rule). */
+const isPersonaNote = (content: string) => parseNote(content).tags.some((t) => t.line === 0 && t.tag === PERSONA_TAG);
 
 /** The guard for a writer that is not the user at the keyboard: `who` says which, in the refusal. */
 export function untrustedWriter(who: string): WriteGuard {
@@ -43,8 +44,15 @@ export function untrustedWriter(who: string): WriteGuard {
     if (project && readSection(before?.content ?? "", "Prompt") !== readSection(content, "Prompt")) {
       throw new HttpError(403, `A project's ## Prompt is its standing instructions for agents, so ${who} may not change it. The user can edit it on the project page or in Obsidian.`);
     }
-    const persona = isPersonaNote(content) || (before !== null && isPersonaNote(before.content));
-    if (persona && personaText(before?.content ?? "", ["voice", "rules"]) !== personaText(content, ["voice", "rules"])) {
+    // Which note is "you" decides which Voice and Rules agents write by: taking the tag off the
+    // persona, or tagging another note (which could rank above it, with no rules at all), changes
+    // them as surely as editing them (review, 20 Nov).
+    const was = before !== null && isPersonaNote(before.content);
+    const is = isPersonaNote(content);
+    if (was !== is) {
+      throw new HttpError(403, `Which note is the user's persona decides how agents write as them, so ${who} may not ${is ? "tag a note #persona" : "take #persona off a note"}. The user can do it in Orrama or Obsidian.`);
+    }
+    if (is && personaText(before?.content ?? "", ["voice", "rules"]) !== personaText(content, ["voice", "rules"])) {
       throw new HttpError(403, `A persona's ## Voice and ## Rules for outside use are how agents write as the user, so ${who} may not change them. The user can edit them in the note, in Orrama or Obsidian.`);
     }
   };

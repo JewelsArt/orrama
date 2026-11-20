@@ -25,7 +25,8 @@ export function nameOf(p: Persona, key: string): string {
   if (t === "project") return p.projects.find((x) => x.key === id)?.name ?? "";
   if (t === "exp") {
     const e = p.experience.find((x) => x.key === id);
-    return e ? shortOrg(e.org) || e.role : "";
+    // The place and the role: three rows at one place must not read the same.
+    return e ? [shortOrg(e.org), e.role].filter(Boolean).join(" · ") : "";
   }
   if (t === "skill") return p.skills.find((x) => x.key === id)?.name ?? "";
   if (t === "person") return p.people.find((x) => x.key === id)?.name ?? "";
@@ -34,6 +35,30 @@ export function nameOf(p: Persona, key: string): string {
     return f ? `${f.number} · ${f.what}` : "";
   }
   return "";
+}
+
+/**
+ * What "Use in an email" says it is about, in words a model can use: a place with its role and
+ * dates, a proof point with its number and where it comes from (review, 20 Nov: it used to send
+ * "Scooperz" for all three Scooperz rows, and a proof point's project instead of the proof).
+ */
+export function aboutOf(p: Persona, key: string): string {
+  const [t, id] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+  if (t === "exp") {
+    const e = p.experience.find((x) => x.key === id);
+    return e ? [e.role, e.org && `at ${e.org}`, e.period && `(${e.period})`].filter(Boolean).join(" ") : "";
+  }
+  if (t === "proof") {
+    const f = p.proof.find((x) => x.key === id);
+    if (!f) return "";
+    const from = f.source ? nameOf(p, f.source) : "";
+    return `the proof point "${f.number}: ${f.what}"${from ? `, from ${from}` : ""}`;
+  }
+  if (t === "project") {
+    const pr = p.projects.find((x) => x.key === id);
+    return pr ? `the project ${pr.name}${pr.period ? ` (${pr.period})` : ""}` : "";
+  }
+  return nameOf(p, key);
 }
 
 /** "MyUniBooks (HvA co-entrepreneurship)" → "MyUniBooks"; "Kasetsart University, Bangkok" → "Kasetsart University". */
@@ -86,24 +111,45 @@ export function headerFacts(p: Persona, now: number): HeaderFact[] {
     const e = placeIn(row.value, lane) ?? placeIn(row.value);
     out.push({ text: factText(row.value), full: row.value, key: e ? `exp:${e.key}` : null, lane: e?.lane ?? lane });
   }
-  for (const label of [/^(based|lives?|location|city)/i, /^languages?/i]) {
-    const row = find(label);
-    if (row) out.push({ text: factText(row.value).replace(/ and /g, " · "), full: row.value, key: null, lane: null });
-  }
+  const based = find(/^(based|lives?|location|city)/i);
+  if (based) out.push({ text: factText(based.value), full: based.value, key: null, lane: null });
+  const langs = find(/^languages?/i);
+  if (langs) out.push({ text: languagesOf(langs.value), full: langs.value, key: null, lane: null });
   return out;
 }
 
-/** Who vouches: people the note calls a reference, a coach or a supervisor; else the first few. */
-export function vouches(p: Persona, max = 5) {
-  const vouching = p.people.filter((x) => /referen|referee|vouch|supervis|coach|mentor/i.test(`${x.how} ${x.role}`));
-  return (vouching.length ? vouching : p.people).slice(0, max);
+/** "French and English (both native), Dutch (beginner)" → "French · English · Dutch". */
+export function languagesOf(value: string): string {
+  return value
+    .replace(/\s*\([^)]*\)/g, "")
+    .split(/\s*(?:,|;|\band\b|&|\/)\s*/i)
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join(" · ");
 }
 
-/** A person's relation in a word or two: the first clause of how you work together. */
-export const relationOf = (how: string) => how.split(/[,.;]/)[0]!.trim().toLowerCase();
+/** The Now rows the header doesn't show (a thesis, what you're looking for…), for the page. */
+export function otherNow(p: Persona): { label: string; value: string }[] {
+  return p.now.filter((n) => !/^(stud|role|job|work|based|lives?|location|city|languages?)/i.test(n.label));
+}
 
-/** The open questions, in the note's order, each with its place among the section's bullets. */
-export const openQuestions = (p: Persona) => p.questions.map((q, index) => ({ ...q, index })).filter((q) => !q.answer);
+/**
+ * People, those who vouch first: the note calls them a reference, a coach or a supervisor, or
+ * they briefed your work. Everyone is listed; the page shows who vouches and the
+ * rest behind "Everyone".
+ */
+export function vouches(p: Persona): { vouch: Persona["people"]; rest: Persona["people"] } {
+  const is = (x: Persona["people"][number]) => /referen|referee|vouch|supervis|coach|mentor|briefed|recommend/i.test(`${x.how} ${x.role}`);
+  return { vouch: p.people.filter(is), rest: p.people.filter((x) => !is(x)) };
+}
+
+/** A person's relation in a few words: the first clause of how you work together, as written. */
+export const relationOf = (how: string) => how.split(/[,.;]/)[0]!.trim();
+
+/** The open questions, in the note's order. */
+export const openQuestions = (p: Persona) => p.questions.filter((q) => !q.answer);
+/** The questions answered, newest last as the note has them. */
+export const answeredQuestions = (p: Persona) => p.questions.filter((q) => q.answer);
 
 /** The note a row's Source names, by path (with or without .md) or by title. */
 export function sourceNote<T extends { id: string; path: string; title: string }>(source: string | null, tree: readonly T[]): T | undefined {
@@ -127,16 +173,28 @@ export function workGroups(p: Persona, expsOf: (projectKey: string) => string[])
     if (exps.length === 0) add("Built", pr.key);
     for (const ek of exps) {
       const e = p.experience.find((x) => x.key === ek);
-      if (e) add(shortOrg(e.org), pr.key);
+      // What you built on your own time is Built, whatever the row calls the place.
+      if (e) add(e.lane === "Built" ? "Built" : shortOrg(e.org), pr.key);
     }
   }
   return [...groups.entries()].map(([name, keys]) => ({ name, keys }));
 }
 
-/** Story, newest first: by where each place ends (still going first), then where it starts. */
-export function newestFirst(p: Persona) {
+/**
+ * Story, newest first: what is going on now first, newest start first (a thesis begun in August
+ * before a study begun in 2022), then the rest by where they ended. A year written alone is not
+ * a December: "2022–2027" is going on, not the newest thing.
+ */
+export function newestFirst(p: Persona, now: number) {
+  const going = (w: Period | null) => !!w && w.start <= now && (w.end === null || w.end >= now);
   const end = (w: Period | null) => (w ? (w.end ?? Infinity) : -Infinity);
-  return [...p.experience].sort((a, b) => end(b.when) - end(a.when) || (b.when?.start ?? 0) - (a.when?.start ?? 0));
+  return [...p.experience].sort((a, b) => {
+    const ga = going(a.when);
+    const gb = going(b.when);
+    if (ga !== gb) return ga ? -1 : 1;
+    if (ga) return (b.when!.start ?? 0) - (a.when!.start ?? 0);
+    return end(b.when) - end(a.when) || (b.when?.start ?? 0) - (a.when?.start ?? 0);
+  });
 }
 
 /** Languages the In short text has, English first. */

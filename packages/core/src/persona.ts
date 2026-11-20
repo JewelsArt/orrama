@@ -16,8 +16,11 @@
  *     ## Voice                 bullets, "**English, work:** …" a register
  *     ## Rules for outside use bullets
  *     ## Interests             a paragraph
+ *     ## Growing               bullets, "**Label:** …"
+ *     ## Plain-language terms  | Term | Plain meaning |
  *     ## Check with <name>     bullets: open questions; "A **or** B" are its options,
- *                              "Answer: …" on the line means answered
+ *                              "Answer: …" on the line means answered; "<name>, more
+ *                              evidence: …" adds to the question of that name
  *
  * Read leniently: a missing section is empty, a section this does not know is ignored, a row
  * that cannot be read is skipped and named in `unread` (the page says what it couldn't read),
@@ -32,7 +35,7 @@
 import { parseFrontmatter } from "./frontmatter.js";
 import { codeLines, noteLines, spliceNoteLines } from "./parse.js";
 import { cells, isRule } from "./table.js";
-import { monthOf, type Period } from "./personaGraph.js";
+import { monthOf, nameScore, nameWords, type Period } from "./personaGraph.js";
 
 export * from "./personaGraph.js";
 
@@ -67,6 +70,8 @@ export interface PersonaProject {
   partOf: string[];
   outside: string;
   source: string | null;
+  /** The longer story, from a "**Name.** …" bullet under the table (### Project details). */
+  details: string;
 }
 
 export interface PersonaSkill {
@@ -95,13 +100,17 @@ export interface PersonaPerson {
 
 export interface PersonaQuestion {
   key: string;
-  /** The bullet as the note has it (without its marker): how an answer finds its line. */
+  /** Its place among the section's bullets: how an answer finds its line. */
+  index: number;
+  /** The bullet's first line as the note has it (without its marker): checked before writing. */
   raw: string;
   /** Its short name ("Target role"), and the rest of it. */
   name: string;
   detail: string;
   options: string[];
   answer: string | null;
+  /** "<name>, more evidence: …" bullets: what else the sources say about it. */
+  evidence: string[];
 }
 
 export interface PersonaVoice {
@@ -120,6 +129,10 @@ export interface PersonaUnread {
 export interface Persona {
   name: string;
   updated: string | null;
+  /** A headline in a line ("### CV headline" or "### Headline" under In short: its Title line). */
+  headline: string;
+  /** What it was learned from: the front matter's `sources:`, as written. */
+  learnedFrom: string;
   /** By length, then language code (EN, FR…): the text. */
   short: Record<PitchLength, Record<string, string>>;
   now: { label: string; value: string }[];
@@ -138,13 +151,15 @@ export interface Persona {
   voice: PersonaVoice[];
   rules: string[];
   interests: string;
+  growing: PersonaVoice[];
+  terms: { term: string; plain: string }[];
   questions: PersonaQuestion[];
   /** The sections the note has, by the names this reads them under. */
   sections: PersonaSection[];
   unread: PersonaUnread[];
 }
 
-export const PERSONA_SECTIONS = ["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"] as const;
+export const PERSONA_SECTIONS = ["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "growing", "terms", "questions"] as const;
 export type PersonaSection = (typeof PERSONA_SECTIONS)[number];
 
 /** Which section a `##` heading is, or null for one this does not read. */
@@ -160,6 +175,8 @@ export function sectionOf(heading: string): PersonaSection | null {
   if (h === "voice") return "voice";
   if (/^rules\b/.test(h)) return "rules";
   if (h === "interests") return "interests";
+  if (h === "growing" || h === "goals" || h === "learning") return "growing";
+  if (/^(plain[- ]language terms|terms|glossary)$/.test(h)) return "terms";
   if (/^check with\b/.test(h) || h === "open questions") return "questions";
   return null;
 }
@@ -250,11 +267,11 @@ export function parsePeriod(text: string): Period | null {
     if (a.months && b.months && a.months[0] > b.months[1]) year -= 1;
   }
   const start = monthOf(year, a.months?.[0] ?? 1);
-  if (!b) return { start, end: monthOf(year, a.months?.[1] ?? 12) };
+  if (!b) return { start, end: monthOf(year, a.months?.[1] ?? 12), ...(a.months ? {} : { endRough: true }) };
   if (b.now) return { start, end: null };
   const endYear = b.year ?? year;
   const end = monthOf(endYear, b.months?.[1] ?? 12);
-  return end < start ? null : { start, end };
+  return end < start ? null : { start, end, ...(b.months ? {} : { endRough: true }) };
 }
 
 /* ---- the note's parts ---------------------------------------------------------------------- */
@@ -352,13 +369,18 @@ function sourceCell(row: string[], i: number): string | null {
   return (link ? link[1]! : plain(raw)).trim() || null;
 }
 
-/** Bullet items of a section, as written (marker taken off). */
+/** Bullet items of a section, as written (marker taken off), a wrapped item joined into one. */
 function bullets(lines: string[]): string[] {
-  const out: string[] = [];
+  return bulletItems(lines).map((b) => b.text);
+}
+
+/** Bullet items with their first line kept apart: the line an edit checks against. */
+function bulletItems(lines: string[]): { first: string; text: string }[] {
+  const out: { first: string; text: string }[] = [];
   for (const line of lines) {
     const m = /^\s*[-*+]\s+(.*\S)\s*$/.exec(line);
-    if (m) out.push(m[1]!);
-    else if (out.length && /^\s{2,}\S/.test(line)) out[out.length - 1] += ` ${line.trim()}`;
+    if (m) out.push({ first: m[1]!, text: m[1]! });
+    else if (out.length && /^\s{2,}\S/.test(line)) out[out.length - 1]!.text += ` ${line.trim()}`;
   }
   return out;
 }
@@ -438,7 +460,7 @@ function shortOf(lines: string[]): Record<PitchLength, Record<string, string>> {
 
 const ANSWER = /\s*(?:→|->|—|–)?\s*\**answer(?:ed)?\**\s*(?:\(([^)]*)\))?\s*:\**\s*(.+)$/i;
 
-function questionOf(raw: string, key: string): PersonaQuestion {
+function questionOf(raw: string, first: string, index: number, key: string): PersonaQuestion {
   const a = ANSWER.exec(raw);
   const text = plain(a ? raw.slice(0, a.index) : raw);
   const colon = text.indexOf(": ");
@@ -446,7 +468,28 @@ function questionOf(raw: string, key: string): PersonaQuestion {
   const detail = colon > 0 && colon <= 60 ? text.slice(colon + 2) : "";
   const parts = (colon > 0 && colon <= 60 ? (a ? raw.slice(0, a.index) : raw).slice(raw.indexOf(": ") + 2) : "").split(/\s*\*\*or\*\*\s*/i);
   const options = parts.length >= 2 ? parts.map((p) => plain(p).replace(/[?.]+$/, "").trim()).filter(Boolean) : [];
-  return { key, raw, name, detail, options, answer: a ? plain(a[2]!) : null };
+  return { key, index, raw: first, name, detail, options, answer: a ? plain(a[2]!) : null, evidence: [] };
+}
+
+/** The headline: a "### … headline" under In short, its "Title line" (or "Headline") bullet, else its first line. */
+function headlineOf(lines: string[]): string {
+  let inside = false;
+  const found: string[] = [];
+  for (const line of lines) {
+    const h = /^###\s+(.+?)\s*$/.exec(line);
+    if (h) {
+      inside = /headline/i.test(h[1]!);
+      continue;
+    }
+    if (inside && line.trim()) found.push(line.replace(/^\s*[-*+]\s+/, ""));
+  }
+  const labelled = found.map((l) => /^\*\*([^*]+?):?\*\*:?\s*(.+)$/.exec(l));
+  const title = labelled.find((m) => m && /^(title line|headline|title)$/i.test(m[1]!.trim()));
+  if (title) return plain(title[2]!);
+  const firstLine = found[0];
+  if (!firstLine) return "";
+  const m = labelled[0];
+  return plain(m ? m[2]! : firstLine);
 }
 
 /* ---- the whole note ------------------------------------------------------------------------ */
@@ -459,6 +502,8 @@ export function parsePersona(content: string, fallbackName = ""): Persona {
   const fromTitle = title.replace(/^persona\s*(?:[—–:-]\s*)?/i, "").trim();
   const p: Persona = {
     name: named || fromTitle || fallbackName,
+    headline: "",
+    learnedFrom: typeof fm["sources"] === "string" ? plain(fm["sources"]) : Array.isArray(fm["sources"]) ? fm["sources"].map((x) => plain(String(x))).join(", ") : "",
     updated: fm["updated"] instanceof Date ? fm["updated"].toISOString().slice(0, 10) : typeof fm["updated"] === "string" ? fm["updated"] : null,
     short: { line: {}, s30: {}, min2: {} },
     now: [],
@@ -474,6 +519,8 @@ export function parsePersona(content: string, fallbackName = ""): Persona {
     voice: [],
     rules: [],
     interests: "",
+    growing: [],
+    terms: [],
     questions: [],
     sections: [],
     unread: [],
@@ -489,12 +536,14 @@ export function parsePersona(content: string, fallbackName = ""): Persona {
   const heading = (s: PersonaSection) => found.get(s)?.heading ?? s;
 
   p.short = shortOf(lines("short"));
+  p.headline = headlineOf(lines("short"));
 
   // Now: a two-column table, label and value.
   for (const r of tableOf(lines("now")).rows) {
     const [label = "", value = ""] = r.cells.map(plain);
     if (label && value) p.now.push({ label, value });
-    else if (label || value) skip(heading("now"), r.text, "a row needs a label and a value");
+    // A label waiting for its value is a template, not a mistake ("| Role | |").
+    else if (value) skip(heading("now"), r.text, "a row needs a label and a value");
   }
 
   const expKeys = new Set<string>();
@@ -589,7 +638,16 @@ export function parsePersona(content: string, fallbackName = ""): Persona {
         partOf: c.partOf >= 0 ? namesIn(r.cells[c.partOf] ?? "", orgs) : [],
         outside: cell(r.cells, c.outside),
         source: sourceCell(r.cells, c.source),
+        details: "",
       });
+    }
+    // "- **Office expansion business case.** The CEO was weighing…": the story behind a project.
+    for (const b of bullets(t.rest)) {
+      const m = /^\*\*(.+?)\.?\*\*\.?\s*([\s\S]+)$/.exec(b);
+      if (!m) continue;
+      const name = norm(m[1]!.replace(/[.:]$/, ""));
+      const pr = p.projects.find((x) => norm(x.name) === name) ?? p.projects.find((x) => norm(x.name).startsWith(name) || name.startsWith(norm(x.name)));
+      if (pr && !pr.details) pr.details = plain(m[2]!);
     }
   }
   const projectNames = p.projects.map((x) => x.name);
@@ -627,46 +685,74 @@ export function parsePersona(content: string, fallbackName = ""): Persona {
   }
   p.rules = bullets(lines("rules")).map(plain);
   p.interests = paragraphs(lines("interests")).map(plain).join("\n\n");
+  for (const b of bullets(lines("growing"))) {
+    const m = /^\*\*([^*]+?):?\*\*:?\s*(.+)$/.exec(b);
+    p.growing.push(m ? { label: m[1]!.replace(/:$/, "").trim(), text: plain(m[2]!) } : { label: null, text: plain(b) });
+  }
+  for (const r of tableOf(lines("terms")).rows) {
+    const [term = "", meaning = ""] = r.cells.map(plain);
+    if (term && meaning) p.terms.push({ term, plain: meaning });
+  }
   const qKeys = new Set<string>();
-  p.questions = bullets(lines("questions")).map((raw) => questionOf(raw, keyOf(plain(raw).slice(0, 40), qKeys)));
+  bulletItems(lines("questions")).forEach((b, index) => {
+    const q = questionOf(b.text, b.first, index, keyOf(plain(b.text).slice(0, 40), qKeys));
+    // "Target role, more evidence: …" is what else was found, not a question of its own.
+    const more = /^(.+?),?\s+more evidence$/i.exec(q.name);
+    const about = more ? norm(more[1]!) : "";
+    const to = more ? (p.questions.find((x) => norm(x.name) === about) ?? p.questions.find((x) => about.startsWith(`${norm(x.name)} `))) : undefined;
+    if (to && !q.answer) to.evidence.push(q.detail);
+    else p.questions.push(q);
+  });
   return p;
 }
 
-/** The share of a name's longer words found in `text`. */
-function overlap(name: string, text: string): number {
-  const words = norm(name)
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((w) => w.length > 2 && !["and", "the", "for", "with"].includes(w));
-  if (words.length === 0) return 0;
-  const t = norm(text);
-  return words.filter((w) => t.includes(w)).length / words.length;
-}
-
-/** Where a proof point comes from: the Source cell when it names one, else the best match. */
+/**
+ * Where a proof point comes from: the Source cell when it names one, else the thing its words
+ * name. In order: the number itself where exactly one row quotes it, a project or place whose
+ * name it mostly says ("the office expansion model"), a word only one project's name has
+ * ("router", "thesis"), and a project or place whose own description says most of it
+ * ("Financial Risk Management" is in the AMSIB row). Null when nothing is clear: the page says so.
+ */
 function sourceOf(p: Persona, given: string, number: string, what: string): string | null {
   const things = [
     ...p.projects.map((x) => ({ key: `project:${x.key}`, name: x.name, text: `${x.what} ${x.outcome} ${x.part}` })),
     ...p.experience.map((x) => ({ key: `exp:${x.key}`, name: x.org, text: `${x.role} ${x.what}` })),
   ];
   if (given) {
-    const exact = things.find((t) => norm(t.name) === norm(given));
+    const exact = things.find((t) => norm(t.name) === norm(given)) ?? things.find((t) => nameScore(t.name, given) === 1);
     if (exact) return exact.key;
   }
-  // A project is the more precise source: its name is tried before the places'.
-  for (const kind of ["project:", "exp:"]) {
-    let best: { key: string; score: number } | null = null;
-    for (const t of things.filter((x) => x.key.startsWith(kind))) {
-      const score = overlap(t.name, `${given} ${what}`);
-      if (score >= 0.6 && (!best || score > best.score)) best = { key: t.key, score };
+  const said = `${given} ${what}`;
+  const best = (list: typeof things, score: (t: (typeof things)[number]) => number, min: number) => {
+    let top: { key: string; score: number; tie: boolean } | null = null;
+    for (const t of list) {
+      const sc = score(t);
+      if (sc < min) continue;
+      if (!top || sc > top.score) top = { key: t.key, score: sc, tie: false };
+      else if (sc === top.score) top.tie = true;
     }
-    if (best) return best.key;
-  }
-  // The number itself, where one row quotes it ("114,000+" in the place's own words).
+    return top && !top.tie ? top.key : null;
+  };
+  const projects = things.filter((t) => t.key.startsWith("project:"));
+  const places = things.filter((t) => t.key.startsWith("exp:"));
+  // The number itself, where exactly one row quotes it ("114,000+" in the place's own words).
   const digits = /\d[\d.,]*/.exec(number)?.[0]?.replace(/[.,]$/, "");
   if (digits && digits.length >= 2) {
     const quoting = things.filter((t) => new RegExp(`(^|[^\\d])${digits.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^\\d]|$)`).test(t.text));
     if (quoting.length === 1) return quoting[0]!.key;
   }
+  // A project is the more precise source: its name is tried before the places'.
+  const byName = best(projects, (t) => nameScore(t.name, said), 0.5) ?? best(places, (t) => nameScore(t.name, said), 0.5);
+  if (byName) return byName;
+  // A word only one project's name has.
+  const counts = new Map<string, number>();
+  for (const t of projects) for (const w of new Set(nameWords(t.name))) counts.set(w, (counts.get(w) ?? 0) + 1);
+  const saidWords = new Set(nameWords(said));
+  const own = projects.filter((t) => nameWords(t.name).some((w) => w.length >= 4 && counts.get(w) === 1 && saidWords.has(w)));
+  if (own.length === 1) return own[0]!.key;
+  // What it says, in a project's or a place's own words.
+  const byText = best(projects, (t) => nameScore(what, `${t.name} ${t.text}`), 0.66) ?? best(places, (t) => nameScore(what, `${t.name} ${t.text}`), 0.66);
+  if (byText) return byText;
   return null;
 }
 
@@ -713,14 +799,37 @@ export function answerQuestion(content: string, index: number, raw: string, answ
     if (n !== index) continue;
     if (m[2] !== raw) return null;
     const clean = answer.replace(/\s+/g, " ").trim();
-    return spliceNoteLines(content, i, i + 1, [`${m[1]}${m[2]} **Answer (${day}):** ${clean}`]);
+    // The bullet's last line: an item wrapped onto the next lines ends there.
+    let last = i;
+    while (last + 1 < lines.length && !code[last + 1] && /^\s{2,}\S/.test(lines[last + 1]!) && !/^\s*[-*+]\s/.test(lines[last + 1]!)) last++;
+    const written = `**Answer (${day}):** ${clean}`;
+    // Answered before: the new answer replaces the old one where it stands.
+    for (let j = i; j <= last; j++) {
+      const at = lines[j]!.search(/\s*(?:→|->|—|–)?\s*\**answer(?:ed)?\**\s*(?:\([^)]*\))?\s*:/i);
+      if (at >= 0 && (j > i || at > m[1]!.length)) return spliceNoteLines(content, j, j + 1, [`${lines[j]!.slice(0, at).replace(/\s+$/, "")} ${written}`]);
+    }
+    return spliceNoteLines(content, last, last + 1, [`${lines[last]!.replace(/\s+$/, "")} ${written}`]);
   }
   return null;
 }
 
 /** The numbers a text quotes ("8", "8.6", "114,000+", "10/10", "77 h"), as digits. */
 export function numbersIn(text: string): string[] {
-  return [...text.matchAll(/\d+(?:[.,]\d+)*/g)].map((m) => m[0].replace(/,(?=\d{3}\b)/g, "").replace(",", "."));
+  // "114,000", "114 000" (French, with a space or a narrow one) and "114000" are one number.
+  return [...text.matchAll(/\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?![\d])(?:[.,]\d+)?|\d+(?:[.,]\d+)*/g)].map((m) =>
+    m[0].replace(/[ \u00a0\u202f]/g, "").replace(/,(?=\d{3}\b)/g, "").replace(",", "."),
+  );
+}
+
+/**
+ * The part of a persona note whose numbers may be quoted: every section but the open questions
+ * (not settled yet), and without the "Internal only" line (never quoted outside).
+ */
+export function quotableText(content: string): string {
+  return personaText(content, PERSONA_SECTIONS.filter((s) => s !== "questions"))
+    .split(/\n\s*\n/)
+    .filter((para) => !/^\**\s*internal only/i.test(para.trim()))
+    .join("\n\n");
 }
 
 /**

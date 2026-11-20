@@ -1,16 +1,19 @@
 /**
  * Introduce me (ME): who it's for, how long, which language and what for; Orr writes an
  * introduction from the persona alone and shows it, with Copy and Use in an email. A number the
- * note doesn't hold is said before it goes anywhere.
+ * note doesn't hold is said before it goes anywhere. While a generated draft is reviewed, Orr
+ * writes from the draft; with no mailbox connected the text is copied instead of sent to Mail.
  */
 import { useState } from "react";
 import type { PersonaWrite } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Button } from "../ui/controls.js";
-import { Dialog, toast } from "../ui/overlays.js";
+import { Dialog } from "../ui/overlays.js";
 import { navigate } from "../ui/router.js";
 import { useWrite } from "../ui/writes.js";
 import { holdForComposer } from "../mail/compose.js";
+import { useMe } from "./context.js";
+import { copyText } from "./copy.js";
 import { Seg } from "./Side.js";
 
 const AUDIENCES = [
@@ -26,7 +29,8 @@ const LENGTHS = [
   ["min2", "2 minutes"],
 ] as const;
 
-export function Introduce({ langs, ai, onClose }: { langs: string[]; ai: boolean; onClose: () => void }) {
+export function Introduce({ langs, onClose }: { langs: string[]; onClose: () => void }) {
+  const { ai, mail, draftId } = useMe();
   const [who, setWho] = useState<(typeof AUDIENCES)[number][0]>("recruiter");
   const [len, setLen] = useState<(typeof LENGTHS)[number][0]>("s30");
   const [lang, setLang] = useState(langs[0] ?? "EN");
@@ -35,7 +39,16 @@ export function Introduce({ langs, ai, onClose }: { langs: string[]; ai: boolean
   const w = useWrite();
   const write = () =>
     void w.run("Orr couldn't write it.", async () => {
-      setOut(await api<PersonaWrite>("POST", "/api/persona/write", { kind: "intro", audience: who, length: len, language: lang, ...(purpose.trim() ? { purpose: purpose.trim() } : {}) }));
+      setOut(
+        await api<PersonaWrite>("POST", "/api/persona/write", {
+          kind: "intro",
+          audience: who,
+          length: len,
+          language: lang,
+          ...(purpose.trim() ? { purpose: purpose.trim() } : {}),
+          ...(draftId ? { draftId } : {}),
+        }),
+      );
     });
   return (
     <Dialog
@@ -45,27 +58,22 @@ export function Introduce({ langs, ai, onClose }: { langs: string[]; ai: boolean
       actions={
         out ? (
           <>
-            <Button
-              onClick={() =>
-                void navigator.clipboard?.writeText(out.text).then(
-                  () => toast("Copied."),
-                  () => toast("It couldn't be copied. Select the text instead."),
-                )
-              }
-            >
+            <Button kind={mail ? undefined : "solid"} onClick={() => void copyText(out.text)}>
               Copy
             </Button>
-            <Button
-              kind="solid"
-              icon="mail"
-              onClick={() => {
-                holdForComposer({ subject: "", body: out.text });
-                onClose();
-                navigate("/mail?write=new");
-              }}
-            >
-              Use in an email
-            </Button>
+            {mail && (
+              <Button
+                kind="solid"
+                icon="mail"
+                onClick={() => {
+                  holdForComposer({ subject: "", body: out.text });
+                  onClose();
+                  navigate("/mail?write=new");
+                }}
+              >
+                Use in an email
+              </Button>
+            )}
           </>
         ) : (
           <>
@@ -81,6 +89,7 @@ export function Introduce({ langs, ai, onClose }: { langs: string[]; ai: boolean
         <p className="me-err">
           Orr needs AI to write this.{" "}
           <a
+            className="me-link"
             href="/settings/ai"
             onClick={(e) => {
               e.preventDefault();

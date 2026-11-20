@@ -240,9 +240,13 @@ export function Mail(_props: { me: Me }) {
     [leaveComposer, path],
   );
   /** Close the composer: back to the page it opened over. */
-  // What the Me page wrote, for the first new message (taken once, when Mail opens).
+  // What the Me page wrote, for the first new message (taken once, when the composer can show it:
+  // a Mail that isn't connected yet keeps it for after, never drops it).
   const [held, setHeld] = useState(peekHeld);
-  useEffect(clearHeld, []);
+  const canCompose = !!account?.connected;
+  useEffect(() => {
+    if (canCompose) clearHeld();
+  }, [canCompose]);
   const closeComposer = useCallback(() => {
     dirty.current = false;
     setHeld(null);

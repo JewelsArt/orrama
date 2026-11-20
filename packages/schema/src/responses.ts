@@ -1183,10 +1183,12 @@ export type Revision = z.infer<typeof revisionResponse>;
 export type NotesOverview = z.infer<typeof notesOverviewResponse>;
 // ---------- the Me page (ME): the persona note, read by core parsePersona ----------
 
-const periodSchema = o({ start: z.number(), end: nnum }).nullable();
+const periodSchema = o({ start: z.number(), end: nnum, endRough: z.boolean().optional() }).nullable();
 /** A persona as core reads it (Persona): every section, and what couldn't be read. */
 export const personaSchema = o({
   name: z.string(),
+  headline: z.string(),
+  learnedFrom: z.string(),
   updated: nstr,
   short: o({ line: z.record(z.string(), z.string()), s30: z.record(z.string(), z.string()), min2: z.record(z.string(), z.string()) }),
   now: z.array(o({ label: z.string(), value: z.string() })),
@@ -1206,6 +1208,7 @@ export const personaSchema = o({
       partOf: z.array(z.string()),
       outside: z.string(),
       source: nstr,
+      details: z.string(),
     }),
   ),
   skills: z.array(o({ key: z.string(), name: z.string(), level: nnum, proof: z.array(z.string()) })),
@@ -1218,8 +1221,10 @@ export const personaSchema = o({
   voice: z.array(o({ label: nstr, text: z.string() })),
   rules: z.array(z.string()),
   interests: z.string(),
-  questions: z.array(o({ key: z.string(), raw: z.string(), name: z.string(), detail: z.string(), options: z.array(z.string()), answer: nstr })),
-  sections: z.array(z.enum(["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "questions"])),
+  growing: z.array(o({ label: nstr, text: z.string() })),
+  terms: z.array(o({ term: z.string(), plain: z.string() })),
+  questions: z.array(o({ key: z.string(), index: z.number(), raw: z.string(), name: z.string(), detail: z.string(), options: z.array(z.string()), answer: nstr, evidence: z.array(z.string()) })),
+  sections: z.array(z.enum(["short", "now", "experience", "projects", "skills", "proof", "people", "voice", "rules", "interests", "growing", "terms", "questions"])),
   unread: z.array(o({ section: z.string(), text: z.string(), reason: z.string() })),
 });
 
@@ -1227,9 +1232,11 @@ export const personaSchema = o({
 export const personaResponse = o({
   note: o({ id: z.string(), path: z.string(), title: z.string(), mtimeMs: nnum, hash: z.string() }).nullable(),
   persona: personaSchema.nullable(),
-  /** Other notes tagged #persona this account could have meant (the page says which one it reads). */
-  others: z.array(z.string()),
+  /** Other notes whose front matter tags them #persona (the page says, quietly, which one it reads). */
+  others: z.array(o({ path: z.string(), title: z.string() })),
   ai: o({ configured: z.boolean(), provider: nstr }),
+  /** A mailbox is connected: "Open in Mail" can take a draft there. */
+  mail: z.boolean(),
   /** With no note: what Orr could read, whether that is enough, and where the note would go. */
   sources: o({ projects: z.number(), notes: z.number(), people: z.number(), chats: z.number(), mail: z.boolean(), enough: z.boolean(), home: z.string() }).nullable(),
 });
