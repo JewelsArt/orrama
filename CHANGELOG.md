@@ -9,6 +9,15 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Your page (`/me`): who you are, from one note tagged #persona — your story on a timeline,
+  your pitch at three lengths, proof points, skills, the people who vouch, and what Orr still needs
+  to check with you. Everything opens beside the page and lights what it connects to.
+- Introduce me and Write as me: Orr writes from your persona only, in your voice, and says
+  when a number isn't in your note. Open in Mail puts the draft in the composer.
+- Generate my persona (needs AI and something to read) and Start from a blank one.
+- MCP and Ask Orr read your persona (`get_persona`); a mail Orr or Claude drafts as you
+  reads your Voice and Rules first. Agents and API tokens can't change those two sections.
+
 - Settings → Connections → Connect to Claude. One click lets the Claude app and Claude Code
   on this computer work with your notes, steps, projects, calendar and mail drafts through Orrama's
   own tools, which now come inside the app. The key Claude gets reaches only those tools, stays in
@@ -238,6 +247,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Your Orr in the rail (and Clay's account chip) is a menu: Your page, Settings. People
+  starts with you.
 - Calendar: a day of a repeating event changed on its own ("This one") stays in its series. A
   later "All" change carries to it what it still shared with the series, and Delete all takes it.
 - Today's Coming up shows a repeating event once, on its next day, marked "Every week".
