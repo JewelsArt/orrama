@@ -1,8 +1,8 @@
 /**
  * The Me page's Overview (ME, mockup approved 5 Nov 2026): the story full width, then two columns.
  * Left: In short (the Clay hero), what else is true now (a thesis, what you're looking for),
- * every proof point, what others said, and life outside work. Right: Skills, who vouches, and
- * what Orr still needs to check with you. A section the note doesn't have is not drawn. Colour
+ * every proof point, what others said, and life outside work. Right, in the mockup's order: what
+ * Orr still needs to check with you, Skills, and who vouches. A section the note doesn't have is not drawn. Colour
  * means the lane: Study, Work and Built take the life-area colours, and whatever belongs to a lane
  * is tinted with it.
  *
@@ -127,6 +127,27 @@ export function Overview({ onTab }: { onTab: (t: "story" | "skills") => void }) 
         )}
         {right && (
           <div className="me-col">
+            {(questions.length > 0 || answered.length > 0) && (
+              <section className="mod tiles me-checks" aria-label="Check with you">
+                <div className="mh">
+                  <h2>Check with you</h2>
+                  <span className="c">{questions.length ? questions.length : "all settled"}</span>
+                </div>
+                {questions.length > 0 && <p className="me-hint">Things your sources disagree on. Until you answer, Orr goes by the first option.</p>}
+                {shownQs.map((q) => (
+                  <Question key={q.key} index={q.index} name={q.name} detail={q.detail} more={q.evidence.length} />
+                ))}
+                {questions.length > FIRST.questions && <More open={allQs} onToggle={() => setAllQs((x) => !x)} all={`Show all ${questions.length}`} />}
+                {answered.length > 0 && (
+                  <details className="me-answered">
+                    <summary>Answered ({answered.length})</summary>
+                    {answered.map((q) => (
+                      <Question key={q.key} index={q.index} name={q.name} detail={q.answer ?? ""} answered />
+                    ))}
+                  </details>
+                )}
+              </section>
+            )}
             {skills.length > 0 && (
               <section className="mod" aria-label="Skills">
                 <div className="mh">
@@ -158,27 +179,6 @@ export function Overview({ onTab }: { onTab: (t: "story" | "skills") => void }) 
                   <PersonRow key={x.key} k={`person:${x.key}`} name={x.name} role={x.role} rel={relationOf(x.how)} />
                 ))}
                 {vouch.length > 0 && rest.length > 0 && <More open={everyone} onToggle={() => setEveryone((x) => !x)} all={`Everyone you work with (${p.people.length})`} />}
-              </section>
-            )}
-            {(questions.length > 0 || answered.length > 0) && (
-              <section className="mod tiles me-checks" aria-label="Check with you">
-                <div className="mh">
-                  <h2>Check with you</h2>
-                  <span className="c">{questions.length ? questions.length : "all settled"}</span>
-                </div>
-                {questions.length > 0 && <p className="me-hint">Things your sources disagree on. Until you answer, Orr goes by the first option.</p>}
-                {shownQs.map((q) => (
-                  <Question key={q.key} index={q.index} name={q.name} detail={q.detail} more={q.evidence.length} />
-                ))}
-                {questions.length > FIRST.questions && <More open={allQs} onToggle={() => setAllQs((x) => !x)} all={`Show all ${questions.length}`} />}
-                {answered.length > 0 && (
-                  <details className="me-answered">
-                    <summary>Answered ({answered.length})</summary>
-                    {answered.map((q) => (
-                      <Question key={q.key} index={q.index} name={q.name} detail={q.answer ?? ""} answered />
-                    ))}
-                  </details>
-                )}
               </section>
             )}
           </div>

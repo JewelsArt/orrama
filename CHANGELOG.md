@@ -531,6 +531,11 @@ one is in CLAUDE.md, "Releases".
   matter does. Agents and API tokens can't tag or untag a persona note.
 - Ask Orr opened after "Talk it over with Orr" goes back to your conversation instead of the
   old question.
+- Your page's layout, measured on every tab at five widths in both looks, day and night: the Voice
+  cards line up and keep their gap from the card above, each tab spaces its cards with one gap,
+  "Try it" stays on its card's first line, the header's facts wrap instead of being cut (Clay,
+  beside the panel), a skill's projects wrap inside their card, the empty page fits a phone, and
+  Check with you is back at the top of the right column as in the mockup.
 
 - Today's Orr noticed says "Read from 1 note", not "1 notes".
 - Settings' footer note count follows the notes as they change.

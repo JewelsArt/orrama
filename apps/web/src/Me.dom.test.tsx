@@ -284,3 +284,36 @@ describe("the review's fixes (20 Nov)", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Zora Quill" })).toBeTruthy();
   });
 });
+
+describe("layout: one gap, no sibling margins (Jules, 20 Nov: the Voice cards didn't line up)", () => {
+  // happy-dom draws nothing, so offsetTop is always 0; what it does compute is the cascade. The
+  // page's own stylesheet is loaded and the margins every card would get are read back.
+  it("every register card on Voice gets the same top margin (none), and the tab is one stack with a gap", async () => {
+    // Read from disk: the test setup turns CSS imports (even ?raw) into empty strings.
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const css = readFileSync(join(process.cwd(), "src/styles/me.css"), "utf8");
+    expect(css).toContain(".me-stack");
+    const style = document.createElement("style");
+    style.textContent = css;
+    document.head.appendChild(style);
+    try {
+      stub(withNote(SAMPLE_PERSONA));
+      render(<Me me={me} tab="voice" onAsk={() => {}} />);
+      const grid = (await screen.findByRole("heading", { name: "English, work" })).closest(".me-vc")!;
+      const cards = [...grid.children] as HTMLElement[];
+      expect(cards.length).toBeGreaterThan(1);
+      // The bug: ".me-page .mod + .mod { margin-top: 12px }" reached the 2nd+ cards in the grid.
+      expect(new Set(cards.map((c) => getComputedStyle(c).marginTop))).toEqual(new Set(["0px"]));
+      // And no card spaces itself: the tab is a flex column whose gap does it, its children unmargined.
+      const stack = grid.parentElement!;
+      expect(stack.className).toContain("me-stack");
+      expect(getComputedStyle(stack).display).toBe("flex");
+      expect(getComputedStyle(stack).flexDirection).toBe("column");
+      expect(getComputedStyle(stack).rowGap || getComputedStyle(stack).gap).toMatch(/^12px/);
+      for (const child of [...stack.children] as HTMLElement[]) if (!child.classList.contains("me-vh")) expect(getComputedStyle(child).marginTop).toBe("0px");
+    } finally {
+      style.remove();
+    }
+  });
+});

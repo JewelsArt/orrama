@@ -2,8 +2,9 @@
  * The Me page's other tabs (ME): the full tables, readable, each row opening its thing; kept
  * simple, the Overview is the design. Story is every place newest first; Work the projects as
  * tiles grouped by where they were done (a project can sit in two); Skills each with the work
- * that proves it, and what you want to learn; Voice the registers, each with "Try it", the rules Orr
- * writes by and the plain words for finance terms. Work's filter is in the address (`?group=`).
+ * that proves it, and what you want to learn; Voice the registers, each with "Try it" (first, as the
+ * mockup has them), then how you write in general, the rules Orr writes by and the plain words for
+ * finance terms. Each tab is one stack with one gap (.me-stack): cards never space themselves. Work's filter is in the address (`?group=`).
  */
 import { useState, type CSSProperties } from "react";
 import { Bar } from "../ui/controls.js";
@@ -14,7 +15,7 @@ import { laneColor, newestFirst, shortOrg, thisMonth, workGroups } from "./model
 export function StoryView() {
   const { p, lanes } = useMe();
   return (
-    <>
+    <div className="me-stack">
       <div className="me-vh">
         <h2>Story</h2>
         <p>Every place you studied and worked, newest first. Click one to see what came out of it.</p>
@@ -24,7 +25,7 @@ export function StoryView() {
           <XpRow key={e.key} k={`exp:${e.key}`} period={e.period} role={e.role} org={e.org} what={e.what} color={laneColor(e.lane, lanes)} />
         ))}
       </section>
-    </>
+    </div>
   );
 }
 
@@ -56,7 +57,7 @@ export function WorkView() {
   const star = p.projects.some((x) => x.star);
   const shown = p.projects.filter((pr) => on === "all" || (on === "★" ? pr.star : groups.find((x) => x.name === on)?.keys.has(pr.key)));
   return (
-    <>
+    <div className="me-stack">
       <div className="me-vh">
         <h2>Work</h2>
         <p>What you built and what it led to. Each one says what can be said outside.</p>
@@ -82,7 +83,7 @@ export function WorkView() {
           return <WorkTile key={pr.key} k={k} color={laneColor(g.laneOf(k), lanes)} when={pr.period} where={g.expsOfProject(pr.key).map((e) => shortOrg(p.experience.find((x) => x.key === e)!.org))[0] ?? pr.partOf[0] ?? ""} name={pr.name} star={pr.star} what={pr.what} outcome={pr.outcome} />;
         })}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -102,7 +103,7 @@ function WorkTile(props: { k: string; color: string; when: string; where: string
 export function SkillsView() {
   const { p, g, open } = useMe();
   return (
-    <>
+    <div className="me-stack">
       <div className="me-vh">
         <h2>Skills</h2>
         <p>Each skill with the work that proves it.</p>
@@ -146,7 +147,7 @@ export function SkillsView() {
           </ul>
         </section>
       )}
-    </>
+    </div>
   );
 }
 
@@ -158,20 +159,11 @@ export function VoiceView({ onTry }: { onTry: (register: string) => void }) {
   const registers = p.voice.filter((v) => v.label);
   const general = p.voice.filter((v) => !v.label);
   return (
-    <>
+    <div className="me-stack">
       <div className="me-vh">
         <h2>Voice</h2>
         <p>How Orr writes when it writes as you.</p>
       </div>
-      {general.length > 0 && (
-        <section className="mod">
-          <ul className="me-rules">
-            {general.map((v) => (
-              <li key={v.text}>{v.text}</li>
-            ))}
-          </ul>
-        </section>
-      )}
       {registers.length > 0 && (
         <div className="me-vc">
           {registers.map((v) => (
@@ -188,6 +180,15 @@ export function VoiceView({ onTry }: { onTry: (register: string) => void }) {
             </section>
           ))}
         </div>
+      )}
+      {general.length > 0 && (
+        <section className="mod">
+          <ul className="me-rules">
+            {general.map((v) => (
+              <li key={v.text}>{v.text}</li>
+            ))}
+          </ul>
+        </section>
       )}
       {p.rules.length > 0 && (
         <section className="mod">
@@ -225,6 +226,6 @@ export function VoiceView({ onTry }: { onTry: (register: string) => void }) {
           </dl>
         </section>
       )}
-    </>
+    </div>
   );
 }

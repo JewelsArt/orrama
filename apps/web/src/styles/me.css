@@ -15,8 +15,9 @@
 .me-headline { margin: 2px 0 0; font-size: 15.5px; line-height: 22px; color: var(--ink-2); }
 .me-pm { display: flex; align-items: center; gap: 6px 14px; color: var(--ink-3); font-size: 14px; margin-top: 6px; flex-wrap: wrap; min-width: 0; }
 .me-pm > span { white-space: nowrap; }
-.me-lchip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 3px 11px 3px 9px; border: 0; border-radius: 999px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
-  background: color-mix(in srgb, var(--lc) 16%, var(--surface)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me-lchip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 3px 11px 3px 9px; border: 0; border-radius: 14px; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer; text-align: left;
+  /* Never cut: a fact too long for the line wraps inside its chip (Clay's frame leaves less room). */
+  background: color-mix(in srgb, var(--lc) 16%, var(--surface)); white-space: normal; }
 .me-lchip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--lc); flex: none; }
 .me-lchip:hover { background: color-mix(in srgb, var(--lc) 28%, var(--surface)); }
 .me-acts { display: flex; gap: 8px; align-items: center; }
@@ -176,7 +177,13 @@
 .me-again { margin-top: 8px; border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; }
 
 /* ---- the other tabs */
+/* A tab is one stack with one gap: cards never space themselves with sibling margins (review,
+   20 Nov: ".mod + .mod" also pushed the 2nd+ register cards down inside their grid, and left no
+   gap between a card and a grid that followed it). */
+.me-stack { display: flex; flex-direction: column; gap: 12px; }
+.me-stack > * { margin-top: 0; margin-bottom: 0; }
 .me-vh { margin: 18px 0 14px; }
+.me-stack > .me-vh { margin: 6px 0 2px; }
 .me-vh h2 { margin: 0; font-size: 26px; line-height: 32px; font-weight: 750; letter-spacing: -0.02em; }
 .me-vh p { margin: 4px 0 0; color: var(--ink-3); }
 .me-xp { width: 100%; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; padding: 14px 4px; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
@@ -194,20 +201,25 @@
 .me-wt .w { font-size: 12.5px; color: var(--ink-3); font-weight: 600; }
 .me-wt b { font-size: 16.5px; line-height: 22px; }
 .me-strong { align-self: flex-start; font-size: 11.5px; font-weight: 700; color: var(--orr-ink); background: var(--orr-wash); border-radius: 999px; padding: 2px 9px; }
-.me-try { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; }
+.me-try { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; flex: none; margin-left: auto; }
+/* A card's title wraps inside itself; its "Try it" stays on the first line, where every card has it. */
+.me-vc .mh { flex-wrap: nowrap; align-items: flex-start; }
+.me-vc .mh h2 { min-width: 0; }
 .me-wt .me-what { margin: 0; font-size: 14px; line-height: 20px; }
 .me-wt .o { font-size: 13px; font-weight: 600; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
 .me-skr { display: grid; grid-template-columns: 200px 120px 28px minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px 4px; border-top: 1px solid var(--line); }
 .me-skr:first-child { border-top: 0; }
 .me-skn { border: 0; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--ink); text-align: left; cursor: pointer; }
 .me-skn:hover { color: var(--accent); }
+/* A skill's projects wrap, a long name inside its own chip: never past the card. */
+.me-skr .me-chips { min-width: 0; }
+.me-skr .me-chips .chip { white-space: normal; height: auto; min-height: 28px; padding-top: 4px; padding-bottom: 4px; text-align: left; max-width: 100%; }
 .me-also { margin: 12px 4px 0; color: var(--ink-2); font-size: 14px; }
-.me-vc { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.me-vc { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.me-vc > .mod { margin: 0; }
 .me-vc .mod p, .me-page .mod > p { margin: 4px 0; font-size: 14.5px; line-height: 22px; }
 .me-rules { margin: 4px 0; padding-left: 20px; }
 .me-rules li { margin: 6px 0; font-size: 14.5px; line-height: 21px; }
-.me-page .mod + .mod { margin-top: 12px; }
-.me-col > .mod + .mod, .me-ov .mod + .mod { margin-top: 0; }
 
 /* ---- the empty page: Generate my persona */
 .me-gen { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 28px; align-items: start; padding: 28px 32px; }
@@ -246,6 +258,11 @@
   .me-page.side-open { padding-right: calc(420px + var(--page-gutter)); }
   .side-open .me-ov { grid-template-columns: minmax(0, 1fr); }
   .side-open .me-ov > .me-col:last-child { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  /* The page is narrower beside the panel than the window says: the header lays out as a narrow
+     page's does (the container queries only see the window's width). */
+  .side-open .me-ph { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
+  .side-open .me-photo { width: 56px; height: 56px; }
+  .side-open .me-acts { grid-column: 1 / -1; flex-wrap: wrap; }
 }
 
 /* People's first row: you */
@@ -275,8 +292,9 @@
 
   }
   @container page (max-width: 820px) {
+    .me-skr { grid-template-columns: minmax(0, 1fr) 96px 24px; }
+    .me-skr .me-chips { grid-column: 1 / -1; }
     .me-ph { grid-template-columns: 56px minmax(0, 1fr); align-items: start; }
-    .me-lchip { white-space: normal; text-align: left; border-radius: 14px; }
     .me-photo { width: 56px; height: 56px; }
     .me-acts { grid-column: 1 / -1; flex-wrap: wrap; }
     .me-ov > .me-col:last-child { display: flex; }
@@ -292,7 +310,6 @@
 @media (max-width: 760px) {
   .me-page { padding: 0 16px 24px; }
   .me-ph { grid-template-columns: 56px minmax(0, 1fr); gap: 16px; align-items: start; }
-  .me-lchip { white-space: normal; text-align: left; border-radius: 14px; }
   .me-photo { width: 56px; height: 56px; }
   .me-ph h1 { font-size: 28px; line-height: 34px; }
   .me-acts { grid-column: 1 / -1; flex-wrap: wrap; }
@@ -313,6 +330,7 @@
   .me-xp { grid-template-columns: 1fr; gap: 2px; }
   .me-skr { grid-template-columns: minmax(0, 1fr) 80px 24px; }
   .me-skr .me-chips { grid-column: 1 / -1; }
-  .me-gen { grid-template-columns: 1fr; gap: 8px; padding: 20px; }
+  /* minmax(0, 1fr): a plain 1fr column grew to the switches' three columns (676 px on a 390 px phone). */
+  .me-gen { grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 20px; }
   .me-gen-orr { justify-content: start; height: auto; }
 }
