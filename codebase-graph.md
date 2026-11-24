@@ -954,7 +954,7 @@
 
 ### `apps/web/src/settings/MailAccounts.tsx`
 - **Exports**: MailAccountPart
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../mail/accounts.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/dates.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../mail/accounts.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ./parts.js
 
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection

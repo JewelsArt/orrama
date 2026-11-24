@@ -9,6 +9,16 @@ one is in CLAUDE.md, "Releases".
 
 ### Added
 
+- Mail reads more than one account: one list with each message's account and a menu to
+  show one, or one account at a time (Settings → Connections → Mail). Replies go from the account
+  the mail came to; the composer has From.
+- Settings → Mail: add another account, rename, make the default, reorder, disconnect one.
+- Make a note in Mail's reader: the mail as a note in `Personal/<you>/`, Open / Undo /
+  Add to <project> in the toast; again on the same mail opens that note.
+- Notes → a note's ⋯ → Make a project…, also in Find: makes a project from the note (name, life
+  area, group, due date), leaves the note where it is or moves it into the project's folder, with
+  Undo.
+
 - Your page (`/me`): who you are, from one note tagged #persona — your story on a timeline,
   your pitch at three lengths, proof points, skills, the people who vouch, and what Orr still needs
   to check with you. Everything opens beside the page and lights what it connects to.
@@ -247,6 +257,12 @@ one is in CLAUDE.md, "Releases".
 
 ### Changed
 
+- Orr's and the MCP mail tools take an account (address or label) and say which account
+  each message is from. MCP stays at 29 tools.
+- "Make this a project" is gone from the note's menu; "Make a project…" replaces it. A note
+  already in a project says which.
+- Notes' Recent lists notes only, not a project's own note; two recent notes with one name show
+  their folder.
 - Your Orr in the rail (and Clay's account chip) is a menu: Your page, Settings. People
   starts with you.
 - Calendar: a day of a repeating event changed on its own ("This one") stays in its series. A
@@ -517,6 +533,9 @@ one is in CLAUDE.md, "Releases".
 
 ### Fixed
 
+- Notes' Recent named Planning's month notes "2026-11"; they read "November 2026".
+- Planning's Next three weeks left out repeating events; a weekly event shows once, on its next
+  day, with how it repeats.
 - Your page, after a review on 20 Nov: the timeline stops at now (a study written "2022–2027"
   no longer runs into next December); answers you give in Check with you reach Orr when he
   writes as you, and can be changed; every proof point, what others said, your interests, your
@@ -1064,6 +1083,8 @@ one is in CLAUDE.md, "Releases".
 
 ### Upgrading
 
+- Wave N: schema 6 → 7 (more than one mail account); the database is copied to `backups/`
+  first; your account becomes the default. An older build refuses the database after.
 - Stage 2 wave 5: schema 6 (`api_tokens.scope`), added at start after the usual copy. An older
   build refuses the database after.
 - Stage 1 wave 3: schema 5 (events place/notes/repeat/all day, feed colour); an older build
