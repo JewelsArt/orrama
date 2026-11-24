@@ -11,7 +11,7 @@ import { setAreasForTest } from "./categories.js";
 import { pageActions } from "./ui/pageActions.js";
 import { useRoute } from "./ui/router.js";
 
-type Note = { path: string; content: string; tags: string[]; tasks: { text: string; checked: boolean }[]; category: string };
+type Note = { path: string; content: string; tags: string[]; tasks: { text: string; checked: boolean }[]; category: string; mtimeMs?: number };
 const srv = vi.hoisted(() => ({
   notes: new Map<string, Note>(),
   posts: [] as { url: string; body: unknown }[],
@@ -29,7 +29,7 @@ vi.mock("./api.js", async (orig) => {
   const real = await orig<typeof import("./api.js")>();
   const title = (p: string) => p.split("/").pop()!.replace(/\.md$/, "");
   const tree = () =>
-    [...srv.notes].map(([id, n]) => ({ id, path: n.path, folder: n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : "", title: title(n.path), hash: "h", mtimeMs: 0, tags: n.tags, openTasks: n.tasks.filter((t) => !t.checked).length, category: n.category }));
+    [...srv.notes].map(([id, n]) => ({ id, path: n.path, folder: n.path.includes("/") ? n.path.slice(0, n.path.lastIndexOf("/")) : "", title: title(n.path), hash: "h", mtimeMs: n.mtimeMs ?? 0, tags: n.tags, openTasks: n.tasks.filter((t) => !t.checked).length, category: n.category }));
   return {
     ...real,
     api: async (method: string, url: string, body?: Record<string, unknown>) => {
@@ -237,6 +237,35 @@ describe("Make a project from a note", () => {
     expect((dlg.getByLabelText("Life area") as HTMLSelectElement).value).toBe("personal");
     fireEvent.click(dlg.getByRole("button", { name: "Make the project" }));
     await waitFor(() => expect(srv.posts[0]?.body).toMatchObject({ area: "personal" }));
+  });
+
+  it("Recent leaves out a project's own note, and says the folder of two notes with one name", async () => {
+    const now = Date.now();
+    // Just made from Kitchen: the project's own note, newest of all, under the same name.
+    srv.notes.set("pk", { path: "04-Projects/kitchen.md", content: "---\ntags:\n  - project\n  - project/kitchen\n---\n", tags: ["project", "project/kitchen"], tasks: [], category: "home", mtimeMs: now });
+    srv.projects.push({ slug: "kitchen", name: "Kitchen", noteId: "pk", group: null });
+    srv.notes.get("k")!.mtimeMs = now - 1000;
+    srv.notes.set("p1", { path: "Ideas/Plans.md", content: "# Plans\n", tags: [], tasks: [], category: "home", mtimeMs: now - 2000 });
+    srv.notes.set("p2", { path: "Garden/Plans.md", content: "# Plans\n", tags: [], tasks: [], category: "home", mtimeMs: now - 3000 });
+    at("/notes");
+    render(<Routed />);
+    await flush();
+    const tree = within(document.querySelector(".nt-tree") as HTMLElement);
+    const recent = () => {
+      const rows: string[] = [];
+      let el = tree.getByText("Recent").nextElementSibling;
+      while (el && el.tagName === "A") {
+        rows.push(el.querySelector("span")!.textContent!);
+        el = el.nextElementSibling;
+      }
+      return rows;
+    };
+    // The tree's Recent holds four; the newest three are these, the project's note not among them.
+    await waitFor(() => expect(recent().slice(0, 3)).toEqual(["Kitchen", "Plans · Ideas", "Plans · Garden"]));
+    expect(recent().filter((t) => t.startsWith("Kitchen"))).toEqual(["Kitchen"]);
+    // Notes home's Recent, the same list: Kitchen once, the project's note not at all.
+    const home = within(document.querySelector(".nt-home") as HTMLElement).getByRole("group", { name: "Recent notes" });
+    expect(within(home).getAllByText("Kitchen")).toHaveLength(1);
   });
 
   it("Already in … opens that project", async () => {

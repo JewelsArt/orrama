@@ -565,7 +565,14 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
   const byId = useMemo(() => new Map((tree ?? []).map((n) => [n.id, n])), [tree]);
   const pinnedNotes = useMemo(() => (overview?.pinned ?? []).flatMap((id) => byId.get(id) ?? []), [overview, byId]);
   const inbox = useMemo(() => (tree ?? []).find((n) => n.path.toLowerCase() === `personal/${me.username.toLowerCase()}/inbox.md`) ?? null, [tree, me.username]);
-  const recentAll = useMemo(() => [...(tree ?? [])].filter((n) => n.id !== inbox?.id).sort((a, b) => b.mtimeMs - a.mtimeMs), [tree, inbox]);
+  // Recent is notes: a project's own note opens as its project, from Projects, so it is left
+  // out here; otherwise Make a project put the new project's note beside the note it was made
+  // from, under the same name (N2, Jules 24 Nov).
+  const projectNoteIds = useMemo(() => new Set(projects.map((p) => p.noteId).filter((id): id is string => !!id)), [projects]);
+  const recentAll = useMemo(
+    () => [...(tree ?? [])].filter((n) => n.id !== inbox?.id && !projectNoteIds.has(n.id)).sort((a, b) => b.mtimeMs - a.mtimeMs),
+    [tree, inbox, projectNoteIds],
+  );
 
   const completions = useMemo(
     () => ({

@@ -33,6 +33,8 @@
 .ti > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ti small { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 .ti-file { font-style: normal; font-weight: 450; color: var(--ink-3); font-size: 12px; }
+/* Recent: the folder beside a name another recent note shares (N2). */
+.ti-where { font-style: normal; font-weight: 450; color: var(--ink-3); font-size: 12px; }
 .nt-filetree { display: flex; flex-direction: column; gap: 1px; }
 .nt-filetree [role="group"] { display: flex; flex-direction: column; gap: 1px; }
 .nt-none { margin: 8px; color: var(--ink-3); font-size: 13.5px; }

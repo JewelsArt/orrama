@@ -51,12 +51,19 @@ export interface TreePaneProps {
   inTrash: boolean;
 }
 
+/** Another note in the list goes by the same name: then each says its folder, as Notes home does. */
+const sameName = (list: TreeNote[], n: TreeNote) => list.some((o) => o.id !== n.id && listTitle(o) === listTitle(n));
+const folderOfNote = (n: TreeNote) => (n.folder ? folderName(n.folder.split("/").pop()!) : "Top folder");
+
 /** One row of the tree's own lists (Pinned, Recent, Inbox). */
-function TreeRow({ n, icon, meta, active, onOpen, href }: { n: TreeNote; icon: "pin" | "doc" | "inbox"; meta?: ReactNode; active: boolean; onOpen: () => void; href: string }) {
+function TreeRow({ n, icon, meta, where, active, onOpen, href }: { n: TreeNote; icon: "pin" | "doc" | "inbox"; meta?: ReactNode; where?: string; active: boolean; onOpen: () => void; href: string }) {
   return (
     <a className={active ? "ti on" : "ti"} href={href} aria-current={active ? "page" : undefined} onClick={follow(onOpen)}>
       <Icon name={icon} />
-      <span>{listTitle(n)}</span>
+      <span>
+        {listTitle(n)}
+        {where && <em className="ti-where"> · {where}</em>}
+      </span>
       <small>{meta}</small>
     </a>
   );
@@ -131,7 +138,7 @@ export function TreePane(p: TreePaneProps) {
           <>
             <div className="tsec">Recent</div>
             {p.recent.map((n) => (
-              <TreeRow key={n.id} n={n} icon="doc" meta={editedLabel(n.mtimeMs)} active={n.id === p.activeId} onOpen={() => p.onOpen(n.id)} href={p.hrefOf(n)} />
+              <TreeRow key={n.id} n={n} icon="doc" meta={editedLabel(n.mtimeMs)} where={sameName(p.recent, n) ? folderOfNote(n) : undefined} active={n.id === p.activeId} onOpen={() => p.onOpen(n.id)} href={p.hrefOf(n)} />
             ))}
           </>
         )}
