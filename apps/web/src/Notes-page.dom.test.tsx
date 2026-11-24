@@ -1,7 +1,8 @@
 /**
  * The Notes page as the boards draw it (structure.md §2.3, R7): Notes home with its pins,
  * recent notes, inbox and counts; relations in words in the side panel (typed on a vault with
- * an ontology, links on one without); Make this a project only on ordinary notes (§8 #7); Show
+ * an ontology, links on one without); Make a project… on notes only, never on a person or a
+ * conversation, and a note in a project says which (N2); Show
  * in the Orrery on the note's own slug; a pin written into the note's front matter; a tag that
  * filters the tree. The real router runs, as App drives it.
  */
@@ -209,20 +210,22 @@ describe("the side panel's relations", () => {
 });
 
 describe("the note's menu and links", () => {
-  it("Make this a project is offered on an ordinary note only (§8 #7)", async () => {
+  it("Make a project… is offered on a note; a person or a conversation has none; a note in a project says which", async () => {
     at("/notes/Ideas");
     render(<Routed />);
     await flush();
     openMenu();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Make this a project" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Make a project…" }));
+    expect(await screen.findByRole("dialog", { name: "Make a project" })).toBeTruthy();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     await flush();
-    expect(srv.posts).toContain("/api/projects/promote");
-    for (const where of ["/notes/01-Me/Contacts/Ines Vermaat", "/notes/Conversations/Forecast chat", "/notes/04-Projects/graduation-thesis/Research plan"]) {
+    for (const [where, offer] of [["/notes/01-Me/Contacts/Ines Vermaat", null], ["/notes/Conversations/Forecast chat", null], ["/notes/04-Projects/graduation-thesis/Research plan", "Already in graduation thesis"]] as const) {
       await act(async () => at(where));
       await act(async () => window.dispatchEvent(new PopStateEvent("popstate")));
       await flush();
       openMenu();
-      expect(screen.queryByRole("menuitem", { name: "Make this a project" })).toBeNull();
+      expect(screen.queryByRole("menuitem", { name: "Make a project…" })).toBeNull();
+      if (offer) expect(screen.getByRole("menuitem", { name: offer })).toBeTruthy();
       fireEvent.keyDown(document.activeElement!, { key: "Escape" });
       await flush();
     }

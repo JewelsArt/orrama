@@ -172,3 +172,10 @@
   /* The note's title is in its box: the top bar keeps the Back and Find around it (the board). */
   .frame:has(.nt.has-note) > .ptop h1 { visibility: hidden; }
 }
+
+/* Make a project from a note (N2, notes/MakeProject.tsx): the life area and the group side by
+   side, one above the other on a phone. The Dialog, Form and Fields are the system's. */
+.mkp-dlg .mkp-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 760px) {
+  .mkp-dlg .mkp-row { grid-template-columns: minmax(0, 1fr); }
+}

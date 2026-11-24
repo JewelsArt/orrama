@@ -125,7 +125,7 @@ function Making({ title, confirm, onClose, make, children }: { title: string; co
 }
 
 /** A date typed as words ("fri", "19 Oct"), said back under the field. */
-function useTypedDate(initial?: string) {
+export function useTypedDate(initial?: string) {
   const [text, setText] = useState(initial ? dateLabel(initial) : "");
   const value = parseDateInput(text);
   // Said back only when it reads differently from what was typed ("fri" → "Fri 16 Oct").

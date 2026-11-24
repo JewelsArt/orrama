@@ -4,6 +4,7 @@
  * name; actions run; empty shows Recent and the places; nothing found says so. Fictional data.
  */
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { useMemo } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const server = vi.hoisted(() => ({ calls: [] as { method: string; url: string; body: unknown }[], hits: [] as { id: string; path: string; title: string }[] }));
@@ -40,6 +41,7 @@ vi.mock("../api.js", async (orig) => {
 });
 
 const { Find } = await import("./Find.js");
+const { usePageActions } = await import("../ui/pageActions.js");
 const me = { id: "u-1", username: "jules", email: "jules@orrama.dev", displayName: "Jules", isOwner: true } as never;
 
 let props: { onClose: ReturnType<typeof vi.fn>; onTheme: ReturnType<typeof vi.fn>; onCapture: ReturnType<typeof vi.fn>; onAsk: ReturnType<typeof vi.fn> };
@@ -142,6 +144,22 @@ describe("Find", () => {
     await type("new task");
     await key("Enter");
     expect(props.onCapture).toHaveBeenCalled();
+  });
+
+  it("the page's own action (the open note's Make a project) comes first among the actions and runs", async () => {
+    const run = vi.fn();
+    function Page() {
+      usePageActions(useMemo(() => [{ id: "make-project", title: "Make a project from this note", meta: "Kitchen", icon: "projects", words: "make new project", run }], []));
+      return null;
+    }
+    render(<Page />);
+    await open();
+    const actions = within(screen.getByRole("group", { name: "Actions" }));
+    expect(actions.getAllByRole("option")[0]!.textContent).toContain("Make a project from this note");
+    await type("make a project");
+    await key("Enter");
+    expect(props.onClose).toHaveBeenCalled();
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("New note asks for a name and creates it create-only, then opens it", async () => {

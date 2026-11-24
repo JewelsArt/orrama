@@ -359,7 +359,7 @@
 
 ### `apps/web/src/Notes.tsx`
 - **Exports**: LAST_NOTE_KEY, addressOf, TREE_RELOAD_MS, Notes
-- **Imports**: react, @orrama/core, @orrama/schema/responses, @orrama/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./ui/NameDialog.js, ./Confirm.js, ./noteActions.js, ./notes/actions.js, ./FileTree.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
+- **Imports**: react, @orrama/core, @orrama/schema/responses, @orrama/sync/client, ./api.js, ./storage.js, ./newNote.js, ./Editor.js, ./notes/links.js, ./FileTree.js, ./categories.js, ./noteSync.js, ./ws.js, ./orrery/model.js, ./notes/parts.js, ./notes/read.js, ./notes/MakeProject.js, ./projectFromNote.js, ./ui/pageActions.js, ./ui/NameDialog.js, ./Confirm.js, ./noteActions.js, ./notes/actions.js, ./FileTree.js, ./ui/controls.js, ./ui/overlays.js, ./ui/states.js, ./ui/writes.js, ./ui/dates.js, ./ui/router.js, ./entity/title.js
 
 ### `apps/web/src/Overview.tsx`
 - **Exports**: Overview
@@ -452,7 +452,7 @@
 - **Imports**: react, ./api.js, @orrama/schema/responses, @orrama/core/dates
 
 ### `apps/web/src/create/New.tsx`
-- **Exports**: New
+- **Exports**: New, useTypedDate
 - **Imports**: react, ../api.js, ../entity/dateInput.js, ../newNote.js, ../people/NewDialogs.js, ../people/model.js, ../planning/EventForm.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ./context.js
 
 ### `apps/web/src/create/context.ts`
@@ -566,7 +566,7 @@
 
 ### `apps/web/src/find/Find.tsx`
 - **Exports**: FindProps, Find
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../people/model.js, ../people/NewDialogs.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/router.js, ./build.js, ./model.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../entity/known.js, ../newNote.js, ../people/model.js, ../people/NewDialogs.js, ../settings/parts.js, ../storage.js, ../ui/controls.js, ../ui/Icon.js, ../ui/NameDialog.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/pageActions.js, ../ui/router.js, ./build.js, ./model.js
 
 ### `apps/web/src/find/build.ts`
 - **Exports**: Lists, Setting, ActionDef, placeItems, settingItems, actionItems, entityItems, noteItems
@@ -759,6 +759,10 @@
 - **Exports**: DRAFT_PREFIX, Draft, readDraft, dropDraft, restoredText, openNoteSync, retire, unsavedCount, flushAll, sendBeforeLeaving, failing, installLeaveGuard, resetNoteSyncs
 - **Imports**: @orrama/sync/client, @orrama/sync/merge, ./api.js, ./storage.js
 
+### `apps/web/src/notes/MakeProject.tsx`
+- **Exports**: MakeProjectNote, MakeProjectDialog
+- **Imports**: react, ../categories.js, ../create/New.js, ../projectGroup.js, ../projectFromNote.js, ../ui/controls.js, ../ui/fields.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./actions.js
+
 ### `apps/web/src/notes/actions.tsx`
 - **Exports**: folderWords, RenameNoteDialog, NewFolderDialog, RenameFolderDialog, MoveDialog, trashFolderRequest, HistorySheet, trashPlace, TrashView
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../noteActions.js, ../ui/controls.js, ../ui/dates.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/states.js, ../ui/writes.js, ./diff.js, ./read.js
@@ -774,7 +778,7 @@
 - **Imports**: react, @orrama/schema/responses, ../categories.js, ../FileTree.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/controls.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ./read.js
 
 ### `apps/web/src/notes/read.ts`
-- **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, isOrdinary, editedLabel, relationWords, snippet, listTitle, folderName
+- **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, canMakeProject, editedLabel, relationWords, snippet, listTitle, folderName
 - **Imports**: @orrama/core, ../ui/dates.js
 
 ### `apps/web/src/noticed/Noticed.tsx`
@@ -899,6 +903,10 @@
 ### `apps/web/src/projectArea.tsx`
 - **Exports**: areaOf, AreaMenu
 - **Imports**: react, ./categories.js, ./ui/controls.js, ./ui/overlays.js, ./ui/router.js, ./ui/writes.js
+
+### `apps/web/src/projectFromNote.ts`
+- **Exports**: MakeFromNote, MadeFromNote, makeProjectFromNote, undoProjectFromNote
+- **Imports**: ./api.js, ./noteActions.js
 
 ### `apps/web/src/projectGroup.tsx`
 - **Exports**: groupNames, useProjectGroups, GroupMenu
@@ -1060,6 +1068,10 @@
 ### `apps/web/src/ui/overlays.tsx`
 - **Exports**: LayerKind, topLayer, anyLayerOpen, useLayersOpen, LayerOptions, useLayer, Layer, Dialog, Sheet, Palette, Popover, MenuItem, Menu, ToastItem, dismissToast, toast, Toaster, useDialogTitleId
 - **Imports**: react, react-dom, ./focus.js
+
+### `apps/web/src/ui/pageActions.ts`
+- **Exports**: PageAction, pageActions, usePageActions
+- **Imports**: react
 
 ### `apps/web/src/ui/reloadKey.ts`
 - **Exports**: installReloadKey

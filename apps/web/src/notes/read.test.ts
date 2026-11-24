@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { filterNotes } from "../FileTree.js";
-import { dueOf, editedLabel, isOrdinary, listTitle, pinnedIn, relationWords, snippet, wordCount } from "./read.js";
+import { canMakeProject, dueOf, editedLabel, listTitle, pinnedIn, relationWords, snippet, wordCount } from "./read.js";
 
 describe("wordCount", () => {
   it("counts the body's words, not the front matter, the Markdown marks or the code", () => {
@@ -24,20 +24,20 @@ describe("dueOf and pinnedIn", () => {
   });
 });
 
-describe("isOrdinary: where Make this a project belongs (§8 #7)", () => {
+describe("canMakeProject: where Make a project belongs", () => {
   const n = (content: string, tags: string[] = []) => ({ content, tags: tags.map((tag) => ({ tag })) });
-  it("an ordinary note, yes", () => {
-    expect(isOrdinary(n("# Ideas"), { project: false })).toBe(true);
-    expect(isOrdinary(n("# Ideas"), { project: false, type: "note" })).toBe(true);
+  it("any note, one already in a project too", () => {
+    expect(canMakeProject(n("# Ideas"), { own: false })).toBe(true);
+    expect(canMakeProject(n("# Ideas"), { own: false, type: "note" })).toBe(true);
+    expect(canMakeProject(n("# Plan", ["project/thesis"]), { own: false, type: "document" })).toBe(true);
   });
-  it("a project, a person, a company, a conversation, the ontology or a typed note, no", () => {
-    expect(isOrdinary(n("# P"), { project: true })).toBe(false);
-    expect(isOrdinary(n("# P", ["project/thesis"]), { project: false })).toBe(false);
-    expect(isOrdinary(n("# Ines", ["contact"]), { project: false })).toBe(false);
-    expect(isOrdinary(n("# Kade", ["company"]), { project: false })).toBe(false);
-    expect(isOrdinary(n("# O", ["vault-ontology"]), { project: false })).toBe(false);
-    expect(isOrdinary(n("---\ntype: claude-session\n---\nchat"), { project: false })).toBe(false);
-    expect(isOrdinary(n("# Ines"), { project: false, type: "person" })).toBe(false);
+  it("not a project's own note, a person, a company, a conversation or the vault's tables", () => {
+    expect(canMakeProject(n("# P", ["project/thesis"]), { own: true })).toBe(false);
+    expect(canMakeProject(n("# Ines", ["contact"]), { own: false })).toBe(false);
+    expect(canMakeProject(n("# Kade", ["company"]), { own: false })).toBe(false);
+    expect(canMakeProject(n("# O", ["vault-ontology"]), { own: false })).toBe(false);
+    expect(canMakeProject(n("---\ntype: claude-session\n---\nchat"), { own: false })).toBe(false);
+    expect(canMakeProject(n("# Ines"), { own: false, type: "person" })).toBe(false);
   });
 });
 

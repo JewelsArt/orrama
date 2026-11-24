@@ -13,7 +13,10 @@ import { dropDraft, openNoteSync, readDraft, restoredText, retire } from "./note
 import { onWs, sendEditing } from "./ws.js";
 import { slugOf } from "./orrery/model.js";
 import { AreaChip, NotesHome, NoteTop, SidePanel, TreePane } from "./notes/parts.js";
-import { dueOf, folderName, isOrdinary, pinnedIn, thousands, wordCount } from "./notes/read.js";
+import { canMakeProject, dueOf, folderName, pinnedIn, thousands, wordCount } from "./notes/read.js";
+import { MakeProjectDialog } from "./notes/MakeProject.js";
+import { undoProjectFromNote, type MadeFromNote } from "./projectFromNote.js";
+import { usePageActions, type PageAction } from "./ui/pageActions.js";
 import { NameDialog } from "./ui/NameDialog.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { folderOf, listFolders, moveFolder, moveNote, nameOf, notePath, sayMoved, trashNoteWithUndo } from "./noteActions.js";
@@ -133,7 +136,15 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
     setOpen(null);
     setRelations(null);
   }, [nextOpen]);
-  useEffect(() => () => retire(syncRef.current?.sync ?? null), []);
+  useEffect(
+    () => () => {
+      // Gone from the page: an answer still on its way (a live-sync refresh of a note just moved,
+      // as Make a project's "Move it" does) must not take the address back to the note (N2).
+      wantRef.current = null;
+      retire(syncRef.current?.sync ?? null);
+    },
+    [],
+  );
 
   /*
    * Which note is open is the address (WEB-024). Every way of opening one — the tree, a link,
@@ -365,14 +376,32 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
     const tag = open.tags.find((t) => /^project\//i.test(t.tag))?.tag.slice("project/".length);
     return (tag && projects.find((p) => p.slug === tag)) || null;
   }, [open, projects]);
-  const isProject = (open?.tags?.some((t) => /^project\//i.test(t.tag)) ?? false) || projects.some((p) => p.noteId === open?.id);
-  const makeProject = async () => {
-    if (!open) return;
-    const id = open.id;
-    await attempt("The note wasn't made a project.", async () => {
-      await api("POST", "/api/projects/promote", { noteId: id });
-      api<{ slug: string; name: string; noteId: string | null }[]>("GET", "/api/projects").then(setProjects, () => {});
-      await openNote(id);
+  /** The note is a project's own note (the projects list says so, or a project's tag sits on a 04-Projects/<slug>.md). */
+  const ownProject = !!open && (projects.some((p) => p.noteId === open.id) || open.tags.some((t) => /^project\//i.test(t.tag) && open.path === `04-Projects/${t.tag.slice("project/".length)}.md`));
+  /** The project the note is in, by its tag, when it isn't the project's own note: named, or by its key. */
+  const memberOf = useMemo(() => {
+    if (!open || ownProject) return null;
+    const tag = open.tags.find((t) => /^project\//i.test(t.tag))?.tag.slice("project/".length);
+    if (!tag) return null;
+    return projects.find((p) => p.slug === tag) ?? { slug: tag, name: tag.replace(/-/g, " "), noteId: null };
+  }, [open, ownProject, projects]);
+  /** Make a project (N2): the dialog, plain or as "a new project anyway" for a note already in one. */
+  const [makingProject, setMakingProject] = useState<null | { anyway: boolean }>(null);
+  const madeProject = (made: MadeFromNote, name: string) => {
+    setMakingProject(null);
+    api<{ slug: string; name: string; noteId: string | null }[]>("GET", "/api/projects").then(setProjects, () => {});
+    navigate({ kind: "project", slug: made.slug });
+    toast(made.note.moved ? `Made ${name}. The note is in its folder.` : `Made ${name} from the note.`, {
+      ms: 10_000,
+      action: {
+        label: "Undo",
+        run: () =>
+          void attempt("The project wasn't taken back.", async () => {
+            await undoProjectFromNote(made);
+            toast(`${name} was taken back.`);
+            navigate({ kind: "notes", path: addressOf(made.note.from) });
+          }),
+      },
     });
   };
 
@@ -615,7 +644,18 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
   // A project's folder (04-Projects/<slug>/) is said as the project's name in the crumbs.
   const folderLabel = useCallback((_folder: string, segment: string) => projects.find((p) => p.slug === segment)?.name ?? folderName(segment), [projects]);
   const due = open ? dueOf(text) : null;
-  const ordinary = !!open && isOrdinary({ content: text, tags: open.tags }, { project: isProject, type: relations?.entity.type ?? null });
+  const makeable = !!open && open.canEdit && canMakeProject({ content: text, tags: open.tags }, { own: ownProject, type: relations?.entity.type ?? null });
+  // The same offer in Find (⌘K), while this note is open: "Make a new project anyway" stays in the ⋯ menu.
+  const palette = useMemo<PageAction[]>(
+    () =>
+      !open || !makeable
+        ? []
+        : memberOf
+          ? [{ id: "in-project", title: `Already in ${memberOf.name}`, meta: "Open the project this note is in", icon: "projects", words: "make project", run: () => navigate({ kind: "project", slug: memberOf.slug }) }]
+          : [{ id: "make-project", title: "Make a project from this note", meta: open.title, icon: "projects", words: "make new project create", run: () => setMakingProject({ anyway: false }) }],
+    [open, makeable, memberOf],
+  );
+  usePageActions(palette);
   const orrery = open ? routeHref({ kind: "orrery", center: project && projects.find((p) => p.noteId === open.id) ? project.slug : slugOf(open.path) }) : "/orrery";
   // The window and the phone's top bar name the note as the page does (a title that is only an
   // id is shown by its kind, date and gist, F3), not by its file name.
@@ -623,9 +663,16 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
   const menu: (MenuItem | "-")[] = open
     ? [
         ...(open.canEdit ? [{ label: pinned ? "Unpin from Notes home" : "Pin to Notes home", onSelect: togglePin }] : []),
-        // Only on an ordinary note: never on a person, a company, a conversation, the ontology,
-        // or a project already (structure.md §8 #7).
-        ...(open.canEdit && ordinary ? [{ label: "Make this a project", onSelect: () => void makeProject() }] : []),
+        // Never on a person, a company, a conversation, the ontology, or a project's own note. A
+        // note in a project says which, and offers another only here (N2).
+        ...(makeable
+          ? memberOf
+            ? [
+                { label: `Already in ${memberOf.name}`, onSelect: () => navigate({ kind: "project", slug: memberOf.slug }) },
+                { label: "Make a new project anyway…", onSelect: () => setMakingProject({ anyway: true }) },
+              ]
+            : [{ label: "Make a project…", onSelect: () => setMakingProject({ anyway: false }) }]
+          : []),
         ...(open.canEdit
           ? [
               {
@@ -819,6 +866,14 @@ export function Notes({ me, noteId, notePath: openPath, trash = false }: { me: M
       }} onClose={() => setMoving(null)} />}
       {history && open && (
         <HistorySheet noteId={open.id} title={open.title} current={text} me={me} canEdit={open.canEdit && !!sync} onRestore={restoreVersion} onClose={() => setHistory(false)} />
+      )}
+      {makingProject && open && (
+        <MakeProjectDialog
+          note={{ id: open.id, title: open.title, path: open.path, openTasks: open.tasks.filter((t) => !t.checked).length, category: treeNote?.category }}
+          leaving={makingProject.anyway && memberOf ? { name: memberOf.name } : null}
+          onClose={() => setMakingProject(null)}
+          onMade={madeProject}
+        />
       )}
       <Confirm request={asking} onClose={() => setAsking(null)} />
     </div>

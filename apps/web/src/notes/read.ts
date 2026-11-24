@@ -52,15 +52,15 @@ export function isConversation(content: string): boolean {
 const TYPED_TAGS = new Set(["contact", "company", "vault-ontology", "vault-categories"]);
 
 /**
- * An ordinary note: the only kind *+ Make this a project* belongs on (structure.md §8 #7) — not
- * a project already, not a person, a company, a conversation or the ontology, and not a note
- * the vault's ontology gives a type of its own.
+ * Whether "Make a project" belongs on a note (N2, after structure.md §8 #7's "Make this a
+ * project"): any note but a project's own note, a person, a company, a conversation, or the
+ * vault's own tables. A note already in a project still has it, said as "Already in …".
  */
-export function isOrdinary(note: { content: string; tags: { tag: string }[] }, opts: { project: boolean; type?: string | null }): boolean {
-  if (opts.project) return false;
-  if (note.tags.some((t) => TYPED_TAGS.has(t.tag.toLowerCase()) || /^project\//i.test(t.tag))) return false;
+export function canMakeProject(note: { content: string; tags: { tag: string }[] }, opts: { own: boolean; type?: string | null }): boolean {
+  if (opts.own) return false;
+  if (note.tags.some((t) => TYPED_TAGS.has(t.tag.toLowerCase()))) return false;
   if (isConversation(note.content)) return false;
-  return !opts.type || opts.type === "note";
+  return opts.type !== "person" && opts.type !== "company" && opts.type !== "conversation";
 }
 
 /** When a note was last edited, short: "09:52" today, "Tue" this week, "9 Oct" before. */

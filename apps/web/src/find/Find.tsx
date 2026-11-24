@@ -25,6 +25,7 @@ import { Icon, type IconName } from "../ui/Icon.js";
 import { NameDialog } from "../ui/NameDialog.js";
 import { Orr, HeadMark } from "../ui/orr/Orr.js";
 import { Palette } from "../ui/overlays.js";
+import { pageActions } from "../ui/pageActions.js";
 import { navigate, routeHref, type SettingsSection } from "../ui/router.js";
 import { actionItems, entityItems, noteItems, placeItems, settingItems, type ActionDef, type Lists } from "./build.js";
 import { flat, groupsOf, isFilterQuery, markOf, nextType, parseQuery, remember, TYPE_WORD, type FindType, type Group, type Item, type Lead, type Recent } from "./model.js";
@@ -108,8 +109,11 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
     };
   }, [asked, wantsNotes]);
 
+  // The page's own actions (the open note's Make a project), as it handed them in when Find opened.
+  const [page] = useState(pageActions);
   const actions = useMemo<ActionDef[]>(() => {
     const out: ActionDef[] = [
+      ...page.map((a) => ({ id: `page:${a.id}`, title: a.title, meta: a.meta, icon: a.icon, words: a.words })),
       { id: "new-note", title: "New note", meta: "A note, named with its folder", icon: "plus", words: "create add page write" },
       { id: "new-task", title: "New task", meta: "One line into your inbox, with a date if you type one", icon: "inbox", words: "capture todo step add" },
       { id: "new-person", title: "New person", meta: "Someone you know, with where they work", icon: "person", words: "create add contact people friend colleague" },
@@ -119,9 +123,9 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
       { id: "orrery", title: "Open the Orrery", meta: "Your notes as a map, Orr in the middle", icon: "orbit", words: "map graph" },
       { id: "ask", title: "Ask Orr", meta: "A question about your notes", icon: "ask", words: "question chat ai" },
     ];
-    if (me.isOwner) out.splice(4, 0, { id: "settings-ai", title: "Open Settings → Orr & AI", meta: "The model Orr uses and its key", icon: "settings", words: "ai model key provider" });
+    if (me.isOwner) out.splice(4 + page.length, 0, { id: "settings-ai", title: "Open Settings → Orr & AI", meta: "The model Orr uses and its key", icon: "settings", words: "ai model key provider" });
     return out;
-  }, [shown, me.isOwner]);
+  }, [shown, me.isOwner, page]);
 
   const groups = useMemo<Group[]>(() => {
     const lists: Lists | null = data ? { ...data, context: ctx.state === "ok" ? ctx.data : null } : null;
@@ -197,6 +201,11 @@ export function Find({ me, shown, onClose, onTheme, onCapture, onAsk }: FindProp
       onClose();
       navigate(it.route);
       return;
+    }
+    const own = it.action?.startsWith("page:") ? page.find((a) => `page:${a.id}` === it.action) : undefined;
+    if (own) {
+      onClose();
+      return own.run();
     }
     switch (it.action) {
       case "new-note":

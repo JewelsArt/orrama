@@ -109,7 +109,7 @@ describe("the note's ⋯", () => {
     render(<Routed />);
     await flush();
     menu();
-    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Pin to Notes home", "Make this a project", "Rename…", "Move to…", "History", "Show in the Orrery", "Close note", "Move to the trash"]);
+    expect(screen.getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Pin to Notes home", "Make a project…", "Rename…", "Move to…", "History", "Show in the Orrery", "Close note", "Move to the trash"]);
   });
 
   it("a rename's address follows the note, and it stays open", async () => {
