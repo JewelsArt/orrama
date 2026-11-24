@@ -19,6 +19,7 @@ import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
 import { writeFileAtomic } from "../atomicWrite.js";
 import { CONTROL_CHARS, contentDisposition, numbered, storeUpload, unportableName } from "../uploads.js";
 import { tokenWriter } from "../agentWrites.js";
+import { projectFromNote, type FromNote } from "../projectFromNote.js";
 import { areaOf, areasFor } from "../lifeAreas.js";
 import { fieldText, namesIn } from "./contacts.js";
 import { changeLine, lineToStep, removeLine, STEPS_SECTION, withoutProjectTag, withProjectTag, type LineEdit } from "../projectEdits.js";
@@ -57,7 +58,7 @@ export const asGroup = (v: unknown): string => (typeof v === "string" || typeof 
  * then made the tag and the status disagree (inventory §1). No line teaches Markdown: the
  * first step is the example of a step.
  */
-export function projectNoteScaffold(name: string, slug: string, domain?: Domain, area?: string): string {
+export function projectNoteScaffold(name: string, slug: string, domain?: Domain, area?: string, opts: { firstStep?: boolean } = {}): string {
   const text = [
     "---",
     `title: ${name}`,
@@ -74,8 +75,9 @@ export function projectNoteScaffold(name: string, slug: string, domain?: Domain,
     // first step and the next ones are one list (inventory §2).
     `## ${STEPS_SECTION}`,
     "",
-    "- [ ] First step",
-    "",
+    // Left out for a project made from a note that brings its own steps (N2, Jules 24 Nov
+    // 2026): a placeholder would be one more open step to tick.
+    ...(opts.firstStep === false ? [] : ["- [ ] First step", ""]),
   ].join("\n");
   // The area as the header's menu writes it: the same YAML writer, quoting what needs it.
   return area ? updateFrontmatter(text, (d) => ({ ...d, area })) : text;
@@ -207,7 +209,7 @@ export function createProject(
   store: VaultStore,
   db: Db,
   user: ReturnType<VaultStore["aclUser"]>,
-  input: { name?: string; domain?: unknown; area?: string },
+  input: { name?: string; domain?: unknown; area?: string; firstStep?: boolean },
   guard?: WriteGuard,
 ): { noteId: string; path: string; slug: string; key: string } {
   const name = input.name?.trim();
@@ -217,13 +219,21 @@ export function createProject(
     // "thesis" (slugify lower-cases; an exact-case check missed it): a name taken on
     // disk in any spelling moves on to the next key.
     try {
-      const note = store.write(user, `${PROJECTS_DIR}/${slug}.md`, projectNoteScaffold(name, slug, asDomain(input.domain), input.area), undefined, undefined, { create: true, ...(guard && { guard }) });
+      const note = store.write(user, `${PROJECTS_DIR}/${slug}.md`, projectNoteScaffold(name, slug, asDomain(input.domain), input.area, { firstStep: input.firstStep }), undefined, undefined, { create: true, ...(guard && { guard }) });
       return { noteId: note.id, path: note.path, slug, key: `project/${slug}` };
     } catch (err) {
       if (!(err instanceof HttpError && err.statusCode === 409)) throw err;
     }
   }
   throw new HttpError(409, "There's no free name left for that project.");
+}
+
+/** The name of the reader's life area `v` names (by name or id, any case), or a 400 saying so. */
+export function areaNamedFor(store: VaultStore, user: ReturnType<VaultStore["aclUser"]>, v: unknown): string {
+  const id = typeof v === "string" ? areaSlug(v) : "";
+  const area = areasFor(store, user).areas.find((a) => a.id === id);
+  if (!area) throw new HttpError(400, "That life area doesn't exist.");
+  return area.name;
 }
 
 export async function projectRoutes(app: FastifyInstance, store: VaultStore, db: Db) {
@@ -236,6 +246,9 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     const area = body.area === undefined ? undefined : areaNamed(user, body.area);
     return { ok: true, ...createProject(store, db, user, { name: body.name, domain: body.domain, area }) };
   });
+
+  /** A new project made from a note, which joins it by its tag (N2, projectFromNote.ts). */
+  app.post("/api/projects/from-note", auth, async (req) => projectFromNote(store, db, store.aclUser(req.userId), (req.body ?? {}) as FromNote, req.viaToken ? tokenWriter : undefined));
 
   /** Promote an existing note: add the project tags so it joins the board. */
   app.post("/api/projects/promote", auth, async (req) => {
@@ -261,13 +274,7 @@ export async function projectRoutes(app: FastifyInstance, store: VaultStore, db:
     return { ok: true, noteId: saved.id, slug, key: `project/${slug}` };
   });
 
-  /** The name of the reader's life area `v` names (by name or id, any case), or a 400 saying so. */
-  const areaNamed = (user: ReturnType<typeof store.aclUser>, v: unknown): string => {
-    const id = typeof v === "string" ? areaSlug(v) : "";
-    const area = areasFor(store, user).areas.find((a) => a.id === id);
-    if (!area) throw new HttpError(400, "That life area doesn't exist.");
-    return area.name;
-  };
+  const areaNamed = (user: ReturnType<typeof store.aclUser>, v: unknown) => areaNamedFor(store, user, v);
 
   // ---- The workspace ------------------------------------------------------
 

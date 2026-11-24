@@ -150,6 +150,10 @@
 - **Exports**: STEPS_SECTION, LineEdit, changeLine, removeLine, lineToStep, withProjectTag, withoutProjectTag
 - **Imports**: @orrama/core
 
+### `apps/server/src/projectFromNote.ts`
+- **Exports**: isoDayOf, FromNote, projectFromNote
+- **Imports**: node:path, @orrama/core, ./db.js, ./projectEdits.js, ./vaultStore.js, ./routes/projects.js
+
 ### `apps/server/src/remove-user.ts`
 - **Imports**: drizzle-orm, node:readline, node:fs, node:path, ./db.js, ./removeAccount.js, ./env.js
 
@@ -242,8 +246,8 @@
 - **Imports**: node:crypto, drizzle-orm, fastify, @orrama/core, @orrama/core, ../calendarNotes.js, ../db.js, ../aiProvider.js, ./ics.js, ../vaultStore.js
 
 ### `apps/server/src/routes/projects.ts`
-- **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, createProject, projectRoutes
-- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js, ../lifeAreas.js, ./contacts.js, ../projectEdits.js
+- **Exports**: DOMAINS, Domain, slugify, asDomain, GROUP_MAX, asGroup, projectNoteScaffold, linkTo, createProject, areaNamedFor, projectRoutes
+- **Imports**: node:fs, node:path, drizzle-orm, fastify, @orrama/core, ../db.js, ../board.js, ../docHtml.js, ../pageSandbox.js, ../slides.js, ../zip.js, ../vaultStore.js, ../atomicWrite.js, ../uploads.js, ../agentWrites.js, ../projectFromNote.js, ../lifeAreas.js, ./contacts.js, ../projectEdits.js
 
 ### `apps/server/src/routes/settings.ts`
 - **Exports**: homePath, settingsRoutes
@@ -770,7 +774,7 @@
 - **Imports**: react, @orrama/schema/responses, ../categories.js, ../FileTree.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/controls.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ./read.js
 
 ### `apps/web/src/notes/read.ts`
-- **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, isOrdinary, editedLabel, relationWords, snippet, folderName
+- **Exports**: bodyOf, wordCount, thousands, dueOf, pinnedIn, isConversation, isOrdinary, editedLabel, relationWords, snippet, listTitle, folderName
 - **Imports**: @orrama/core, ../ui/dates.js
 
 ### `apps/web/src/noticed/Noticed.tsx`
@@ -885,7 +889,7 @@
 - **Imports**: @orrama/schema/responses, ../mail/plainText.js
 
 ### `apps/web/src/planning/model.ts`
-- **Exports**: Proposal, ItemKind, LaneId, Item, CALENDAR_LANE, DATED_LANE, money, hoursLabel, taskKey, buildItems, byDay, itemsOn, Lane, weekLanes, nextWeeks, bookedOn, DEFAULT_START, DEFAULT_END, windowFor, firstScroll, dueCounts, ToPlanCut, toPlanCuts, dueWords, proposalWords, nowAlong, weekDays, repeatWords, datedIn
+- **Exports**: Proposal, ItemKind, LaneId, Item, CALENDAR_LANE, DATED_LANE, money, hoursLabel, taskKey, buildItems, byDay, itemsOn, Lane, weekLanes, onceEachSeries, nextWeeks, bookedOn, DEFAULT_START, DEFAULT_END, windowFor, firstScroll, dueCounts, ToPlanCut, toPlanCuts, dueWords, proposalWords, nowAlong, weekDays, repeatWords, datedIn
 - **Imports**: @orrama/schema/responses, ../categories.js, ../calendarMath.js, ../ui/dates.js
 
 ### `apps/web/src/planning/title.ts`
