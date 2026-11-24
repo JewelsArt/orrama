@@ -180,6 +180,8 @@ export interface Who {
 
 export interface InboxItem {
   uid: number;
+  /** The account it came to (N1): with the uid, which message it is. */
+  account?: string;
   from: string;
   fromName: string;
   subject: string;

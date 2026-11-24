@@ -3,15 +3,20 @@
  * side by side on the desktop; on the phone the list, then the message on its own screen with
  * Back, then the reply on its own (§1.6).
  *
- * Addresses (§1.2): `/mail` the list, `/mail/<uid>` a message, `/mail/waiting` the drafts Orr is
+ * Addresses (§1.2): `/mail` the list, `/mail/<uid>` a message of the default account and
+ * `/mail/<account>.<uid>` one of another (mail/accounts.ts), `/mail/waiting` the drafts Orr is
  * holding, and `?write=new|reply|forward` or `?draft=<id>` the composer over whichever page it
  * opened from (mail/compose.ts).
+ *
+ * More than one account (N1): one list for all of them, each row saying its account, with a
+ * filter to one; or one account at a time, as the person chose in Settings → Connections (this
+ * device). A reply goes from the account the mail came to, new mail from the default.
  *
  * This file holds the state and every request the screen makes (the contract test scans this
  * folder's top level for GETs); the pieces it draws are in mail/.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, GraphRelations, InboxItem, MailAccount as Account, MailMessage, PendingDraft, ProjectRow } from "@orrama/schema/responses";
+import type { Company, Contact, GraphRelations, InboxAccount, InboxItem, MailAccountRow, MailMessage, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { readKey, writeKey } from "./storage.js";
@@ -20,6 +25,7 @@ import { goBack, navigate, routeHref, useLocation, useRoute, type Route } from "
 import { EmptyState, Notice, Skeleton } from "./ui/states.js";
 import { attempt } from "./ui/writes.js";
 import { toast } from "./ui/overlays.js";
+import { defaultAccount, FILTER_KEY, messageKey, messageOf, readView, sameMessage, shownAccount } from "./mail/accounts.js";
 import { Composer } from "./mail/Composer.js";
 import { composeHref, composeOf, emptyDraft, forwardDraft, replyDraft, stagedDraft, clearHeld, peekHeld, type Compose, type Draft } from "./mail/compose.js";
 import { DraftCard } from "./mail/DraftCard.js";
@@ -43,14 +49,25 @@ export function Mail(_props: { me: Me }) {
   const route = useRoute();
   const href = useLocation();
   const at = useMemo<Extract<Route, { kind: "mail" }>>(() => (route?.kind === "mail" ? route : { kind: "mail" }), [route]);
-  const uid = at.id && /^\d+$/.test(at.id) ? Number(at.id) : null;
   const path = routeHref(at);
   const compose = composeOf(href.includes("?") ? href.slice(href.indexOf("?")) : "");
 
-  // null: the account couldn't be read — said with Retry, never as "Mail isn't connected" (WEB-010).
-  const [account, setAccount] = useState<Account | null | undefined>(undefined);
+  // null: the accounts couldn't be read — said with Retry, never as "Mail isn't connected" (WEB-010).
+  const [accounts, setAccounts] = useState<MailAccountRow[] | null | undefined>(undefined);
   const [accountTry, setAccountTry] = useState(0);
+  const def = accounts ? defaultAccount(accounts) : undefined;
+  const open = accounts ? messageOf(at.id, accounts, def?.id) : null;
+  const openKey = open ? `${open.account}:${open.uid}` : null;
+  const keyOf = useCallback((m: { uid: number; account: string }) => messageKey(m, def?.id), [def?.id]);
+  const [view] = useState(readView);
+  const [storedShown, setStoredShown] = useState<string | null>(() => readKey(FILTER_KEY));
+  const shown = accounts ? shownAccount(storedShown, accounts, view) : "all";
+  const pickShown = (id: string) => {
+    writeKey(FILTER_KEY, id);
+    setStoredShown(id);
+  };
   const [messages, setMessages] = useState<InboxItem[] | null>(null);
+  const [inboxAccounts, setInboxAccounts] = useState<InboxAccount[]>([]);
   const [listFailed, setListFailed] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
   const [pending, setPending] = useState<PendingDraft[]>([]);
@@ -58,7 +75,9 @@ export function Mail(_props: { me: Me }) {
   const [people, setPeople] = useState<People>({ contacts: [], companies: [], projects: [] });
 
   const [storedTab, setStoredTab] = useState<string | null>(() => readKey(TAB_KEY));
-  const tabs = useMemo(() => mailTabs(messages ?? []), [messages]);
+  // The list shows one account, or all of them; the tabs count what it shows.
+  const listed = useMemo(() => (messages && shown !== "all" ? messages.filter((m) => m.account === shown) : messages), [messages, shown]);
+  const tabs = useMemo(() => mailTabs(listed ?? []), [listed]);
   const tab = validTab(storedTab, tabs);
   const pickTab = (t: MailTab) => {
     writeKey(TAB_KEY, t);
@@ -86,8 +105,9 @@ export function Mail(_props: { me: Me }) {
     setLoadingList(true);
     setListFailed(false);
     try {
-      const r = await api<{ email: string; messages: InboxItem[] }>("GET", "/api/mail/inbox?limit=80");
+      const r = await api<{ email: string; messages: InboxItem[]; accounts: InboxAccount[] }>("GET", "/api/mail/inbox?limit=80");
       setMessages(r.messages);
+      setInboxAccounts(r.accounts ?? []);
     } catch {
       // What failed is said in words (the list's notice), never the server's text.
       setListFailed(true);
@@ -108,30 +128,31 @@ export function Mail(_props: { me: Me }) {
   }, []);
 
   useEffect(() => {
-    void api<Account>("GET", "/api/mail/account")
+    void api<MailAccountRow[]>("GET", "/api/mail/accounts")
       .then((a) => {
-        setAccount(a);
-        if (a.connected) {
+        setAccounts(a);
+        if (a.length > 0) {
           void loadInbox();
           void loadDrafts();
           void loadPeople();
         }
       })
-      .catch(() => setAccount(null));
+      .catch(() => setAccounts(null));
   }, [loadInbox, loadDrafts, loadPeople, accountTry]);
 
   const [retry, setRetry] = useState(0);
-  const connected = !!account?.connected;
+  const connected = !!accounts?.length;
   useEffect(() => {
-    if (uid === null || !connected) return;
+    if (!open || !connected) return;
+    const { uid, account } = open;
     setMsgFailed(false);
     setLoadingMsg(true);
     const signal = nextMessage();
-    api<MailMessage>("GET", `/api/mail/message/${uid}`, undefined, { signal })
+    api<MailMessage>("GET", `/api/mail/message/${uid}?account=${encodeURIComponent(account)}`, undefined, { signal })
       .then((m) => {
         setMessage(m);
         // Reflect the read state in the list without a full refetch.
-        setMessages((prev) => prev?.map((x) => (x.uid === uid ? { ...x, seen: true } : x)) ?? prev);
+        setMessages((prev) => prev?.map((x) => (x.uid === uid && x.account === account ? { ...x, seen: true } : x)) ?? prev);
       })
       .catch((e) => {
         if (isAbort(e)) return;
@@ -142,7 +163,9 @@ export function Mail(_props: { me: Me }) {
         // A newer message is loading: its skeleton is not ours to stop.
         if (!signal.aborted) setLoadingMsg(false);
       });
-  }, [uid, connected, nextMessage, retry]);
+    // openKey stands for open: a new object each render, the same message.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey, connected, nextMessage, retry]);
 
   /* ---- who the senders are ---------------------------------------------------------------- */
 
@@ -165,8 +188,8 @@ export function Mail(_props: { me: Me }) {
     [people.contacts],
   );
 
-  const shown = message && message.uid === uid ? message : null;
-  const sender = shown ? senderOf(shown.from, shown.fromName) : undefined;
+  const reading = message && sameMessage(open, message) ? message : null;
+  const sender = reading ? senderOf(reading.from, reading.fromName) : undefined;
   const contactId = sender?.contact?.id;
   const companyId = sender?.company?.id;
   // How you know the sender, from the knowledge graph: "supervises Graduation thesis". On a vault
@@ -243,7 +266,7 @@ export function Mail(_props: { me: Me }) {
   // What the Me page wrote, for the first new message (taken once, when the composer can show it:
   // a Mail that isn't connected yet keeps it for after, never drops it).
   const [held, setHeld] = useState(peekHeld);
-  const canCompose = !!account?.connected;
+  const canCompose = connected;
   useEffect(() => {
     if (canCompose) clearHeld();
   }, [canCompose]);
@@ -271,7 +294,7 @@ export function Mail(_props: { me: Me }) {
       setSendingDraft(p.id);
       setFailedDraft(null);
       try {
-        await api("POST", "/api/mail/send", { to: p.to, subject: p.subject, body: p.body, inReplyTo: p.inReplyTo ?? undefined, references: p.references ?? undefined });
+        await api("POST", "/api/mail/send", { to: p.to, subject: p.subject, body: p.body, inReplyTo: p.inReplyTo ?? undefined, references: p.references ?? undefined, account: p.account ?? undefined });
         // Sent is sent; a draft still listed after it would read as not sent and go twice.
         const cleared = await api("DELETE", `/api/mail/drafts/${p.id}`).then(() => true, () => false);
         toast(`Sent to ${contactNameOf(p.to) ?? p.to}.${cleared ? "" : " Its draft is still listed: discard it."}`);
@@ -286,10 +309,13 @@ export function Mail(_props: { me: Me }) {
   );
 
   const waitingRoute: Route = { kind: "mail", waiting: true };
+  const several = (accounts?.length ?? 0) > 1;
+  const labelOf = (id: string | null | undefined) => (accounts ?? []).find((a) => a.id === id)?.label ?? def?.label;
   const card = (p: PendingDraft, withWaiting: boolean) => (
     <DraftCard
       draft={p}
       toName={contactNameOf(p.to)}
+      fromLabel={several ? labelOf(p.account) : undefined}
       sending={sendingDraft === p.id}
       failed={failedDraft === p.id}
       onSend={() => void sendDraft(p)}
@@ -302,7 +328,7 @@ export function Mail(_props: { me: Me }) {
 
   /* ---- the screen -------------------------------------------------------------------------- */
 
-  if (account === undefined)
+  if (accounts === undefined)
     return (
       <div className="mail ui mail-off">
         <div className="mread">
@@ -311,7 +337,7 @@ export function Mail(_props: { me: Me }) {
       </div>
     );
 
-  if (account === null)
+  if (accounts === null)
     return (
       <div className="mail ui mail-off">
         <div className="mread">
@@ -323,7 +349,7 @@ export function Mail(_props: { me: Me }) {
               <Button
                 size="sm"
                 onClick={() => {
-                  setAccount(undefined);
+                  setAccounts(undefined);
                   setAccountTry((n) => n + 1);
                 }}
               >
@@ -335,7 +361,7 @@ export function Mail(_props: { me: Me }) {
       </div>
     );
 
-  if (!account?.connected)
+  if (!accounts.length || !def)
     return (
       <div className="mail ui mail-off">
         <div className="mread">
@@ -364,16 +390,18 @@ export function Mail(_props: { me: Me }) {
 
   let draft: Draft | null | "gone" = null;
   if (compose?.kind === "new") draft = held ? { ...emptyDraft(), ...held } : emptyDraft();
-  else if (compose?.kind === "reply") draft = shown ? replyDraft(shown) : null;
-  else if (compose?.kind === "forward") draft = shown ? forwardDraft(shown) : null;
+  else if (compose?.kind === "reply") draft = reading ? replyDraft(reading) : null;
+  else if (compose?.kind === "forward") draft = reading ? forwardDraft(reading) : null;
   else if (compose?.kind === "draft") {
     const p = pending.find((d) => d.id === compose.id);
     draft = p ? stagedDraft(p) : draftsLoaded ? "gone" : null;
   }
 
-  const unread = (messages ?? []).filter((m) => !m.seen).length;
-  const replyCard = shown?.messageId ? pending.find((p) => p.inReplyTo === shown.messageId) : undefined;
-  const provider = /gmail/i.test(account.imapHost ?? "") ? "Gmail" : (account.email ?? "Mail");
+  const unread = (listed ?? []).filter((m) => !m.seen).length;
+  const replyCard = reading?.messageId ? pending.find((p) => p.inReplyTo === reading.messageId) : undefined;
+  const provider = /gmail/i.test(def.imapHost) ? "Gmail" : def.email;
+  const failedAccounts = accounts.filter((a) => inboxAccounts.some((x) => x.id === a.id && x.failed) && (shown === "all" || shown === a.id));
+  const readAt = reading ? accounts.find((a) => a.id === reading.account) : undefined;
 
   let pane;
   if (compose) {
@@ -387,7 +415,7 @@ export function Mail(_props: { me: Me }) {
           <Composer
             key={`${compose.kind}:${compose.kind === "draft" ? compose.id : ""}#${composerKey}`}
             draft={draft}
-            from={account.email ?? ""}
+            accounts={accounts}
             onDirty={(d) => {
               dirty.current = d;
             }}
@@ -407,14 +435,15 @@ export function Mail(_props: { me: Me }) {
       );
   } else if (at.waiting) {
     pane = <Waiting pending={pending} loaded={draftsLoaded} card={(p) => card(p, false)} />;
-  } else if (uid !== null) {
+  } else if (open) {
     pane = (
       <Reader
-        message={shown}
+        message={reading}
         loading={loadingMsg}
         failed={msgFailed}
         onRetry={() => setRetry((n) => n + 1)}
-        me={account.email ?? ""}
+        me={readAt?.email ?? def.email}
+        account={several ? readAt?.label : undefined}
         sender={sender}
         personSlug={sender?.contact ? entitySlug(sender.contact.path) : undefined}
         companySlug={sender?.company ? entitySlug(sender.company.path) : undefined}
@@ -443,20 +472,26 @@ export function Mail(_props: { me: Me }) {
   }
 
   return (
-    <div className="mail ui" data-screen={compose || uid !== null || at.waiting ? "pane" : "list"}>
+    <div className="mail ui" data-screen={compose || at.id || at.waiting ? "pane" : "list"}>
       <MailList
         provider={provider}
-        address={account.email ?? ""}
+        address={def.email}
+        accounts={accounts}
+        view={view}
+        shown={shown}
+        onShown={pickShown}
+        failedAccounts={failedAccounts}
         loading={loadingList}
         failed={listFailed}
-        messages={messages}
+        messages={listed}
         tabs={tabs}
         tab={tab}
         onTab={pickTab}
-        selected={uid}
+        selected={open ? keyOf(open) : null}
         look={look}
-        hrefOf={(u) => routeHref({ kind: "mail", id: String(u) })}
-        onOpen={(u) => go({ kind: "mail", id: String(u) })}
+        keyOf={keyOf}
+        hrefOf={(m) => routeHref({ kind: "mail", id: keyOf(m) })}
+        onOpen={(m) => go({ kind: "mail", id: keyOf(m) })}
         pending={pending}
         toNameOf={(to) => contactNameOf(to) ?? to}
         draftHref={(id) => composeHref(path, { kind: "draft", id })}

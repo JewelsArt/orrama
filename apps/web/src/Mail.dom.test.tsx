@@ -99,7 +99,7 @@ describe("Mail: staged drafts in the composer (WEB-006)", () => {
 
   it("a Mail that isn't connected yet keeps what the Me page wrote, for when it is", async () => {
     const { holdForComposer, peekHeld, clearHeld } = await import("./mail/compose.js");
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => (String(input).startsWith("/api/mail/account") ? new Response(JSON.stringify({ connected: false }), { status: 200, headers: { "content-type": "application/json" } }) : new Response("[]", { status: 200, headers: { "content-type": "application/json" } }))));
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => (String(input) === "/api/mail/account" ? new Response(JSON.stringify({ connected: false }), { status: 200, headers: { "content-type": "application/json" } }) : new Response("[]", { status: 200, headers: { "content-type": "application/json" } }))));
     holdForComposer({ subject: "", body: "Hi Zora" });
     history.replaceState(null, "", "/mail?write=new");
     render(<Mail me={me} />);
@@ -324,7 +324,7 @@ describe("Mail when something is missing", () => {
   });
 
   it("no account: Connect Gmail opens Settings → Connections", async () => {
-    stubMailbox({ "GET /api/mail/account": () => json({ connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null }) });
+    stubMailbox({ "GET /api/mail/accounts": () => json([]) });
     render(<Mail me={me} />);
     const link = await screen.findByRole("link", { name: "Connect Gmail" });
     expect(link.getAttribute("href")).toBe("/settings/connections");
@@ -376,7 +376,7 @@ describe("after Send", () => {
 describe("Mail when the server fails (WEB-010)", () => {
   it("an account that couldn't be read says so with Retry, never \"Mail isn't connected\"", async () => {
     let down = true;
-    stubMailbox({ "GET /api/mail/account": () => (down ? json({ error: "internal error" }, 500) : json({ connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null })) });
+    stubMailbox({ "GET /api/mail/accounts": () => (down ? json({ error: "internal error" }, 500) : json([])) });
     const user = userEvent.setup();
     render(<Mail me={me} />);
     const alert = await screen.findByRole("alert");

@@ -19,6 +19,12 @@
 .mail .mlist-top .acct i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
 .mail .mlist-top .acct i.bad { background: var(--late); }
 .mail .mlist-top .sp { flex: 1; }
+/* More than one account (N1): the header's menu, the switch below it, each row's account. */
+.mail .mlist-top .acct-pick { border: 0; background: none; font: inherit; font-size: 13px; padding: 2px 6px; margin-left: -6px; border-radius: var(--r-1); cursor: pointer; }
+.mail .mlist-top .acct-pick:hover { color: var(--ink); background: var(--hover); }
+.mail .mlist-top .acct-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mail .mlist-accts { padding: 0 16px 10px 22px; flex: none; overflow-x: auto; }
+.mail .mr .mwhen .macct { color: var(--ink-3); font-weight: 500; }
 .mail .mnotice { margin: 0 12px 10px; flex: none; }
 
 /* Waiting for you: the drafts Orr is holding */

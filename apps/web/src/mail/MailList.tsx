@@ -2,14 +2,19 @@
  * The list: Mail's header (the account, Check now, Write), the drafts Orr is holding for you,
  * the category tabs, and the messages. Every row is a link to its message (§1.7 #7), arrow keys
  * move between rows, and a click the app follows itself (⌘-click still opens a new tab).
+ *
+ * With more than one account (N1) the header says which the list shows: in one list for every
+ * account, a menu (All accounts, or one) and a small grey label on each row saying its account;
+ * one account at a time, a switch between them. With one account, the header is as it was.
  */
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import type { InboxItem, PendingDraft } from "@orrama/schema/responses";
-import { Button, Ring, Square } from "../ui/controls.js";
+import type { InboxItem, MailAccountRow, PendingDraft } from "@orrama/schema/responses";
+import { Button, Ring, Segmented, Square } from "../ui/controls.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { Menu } from "../ui/overlays.js";
 import { Notice, Skeleton } from "../ui/states.js";
+import { rowsSayAccount, type InboxView } from "./accounts.js";
 import { draftedAt } from "./DraftCard.js";
 import { fitTabs, splitTabs, TAB_LABEL, TABS_SHOWN, type MailTab, type TabInfo } from "./tabs.js";
 import { listWhen } from "./when.js";
@@ -56,6 +61,11 @@ export interface RowLook {
 export function MailList({
   provider,
   address,
+  accounts,
+  view,
+  shown: shownAccount,
+  onShown,
+  failedAccounts,
   loading,
   failed,
   messages,
@@ -64,6 +74,7 @@ export function MailList({
   onTab,
   selected,
   look,
+  keyOf,
   hrefOf,
   onOpen,
   pending,
@@ -81,16 +92,25 @@ export function MailList({
 }: {
   provider: string;
   address: string;
+  accounts: MailAccountRow[];
+  view: InboxView;
+  /** The account the list shows (an id), or "all". */
+  shown: string;
+  onShown: (account: string) => void;
+  /** Accounts that couldn't be read just now, while the others could. */
+  failedAccounts: MailAccountRow[];
   loading: boolean;
   failed: boolean;
   messages: InboxItem[] | null;
   tabs: TabInfo[];
   tab: MailTab;
   onTab: (t: MailTab) => void;
-  selected: number | null;
+  /** The open message's key (keyOf). */
+  selected: string | null;
   look: (m: InboxItem) => RowLook;
-  hrefOf: (uid: number) => string;
-  onOpen: (uid: number) => void;
+  keyOf: (m: InboxItem) => string;
+  hrefOf: (m: InboxItem) => string;
+  onOpen: (m: InboxItem) => void;
   pending: PendingDraft[];
   toNameOf: (address: string) => string;
   draftHref: (id: string) => string;
@@ -133,6 +153,12 @@ export function MailList({
   const { row, more } = splitTabs(tabs, fit, tab);
   const moreBtn = useRef<HTMLButtonElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const pickBtn = useRef<HTMLButtonElement>(null);
+  const [pickOpen, setPickOpen] = useState(false);
+  const several = accounts.length > 1;
+  const labelOf = (id: string) => accounts.find((a) => a.id === id)?.label ?? "";
+  const sayAccount = rowsSayAccount(shownAccount, accounts);
+  const showing = shownAccount === "all" ? null : accounts.find((a) => a.id === shownAccount);
 
   const tabButton = (t: TabInfo) => (
     <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} tabIndex={tab === t.id ? 0 : -1} data-id={t.id} onClick={() => onTab(t.id)}>
@@ -155,20 +181,31 @@ export function MailList({
   else
     body = shown.map((m) => {
       const l = look(m);
+      const key = keyOf(m);
       return (
         <A
-          key={m.uid}
-          href={hrefOf(m.uid)}
-          onGo={() => onOpen(m.uid)}
-          current={selected === m.uid}
-          className={`mr${selected === m.uid ? " on" : ""}${m.seen ? "" : " unread"}`}
+          key={key}
+          href={hrefOf(m)}
+          onGo={() => onOpen(m)}
+          current={selected === key}
+          className={`mr${selected === key ? " on" : ""}${m.seen ? "" : " unread"}`}
         >
           {l.company ? <Square name={m.fromName || m.from} /> : <Ring name={m.fromName || m.from} />}
           <span className="mwho">
             {l.who}
             {!m.seen && <span className="sr"> (unread)</span>}
           </span>
-          <span className="mwhen">{listWhen(m.date)}</span>
+          <span className="mwhen">
+            {sayAccount && (
+              <span className="macct">
+                <span className="sr">to </span>
+                {labelOf(m.account)}
+                <span aria-hidden="true"> · </span>
+                <span className="sr">, </span>
+              </span>
+            )}
+            {listWhen(m.date)}
+          </span>
           <span className="msub">{m.seen ? m.subject || "(no subject)" : <b>{m.subject || "(no subject)"}</b>}</span>
         </A>
       );
@@ -178,16 +215,78 @@ export function MailList({
     <section className="mlist" aria-label="Messages">
       <div className="mlist-top">
         <h1>Mail</h1>
-        <span className="acct" title={address}>
-          <i aria-hidden="true" className={failed ? "bad" : undefined} />
-          {provider}
-        </span>
+        {several && view === "merged" ? (
+          <>
+            <button
+              ref={pickBtn}
+              type="button"
+              className="acct acct-pick"
+              aria-haspopup="menu"
+              aria-expanded={pickOpen}
+              aria-label={`Showing ${showing ? showing.label : "all accounts"}. Change`}
+              title={showing?.email}
+              onClick={() => setPickOpen((v) => !v)}
+            >
+              <i aria-hidden="true" className={failed || failedAccounts.some((a) => !showing || a.id === showing.id) ? "bad" : undefined} />
+              {showing ? showing.label : "All accounts"}
+              <Icon name="chev-d" size={12} />
+            </button>
+            {pickOpen && (
+              <Menu
+                anchor={pickBtn}
+                label="Show mail from"
+                onClose={() => setPickOpen(false)}
+                items={[
+                  { label: "All accounts", checked: !showing, onSelect: () => onShown("all") },
+                  "-",
+                  ...accounts.map((a) => ({ label: a.label, checked: showing?.id === a.id, onSelect: () => onShown(a.id) })),
+                ]}
+              />
+            )}
+          </>
+        ) : several ? null : (
+          <span className="acct" title={address}>
+            <i aria-hidden="true" className={failed ? "bad" : undefined} />
+            {provider}
+          </span>
+        )}
         <span className="sp" />
         <Button kind="quiet" size="sm" icon="repeat" aria-label="Check now" tip="Check now" data-tip-at="top" disabled={loading} onClick={onCheck} />
         <Button size="sm" icon="pen" onClick={onWrite}>
           Write
         </Button>
       </div>
+      {several && view === "single" && (
+        <div className="mlist-accts">
+          <Segmented label="Account" items={accounts.map((a) => ({ id: a.id, label: a.label }))} value={shownAccount} onChange={onShown} />
+        </div>
+      )}
+      {!failed && failedAccounts.length > 0 && (
+        <div className="mnotice">
+          <Notice
+            title={`Couldn't reach ${failedAccounts.map((a) => a.label).join(" and ")}.`}
+            text={`Its app password may have changed. ${shownAccount === "all" ? "Mail from your other accounts is here." : ""}`.trim()}
+            actions={
+              <>
+                <Button size="sm" onClick={onRetry}>
+                  Retry
+                </Button>
+                <a
+                  className="btn sm quiet"
+                  href={settingsHref}
+                  onClick={(e) => {
+                    if (!plainClick(e)) return;
+                    e.preventDefault();
+                    onSettings();
+                  }}
+                >
+                  Settings → Mail
+                </a>
+              </>
+            }
+          />
+        </div>
+      )}
       {failed && (
         <div className="mnotice">
           <Notice

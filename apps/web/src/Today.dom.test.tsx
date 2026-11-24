@@ -214,7 +214,7 @@ describe("Today: the modules", () => {
   it("Mail: unread mail in Primary with the sender's relation, and Orr's drafts", async () => {
     stubToday({
       "GET /api/mail/account": { connected: true, email: "jules@example.com", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null },
-      "GET /api/mail/inbox": { email: "jules@example.com", messages: INBOX },
+      "GET /api/mail/inbox": { email: "jules@example.com", messages: INBOX, accounts: [{ id: "mail-1", email: "jules@example.com", label: "jules@example.com", isDefault: true, failed: false }] },
       "GET /api/mail/drafts": DRAFTS,
       "GET /api/graph/schema": SCHEMA_TYPED,
     });

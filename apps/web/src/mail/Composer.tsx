@@ -2,26 +2,32 @@
  * Writing: a new message, a reply, a forward, or a draft Orr staged, loaded as it is so what
  * goes out is what you just read. One composer per draft: the screen keys it (WEB-006), and it
  * says whether its fields hold anything you typed, so leaving can ask first.
+ *
+ * From (N1): a reply or a forward goes from the account the mail came to, a staged draft from
+ * the one it was staged for, new mail from the default. With more than one account, From is a
+ * choice; with one, it is said, as before.
  */
 import { useEffect, useRef, useState } from "react";
+import type { MailAccountRow } from "@orrama/schema/responses";
 import { api, ApiError } from "../api.js";
 import { Button } from "../ui/controls.js";
-import { Field, Input, Textarea } from "../ui/fields.js";
+import { Field, Input, Select, Textarea } from "../ui/fields.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { toast } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
+import { defaultAccount } from "./accounts.js";
 import type { Draft } from "./compose.js";
 
 export function Composer({
   draft,
-  from,
+  accounts,
   onDirty,
   onClose,
   onSent,
 }: {
   draft: Draft;
-  from: string;
+  accounts: MailAccountRow[];
   onDirty: (dirty: boolean) => void;
   onClose: () => void;
   onSent: () => void;
@@ -29,6 +35,10 @@ export function Composer({
   const [to, setTo] = useState(draft.to);
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
+  // An account that has since been removed: the default, which the field then shows.
+  const first = accounts.find((a) => a.id === draft.account)?.id ?? defaultAccount(accounts)?.id ?? "";
+  const [account, setAccount] = useState(first);
+  const from = accounts.find((a) => a.id === account);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<"address" | "server" | null>(null);
   const [sent, setSent] = useState(false);
@@ -40,7 +50,7 @@ export function Composer({
    */
   const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(closing.current), []);
-  const changed = to !== draft.to || subject !== draft.subject || body !== draft.body;
+  const changed = to !== draft.to || subject !== draft.subject || body !== draft.body || account !== first;
   useEffect(() => {
     onDirty(changed && !sent);
   }, [changed, sent, onDirty]);
@@ -56,7 +66,7 @@ export function Composer({
     setSending(true);
     setError(null);
     try {
-      await api("POST", "/api/mail/send", { to, subject, body, inReplyTo: draft.inReplyTo, references: draft.references });
+      await api("POST", "/api/mail/send", { to, subject, body, inReplyTo: draft.inReplyTo, references: draft.references, account: account || undefined });
       // The staged row has served its purpose once the real message is away.
       // Sent is sent; a draft still listed after it would read as not sent and go twice.
       if (draft.id && !(await api("DELETE", `/api/mail/drafts/${draft.id}`).then(() => true, () => false))) toast("Sent. Its draft is still listed: discard it.");
@@ -80,7 +90,7 @@ export function Composer({
     >
       <header className="mc-head">
         <h2>{draft.title}</h2>
-        <span className="mc-from">From {from}</span>
+        {accounts.length < 2 && <span className="mc-from">From {from?.email ?? ""}</span>}
         {/* A staged draft outlives this composer: closing leaves it in Waiting for you, so
             don't call that discarding. */}
         <Button kind="quiet" icon="x" aria-label={staged ? "Close" : "Discard"} tip={staged ? "Close" : "Discard"} onClick={onClose} />
@@ -93,6 +103,17 @@ export function Composer({
             is yours.
           </span>
         </div>
+      )}
+      {accounts.length > 1 && (
+        <Field label="From">
+          <Select value={account} onChange={(e) => setAccount(e.target.value)}>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label === a.email ? a.email : `${a.label} · ${a.email}`}
+              </option>
+            ))}
+          </Select>
+        </Field>
       )}
       <Field label="To" error={error === "address" ? "Check the address: the mail server didn't accept it." : null}>
         <Input ref={toRef} value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com" autoComplete="off" type="text" />

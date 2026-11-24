@@ -1,13 +1,13 @@
 /**
  * Settings → Connections (structure.md §3.1 #5): calendars you follow (ICS feeds in; each can be
  * renamed and drawn in one of the five colours the life areas take, `PATCH /api/calendar/feeds/:id`), your mail
- * (Gmail with an app password), Publish my planning (your blocks and events as a private
+ * accounts (Gmail with an app password, one or several: `MailAccounts.tsx`), Publish my planning (your blocks and events as a private
  * ICS link), and Claude (Connect to Claude, `Claude.tsx`). Everything that cannot be undone asks first (WEB-017): removing a feed, the mail
  * account (Google shows an app password once), and turning off or changing the published link
  * (every calendar subscribed to it stops updating).
  */
 import { useEffect, useRef, useState } from "react";
-import type { Feed, MailAccount } from "@orrama/schema/responses";
+import type { Feed } from "@orrama/schema/responses";
 import { api } from "../api.js";
 import { Confirm, type ConfirmRequest } from "../Confirm.js";
 import { Button, Dot } from "../ui/controls.js";
@@ -17,6 +17,7 @@ import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
 import { Notice } from "../ui/states.js";
 import { dateTimeLabel } from "../ui/dates.js";
 import { ClaudePart } from "./Claude.js";
+import { MailAccountPart } from "./MailAccounts.js";
 import { SectionHead, StateLine, SubHead, said, type SectionMeta } from "./parts.js";
 
 export function ConnectionsSection({ meta }: { meta: SectionMeta }) {
@@ -219,98 +220,6 @@ function RenameFeed({ feed, onClose, onSave }: { feed: Feed; onClose: () => void
         </Field>
       </Form>
     </Dialog>
-  );
-}
-
-const NO_MAIL: MailAccount = { connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null, accounts: 0 };
-
-function MailAccountPart({ ask }: { ask: Ask }) {
-  const [acct, setAcct] = useState<MailAccount | null>(null);
-  const [email, setEmail] = useState("");
-  const [appPassword, setAppPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [how, setHow] = useState(false);
-
-  useEffect(() => {
-    api<MailAccount>("GET", "/api/mail/account")
-      .then(setAcct)
-      .catch(() => setAcct(NO_MAIL));
-  }, []);
-
-  const connect = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      setAcct(await api<MailAccount>("POST", "/api/mail/account", { email: email.trim(), appPassword }));
-      setEmail("");
-      setAppPassword("");
-    } catch (e) {
-      setError(said(e, "Gmail didn't accept that. Check the address and the app password."));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const disconnect = () =>
-    ask({
-      title: "Disconnect mail?",
-      body: "The app password is deleted from this server. Google shows an app password only once, so connecting again means making a new one.",
-      confirmLabel: "Disconnect mail",
-      danger: true,
-      onConfirm: () =>
-        void api("DELETE", "/api/mail/account")
-          .then(() => setAcct(NO_MAIL))
-          .catch((e) => toast(said(e, "Mail couldn't be disconnected."))),
-    });
-
-  return (
-    <div>
-      <SubHead>Mail</SubHead>
-      {acct?.connected ? (
-        <StateLine
-          tone={acct.lastError ? "bad" : "ok"}
-          title={acct.email ?? "Connected"}
-          detail={acct.lastError ? `Couldn't connect: ${acct.lastError}` : "read and reply in Mail"}
-          action={
-            <Button size="sm" danger onClick={disconnect}>
-              Disconnect
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <form
-            className="set-add"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (email.trim() && appPassword.trim() && !busy) void connect();
-            }}
-          >
-            <Field label="Gmail address">
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@gmail.com" autoComplete="email" />
-            </Field>
-            <Field label="App password" error={error}>
-              <Input type="password" value={appPassword} onChange={(e) => setAppPassword(e.target.value)} placeholder="16 letters" autoComplete="off" />
-            </Field>
-            <Button type="submit" kind="solid" disabled={busy || !email.trim() || !appPassword.trim()}>
-              {busy ? "Connecting…" : "Connect"}
-            </Button>
-          </form>
-          <p className="set-help">
-            An app password, not your Google password. It stays encrypted on this Mac; mail never leaves your server.{" "}
-            <button type="button" className="set-how" aria-expanded={how} onClick={() => setHow(!how)}>
-              How?
-            </button>
-          </p>
-          {how && (
-            <p className="set-help">
-              Turn on 2-Step Verification, then Google Account, Security, <em>App passwords</em>: make one for Mail and paste
-              it here.
-            </p>
-          )}
-        </>
-      )}
-    </div>
   );
 }
 

@@ -267,7 +267,7 @@ export function MailModule({
   companies: Company[];
   /** How you know a contact, from the graph ("supervises Graduation thesis"); null when it doesn't say. */
   relation: (contactId: string) => string | null;
-  go: { mail: Link; message: (uid: number) => Link; waiting: Link; settings: Link };
+  go: { mail: Link; message: (m: { uid: number; account?: string }) => Link; waiting: Link; settings: Link };
 }) {
   const m = loaded.state === "ok" ? loaded.data : null;
   const unread = m?.unread ?? [];
@@ -307,7 +307,7 @@ export function MailModule({
             const s = matchSender(msg.from, msg.fromName, contacts, companies);
             const name = s.contact?.name ?? (msg.fromName || msg.from);
             const how = (s.contact && relation(s.contact.id)) ?? s.contact?.role ?? s.company?.name ?? s.companyName ?? null;
-            const l = go.message(msg.uid);
+            const l = go.message(msg);
             return (
               <Row
                 key={msg.uid}

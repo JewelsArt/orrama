@@ -53,7 +53,7 @@
 - **Imports**: node:crypto, node:fs, node:path, drizzle-orm, ./db.js, ./build.js, ./env.js, ./claudeConfig.js, ./routes/integrations.js, ./vaultStore.js
 
 ### `apps/server/src/db.ts`
-- **Exports**: Db, SCHEMA_VERSION, addColumns, SCHEMA_BACKUPS_KEPT, backupsDir, createDb, dataDirs
+- **Exports**: Db, SCHEMA_VERSION, addColumns, mailAccountsMany, SCHEMA_BACKUPS_KEPT, backupsDir, createDb, dataDirs
 - **Imports**: node:fs, node:path, better-sqlite3, drizzle-orm/better-sqlite3, @orrama/schema, ./env.js
 
 ### `apps/server/src/diskPath.ts`
@@ -214,7 +214,7 @@
 - **Imports**: node:crypto, drizzle-orm, fastify, ../db.js, ../vaultStore.js, ../webhooks.js, ./auth.js
 
 ### `apps/server/src/routes/mail.ts`
-- **Exports**: mailRoutes, stageDraft
+- **Exports**: MailRow, accountsOf, defaultOf, labelOf, accountByRef, accountRow, AccountMessage, mergedInbox, mailRoutes, stageDraft
 - **Imports**: node:crypto, drizzle-orm, fastify, @orrama/schema, ../db.js, ../secrets.js, ../vaultStore.js, ../mail.js, ../safeFetch.js, ./auth.js
 
 ### `apps/server/src/routes/notesHome.ts`
@@ -343,7 +343,7 @@
 
 ### `apps/web/src/Mail.tsx`
 - **Exports**: Mail
-- **Imports**: react, @orrama/schema/responses, ./api.js, ./Confirm.js, ./storage.js, ./ui/controls.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/overlays.js, ./mail/Composer.js, ./mail/compose.js, ./mail/DraftCard.js, ./mail/MailList.js, ./mail/MessageBody.js, ./mail/people.js, ./mail/Reader.js, ./mail/tabs.js, ./mail/Waiting.js
+- **Imports**: react, @orrama/schema/responses, ./api.js, ./Confirm.js, ./storage.js, ./ui/controls.js, ./ui/router.js, ./ui/states.js, ./ui/writes.js, ./ui/overlays.js, ./mail/accounts.js, ./mail/Composer.js, ./mail/compose.js, ./mail/DraftCard.js, ./mail/MailList.js, ./mail/MessageBody.js, ./mail/people.js, ./mail/Reader.js, ./mail/tabs.js, ./mail/Waiting.js
 
 ### `apps/web/src/Me.tsx`
 - **Exports**: Me
@@ -399,7 +399,7 @@
 
 ### `apps/web/src/Today.tsx`
 - **Exports**: MODULES, ModuleId, HIDDEN_KEY, JUMP_MS, Today
-- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/people.js, ./money/LineSheet.js, ./storage.js, ./steps.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ui/shell/SectionBar.js, ./ws.js
+- **Imports**: react, @orrama/core/dates, @orrama/schema/responses, ./api.js, ./categories.js, ./create/New.js, ./mail/accounts.js, ./mail/people.js, ./money/LineSheet.js, ./storage.js, ./steps.js, ./TaskCard.js, ./ui/controls.js, ./ui/dates.js, ./ui/fields.js, ./ui/Icon.js, ./ui/layout.js, ./ui/overlays.js, ./ui/router.js, ./ui/states.js, ./today/day.js, ./today/model.js, ./noticed/model.js, ./today/modules.js, ./today/Timetable.js, ./today/title.js, ./ui/shell/SectionBar.js, ./ws.js
 
 ### `apps/web/src/VisionEditor.tsx`
 - **Exports**: VisionEditor
@@ -519,7 +519,7 @@
 
 ### `apps/web/src/entity/activity.tsx`
 - **Exports**: useActivitySources, Sources, default, ActivityModule
-- **Imports**: @orrama/schema/responses, ../api.js, ../ProjectViews.js, ../steps.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/layout.js, ../ui/router.js, ./links.js, ./known.js, ./model.js
+- **Imports**: @orrama/schema/responses, ../api.js, ../ProjectViews.js, ../steps.js, ../ui/controls.js, ../ui/dates.js, ../ui/Icon.js, ../ui/layout.js, ../ui/router.js, ./links.js, ./known.js, ../mail/accounts.js, ./model.js
 
 ### `apps/web/src/entity/dateInput.ts`
 - **Exports**: parseDateInput
@@ -578,7 +578,7 @@
 
 ### `apps/web/src/mail/Composer.tsx`
 - **Exports**: Composer
-- **Imports**: react, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./compose.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./accounts.js, ./compose.js
 
 ### `apps/web/src/mail/DraftCard.tsx`
 - **Exports**: draftedAt, DraftCard
@@ -586,7 +586,7 @@
 
 ### `apps/web/src/mail/MailList.tsx`
 - **Exports**: RowLook, MailList
-- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./DraftCard.js, ./tabs.js, ./when.js
+- **Imports**: react, @orrama/schema/responses, ../ui/controls.js, ../ui/Icon.js, ../ui/orr/Orr.js, ../ui/overlays.js, ../ui/states.js, ./accounts.js, ./DraftCard.js, ./tabs.js, ./when.js
 
 ### `apps/web/src/mail/MessageBody.tsx`
 - **Exports**: SANDBOX, imagesAllowed, setImagesAllowed, frameCsp, frameDoc, MessageBody
@@ -599,6 +599,10 @@
 ### `apps/web/src/mail/Waiting.tsx`
 - **Exports**: Waiting
 - **Imports**: react, @orrama/schema/responses, ../ui/orr/Orr.js, ../ui/states.js
+
+### `apps/web/src/mail/accounts.ts`
+- **Exports**: MessageRef, messageKey, messageOf, sameMessage, inboxDefault, defaultAccount, InboxView, VIEW_KEY, FILTER_KEY, readView, writeView, shownAccount, rowsSayAccount
+- **Imports**: @orrama/schema/responses, ../storage.js
 
 ### `apps/web/src/mail/compose.ts`
 - **Exports**: Draft, Compose, composeOf, composeHref, emptyDraft, holdForComposer, peekHeld, clearHeld, replyDraft, htmlText, forwardDraft, stagedDraft
@@ -917,7 +921,7 @@
 
 ### `apps/web/src/settings/Connections.tsx`
 - **Exports**: ConnectionsSection
-- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./Claude.js, ./parts.js
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/states.js, ../ui/dates.js, ./Claude.js, ./MailAccounts.js, ./parts.js
 
 ### `apps/web/src/settings/Developer.tsx`
 - **Exports**: DeveloperSection
@@ -930,6 +934,10 @@
 ### `apps/web/src/settings/LifeAreas.tsx`
 - **Exports**: holds, removalWords, LifeAreasSection
 - **Imports**: react, @orrama/schema/responses, ../api.js, ../categories.js, ../Confirm.js, ../ui/controls.js, ../ui/fields.js, ../ui/Icon.js, ../ui/overlays.js, ../ui/router.js, ../ui/states.js, ../ui/writes.js, ./parts.js
+
+### `apps/web/src/settings/MailAccounts.tsx`
+- **Exports**: MailAccountPart
+- **Imports**: react, @orrama/schema/responses, ../api.js, ../Confirm.js, ../mail/accounts.js, ../ui/controls.js, ../ui/fields.js, ../ui/layout.js, ../ui/overlays.js, ../ui/dates.js, ./parts.js
 
 ### `apps/web/src/settings/NotesSettings.tsx`
 - **Exports**: NotesSection
@@ -1202,7 +1210,7 @@
 - **Imports**: ./safeRegex.js, ./parse.js, ./table.js
 
 ### `packages/schema/src/api.ts`
-- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, passwordResetSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailSendSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema, eventRepeatSchema, eventWriteSchema, feedPatchSchema
+- **Exports**: roleSchema, taskStatusSchema, passwordChangeSchema, passwordResetSchema, registerSchema, loginSchema, passcodeSchema, unlockSchema, visionProfileSchema, appearanceSchema, Appearance, noteWriteSchema, noteMoveSchema, noteTrashSchema, folderSchema, folderMoveSchema, trashRestoreSchema, checkTaskSchema, promoteTaskSchema, setTaskStatusSchema, taskDatesSchema, taskEditSchema, taskMoveSchema, taskCardQuerySchema, taskDeleteSchema, taskPlaceSchema, updateTaskObjectSchema, quickCaptureSchema, grantSchema, teamCreateSchema, projectCreateSchema, inviteCreateSchema, aiConfigSchema, aiInstructionsSchema, mailConnectSchema, mailAccountPatchSchema, mailSendSchema, mailDraftSchema, askVaultSchema, NoteWrite, CheckTask, SetTaskStatus, TaskEdit, TaskMove, Grant, lifeAreasWriteSchema, eventRepeatSchema, eventWriteSchema, feedPatchSchema
 - **Imports**: zod
 
 ### `packages/schema/src/db.ts`
@@ -1210,7 +1218,7 @@
 - **Imports**: drizzle-orm/sqlite-core
 
 ### `packages/schema/src/responses.ts`
-- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, backupResponse, backupLookResponse, restoreFolderResponse, restoreResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, fileTrashedResponse, FileTrashed, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, contactProjectsResponse, ContactProject, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, projectRemovalResponse, projectCandidatesResponse, hiddenProjectsResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, claudeResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, BackupMade, BackupLook, RestoreFolder, Restored, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, personaSchema, personaResponse, personaJobResponse, personaWriteResponse, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, ProjectRemoval, ProjectCandidate, HiddenProject, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, ClaudeConnection, Webhook, PersonaData, Persona, PersonaJob, PersonaWrite
+- **Exports**: domainSchema, taskLineSchema, taskObjectSchema, dashboardTaskSchema, tasksResponse, taskCardResponse, teamSchema, meResponse, authStatusResponse, signInResponse, sessionsResponse, passkeysResponse, healthResponse, membersResponse, serverSettingsResponse, folderLookResponse, startResponse, backupResponse, backupLookResponse, restoreFolderResponse, restoreResponse, aiConfigResponse, aiStatusResponse, chatgptModelsResponse, teamsResponse, teamDashboardResponse, dashboardResponse, treeResponse, foldersResponse, fileTrashedResponse, FileTrashed, trashResponse, linkersResponse, historyResponse, revisionResponse, lifeAreasResponse, notesOverviewResponse, graphResponse, noteResponse, relatedResponse, searchResponse, timeBlockSchema, planTaskSchema, planResponse, calEventSchema, eventsResponse, markersResponse, feedsResponse, icsTokenResponse, contactsResponse, contactProjectsResponse, ContactProject, companiesResponse, peopleContextResponse, projectsResponse, projectPersonSchema, projectNoteSchema, projectTaskSchema, projectWorkspaceResponse, projectRemovalResponse, projectCandidatesResponse, hiddenProjectsResponse, boardNodeSchema, boardEdgeSchema, boardResponse, docHtmlResponse, sheetSchema, sheetResponse, slideBlockSchema, deckResponse, moneyItemSchema, activitySchema, unreadableRowSchema, ledgerSchema, payslipRowSchema, savingsSchema, recurringSchema, ledgerRowSchema, financeResponse, financeCategoryResponse, financeMonthResponse, financeMerchantResponse, homeResponse, mailAccountResponse, mailAccountsResponse, mailDraftsResponse, mailCategorySchema, mailInboxResponse, mailMessageResponse, tokensResponse, claudeResponse, webhooksResponse, graphSchemaResponse, graphEntitiesResponse, graphRelationsResponse, graphPathResponse, graphSummariesResponse, graphWarningsResponse, GraphSchema, GraphWarnings, GraphEntities, GraphRelations, GraphPath, GraphSummaries, Appearance, TaskLine, TaskObject, TaskCardData, DashboardTask, Team, Me, SignedIn, SessionInfo, AiConfig, Member, ServerSettings, FolderLook, BackupMade, BackupLook, RestoreFolder, Restored, Health, DashboardData, TreeNote, TrashItem, Linkers, NoteHistory, Revision, NotesOverview, personaSchema, personaResponse, personaJobResponse, personaWriteResponse, LifeAreas, GraphData, NoteDetail, NoteLink, SearchHit, TimeBlock, PlanTask, PlanData, CalEvent, DayMarker, Feed, Contact, Company, PeopleContext, ProjectRow, ProjectPerson, ProjectNote, ProjectFile, ProjectTask, ProjectWorkspace, ProjectRemoval, ProjectCandidate, HiddenProject, BoardNode, FileNode, GroupNode, BoardEdge, Board, Sheet, SlideBlock, Deck, MoneyItem, Activity, Ledger, PayslipRow, Savings, Recurring, FinanceData, CategoryDetail, MonthDetail, MerchantDetail, LedgerRowData, LedgerTableData, HomeData, AgendaItem, FocusItem, DeadlineItem, HomeLedger, MailAccount, MailAccountRow, InboxAccount, PendingDraft, MailCategory, InboxItem, MailMessage, ApiToken, ClaudeConnection, Webhook, PersonaData, Persona, PersonaJob, PersonaWrite
 - **Imports**: zod, ./api.js
 
 ### `packages/sync/src/client.ts`

@@ -20,6 +20,7 @@ export function draftedAt(p: PendingDraft, now = new Date()): string {
 export function DraftCard({
   draft,
   toName,
+  fromLabel,
   sending,
   failed,
   onSend,
@@ -31,6 +32,8 @@ export function DraftCard({
   draft: PendingDraft;
   /** The recipient's name, when they are a contact. */
   toName?: string;
+  /** The account it goes from, said when there is more than one. */
+  fromLabel?: string;
   sending: boolean;
   failed: boolean;
   onSend: () => void;
@@ -76,6 +79,11 @@ export function DraftCard({
         </Button>
       </div>
       <div className="dto">
+        {fromLabel && (
+          <>
+            From <b>{fromLabel}</b> ·{" "}
+          </>
+        )}
         To {toName ? <b>{toName}</b> : null} <span className="daddr">{draft.to}</span>
         {draft.subject ? <> · {draft.subject}</> : null}
       </div>

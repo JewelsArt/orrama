@@ -15,6 +15,7 @@ import { Module, Row, RowList } from "../ui/layout.js";
 import { navigate, routeHref } from "../ui/router.js";
 import { anchor, linkTo } from "./links.js";
 import { useLoad, type Load } from "./known.js";
+import { inboxDefault, messageKey } from "../mail/accounts.js";
 import { activityOf, type InboxItem, type Who } from "./model.js";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -28,7 +29,7 @@ export function useActivitySources(tick: number) {
   const events = useLoad((signal) => api<CalEvent[]>("GET", `/api/events?from=${from}&to=${to}`, undefined, { signal }), [tick, from]);
   const account = useLoad((signal) => api<MailAccount>("GET", "/api/mail/account", undefined, { signal }), []);
   const connected = account.state === "ok" && account.data.connected;
-  const inbox = useLoad(connected ? (signal) => api<{ messages: InboxItem[] }>("GET", "/api/mail/inbox", undefined, { signal }) : null, [connected]);
+  const inbox = useLoad(connected ? (signal) => api<{ messages: InboxItem[]; accounts?: { id: string; isDefault: boolean }[] }>("GET", "/api/mail/inbox", undefined, { signal }) : null, [connected]);
   return { tasks, events, inbox };
 }
 
@@ -56,7 +57,7 @@ export function ActivityModule({ title, sources, who, onChanged }: { title: stri
             lead={<Icon name="mail" size={18} />}
             title={m.subject || "(no subject)"}
             meta={`${m.seen ? "" : "Unread · "}${m.date ? dateTimeLabel(new Date(m.date)) : ""}`}
-            {...linkTo({ kind: "mail", id: String(m.uid) })}
+            {...linkTo({ kind: "mail", id: messageKey(m, inboxDefault(ok(sources.inbox))) })}
           />
         ))}
         {a.events.map((e) => (

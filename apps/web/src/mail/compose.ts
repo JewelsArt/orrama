@@ -15,6 +15,11 @@ export interface Draft {
   references?: string;
   /** Set when this came from a staged draft, so sending clears the stored row. */
   id?: string;
+  /**
+   * The account it goes from (an id from /api/mail/accounts): a reply or a forward the one the
+   * mail came to, a staged draft the one it was staged for. Unset: the default account.
+   */
+  account?: string;
   createdBy?: "agent" | "token";
   /** What the composer's head says. */
   title: "New message" | "Reply" | "Forward" | "Orr's draft" | "Staged draft";
@@ -60,6 +65,7 @@ export function replyDraft(m: MailMessage): Draft {
     body: "",
     inReplyTo: m.messageId ?? undefined,
     references: [m.references, m.messageId].filter(Boolean).join(" ") || undefined,
+    account: m.account,
     title: "Reply",
   };
 }
@@ -85,6 +91,7 @@ export function forwardDraft(m: MailMessage, now: Date = new Date()): Draft {
     to: "",
     subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`,
     body: `\n\n${head}\n\n${text}`,
+    account: m.account,
     title: "Forward",
   };
 }
@@ -98,6 +105,7 @@ export function stagedDraft(p: PendingDraft): Draft {
     inReplyTo: p.inReplyTo ?? undefined,
     references: p.references ?? undefined,
     id: p.id,
+    account: p.account ?? undefined,
     createdBy: p.createdBy,
     title: p.createdBy === "agent" ? "Orr's draft" : "Staged draft",
   };

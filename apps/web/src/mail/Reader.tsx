@@ -39,6 +39,7 @@ export function Reader({
   failed,
   onRetry,
   me,
+  account,
   sender,
   personSlug,
   companySlug,
@@ -54,7 +55,10 @@ export function Reader({
   loading: boolean;
   failed: boolean;
   onRetry: () => void;
+  /** The address it came to. */
   me: string;
+  /** Which of your accounts it came to, said when you have more than one. */
+  account?: string;
   sender?: Sender;
   personSlug?: string;
   companySlug?: string;
@@ -147,7 +151,10 @@ export function Reader({
         </div>
         <div className="dt">
           {message.date ? dateTimeLabel(message.date) : ""}
-          <span>{toMe ? "to you" : `to ${message.to}`}</span>
+          <span>
+            {toMe ? "to you" : `to ${message.to}`}
+            {account ? ` · ${account}` : ""}
+          </span>
         </div>
       </div>
       <div className="acts2">

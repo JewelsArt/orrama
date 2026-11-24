@@ -11,10 +11,11 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, isoLocal } from "@orrama/core/dates";
-import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
+import type { CalEvent, Company, Contact, DashboardTask, Feed, GraphRelations, GraphSchema, GraphWarnings, HomeData, InboxAccount, InboxItem, MailAccount, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api } from "./api.js";
 import { categoryColor, useAreas } from "./categories.js";
 import { New } from "./create/New.js";
+import { inboxDefault, messageKey } from "./mail/accounts.js";
 import { addressOf } from "./mail/people.js";
 import { LineSheet } from "./money/LineSheet.js";
 import { readJson, writeKey } from "./storage.js";
@@ -137,7 +138,7 @@ export function Today({ me }: { me?: { displayName: string } } = {}) {
   const connected = ok(account)?.connected === true;
   const drafts = useAsk(connected ? () => api<PendingDraft[]>("GET", "/api/mail/drafts") : null, [tick]);
   // The inbox is live IMAP, seconds away: asked once, and again on Retry, never on a note change.
-  const inbox = useAsk(connected ? () => api<{ messages: InboxItem[] }>("GET", "/api/mail/inbox") : null, []);
+  const inbox = useAsk(connected ? () => api<{ messages: InboxItem[]; accounts?: InboxAccount[] }>("GET", "/api/mail/inbox") : null, []);
   useEffect(() => {
     if (home.state === "ok" || tasks.state === "ok") setLoadedAt(new Date());
   }, [home, tasks]);
@@ -372,7 +373,7 @@ export function Today({ me }: { me?: { displayName: string } } = {}) {
             contacts={ok(contacts) ?? []}
             companies={ok(companies) ?? []}
             relation={relation}
-            go={{ mail: L({ kind: "mail" }), message: (uid) => L({ kind: "mail", id: String(uid) }), waiting: L({ kind: "mail", waiting: true }), settings: L({ kind: "settings", section: "connections" }) }}
+            go={{ mail: L({ kind: "mail" }), message: (m) => L({ kind: "mail", id: messageKey(m, inboxDefault(ok(inbox))) }), waiting: L({ kind: "mail", waiting: true }), settings: L({ kind: "settings", section: "connections" }) }}
           />
         );
       case "people":

@@ -145,7 +145,7 @@ export function stubToday(over: Record<string, unknown> = {}) {
     "GET /api/calendar/feeds": [],
     "GET /api/mail/account": account,
     "GET /api/mail/drafts": [],
-    "GET /api/mail/inbox": { email: "jules@example.com", messages: [], accounts: [] },
+    "GET /api/mail/inbox": { email: "jules@example.com", messages: [], accounts: [{ id: "mail-1", email: "jules@example.com", label: "jules@example.com", isDefault: true, failed: false }] },
     "GET /api/plan": { assignees: [] },
     // The task card asks for its project's workspace.
     "GET /api/projects/thesis": { slug: "thesis", name: "Graduation thesis", status: "on-track", deadline: "2026-10-19", people: [] },

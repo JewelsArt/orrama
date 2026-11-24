@@ -1046,7 +1046,7 @@ export const mailInboxResponse = o({
     }),
   ),
   /** The accounts read, and which couldn't be. */
-  accounts: z.array(o({ id: z.string(), email: z.string(), label: z.string(), failed: z.boolean() })),
+  accounts: z.array(o({ id: z.string(), email: z.string(), label: z.string(), isDefault: z.boolean(), failed: z.boolean() })),
 });
 
 /** Live IMAP — not exercised by the contract test. */

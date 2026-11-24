@@ -244,7 +244,7 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
     return {
       email: (one ?? defaultOf(rows))!.email,
       messages,
-      accounts: from.map((r) => ({ id: r.id, email: r.email, label: labelOf(r), failed: failed.some((f) => f.row.id === r.id) })),
+      accounts: from.map((r) => ({ id: r.id, email: r.email, label: labelOf(r), isDefault: r.id === defaultOf(rows)?.id, failed: failed.some((f) => f.row.id === r.id) })),
     };
   });
 
