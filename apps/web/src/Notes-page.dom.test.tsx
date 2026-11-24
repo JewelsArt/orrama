@@ -40,6 +40,8 @@ const TREE = [
   T("ideas", "Ideas.md", { mtimeMs: NOW - 120_000, tags: ["thesis"] }),
   T("chat", "Conversations/Forecast chat.md", { category: "tools" }),
   T("inbox", "Personal/jules/Inbox.md", { openTasks: 4 }),
+  // Planning's month note, titled by its file name (2L follow-up: Recent said "2026-11").
+  T("cal", "01-Me/Calendar/2026-11.md", { mtimeMs: NOW - 180_000, category: "personal" }),
   // A session note titled by its id: the server names it by kind, date and gist (F3).
   { ...T("sess", "Claude Sessions/394a1725.md", { category: "tools" }), title: "Conversation, 4 Jun 2026: Tidying the reading list" },
 ];
@@ -52,6 +54,8 @@ const CONTENT: Record<string, string> = {
   ideas: "---\nid: n-ideas\n---\n# Ideas\n\nSee [[Research plan]].\n",
   chat: "---\ntype: claude-session\n---\nTranscript.\n",
   inbox: "# Inbox\n- [ ] one\n",
+  cal: '---\ncalendar: jules\nmonth: "2026-11"\n---\n# Calendar · November 2026\n',
+
   sess: "---\ntitle: 394a1725\ntype: claude-session\n---\n**Jules:** Tidy the reading list.\n",
 };
 const LINKS: Record<string, { target: string; targetId: string | null; locked: boolean; raw: string; line: number }[]> = {
@@ -146,6 +150,10 @@ describe("Notes home", () => {
     expect(within(home.getByRole("group", { name: "Pinned notes" })).getByText("graduation-thesis")).toBeTruthy();
     expect(home.getByText("4 to sort")).toBeTruthy();
     expect(home.getByRole("link", { name: /Open the Orrery/ }).getAttribute("href")).toBe("/orrery");
+    // The month's calendar note by its month, here and in the tree's Recent (2L follow-up).
+    expect(recent.getByText("November 2026")).toBeTruthy();
+    expect(within(document.querySelector(".nt-tree") as HTMLElement).getAllByRole("link").map((a) => a.textContent)).toEqual(expect.arrayContaining([expect.stringContaining("November 2026")]));
+    expect(document.querySelector(".nt-home")!.textContent).not.toContain("2026-11");
     fireEvent.click(recent.getAllByRole("link")[0]!);
     await flush();
     expect(path()).toBe("/notes/04-Projects/graduation-thesis/Research plan");

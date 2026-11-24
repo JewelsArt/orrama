@@ -7,7 +7,7 @@ import type { Company, Contact, GraphData, PeopleContext, ProjectRow, SearchHit,
 import { STATUS_WORD, statusOf } from "../entity/status.js";
 import { notePath, slugOf } from "../entity/links.js";
 import { companyName, keyRelation, peopleAt } from "../people/model.js";
-import { folderName } from "../notes/read.js";
+import { folderName, listTitle } from "../notes/read.js";
 import { dateLabel } from "../ui/dates.js";
 import { PLACES, type Place, type SettingsSection } from "../ui/router.js";
 import { scoreOf, type FindType, type Item } from "./model.js";
@@ -186,13 +186,14 @@ export function noteItems(hits: SearchHit[], l: Lists, taken: Set<string>, words
       return {
         key: `n:${h.id}`,
         type: (conversation ? "conversation" : "note") as FindType,
-        title: h.title,
+        // Its list name (a month's calendar note is "November 2026"), which is also what Recent keeps.
+        title: listTitle(h),
         meta: joined(conversation && "with Claude", folder || "The top of your notes", t && dateLabel(new Date(t.mtimeMs))),
         lead: { kind: "icon" as const, of: conversation ? "chat" : "doc" },
         route: conversation ? { kind: "conversation" as const, slug: slugOf(h.path) } : { kind: "notes" as const, path: notePath(h.path) },
         // A step below a person, company or project matched as well (the board puts them first),
         // a name that matches above a mention, and the server's order among equals.
-        score: Math.max(scoreOf(words, h.title) - 25, 1) - i / 1000,
+        score: Math.max(scoreOf(words, h.title) - 25, scoreOf(words, listTitle(h)) - 25, 1) - i / 1000,
         folder,
       };
     });

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { filterNotes } from "../FileTree.js";
-import { dueOf, editedLabel, isOrdinary, pinnedIn, relationWords, snippet, wordCount } from "./read.js";
+import { dueOf, editedLabel, isOrdinary, listTitle, pinnedIn, relationWords, snippet, wordCount } from "./read.js";
 
 describe("wordCount", () => {
   it("counts the body's words, not the front matter, the Markdown marks or the code", () => {
@@ -65,5 +65,17 @@ describe("the tree's filter", () => {
     expect(filterNotes(notes, "thesis").map((n) => n.id)).toEqual(["Thesis budget"]);
     expect(filterNotes(notes, "#thesis").map((n) => n.id)).toEqual(["Research plan", "Other"]);
     expect(filterNotes(notes, "#res").map((n) => n.id)).toEqual([]);
+  });
+});
+
+describe("listTitle: a note's name in Recent, Pinned and Find", () => {
+  it("names a calendar month note by its month, and every other note by its title", () => {
+    expect(listTitle({ path: "01-Me/Calendar/2026-11.md", title: "2026-11" })).toBe("November 2026");
+    expect(listTitle({ path: "Personal/jules/Calendar/2027-01.md", title: "2027-01" })).toBe("January 2027");
+    // A month note given a title of its own keeps it; a date-named note elsewhere is a name.
+    expect(listTitle({ path: "01-Me/Calendar/2026-11.md", title: "My November" })).toBe("My November");
+    expect(listTitle({ path: "Reviews/2026-11.md", title: "2026-11" })).toBe("2026-11");
+    expect(listTitle({ path: "01-Me/Calendar/2026-13.md", title: "2026-13" })).toBe("2026-13");
+    expect(listTitle({ path: "Ideas.md", title: "Ideas" })).toBe("Ideas");
   });
 });

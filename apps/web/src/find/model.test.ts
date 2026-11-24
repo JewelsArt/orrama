@@ -126,6 +126,12 @@ describe("what Find finds", () => {
     expect(notes[0]!.route).toEqual({ kind: "notes", path: "Personal/Kade offsite" });
     expect(notes[0]!.score).toBeLessThan(80); // below a company matched as well
   });
+  it("names a month's calendar note by its month, found by the month's name or by the file's", () => {
+    const hits = [{ id: "n-cal", path: "01-Me/Calendar/2026-11.md", title: "2026-11" }];
+    expect(noteItems(hits, LISTS, new Set(), ["november"]).map((n) => n.title)).toEqual(["November 2026"]);
+    expect(noteItems(hits, LISTS, new Set(), ["november"])[0]!.score).toBeGreaterThan(1);
+    expect(noteItems(hits, LISTS, new Set(), ["2026-11"]).map((n) => n.title)).toEqual(["November 2026"]);
+  });
   it("places with their key; settings by their words", () => {
     expect(placeItems(["mone"]).map((p) => [p.title, p.keycap])).toEqual([["Money", "8"]]);
     const s = settingItems(["dark"], [{ label: "Theme", section: "appearance", sectionLabel: "Appearance" }]);

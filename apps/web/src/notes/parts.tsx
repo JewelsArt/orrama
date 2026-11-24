@@ -12,7 +12,7 @@ import { Button, Checkbox, LinkButton, Ring, Square, type TaskState } from "../u
 import { Module, Row, RowList } from "../ui/layout.js";
 import { Menu, type MenuItem } from "../ui/overlays.js";
 import { EmptyState, Skeleton } from "../ui/states.js";
-import { editedLabel, folderName, relationWords, snippet } from "./read.js";
+import { editedLabel, folderName, listTitle, relationWords, snippet } from "./read.js";
 
 const plainClick = (e: MouseEvent) => e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
 /** A link that goes somewhere in the app: a real href, and a plain click stays in the page. */
@@ -56,7 +56,7 @@ function TreeRow({ n, icon, meta, active, onOpen, href }: { n: TreeNote; icon: "
   return (
     <a className={active ? "ti on" : "ti"} href={href} aria-current={active ? "page" : undefined} onClick={follow(onOpen)}>
       <Icon name={icon} />
-      <span>{n.title}</span>
+      <span>{listTitle(n)}</span>
       <small>{meta}</small>
     </a>
   );
@@ -243,7 +243,7 @@ export function NotesHome(p: HomeProps) {
         <Module title="Recent" count={p.recent.length || undefined}>
           <RowList label="Recent notes">
             {p.recent.map((n) => (
-              <Row key={n.id} lead={<Icon name="doc" />} title={n.title} meta={where(n)} trailing={editedLabel(n.mtimeMs)} href={p.hrefOf(n)} onOpen={() => p.onOpen(n.id)} />
+              <Row key={n.id} lead={<Icon name="doc" />} title={listTitle(n)} meta={where(n)} trailing={editedLabel(n.mtimeMs)} href={p.hrefOf(n)} onOpen={() => p.onOpen(n.id)} />
             ))}
           </RowList>
         </Module>
@@ -251,7 +251,7 @@ export function NotesHome(p: HomeProps) {
           {p.pinned.length > 0 ? (
             <RowList label="Pinned notes">
               {p.pinned.map((n) => (
-                <Row key={n.id} lead={<Icon name="pin" />} title={n.title} meta={where(n)} href={p.hrefOf(n)} onOpen={() => p.onOpen(n.id)} />
+                <Row key={n.id} lead={<Icon name="pin" />} title={listTitle(n)} meta={where(n)} href={p.hrefOf(n)} onOpen={() => p.onOpen(n.id)} />
               ))}
             </RowList>
           ) : (

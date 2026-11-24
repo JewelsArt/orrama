@@ -86,5 +86,21 @@ export function snippet(context: string): string {
     .trim();
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/**
+ * The name a note goes by in a list (Recent, Pinned, Find): its title, and a calendar month note
+ * that has no title of its own (`Calendar/2026-11.md`, as Planning writes them, titled by its
+ * file name) as "November 2026" (2L follow-up: Recent said "2026-11"). Display only; the tree's
+ * folders keep the file name, so the months there stay in order.
+ */
+export function listTitle(n: { title: string; path: string }): string {
+  const parts = n.path.split("/");
+  const stem = (parts.at(-1) ?? "").replace(/\.md$/i, "");
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(stem);
+  if (!m || parts.at(-2) !== "Calendar" || n.title !== stem) return n.title;
+  return `${MONTH_NAMES[Number(m[2]) - 1]} ${m[1]}`;
+}
+
 /** A folder's name without the "NN-" ordering prefix of the PARA folders. */
 export const folderName = (name: string) => name.replace(/^\d+[-_.\s]+/, "");
