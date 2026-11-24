@@ -23,3 +23,4 @@ export * from "./graph.js";
 export * from "./describe.js";
 export * from "./graphQuery.js";
 export * from "./persona.js";
+export * from "./mailText.js";

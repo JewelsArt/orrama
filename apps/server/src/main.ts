@@ -317,7 +317,7 @@ export async function buildServer(opts: { logStream?: NodeJS.WritableStream; res
   await homeRoutes(app, db, store);
   await financeRoutes(app, db, store);
   await icsRoutes(app, db, store);
-  await mailRoutes(app, db);
+  await mailRoutes(app, db, store);
   await integrationRoutes(app, db, store);
   await settingsRoutes(app, db, store, calendar, opts.restart);
   await notesHomeRoutes(app, store);

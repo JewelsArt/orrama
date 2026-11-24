@@ -1,7 +1,8 @@
 /**
  * The calm reading pane (structure.md §2.8): the subject, who sent it (a name that opens their
- * page, and a line saying how you know them), when and to whom, Reply and Forward, the message,
- * and under it the reply Orr drafted, if he did.
+ * page, and a line saying how you know them), when and to whom, Reply, Forward and Make a note
+ * (N1: the mail as a note in your notes, in one click), the message, and under it the reply Orr
+ * drafted, if he did.
  */
 import { useRef, useState, type ReactNode } from "react";
 import type { MailMessage, PendingDraft } from "@orrama/schema/responses";
@@ -48,6 +49,8 @@ export function Reader({
   onImages,
   onReply,
   onForward,
+  onNote,
+  noting,
   onGo,
   draft,
 }: {
@@ -67,6 +70,9 @@ export function Reader({
   onImages: (on: boolean) => void;
   onReply: () => void;
   onForward: () => void;
+  /** Make a note from this mail, or open the one made before. */
+  onNote: () => void;
+  noting: boolean;
   onGo: (r: Route) => void;
   /** Orr's staged reply to this message, drawn under it. */
   draft?: ReactNode;
@@ -162,6 +168,9 @@ export function Reader({
           Reply
         </Button>
         <Button onClick={onForward}>Forward</Button>
+        <Button icon="notes" onClick={onNote} disabled={noting}>
+          {noting ? "Making the note…" : "Make a note"}
+        </Button>
         {message.html && (
           <>
             <Button ref={more} kind="quiet" icon="dots" aria-label="More" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)} />

@@ -16,7 +16,7 @@
  * folder's top level for GETs); the pieces it draws are in mail/.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Company, Contact, GraphRelations, InboxAccount, InboxItem, MailAccountRow, MailMessage, PendingDraft, ProjectRow } from "@orrama/schema/responses";
+import type { Company, Contact, GraphRelations, InboxAccount, InboxItem, MailAccountRow, MailMessage, MailNote, PendingDraft, ProjectRow } from "@orrama/schema/responses";
 import { api, isAbort, latestOnly, type Me } from "./api.js";
 import { Confirm, type ConfirmRequest } from "./Confirm.js";
 import { readKey, writeKey } from "./storage.js";
@@ -92,6 +92,7 @@ export function Mail(_props: { me: Me }) {
   const [images, setImages] = useState(imagesAllowed);
   const [relations, setRelations] = useState<Relation[]>([]);
   const [sendingDraft, setSendingDraft] = useState<string | null>(null);
+  const [noting, setNoting] = useState(false);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
 
   /* ---- loading ------------------------------------------------------------------------- */
@@ -276,6 +277,60 @@ export function Mail(_props: { me: Me }) {
     goBack(at);
   }, [at]);
 
+  /* ---- a note from the mail (N1) ----------------------------------------------------------- */
+
+  /**
+   * Make a note: the server writes it (Personal/<you>/<subject>.md) or finds the one made from
+   * this mail before, and opens that one. A new note's toast offers Open, Undo (the trash, as
+   * Notes' own delete) and the project the mail may belong with, never choosing it.
+   */
+  const makeNote = useCallback(
+    async (m: MailMessage) => {
+      setNoting(true);
+      try {
+        const got: { note?: MailNote } = {};
+        const ok = await attempt("The note wasn't made.", async () => {
+          got.note = await api<MailNote>("POST", "/api/mail/note", { uid: m.uid, account: m.account });
+        });
+        const r = got.note;
+        if (!ok || !r) return;
+        const opened: Route = { kind: "notes", path: r.path };
+        if (!r.created) {
+          toast(`Opened the note made from this mail.`);
+          return go(opened);
+        }
+        const project = r.projects[0];
+        toast("Note made.", {
+          ms: 10000,
+          actions: [
+            { label: "Open", run: () => go(opened) },
+            {
+              label: "Undo",
+              run: () =>
+                void attempt("The note wasn't put in the trash.", () => api("POST", "/api/vault/trash", { path: r.path })).then((done) => {
+                  if (done) toast("The note is in the trash.");
+                }),
+            },
+            ...(project
+              ? [
+                  {
+                    label: `Add to ${project.name}`,
+                    run: () =>
+                      void attempt(`The note wasn't added to ${project.name}.`, () => api("POST", `/api/projects/${encodeURIComponent(project.slug)}/notes`, { noteId: r.id })).then((done) => {
+                        if (done) toast(`Added to ${project.name}.`);
+                      }),
+                  },
+                ]
+              : []),
+          ],
+        });
+      } finally {
+        setNoting(false);
+      }
+    },
+    [go],
+  );
+
   /* ---- drafts ------------------------------------------------------------------------------ */
 
   const composingDraft = compose?.kind === "draft" ? compose.id : null;
@@ -455,6 +510,8 @@ export function Mail(_props: { me: Me }) {
         }}
         onReply={() => openCompose({ kind: "reply" })}
         onForward={() => openCompose({ kind: "forward" })}
+        onNote={() => reading && void makeNote(reading)}
+        noting={noting}
         onGo={go}
         draft={replyCard ? card(replyCard, true) : undefined}
       />

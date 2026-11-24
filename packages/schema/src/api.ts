@@ -292,6 +292,12 @@ export const mailSendSchema = z.object({
   account: z.string().max(320).optional(),
 });
 
+/** Make a note from a mail (N1): which message, by its uid and its account (left out: the default). */
+export const mailNoteSchema = z.object({
+  uid: z.number().int().positive(),
+  account: z.string().max(320).optional(),
+});
+
 /** A draft staged for the user to send: the same fields, and the account it will go from. */
 export const mailDraftSchema = mailSendSchema;
 

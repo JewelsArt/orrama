@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "./api.js";
 import { Mail } from "./Mail.js";
+import { Toaster } from "./ui/overlays.js";
 import { DRAFTS, json, stubMailbox } from "./test/mail-fixture.js";
 
 const me = { id: "u1", email: "jules@orrama.dev", displayName: "Jules" } as unknown as Me;
@@ -134,5 +135,73 @@ describe("one account, as before", () => {
     await user.click(screen.getByRole("button", { name: "Write" }));
     expect(screen.queryByRole("combobox", { name: "From" })).toBeNull();
     expect(screen.getByText("From jules@orrama.dev")).toBeTruthy();
+  });
+});
+
+/**
+ * Make a note (N1): one click writes the mail as a note (the server: mail-note.test.ts); the toast
+ * offers Open, Undo and the project the mail may belong with, which is never chosen for you. A
+ * mail already made into a note opens that note instead.
+ */
+describe("Make a note", () => {
+  const made = { created: true, id: "n-quay", path: "Personal/jules/Quay drawings, rev C.md", title: "Quay drawings, rev C", projects: [{ slug: "quay", name: "Quay works" }] };
+
+  it("asks for the note of this mail in its account; the toast's Open goes to it", async () => {
+    const { sent } = stubMailbox({ "POST /api/mail/note": () => json(made) }, { two: true });
+    history.replaceState(null, "", "/mail/2.101");
+    const user = userEvent.setup();
+    render(<Toaster />);
+    render(<Mail me={me} />);
+    await screen.findByText("Rev C is in the shared folder.");
+    await user.click(screen.getByRole("button", { name: "Make a note" }));
+    const t = await screen.findByText("Note made.");
+    expect(sent.find((r) => r.url === "/api/mail/note")!.body).toEqual({ uid: 101, account: "mail-2" });
+    // Nothing joins a project by itself.
+    expect(sent.some((r) => r.url.startsWith("/api/projects/"))).toBe(false);
+    const box = t.closest(".toast") as HTMLElement;
+    expect([...box.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Open", "Undo", "Add to Quay works", ""]);
+    await user.click(within(box).getByRole("button", { name: "Open" }));
+    expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C.md");
+  });
+
+  it("Undo puts the note in the trash; Add to … adds it to that project", async () => {
+    const { sent } = stubMailbox({ "POST /api/mail/note": () => json(made), "POST /api/vault/trash": () => json({ path: made.path, trashPath: `.trash/${made.path}` }), "POST /api/projects/quay/notes": () => json({ ok: true }) }, { two: true });
+    history.replaceState(null, "", "/mail/2.101");
+    const user = userEvent.setup();
+    render(<Toaster />);
+    render(<Mail me={me} />);
+    await screen.findByText("Rev C is in the shared folder.");
+    await user.click(screen.getByRole("button", { name: "Make a note" }));
+    await user.click(within((await screen.findByText("Note made.")).closest(".toast") as HTMLElement).getByRole("button", { name: "Add to Quay works" }));
+    await screen.findByText("Added to Quay works.");
+    expect(sent.find((r) => r.url === "/api/projects/quay/notes")!.body).toEqual({ noteId: "n-quay" });
+    await user.click(screen.getByRole("button", { name: "Make a note" }));
+    await user.click(within((await screen.findByText("Note made.")).closest(".toast") as HTMLElement).getByRole("button", { name: "Undo" }));
+    await screen.findByText("The note is in the trash.");
+    expect(sent.find((r) => r.url === "/api/vault/trash")!.body).toEqual({ path: made.path });
+  });
+
+  it("a mail already made into a note opens that note", async () => {
+    stubMailbox({ "POST /api/mail/note": () => json({ ...made, created: false, projects: [] }) }, { two: true });
+    history.replaceState(null, "", "/mail/2.101");
+    const user = userEvent.setup();
+    render(<Toaster />);
+    render(<Mail me={me} />);
+    await screen.findByText("Rev C is in the shared folder.");
+    await user.click(screen.getByRole("button", { name: "Make a note" }));
+    await waitFor(() => expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C.md"));
+    expect(await screen.findByText("Opened the note made from this mail.")).toBeTruthy();
+  });
+
+  it("a note that couldn't be made says so, and the button works again", async () => {
+    stubMailbox({ "POST /api/mail/note": () => json({ error: "internal error" }, 500) }, { two: true });
+    history.replaceState(null, "", "/mail/2.101");
+    const user = userEvent.setup();
+    render(<Toaster />);
+    render(<Mail me={me} />);
+    await screen.findByText("Rev C is in the shared folder.");
+    await user.click(screen.getByRole("button", { name: "Make a note" }));
+    expect(await screen.findByText(/The note wasn't made\./)).toBeTruthy();
+    await waitFor(() => expect((screen.getByRole("button", { name: "Make a note" }) as HTMLButtonElement).disabled).toBe(false));
   });
 });

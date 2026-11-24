@@ -411,6 +411,8 @@ export interface ToastItem {
   id: number;
   text: string;
   action?: { label: string; run: () => void };
+  /** More than one thing to do next (Mail's Make a note: Open, Undo, a project). */
+  actions?: { label: string; run: () => void }[];
 }
 let toasts: ToastItem[] = [];
 const toastWatchers = new Set<() => void>();
@@ -425,9 +427,9 @@ export function dismissToast(id: number): void {
 }
 
 /** Say something briefly ("Saved", "Moved to Friday · Undo"). Gone after `ms`. */
-export function toast(text: string, opts: { action?: ToastItem["action"]; ms?: number } = {}): number {
+export function toast(text: string, opts: { action?: ToastItem["action"]; actions?: ToastItem["actions"]; ms?: number } = {}): number {
   const id = ++toastIds;
-  toasts = [...toasts.slice(-2), { id, text, action: opts.action }];
+  toasts = [...toasts.slice(-2), { id, text, action: opts.action, actions: opts.actions }];
   toastsChanged();
   setTimeout(() => dismissToast(id), opts.ms ?? 5000);
   return id;
@@ -447,18 +449,19 @@ export function Toaster() {
       {list.map((t) => (
         <div key={t.id} className="toast">
           <span>{t.text}</span>
-          {t.action && (
+          {[...(t.action ? [t.action] : []), ...(t.actions ?? [])].map((a) => (
             <button
+              key={a.label}
               type="button"
               className="btn sm"
               onClick={() => {
                 dismissToast(t.id);
-                t.action!.run();
+                a.run();
               }}
             >
-              {t.action.label}
+              {a.label}
             </button>
-          )}
+          ))}
           <button type="button" className="btn sm x" aria-label="Dismiss" onClick={() => dismissToast(t.id)}>
             <svg className="i" viewBox="0 0 20 20" aria-hidden="true" width="14" height="14">
               <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />

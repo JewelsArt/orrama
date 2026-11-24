@@ -1065,6 +1065,15 @@ export const mailMessageResponse = o({
   account: z.string(),
 });
 
+/** POST /api/mail/note (N1): the note made from a mail, or the one made before; the projects it may join. */
+export const mailNoteResponse = o({
+  created: z.boolean(),
+  id: z.string(),
+  path: z.string(),
+  title: z.string(),
+  projects: z.array(o({ slug: z.string(), name: z.string() })),
+});
+
 // ---------- integrations ----------
 
 export const tokensResponse = z.array(o({ id: z.string(), label: z.string(), prefix: z.string(), createdAt: z.number(), lastUsedAt: nnum }));
@@ -1328,6 +1337,7 @@ export type DeadlineItem = HomeData["deadlines"][number];
 export type HomeLedger = HomeData["finance"]["out"];
 export type MailAccount = z.infer<typeof mailAccountResponse>;
 export type MailAccountRow = z.infer<typeof mailAccountsResponse>[number];
+export type MailNote = z.infer<typeof mailNoteResponse>;
 export type InboxAccount = z.infer<typeof mailInboxResponse>["accounts"][number];
 export type PendingDraft = z.infer<typeof mailDraftsResponse>[number];
 export type MailCategory = z.infer<typeof mailCategorySchema>;

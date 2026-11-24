@@ -15,10 +15,13 @@
 import crypto from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { mailAccountPatchSchema, mailConnectSchema, mailDraftSchema, mailSendSchema } from "@orrama/schema";
+import { projectSlugOf, type IndexedNote } from "@orrama/core";
+import { mailAccountPatchSchema, mailConnectSchema, mailDraftSchema, mailNoteSchema, mailSendSchema } from "@orrama/schema";
 import { tables, type Db } from "../db.js";
 import { encryptSecret } from "../secrets.js";
-import { HttpError } from "../vaultStore.js";
+import { HttpError, type VaultStore } from "../vaultStore.js";
+import { mailNoteText, mailRef, noteFileName, noteTitle } from "../mailNote.js";
+import { fieldLink } from "./contacts.js";
 import { GMAIL_DEFAULTS, credsFor, getMessage, listInbox, normalizeAppPassword, sendMail, verifyConnection, type InboxItem } from "../mail.js";
 import { assertPermittedHost } from "../safeFetch.js";
 import { sessionOnly } from "./auth.js";
@@ -100,7 +103,26 @@ export async function mergedInbox(rows: MailRow[], limit: number, mark: (id: str
   return { messages, failed: read.filter((r) => r.error !== null).map((r) => ({ row: r.row, error: r.error! })) };
 }
 
-export async function mailRoutes(app: FastifyInstance, db: Db) {
+/** `/mail/<uid>` for the default account's messages, `/mail/<account>.<uid>` for another's (web mail/accounts.ts). */
+export const mailHref = (row: MailRow, rows: MailRow[], uid: number) => `/mail/${row.id === defaultOf(rows)?.id ? uid : `${row.id.replace(/^mail-/, "")}.${uid}`}`;
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const pad = (n: number) => String(n).padStart(2, "0");
+/** The day and the words for when a mail was sent, in the server's time (the Mac it runs on). */
+function sentOn(iso: string | null): { day: string | null; when: string | null } {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return { day: null, when: null };
+  return {
+    day: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    when: `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  };
+}
+
+const addressesOf = (n: IndexedNote) => (typeof n.frontmatter["email"] === "string" ? (n.frontmatter["email"] as string) : "").toLowerCase().split(/[,;\s]+/).filter(Boolean);
+const projectTags = (n: IndexedNote) => n.tags.filter((t) => t.line === 0).map((t) => projectSlugOf(t.tag)).filter((s): s is string => !!s);
+
+export async function mailRoutes(app: FastifyInstance, db: Db, store: VaultStore) {
   const auth = { preHandler: [app.authenticate] };
   /** Where mail goes and who sends it: a signed-in human only (`authenticate` in main.ts). */
   const accountAuth = { preHandler: [app.authenticate], config: sessionOnly("connect or remove the mail account from a signed-in session, not with an API token") };
@@ -283,6 +305,62 @@ export async function mailRoutes(app: FastifyInstance, db: Db) {
       const m = err instanceof Error ? err.message : String(err);
       throw new HttpError(502, `could not send: ${m}`);
     }
+  });
+
+  /**
+   * Make a note from a mail (N1): `Personal/<you>/<subject>.md`, written create-only through the
+   * store (mailNote.ts says what it holds). A note already made from this message — the same
+   * `message-id` — is answered instead, so a second click opens it. The projects it may belong
+   * with are offered, never decided: a project tag on the sender's contact note, or on a note
+   * made from an earlier mail of the same thread.
+   */
+  app.post("/api/mail/note", auth, async (req) => {
+    const body = mailNoteSchema.parse(req.body);
+    const rows = accountsOf(db, req.userId);
+    const row = accountByRef(rows, body.account);
+    let msg;
+    try {
+      msg = await getMessage(credsFor(row), body.uid);
+      markChecked(row.id, null);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : String(err);
+      markChecked(row.id, m);
+      throw new HttpError(502, `could not read message: ${m}`);
+    }
+    if (!msg) throw new HttpError(404, "message not found");
+    const user = store.aclUser(req.userId);
+    const readable = store.readable(user);
+    const ref = mailRef(msg, row.email);
+    const contact = readable.find((n) => n.tags.some((t) => t.tag === "contact") && addressesOf(n).includes(msg.from.toLowerCase()));
+    const thread = new Set((msg.references ?? "").split(/\s+/).filter(Boolean));
+    const registered = new Map(
+      store
+        .projects(user)
+        .filter((p) => p.kind === "tag")
+        .map((p) => [projectSlugOf(p.key) ?? "", p.name]),
+    );
+    const offer = (already: string[]) => {
+      const slugs = [...(contact ? projectTags(contact) : []), ...readable.filter((n) => thread.has(String(n.frontmatter["message-id"] ?? ""))).flatMap(projectTags)];
+      return [...new Set(slugs)].filter((s) => registered.has(s) && !already.includes(s)).map((slug) => ({ slug, name: registered.get(slug)! }));
+    };
+
+    const made = readable.find((n) => n.frontmatter["message-id"] === ref);
+    if (made) return { created: false, id: made.id, path: made.path, title: made.title, projects: offer(projectTags(made)) };
+
+    const title = noteTitle(msg);
+    const text = mailNoteText({ message: msg, title, ref, href: mailHref(row, rows, msg.uid), senderLink: contact ? fieldLink(contact) : null, ...sentOn(msg.date) });
+    const name = noteFileName(title);
+    for (let n = 1; n <= 50; n++) {
+      const path = `Personal/${user.username}/${name}${n > 1 ? ` (${n})` : ""}.md`;
+      try {
+        const note = store.write(user, path, text, undefined, undefined, { create: true });
+        return { created: true, id: note.id, path: note.path, title, projects: offer([]) };
+      } catch (err) {
+        if (err instanceof HttpError && err.statusCode === 409) continue;
+        throw err;
+      }
+    }
+    throw new HttpError(409, `fifty notes are already called ${name}: rename some first`);
   });
 
   // ---- Drafts awaiting human confirmation ---------------------------------
