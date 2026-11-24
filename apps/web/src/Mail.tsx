@@ -294,7 +294,7 @@ export function Mail(_props: { me: Me }) {
         });
         const r = got.note;
         if (!ok || !r) return;
-        const opened: Route = { kind: "notes", path: r.path };
+        const opened: Route = { kind: "notes", path: r.path.replace(/\.md$/i, "") };
         if (!r.created) {
           toast(`Opened the note made from this mail.`);
           return go(opened);

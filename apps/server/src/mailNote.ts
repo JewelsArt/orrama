@@ -10,9 +10,12 @@
  * - Its front matter follows the vault's conventions (`title`, `tags`, `domain`; the store adds
  *   `id`), plus `from`, `date`, `message-id` (the stable reference: making it again opens this
  *   note) and `mail` (the message's address in Orrama).
- * - Its body: who it is from (their page, when a `#contact` note has their address), when, a
- *   link back to the message, the text as Mail's reader shows it, made safe so nothing in it
- *   becomes a task, a tag or a link (core `mailMarkdown`), and the attachments by name.
+ * - Its body: who it is from (their page, when a `#contact` note has their address), when, the
+ *   text as Mail's reader shows it, made safe so nothing in it becomes a task, a tag or a link
+ *   (core `mailMarkdown`), and the attachments by name. No heading: the title is the note's
+ *   name, and Notes shows it. No link to the message in the body either: `/mail/…` is an address
+ *   in Orrama, and a relative link in Obsidian opens (or makes) a note of that name. The
+ *   front matter's `mail` holds it.
  */
 import { mailMarkdown, mailSafe } from "@orrama/core";
 import type { MailMessage } from "./mail.js";
@@ -71,9 +74,9 @@ export function mailNoteText({ message: m, title, ref, href, senderLink, day, wh
   const from = m.fromName && m.fromName !== m.from ? `${m.fromName} <${m.from}>` : m.from;
   const fm = ["---", `title: ${q(title)}`, "tags: [mail]", "domain: personal", `from: ${q(from)}`, ...(day ? [`date: ${day}`] : []), `message-id: ${q(ref)}`, `mail: ${q(href)}`, "---"];
   const who = senderLink ? `${senderLink} (${m.from})` : mailSafe(from);
-  const head = [`From ${who}`, when, `[Open in Mail](${href})`].filter(Boolean).join(" · ");
+  const head = [`From ${who}`, when].filter(Boolean).join(" · ");
   const body = mailMarkdown(m.text || "");
   // `- [ ] x.pdf` would be a step: a name's own `[` is written as text.
   const files = m.attachments.length ? ["", "## Attachments", "", ...m.attachments.map((a) => `- ${mailSafe(a.filename).replace(/^\[/, "\\[")}`)] : [];
-  return [...fm, `# ${mailSafe(title)}`, "", head, "", body || "_This mail has no text._", ...files, ""].join("\n");
+  return [...fm, head, "", body || "_This mail has no text._", ...files, ""].join("\n");
 }

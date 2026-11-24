@@ -74,7 +74,7 @@ describe("Make a note", () => {
     expect(text).toMatch(/^---\n(?:id: n-[\w-]+\n)?title: "Site visit"\ntags: \[mail\]\ndomain: personal\nfrom: "Ines Vermaat <ines@oakline\.example>"\ndate: 2026-11-21\nmessage-id: "<w1@oakline\.example>"\nmail: "\/mail\/1"\n/);
     expect(note(r.json.id).frontmatter["id"]).toBe(r.json.id);
     expect(text).toContain("From [[Contacts/Ines Vermaat|Ines Vermaat]] (ines@oakline.example)");
-    expect(text).toContain("[Open in Mail](/mail/1)");
+    expect(text).toMatch(/\n---\nFrom \[\[Contacts\/Ines Vermaat\|Ines Vermaat\]\] \(ines@oakline\.example\) · Sat 21 Nov 2026, \d\d:05\n\nSee you there\./);
     expect(text).toContain("See you there.");
     expect(text).toContain("## Attachments\n\n- Plan rev C.pdf\n- \\[ ] odd name.png");
     // The sender's page links back to the note.
@@ -100,7 +100,7 @@ describe("Make a note", () => {
     expect(n.tasks).toEqual([]);
     expect(n.tags.map((t) => t.tag)).toEqual(["mail"]);
     expect(n.links).toEqual([]);
-    expect(n.headings.map((h) => h.text)).toEqual(["Newsletter"]);
+    expect(n.headings).toEqual([]);
     const text = file(r.json.path);
     expect(text).toContain("- \\[ ] buy milk \\#sale \\[\\[Secret plans\\]\\]");
     // Read as Mail's reader shows it: links by their host, image-only lines gone.

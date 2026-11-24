@@ -93,7 +93,7 @@ export function Composer({
         {accounts.length < 2 && <span className="mc-from">From {from?.email ?? ""}</span>}
         {/* A staged draft outlives this composer: closing leaves it in Waiting for you, so
             don't call that discarding. */}
-        <Button kind="quiet" icon="x" aria-label={staged ? "Close" : "Discard"} tip={staged ? "Close" : "Discard"} onClick={onClose} />
+        <Button kind="quiet" icon="x" aria-label={staged ? "Close" : "Discard"} tip={staged ? "Close" : "Discard"} data-tip-at="top" onClick={onClose} />
       </header>
       {staged && (
         <div className="draftbar">

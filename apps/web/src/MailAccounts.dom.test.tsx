@@ -106,18 +106,18 @@ describe("one list for every account", () => {
 });
 
 describe("one account at a time", () => {
-  it("a switch between accounts, the default first; rows don't say their account", async () => {
+  it("a chip for each account, the default on; rows don't say their account", async () => {
     localStorage.setItem("orrama-mail-inbox", "single");
     stubMailbox({}, { two: true });
     const user = userEvent.setup();
     render(<Mail me={me} />);
-    const sw = await screen.findByRole("radiogroup", { name: "Account" });
-    expect(within(sw).getByRole("radio", { checked: true }).textContent).toBe("jules@orrama.dev");
+    const sw = await screen.findByRole("group", { name: "Account" });
+    expect(within(sw).getByRole("button", { pressed: true }).textContent).toBe("jules@orrama.dev");
     await rowOf("Ines Vermaat");
     expect(rows().some((r) => r.textContent?.includes("Thijs Bakker"))).toBe(false);
     expect(document.querySelector(".macct")).toBeNull();
     expect(screen.queryByRole("button", { name: /Showing/ })).toBeNull();
-    await user.click(within(sw).getByRole("radio", { name: "Work" }));
+    await user.click(within(sw).getByRole("button", { name: "Work" }));
     await waitFor(() => expect(rows().map((r) => r.textContent?.includes("Thijs Bakker"))).toEqual([true]));
   });
 });
@@ -130,7 +130,7 @@ describe("one account, as before", () => {
     await rowOf("Ines Vermaat");
     expect(document.querySelector(".macct")).toBeNull();
     expect(screen.queryByRole("button", { name: /Showing/ })).toBeNull();
-    expect(screen.queryByRole("radiogroup", { name: "Account" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Account" })).toBeNull();
     expect(screen.getByText("Gmail")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Write" }));
     expect(screen.queryByRole("combobox", { name: "From" })).toBeNull();
@@ -161,7 +161,7 @@ describe("Make a note", () => {
     const box = t.closest(".toast") as HTMLElement;
     expect([...box.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Open", "Undo", "Add to Quay works", ""]);
     await user.click(within(box).getByRole("button", { name: "Open" }));
-    expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C.md");
+    expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C");
   });
 
   it("Undo puts the note in the trash; Add to … adds it to that project", async () => {
@@ -189,7 +189,7 @@ describe("Make a note", () => {
     render(<Mail me={me} />);
     await screen.findByText("Rev C is in the shared folder.");
     await user.click(screen.getByRole("button", { name: "Make a note" }));
-    await waitFor(() => expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C.md"));
+    await waitFor(() => expect(decodeURIComponent(location.pathname)).toBe("/notes/Personal/jules/Quay drawings, rev C"));
     expect(await screen.findByText("Opened the note made from this mail.")).toBeTruthy();
   });
 

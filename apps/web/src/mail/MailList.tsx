@@ -5,11 +5,12 @@
  *
  * With more than one account (N1) the header says which the list shows: in one list for every
  * account, a menu (All accounts, or one) and a small grey label on each row saying its account;
- * one account at a time, a switch between them. With one account, the header is as it was.
+ * one account at a time, a chip for each under the header (a chip filters, §1.7). With one
+ * account, the header is as it was.
  */
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import type { InboxItem, MailAccountRow, PendingDraft } from "@orrama/schema/responses";
-import { Button, Ring, Segmented, Square } from "../ui/controls.js";
+import { Button, Chip, Ring, Square } from "../ui/controls.js";
 import { Icon } from "../ui/Icon.js";
 import { HeadMark } from "../ui/orr/Orr.js";
 import { Menu } from "../ui/overlays.js";
@@ -257,8 +258,12 @@ export function MailList({
         </Button>
       </div>
       {several && view === "single" && (
-        <div className="mlist-accts">
-          <Segmented label="Account" items={accounts.map((a) => ({ id: a.id, label: a.label }))} value={shownAccount} onChange={onShown} />
+        <div className="mlist-accts" role="group" aria-label="Account">
+          {accounts.map((a) => (
+            <Chip key={a.id} on={a.id === shownAccount} onClick={() => onShown(a.id)} title={a.email}>
+              {a.label}
+            </Chip>
+          ))}
         </div>
       )}
       {!failed && failedAccounts.length > 0 && (

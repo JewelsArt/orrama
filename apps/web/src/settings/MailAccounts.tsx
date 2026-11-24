@@ -17,7 +17,6 @@ import { Button } from "../ui/controls.js";
 import { Field, Form, Input, RadioGroup } from "../ui/fields.js";
 import { RowList } from "../ui/layout.js";
 import { Dialog, Menu, toast, type MenuItem } from "../ui/overlays.js";
-import { dateTimeLabel } from "../ui/dates.js";
 import { StateLine, SubHead, WhereMark, said } from "./parts.js";
 
 type Ask = (r: ConfirmRequest) => void;
@@ -139,11 +138,7 @@ export function MailAccountPart({ ask }: { ask: Ask }) {
                     {[
                       a.label !== a.email ? a.email : null,
                       a.isDefault ? "new mail goes from here" : null,
-                      a.lastError
-                        ? `couldn't connect: ${a.lastError}`
-                        : a.lastCheckedAt
-                          ? `read ${dateTimeLabel(a.lastCheckedAt)}`
-                          : null,
+                      a.lastError ? `couldn't connect: ${a.lastError}` : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -155,6 +150,7 @@ export function MailAccountPart({ ask }: { ask: Ask }) {
                   icon="dots"
                   aria-label={`Rename or reorder ${a.label}`}
                   tip="Name, default and order"
+                  data-tip-at="top"
                   aria-haspopup="menu"
                   onClick={(e) => {
                     menuAt.current = e.currentTarget;
@@ -163,12 +159,14 @@ export function MailAccountPart({ ask }: { ask: Ask }) {
                 />
                 <Button
                   size="sm"
+                  kind="quiet"
+                  icon="trash"
                   danger
-                  onClick={() => disconnect(a)}
                   aria-label={`Disconnect ${a.label}`}
-                >
-                  Disconnect
-                </Button>
+                  tip="Disconnect"
+                  data-tip-at="top"
+                  onClick={() => disconnect(a)}
+                />
               </div>
             ))}
           </RowList>

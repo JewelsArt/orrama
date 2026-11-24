@@ -454,6 +454,9 @@ select.inp { appearance: none; padding-right: 32px; background-image: linear-gra
 .toast .btn { height: 30px; padding: 0 11px; font-size: 13.5px; background: transparent; color: inherit; border-color: color-mix(in srgb, var(--ground) 35%, transparent); }
 .toast .btn:hover { background: color-mix(in srgb, var(--ground) 12%, transparent); }
 .toast .x { margin-left: -4px; width: 30px; padding: 0; border-color: transparent; }
+/* A toast with several things to do (Mail's Make a note) wraps them under its words on a phone. */
+.toast.many { flex-wrap: wrap; row-gap: 6px; width: max-content; } /* its own width, not half the screen (the stack is placed from the centre) */
+.toast.many > span { flex: 1 1 auto; }
 
 @media (prefers-reduced-motion: reduce) {
   .ui-sheet, .dialog, .menu, .popover, .toast { animation: none; }

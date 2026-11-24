@@ -447,7 +447,7 @@ export function Toaster() {
   return createPortal(
     <div className="ui ui-toasts" role="status" aria-live="polite">
       {list.map((t) => (
-        <div key={t.id} className="toast">
+        <div key={t.id} className={t.actions && t.actions.length > 1 ? "toast many" : "toast"}>
           <span>{t.text}</span>
           {[...(t.action ? [t.action] : []), ...(t.actions ?? [])].map((a) => (
             <button

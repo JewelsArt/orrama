@@ -23,7 +23,8 @@
 .mail .mlist-top .acct-pick { border: 0; background: none; font: inherit; font-size: 13px; padding: 2px 6px; margin-left: -6px; border-radius: var(--r-1); cursor: pointer; }
 .mail .mlist-top .acct-pick:hover { color: var(--ink); background: var(--hover); }
 .mail .mlist-top .acct-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.mail .mlist-accts { padding: 0 16px 10px 22px; flex: none; overflow-x: auto; }
+.mail .mlist-accts { display: flex; gap: 6px; padding: 0 16px 10px 22px; flex: none; overflow-x: auto; }
+.mail .mlist-accts .chip { flex: none; }
 .mail .mr .mwhen .macct { color: var(--ink-3); font-weight: 500; }
 .mail .mnotice { margin: 0 12px 10px; flex: none; }
 
@@ -88,7 +89,7 @@
 .mail .from .mrel { display: block; margin-top: 1px; font-size: 13.5px; color: var(--ink-2); }
 .mail .from .dt { color: var(--ink-3); font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums; }
 .mail .from .dt span { display: block; font-size: 12.5px; }
-.mail .acts2 { display: flex; gap: 8px; margin: 16px 0 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.mail .acts2 { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 18px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 
 /* the body: plain text in our type; HTML as its sender drew it, on white, sized to itself */
 .mail .mbody { font-size: 16px; line-height: 26px; color: var(--ink); overflow-wrap: anywhere; }
@@ -121,6 +122,8 @@
 .mail .mc-head { display: flex; align-items: center; gap: 12px; }
 .mail .mc-head h2 { margin: 0; font-size: 22px; line-height: 28px; }
 .mail .mc-from { flex: 1; min-width: 0; color: var(--ink-3); font-size: 13px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* With several accounts From is a field, not this line: the close button keeps the right edge (N1). */
+.mail .mc-head > .btn:last-child { margin-left: auto; }
 .mail .mcompose .mc-body { min-height: 280px; font-size: 15px; line-height: 23px; }
 .mail .mc-acts { display: flex; align-items: center; gap: 8px; }
 
@@ -153,6 +156,7 @@
   .mail .mbody { font-size: 15.5px; line-height: 24px; }
   .mail .mdraft .dbody { font-size: 14.5px; line-height: 22px; }
   .mail .mc-from { display: none; }
+  .mail .mc-head h2 { margin: 0; } /* the reader's phone margin is not the composer's: its title centres on the close button */
   .mail .mc-head .btn.icon { margin-left: auto; }
   .mail.mail-off { padding: 0; }
 }
