@@ -166,6 +166,8 @@ export interface MailMessage {
   html: string | null;
   messageId: string | null;
   references: string | null;
+  /** Files sent with it, by name only: the bytes never leave the mail server through Orrama. */
+  attachments: { filename: string; contentType: string; size: number }[];
 }
 
 /**
@@ -190,6 +192,10 @@ export async function readMessage(uid: number, source: Buffer, envelope?: FetchM
     html: typeof parsed.html === "string" ? parsed.html : null,
     messageId: parsed.messageId ?? envelope?.messageId ?? null,
     references: refs,
+    // What a person would call an attachment: a file with a name, not a logo the HTML shows.
+    attachments: (parsed.attachments ?? [])
+      .filter((a) => !!a.filename && !(a.related && a.contentDisposition !== "attachment"))
+      .map((a) => ({ filename: a.filename!, contentType: a.contentType, size: a.size })),
   };
 }
 

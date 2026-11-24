@@ -150,13 +150,13 @@ const ROWS: Record<string, Row & { apart?: string[] }> = {
     ],
   },
   get_money: { args: {}, calls: [{ path: "/api/finance", method: "GET" }] },
-  list_email: { args: { limit: 5 }, calls: [{ path: "/api/mail/inbox?limit=5", method: "GET" }] },
-  read_email: { args: { uid: 4021 }, calls: [{ path: "/api/mail/message/4021", method: "GET" }] },
+  list_email: { args: { limit: 5, account: "Work" }, calls: [{ path: "/api/mail/inbox?limit=5&account=Work", method: "GET" }] },
+  read_email: { args: { uid: 4021, account: "sam@work.example" }, calls: [{ path: "/api/mail/message/4021?account=sam%40work.example", method: "GET" }] },
   get_persona: { args: { sections: ["voice", "proof"] }, calls: [{ path: "/api/persona/text?section=voice%2Cproof", method: "GET" }] },
   draft_email: {
-    args: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>", voiceRead: true },
+    args: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>", account: "Work", voiceRead: true },
     unsent: ["voiceRead"],
-    calls: [{ path: "/api/mail/drafts", method: "POST", body: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>" } }],
+    calls: [{ path: "/api/mail/drafts", method: "POST", body: { to: "mara@example.com", subject: "Re: plan", body: "Thursday works.", inReplyTo: "<m1@example.com>", references: "<m0@example.com> <m1@example.com>", account: "Work" } }],
   },
 };
 

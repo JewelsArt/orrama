@@ -22,6 +22,7 @@ export const INBOX: InboxItem[] = [
     seen: true,
     messageId: "<rp-3@westerdok.example>",
     category: "primary",
+    account: "mail-1",
   },
   {
     uid: 102,
@@ -32,6 +33,7 @@ export const INBOX: InboxItem[] = [
     seen: false,
     messageId: "<oct@tulp.example>",
     category: "primary",
+    account: "mail-1",
   },
   {
     uid: 103,
@@ -42,6 +44,7 @@ export const INBOX: InboxItem[] = [
     seen: true,
     messageId: "<taper@oostrunners.example>",
     category: "updates",
+    account: "mail-1",
   },
 ];
 
@@ -57,6 +60,8 @@ export const MESSAGES: Record<number, MailMessage> = {
     html: null,
     messageId: "<rp-3@westerdok.example>",
     references: "<rp-1@westerdok.example>",
+    attachments: [],
+    account: "mail-1",
   },
   102: {
     uid: 102,
@@ -69,6 +74,8 @@ export const MESSAGES: Record<number, MailMessage> = {
     html: null,
     messageId: "<oct@tulp.example>",
     references: null,
+    attachments: [],
+    account: "mail-1",
   },
   103: {
     uid: 103,
@@ -81,6 +88,8 @@ export const MESSAGES: Record<number, MailMessage> = {
     html: "<p>Easy <b>6 km</b> on Wednesday.</p>",
     messageId: "<taper@oostrunners.example>",
     references: null,
+    attachments: [],
+    account: "mail-1",
   },
 };
 
@@ -95,6 +104,7 @@ export const DRAFTS: PendingDraft[] = [
     references: null,
     createdBy: "agent",
     createdAt: Date.parse("2026-10-08T07:50:00.000Z"),
+    account: null,
   },
   {
     id: "d-b",
@@ -105,6 +115,7 @@ export const DRAFTS: PendingDraft[] = [
     references: "<rp-1@westerdok.example> <rp-3@westerdok.example>",
     createdBy: "agent",
     createdAt: Date.parse("2026-10-08T08:12:00.000Z"),
+    account: null,
   },
 ];
 
@@ -127,8 +138,8 @@ export function stubMailbox(overrides: Record<string, () => Response> = {}) {
     const own = overrides[`${method} ${path}`];
     if (own) return own();
     if (method === "GET" && path === "/api/mail/account")
-      return json({ connected: true, email: "jules@orrama.dev", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null });
-    if (method === "GET" && path === "/api/mail/inbox") return json({ email: "jules@orrama.dev", messages: INBOX.map((m) => ({ ...m })) });
+      return json({ connected: true, email: "jules@orrama.dev", imapHost: "imap.gmail.com", lastCheckedAt: null, lastError: null, accounts: 1 });
+    if (method === "GET" && path === "/api/mail/inbox") return json({ email: "jules@orrama.dev", messages: INBOX.map((m) => ({ ...m })), accounts: [{ id: "mail-1", email: "jules@orrama.dev", label: "jules@orrama.dev", failed: false }] });
     if (method === "GET" && path === "/api/mail/drafts") return json(drafts);
     const msg = /^\/api\/mail\/message\/(\d+)$/.exec(path);
     if (method === "GET" && msg) return MESSAGES[Number(msg[1])] ? json(MESSAGES[Number(msg[1])]) : json({ error: "message not found" }, 404);

@@ -167,6 +167,7 @@ const CASES: [string, () => string, z.ZodTypeAny][] = [
   ["/api/tasks", () => "/api/tasks", R.tasksResponse],
   ["/api/tasks/card", () => `/api/tasks/card?${cardOf}`, R.taskCardResponse],
   ["/api/mail/account", () => "/api/mail/account", R.mailAccountResponse],
+  ["/api/mail/accounts", () => "/api/mail/accounts", R.mailAccountsResponse],
   ["/api/mail/drafts", () => "/api/mail/drafts", R.mailDraftsResponse],
   ["/api/tokens", () => "/api/tokens", R.tokensResponse],
   ["/api/claude", () => "/api/claude", R.claudeResponse],

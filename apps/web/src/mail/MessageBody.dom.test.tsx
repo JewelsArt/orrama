@@ -20,6 +20,8 @@ const html: MailMessage = {
   html: '<p>Easy <b>6 km</b>.</p><img src="https://cdn.oostrunners.example/pixel.gif"><script>parent.stolen = 1</script>',
   messageId: null,
   references: null,
+  attachments: [],
+  account: "mail-1",
 };
 const frame = () => screen.getByTitle("Message content") as HTMLIFrameElement;
 const tokens = (el: HTMLIFrameElement) => (el.getAttribute("sandbox") ?? "").split(/\s+/).filter(Boolean).sort();

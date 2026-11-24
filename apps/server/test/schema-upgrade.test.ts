@@ -149,3 +149,58 @@ describe("the copy before a schema upgrade", () => {
     expect(copies(dir)).toEqual([]);
   });
 });
+
+/**
+ * Schema 7 (N1): more than one mail account. Up to schema 6 `mail_accounts.user_id` was UNIQUE;
+ * the table is rebuilt without it, every row and its encrypted password kept exactly, and each
+ * old row (a person's only account) becomes their default.
+ */
+describe("schema 7: more than one mail account", () => {
+  const V6_MAIL = `DROP TABLE mail_accounts; CREATE TABLE mail_accounts (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL,
+  imap_host TEXT NOT NULL, imap_port INTEGER NOT NULL,
+  smtp_host TEXT NOT NULL, smtp_port INTEGER NOT NULL,
+  password_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL,
+  last_checked_at INTEGER, last_error TEXT
+);
+ALTER TABLE mail_drafts DROP COLUMN account_id;
+INSERT INTO mail_accounts VALUES ('mail-aaaa', 'u-1', 'sam@example.com', 'imap.example.com', 993, 'smtp.example.com', 465, 'v1:Zm9vYmFyYmF6:cipher+/=', 1700000000000, 1700000001000, NULL);
+INSERT INTO mail_accounts VALUES ('mail-bbbb', 'u-2', 'kit@example.com', 'imap.gmail.com', 993, 'smtp.gmail.com', 587, 'v1:cXV4:other', 1700000002000, NULL, 'timed out');`;
+  const rows = (file: string) => {
+    const raw = new Database(file, { readonly: true });
+    try {
+      return raw.prepare("SELECT * FROM mail_accounts ORDER BY id").all() as Record<string, unknown>[];
+    } finally {
+      raw.close();
+    }
+  };
+
+  it("keeps every account as it was, makes each one its person's default, and drops the one-per-person rule", () => {
+    const file = olderDb(V6_MAIL, 6);
+    const before = rows(file);
+    (createDb(file) as unknown as { $client: Database.Database }).$client.close();
+    const after = rows(file);
+    expect(after.map(({ label, position, is_default, ...old }) => old)).toEqual(before);
+    expect(after.map((r) => [r.label, r.position, r.is_default])).toEqual([
+      [null, 0, 1],
+      [null, 0, 1],
+    ]);
+    expect(version(file)).toBe(SCHEMA_VERSION);
+    expect(columns(file, "mail_drafts")).toContain("account_id");
+    // A second account for the same person now fits.
+    const raw = new Database(file);
+    raw.prepare("INSERT INTO mail_accounts (id, user_id, email, imap_host, imap_port, smtp_host, smtp_port, password_encrypted, created_at) VALUES ('mail-cccc', 'u-1', 'sam@work.example', 'imap.example.com', 993, 'smtp.example.com', 465, 'v1:x:y', 1)").run();
+    expect((raw.prepare("SELECT count(*) AS n FROM mail_accounts WHERE user_id = 'u-1'").get() as { n: number }).n).toBe(2);
+    raw.close();
+  });
+
+  it("leaves a schema 7 table alone on the next boot", () => {
+    const file = olderDb(V6_MAIL, 6);
+    (createDb(file) as unknown as { $client: Database.Database }).$client.close();
+    const raw = new Database(file);
+    raw.prepare("UPDATE mail_accounts SET label = 'Work', is_default = 0 WHERE id = 'mail-aaaa'").run();
+    raw.close();
+    (createDb(file) as unknown as { $client: Database.Database }).$client.close();
+    expect(rows(file).find((r) => r.id === "mail-aaaa")).toMatchObject({ label: "Work", is_default: 0 });
+  });
+});

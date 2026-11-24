@@ -222,7 +222,7 @@ function RenameFeed({ feed, onClose, onSave }: { feed: Feed; onClose: () => void
   );
 }
 
-const NO_MAIL: MailAccount = { connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null };
+const NO_MAIL: MailAccount = { connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null, accounts: 0 };
 
 function MailAccountPart({ ask }: { ask: Ask }) {
   const [acct, setAcct] = useState<MailAccount | null>(null);

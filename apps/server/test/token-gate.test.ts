@@ -29,7 +29,7 @@ afterAll(async () => {
   fs.rmSync(process.env.ORRAMA_DATA_DIR!, { recursive: true, force: true });
 });
 
-type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 const call = async (method: Method, url: string, auth: string, payload?: object) => {
   const r = await b.app.inject({ method, url, headers: signedIn(auth), ...(payload ? { payload } : {}) });
   return { status: r.statusCode, body: r.body, json: () => r.json() };
@@ -67,6 +67,8 @@ const SESSION_ONLY: [Method, string, object?][] = [
   ["POST", "/api/mail/send", { to: "x@example.com", subject: "s", body: "b" }],
   ["POST", "/api/mail/account", { email: "me@example.com", appPassword: "abcdabcdabcdabcd" }],
   ["DELETE", "/api/mail/account"],
+  ["PATCH", "/api/mail/accounts/mail-x", { label: "Work" }],
+  ["DELETE", "/api/mail/accounts/mail-x"],
   ["POST", "/api/settings/notes-folder/look", { folder: "/tmp" }],
   ["PUT", "/api/settings/notes-folder", { folder: "/tmp" }],
   ["POST", "/api/settings/start", { example: true }],

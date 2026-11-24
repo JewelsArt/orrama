@@ -435,28 +435,30 @@ export const TOOLS = [
   // ---- Mail -----------------------------------------------------------------
   {
     name: "list_email",
-    description: "List recent messages in the user's connected email inbox. Returns sender, subject, date, read state and a uid to read the full message. Requires a mail account connected in Orrama (Settings → Mail).",
+    description: "List recent messages in the user's email inbox: every mail account they connected in Orrama (Settings → Mail), merged newest first. Each message says which account it came to (account: an id; accounts lists each id with its address and label) and has a uid to read it with read_email, together with that account. Pass account (an address or a label) to list one account only.",
     inputSchema: {
       type: "object",
       properties: {
-        limit: { type: "number", description: "How many recent messages (default 20, max 100)" },
+        limit: { type: "number", description: "How many recent messages per account (default 20, max 100)" },
+        account: { type: "string", description: "One account only: its address or label (optional)" },
       },
     },
   },
   {
     name: "read_email",
-    description: "Read the full text of one inbox message by its uid (from list_email). Marks it read. Returns body plus messageId/references for threading a reply.",
+    description: "Read the full text of one inbox message by its uid and its account (both from list_email; without account, the default account). Marks it read. Returns the body, the account it came to, its attachments by name, and messageId/references for threading a reply.",
     inputSchema: {
       type: "object",
       properties: {
         uid: { type: "number", description: "Message uid from list_email" },
+        account: { type: "string", description: "The message's account from list_email: an id, address or label (optional)" },
       },
       required: ["uid"],
     },
   },
   {
     name: "draft_email",
-    description: "Prepare an email from the user's connected mailbox. The draft waits in Orrama for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their voice and rules for outside use instead of drafting: write the body in that voice, quoting no number their persona doesn't hold, then call again with voiceRead: true.",
+    description: "Prepare an email from one of the user's mail accounts. The draft waits in Orrama for the user to review and send — this tool cannot send mail itself, so tell the user their draft is ready rather than claiming it went out. It goes from account (an address or a label; without it, their default account): a reply goes from the account the mail came to, so pass read_email's account. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their voice and rules for outside use instead of drafting: write the body in that voice, quoting no number their persona doesn't hold, then call again with voiceRead: true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -465,6 +467,7 @@ export const TOOLS = [
         body: { type: "string" },
         inReplyTo: { type: "string", description: "Message-ID being replied to (optional)" },
         references: { type: "string", description: "References header for threading (optional)" },
+        account: { type: "string", description: "The account it goes from: an id, address or label (optional; the default account)" },
         voiceRead: { type: "boolean", description: "true once the body follows the voice and rules a first call returned" },
       },
       required: ["to", "subject", "body"],
@@ -759,11 +762,14 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
 
     case "list_email": {
       const limit = Number(args.limit ?? 20);
-      return answer(await api(`/api/mail/inbox?limit=${encodeURIComponent(limit)}`));
+      const account = typeof args.account === "string" && args.account.trim() ? `&account=${encodeURIComponent(args.account.trim())}` : "";
+      return answer(await api(`/api/mail/inbox?limit=${encodeURIComponent(limit)}${account}`));
     }
 
-    case "read_email":
-      return answer(await api(`/api/mail/message/${encodeURIComponent(Number(args.uid))}`));
+    case "read_email": {
+      const account = typeof args.account === "string" && args.account.trim() ? `?account=${encodeURIComponent(args.account.trim())}` : "";
+      return answer(await api(`/api/mail/message/${encodeURIComponent(Number(args.uid))}${account}`));
+    }
 
     case "get_persona": {
       const sections = Array.isArray(args.sections) ? args.sections.map(String) : [];
@@ -783,7 +789,7 @@ export async function callTool(name: string, args: Record<string, any>, api: Api
         }
       }
       // Staging, not sending: /api/mail/send refuses API tokens outright.
-      const res = await api(`/api/mail/drafts`, "POST", { to: args.to, subject: args.subject, body: args.body, inReplyTo: args.inReplyTo, references: args.references });
+      const res = await api(`/api/mail/drafts`, "POST", { to: args.to, subject: args.subject, body: args.body, inReplyTo: args.inReplyTo, references: args.references, account: typeof args.account === "string" && args.account.trim() ? args.account.trim() : undefined });
       return answer({ ...res, status: "awaiting_confirmation", note: "The user must review and send this draft in Orrama." });
     }
 

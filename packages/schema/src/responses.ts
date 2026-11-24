@@ -993,7 +993,23 @@ export const mailAccountResponse = o({
   imapHost: nstr,
   lastCheckedAt: nnum,
   lastError: nstr,
+  /** How many accounts are connected; this one is the default. */
+  accounts: z.number(),
 });
+
+/** Every connected account, in order (Settings → Mail, Mail's filter, the composer's From). */
+export const mailAccountsResponse = z.array(
+  o({
+    id: z.string(),
+    email: z.string(),
+    /** What it is called: the label, else the address. */
+    label: z.string(),
+    isDefault: z.boolean(),
+    imapHost: z.string(),
+    lastCheckedAt: nnum,
+    lastError: nstr,
+  }),
+);
 
 export const mailDraftsResponse = z.array(
   o({
@@ -1005,6 +1021,8 @@ export const mailDraftsResponse = z.array(
     references: nstr,
     createdBy: z.enum(["agent", "token"]),
     createdAt: z.number(),
+    /** The account it goes from; null: the default. */
+    account: nstr,
   }),
 );
 
@@ -1023,8 +1041,12 @@ export const mailInboxResponse = o({
       seen: z.boolean(),
       messageId: nstr,
       category: mailCategorySchema,
+      /** The account it came to (an id from /api/mail/accounts). */
+      account: z.string(),
     }),
   ),
+  /** The accounts read, and which couldn't be. */
+  accounts: z.array(o({ id: z.string(), email: z.string(), label: z.string(), failed: z.boolean() })),
 });
 
 /** Live IMAP — not exercised by the contract test. */
@@ -1039,6 +1061,8 @@ export const mailMessageResponse = o({
   html: nstr,
   messageId: nstr,
   references: nstr,
+  attachments: z.array(o({ filename: z.string(), contentType: z.string(), size: z.number() })),
+  account: z.string(),
 });
 
 // ---------- integrations ----------
@@ -1303,6 +1327,8 @@ export type FocusItem = HomeData["focus"][number];
 export type DeadlineItem = HomeData["deadlines"][number];
 export type HomeLedger = HomeData["finance"]["out"];
 export type MailAccount = z.infer<typeof mailAccountResponse>;
+export type MailAccountRow = z.infer<typeof mailAccountsResponse>[number];
+export type InboxAccount = z.infer<typeof mailInboxResponse>["accounts"][number];
 export type PendingDraft = z.infer<typeof mailDraftsResponse>[number];
 export type MailCategory = z.infer<typeof mailCategorySchema>;
 export type InboxItem = z.infer<typeof mailInboxResponse>["messages"][number];

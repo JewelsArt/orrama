@@ -115,13 +115,13 @@ export const RELATIONS: Record<string, GraphRelations> = {
 };
 
 export const INBOX: InboxItem[] = [
-  { uid: 101, from: "Ines Vermaat <i.vermaat@westerdok.example>", fromName: "Ines Vermaat", subject: "Re: Research plan — section 3", date: new Date(2026, 9, 8, 10, 1).toISOString(), seen: false, messageId: null, category: "primary" },
-  { uid: 102, from: "news@shop.example", fromName: "Shop", subject: "Sale", date: new Date(2026, 9, 8, 9, 0).toISOString(), seen: false, messageId: null, category: "promotions" },
-  { uid: 103, from: "x@example.com", fromName: "Read Already", subject: "Old", date: new Date(2026, 9, 7, 9, 0).toISOString(), seen: true, messageId: null, category: "primary" },
+  { uid: 101, from: "Ines Vermaat <i.vermaat@westerdok.example>", fromName: "Ines Vermaat", subject: "Re: Research plan — section 3", date: new Date(2026, 9, 8, 10, 1).toISOString(), seen: false, messageId: null, category: "primary", account: "mail-1" },
+  { uid: 102, from: "news@shop.example", fromName: "Shop", subject: "Sale", date: new Date(2026, 9, 8, 9, 0).toISOString(), seen: false, messageId: null, category: "promotions", account: "mail-1" },
+  { uid: 103, from: "x@example.com", fromName: "Read Already", subject: "Old", date: new Date(2026, 9, 7, 9, 0).toISOString(), seen: true, messageId: null, category: "primary", account: "mail-1" },
 ];
 export const DRAFTS: PendingDraft[] = [
-  { id: "d1", to: "i.vermaat@westerdok.example", subject: "Re: Research plan — section 3", body: "…", inReplyTo: null, references: null, createdBy: "agent", createdAt: 1 },
-  { id: "d2", to: "thijs@kade.example", subject: "Agenda for Friday's review", body: "…", inReplyTo: null, references: null, createdBy: "agent", createdAt: 2 },
+  { id: "d1", to: "i.vermaat@westerdok.example", subject: "Re: Research plan — section 3", body: "…", inReplyTo: null, references: null, createdBy: "agent", createdAt: 1, account: null },
+  { id: "d2", to: "thijs@kade.example", subject: "Agenda for Friday's review", body: "…", inReplyTo: null, references: null, createdBy: "agent", createdAt: 2, account: null },
 ];
 
 export interface Sent {
@@ -132,7 +132,7 @@ export interface Sent {
 
 /** Answer Today's requests; `over` replaces any of them ("GET /api/home": a body, or a status number to fail with). */
 export function stubToday(over: Record<string, unknown> = {}) {
-  const account: MailAccount = { connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null };
+  const account: MailAccount = { connected: false, email: null, imapHost: null, lastCheckedAt: null, lastError: null, accounts: 0 };
   const routes: Record<string, unknown> = {
     "GET /api/home": HOME,
     "GET /api/tasks": TASKS,
@@ -145,7 +145,7 @@ export function stubToday(over: Record<string, unknown> = {}) {
     "GET /api/calendar/feeds": [],
     "GET /api/mail/account": account,
     "GET /api/mail/drafts": [],
-    "GET /api/mail/inbox": { email: "jules@example.com", messages: [] },
+    "GET /api/mail/inbox": { email: "jules@example.com", messages: [], accounts: [] },
     "GET /api/plan": { assignees: [] },
     // The task card asks for its project's workspace.
     "GET /api/projects/thesis": { slug: "thesis", name: "Graduation thesis", status: "on-track", deadline: "2026-10-19", people: [] },

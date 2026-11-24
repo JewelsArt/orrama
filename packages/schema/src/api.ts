@@ -267,9 +267,20 @@ export const mailConnectSchema = z.object({
   imapPort: z.number().int().positive().optional(),
   smtpHost: z.string().min(1).optional(),
   smtpPort: z.number().int().positive().optional(),
+  /** What the account is called in Mail ("Work"); the address when left out. */
+  label: z.string().max(40).optional(),
 });
 
-/** Send or reply to a message through the connected account. */
+/** Rename an account (null or "": its address again), make it the default, or move it in the list. */
+export const mailAccountPatchSchema = z
+  .object({
+    label: z.string().max(40).nullable().optional(),
+    default: z.literal(true).optional(),
+    position: z.number().int().min(0).max(100).optional(),
+  })
+  .strict();
+
+/** Send or reply to a message through one of the connected accounts. */
 export const mailSendSchema = z.object({
   to: z.string().min(3),
   subject: z.string().max(500).default(""),
@@ -277,7 +288,12 @@ export const mailSendSchema = z.object({
   /** RFC Message-IDs for threading a reply (from the message being replied to). */
   inReplyTo: z.string().optional(),
   references: z.string().optional(),
+  /** Which account it goes from: its id, address or label. Left out: the default account. */
+  account: z.string().max(320).optional(),
 });
+
+/** A draft staged for the user to send: the same fields, and the account it will go from. */
+export const mailDraftSchema = mailSendSchema;
 
 export const askVaultSchema = z.object({
   // AI SDK v5+ UIMessage shape: role + parts[]. Kept permissive (passthrough) so

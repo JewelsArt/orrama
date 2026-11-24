@@ -18,7 +18,7 @@ describe("listWhen", () => {
   });
 });
 
-const item = (category: InboxItem["category"], seen = true): InboxItem => ({ uid: 1, from: "a@b", fromName: "A", subject: "s", date: null, seen, messageId: null, category });
+const item = (category: InboxItem["category"], seen = true): InboxItem => ({ uid: 1, from: "a@b", fromName: "A", subject: "s", date: null, seen, messageId: null, category, account: "mail-1" });
 
 describe("the tabs", () => {
   it("All and Primary always; others once mail lands there; counts are unread", () => {
@@ -110,6 +110,8 @@ const msg: MailMessage = {
   html: null,
   messageId: "<b@x>",
   references: "<a@x>",
+  attachments: [],
+  account: "mail-1",
 };
 
 describe("composing", () => {

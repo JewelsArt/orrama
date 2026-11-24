@@ -12,8 +12,8 @@ import type { CalendarNotes } from "../calendarNotes.js";
 import { eq } from "drizzle-orm";
 import { tables, type Db } from "../db.js";
 import { aiConfig, callOptions, resolveModel } from "../aiProvider.js";
-import { credsFor, getMessage, listInbox } from "../mail.js";
-import { stageDraft } from "./mail.js";
+import { credsFor, getMessage } from "../mail.js";
+import { accountByRef, accountsOf, labelOf, mergedInbox, stageDraft, type MailRow } from "./mail.js";
 import { HttpError, type VaultStore, type WriteGuard } from "../vaultStore.js";
 import { agentWriter, both } from "../agentWrites.js";
 import { personaNote } from "../persona.js";
@@ -51,7 +51,7 @@ How Orrama works:
 - TASKS are Markdown checkboxes: \`- [ ] text\`. Metadata goes inline on the line: \`@username\` assigns, \`!p1\`/\`!p2\`/\`!p3\` sets priority (1 = highest), \`due:YYYY-MM-DD\` is a deadline, \`start:YYYY-MM-DD\` a start date. Use create_task to append one to a note.
 - STATUS: set_task_status with todo | in-progress | blocked | done. Every status is the checkbox in the file: \`[ ]\` todo, \`[/]\` in progress, \`[b]\` blocked, \`[x]\` done.
 - DATES & CALENDAR: set_task_dates writes due:/start: onto a task; schedule_block books focused time for a task on a given day; create_event adds a meeting.
-- EMAIL: if the user has connected a mailbox, list_email/read_email survey the inbox and draft_email prepares a message or reply (thread a reply with inReplyTo from read_email). You cannot send mail — every draft waits for the user to press Send — so say "I've drafted it for you to review", never "I've sent it". When the user has a persona (get_persona), a draft written as them follows its Voice and Rules for outside use, and quotes only numbers the persona holds.
+- EMAIL: if the user has connected a mailbox (they may have several accounts), list_email/read_email survey the inbox and draft_email prepares a message or reply (thread a reply with inReplyTo from read_email, from the account read_email names). You cannot send mail — every draft waits for the user to press Send — so say "I've drafted it for you to review", never "I've sent it". When the user has a persona (get_persona), a draft written as them follows its Voice and Rules for outside use, and quotes only numbers the persona holds.
 - THE USER THEMSELVES: get_persona reads the user's persona note (who they are, their experience, projects, skills, proof points, people, voice). Read it only when the task is about them or writing as them.
 - KNOWLEDGE GRAPH: the vault's notes are typed (person, company, project, document, area, conversation) and connected by relations (works_at, involves, part_of, about, supervises…). For a question about people, companies, projects, their status or deadlines, or saved conversations, QUERY FIRST — vault_schema (the map, start here), find_entities (list by type/status/fields/relation), get_relations (what one note connects to), find_path (how two notes connect), list_summaries (one line per note, to pick the right conversation) — and only then search_vault or read a note. They answer in a fraction of the tokens and see links inside long notes that a preview cuts off.
 - Always search_vault before answering a question about text inside notes, and cite notes as [[Note Title]]. search_vault shows only an excerpt of each note (truncated: true says so): read_note gives the whole text.
@@ -416,31 +416,40 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           }
         }),
         list_email: tool({
-          description: "List the most recent messages in the user's email inbox (their connected personal mailbox). Returns sender, subject, date, read state and a uid to read the full message.",
-          inputSchema: z.object({ limit: z.number().min(1).max(50).optional() }),
-          execute: async ({ limit }: { limit?: number }) => {
-            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
-            if (!acct) return { success: false, error: "no mail account connected — the user can add one in Settings → Mail" };
+          description: "List the most recent messages in the user's email inbox, across every mail account they connected, newest first. Each message says which account it came to (account: its label or address) and has a uid; read one with read_email, passing that uid and that account. Pass account (a label or an address) to list one account only.",
+          inputSchema: z.object({ limit: z.number().min(1).max(50).optional(), account: z.string().optional() }),
+          execute: async ({ limit, account }: { limit?: number; account?: string }) => {
+            const rows = accountsOf(db, req.userId);
+            if (rows.length === 0) return { success: false, error: "no mail account connected — the user can add one in Settings → Mail" };
+            let from: MailRow[];
             try {
-              const items = await listInbox(credsFor(acct), Math.min(limit ?? 15, 50));
-              return { success: true, messages: items.map((m) => ({ uid: m.uid, from: m.fromName || m.from, subject: m.subject, date: m.date, unread: !m.seen })) };
+              from = account ? [accountByRef(rows, account)] : rows;
             } catch (err) {
               return { success: false, error: err instanceof Error ? err.message : String(err) };
             }
+            const { messages, failed } = await mergedInbox(from, Math.min(limit ?? 15, 50), () => {});
+            if (failed.length === from.length) return { success: false, error: failed[0]!.error };
+            const nameOf = new Map(rows.map((r) => [r.id, labelOf(r)]));
+            return {
+              success: true,
+              messages: messages.slice(0, Math.min(limit ?? 15, 50)).map((m) => ({ uid: m.uid, account: nameOf.get(m.account), from: m.fromName || m.from, subject: m.subject, date: m.date, unread: !m.seen })),
+              ...(failed.length ? { unreadable: failed.map((f) => labelOf(f.row)) } : {}),
+            };
           }
         }),
         read_email: tool({
-          description: "Read the full text of one inbox message by its uid (from list_email). Marks it read.",
-          inputSchema: z.object({ uid: z.number() }),
-          execute: async ({ uid }: { uid: number }) => {
-            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
-            if (!acct) return { success: false, error: "no mail account connected" };
+          description: "Read the full text of one inbox message by its uid and its account (both from list_email; without account, the default account). Marks it read. Returns the account it came to: a reply drafted with draft_email should name that account.",
+          inputSchema: z.object({ uid: z.number(), account: z.string().optional() }),
+          execute: async ({ uid, account }: { uid: number; account?: string }) => {
+            const rows = accountsOf(db, req.userId);
+            if (rows.length === 0) return { success: false, error: "no mail account connected" };
             try {
+              const acct = accountByRef(rows, account);
               const m = await getMessage(credsFor(acct), uid);
               if (!m) return { success: false, error: "message not found" };
-              // messageId/references let a follow-up send_email thread the reply correctly.
+              // messageId/references let a follow-up draft_email thread the reply correctly.
               const text = m.text || "(no plain-text body)";
-              return { success: true, from: m.from, fromName: m.fromName, subject: m.subject, date: m.date, body: text.slice(0, EMAIL_CHARS), ...(text.length > EMAIL_CHARS ? { truncated: true, length: text.length } : {}), messageId: m.messageId, references: m.references };
+              return { success: true, account: labelOf(acct), from: m.from, fromName: m.fromName, subject: m.subject, date: m.date, body: text.slice(0, EMAIL_CHARS), ...(text.length > EMAIL_CHARS ? { truncated: true, length: text.length } : {}), messageId: m.messageId, references: m.references };
             } catch (err) {
               return { success: false, error: err instanceof Error ? err.message : String(err) };
             }
@@ -456,11 +465,17 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
           },
         }),
         draft_email: tool({
-          description: "Prepare an email from the user's connected mailbox. The draft is shown to the user, who sends it themselves — you cannot send mail directly, so tell them the draft is ready for review rather than claiming it was sent. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their Voice and Rules for outside use: write the body in that voice, then call again with voiceRead: true.",
-          inputSchema: z.object({ to: z.string(), subject: z.string(), body: z.string(), inReplyTo: z.string().optional(), references: z.string().optional(), voiceRead: z.boolean().optional() }),
-          execute: async ({ to, subject, body, inReplyTo, references, voiceRead }: { to: string; subject: string; body: string; inReplyTo?: string; references?: string; voiceRead?: boolean }) => {
-            const acct = db.select().from(tables.mailAccounts).where(eq(tables.mailAccounts.userId, req.userId)).get();
-            if (!acct) return { success: false, error: "no mail account connected" };
+          description: "Prepare an email from one of the user's mail accounts. The draft is shown to the user, who sends it themselves — you cannot send mail directly, so tell them the draft is ready for review rather than claiming it was sent. It goes from account (a label or an address; without it, their default account): a reply goes from the account the mail came to, so pass read_email's account. To reply in-thread, pass inReplyTo (and references) from read_email. When the user has a persona, the first call answers with their Voice and Rules for outside use: write the body in that voice, then call again with voiceRead: true.",
+          inputSchema: z.object({ to: z.string(), subject: z.string(), body: z.string(), inReplyTo: z.string().optional(), references: z.string().optional(), account: z.string().optional(), voiceRead: z.boolean().optional() }),
+          execute: async ({ to, subject, body, inReplyTo, references, account, voiceRead }: { to: string; subject: string; body: string; inReplyTo?: string; references?: string; account?: string; voiceRead?: boolean }) => {
+            const rows = accountsOf(db, req.userId);
+            if (rows.length === 0) return { success: false, error: "no mail account connected" };
+            let acct: MailRow;
+            try {
+              acct = accountByRef(rows, account);
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : String(err) };
+            }
             // A draft is written as the user: in their voice, by their rules, when they have said what those are.
             const persona = voiceRead ? undefined : personaNote(db, store, user);
             const voice = persona ? personaText(persona.content, ["voice", "rules"]) : "";
@@ -472,8 +487,8 @@ export async function aiRoutes(app: FastifyInstance, db: Db, store: VaultStore, 
                 voice: personaText(persona!.content, ["voice", "rules", "proof"]),
               };
             }
-            const draft = stageDraft(db, req.userId, { to, subject, body, inReplyTo, references }, "agent");
-            return { success: true, status: "awaiting_confirmation", draftId: draft.id, to: draft.to, subject: draft.subject };
+            const draft = stageDraft(db, req.userId, { to, subject, body, inReplyTo, references, accountId: acct.id }, "agent");
+            return { success: true, status: "awaiting_confirmation", draftId: draft.id, account: labelOf(acct), from: acct.email, to: draft.to, subject: draft.subject };
           }
         })
       }

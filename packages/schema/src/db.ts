@@ -255,15 +255,16 @@ export const webhooks = sqliteTable("webhooks", {
 });
 
 /**
- * Personal mail account (spec: in-app email, no OAuth). One row per user, keyed
- * unique on user_id — these are the user's own IMAP/SMTP credentials (a Gmail
- * app password), so the account is always self-scoped. The password is a
- * credential: AES-GCM encrypted at rest exactly like the AI key and ICS feed URL.
- * Messages are never stored — IMAP stays the source of truth, fetched on demand.
+ * A personal mail account (spec: in-app email, no OAuth). A person may have several (N1,
+ * schema 7: "my other addresses"), each with a short label (null: the address), a place in the
+ * list and one of them the default for new mail. These are the user's own IMAP/SMTP credentials
+ * (a Gmail app password), so an account is always self-scoped. The password is a credential:
+ * AES-GCM encrypted at rest exactly like the AI key and ICS feed URL. Messages are never
+ * stored — IMAP stays the source of truth, fetched on demand.
  */
 export const mailAccounts = sqliteTable("mail_accounts", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().unique(),
+  userId: text("user_id").notNull(),
   /** The address, also the IMAP/SMTP login. */
   email: text("email").notNull(),
   imapHost: text("imap_host").notNull(),
@@ -275,6 +276,12 @@ export const mailAccounts = sqliteTable("mail_accounts", {
   createdAt: integer("created_at").notNull(),
   lastCheckedAt: integer("last_checked_at"),
   lastError: text("last_error"),
+  /** What the account is called in Mail ("Work"); null reads as the address. */
+  label: text("label"),
+  /** Its place in Settings' list and Mail's filter, lowest first. */
+  position: integer("position").notNull().default(0),
+  /** New mail goes from this one; exactly one of a person's accounts, else the first. */
+  isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
 });
 
 /**
@@ -300,6 +307,8 @@ export const mailDrafts = sqliteTable("mail_drafts", {
   /** "agent" = the in-app Ask panel, "token" = an MCP/API-token client. */
   createdBy: text("created_by", { enum: ["agent", "token"] }).notNull(),
   createdAt: integer("created_at").notNull(),
+  /** The account it goes from (mail_accounts.id); null: the default account when it is sent. */
+  accountId: text("account_id"),
 });
 
 /** Projects: a folder or tag designated as the unit progress is computed against (spec §3). */

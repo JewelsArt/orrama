@@ -85,17 +85,20 @@ CREATE TABLE IF NOT EXISTS ics_feeds (
   created_at INTEGER NOT NULL, last_synced_at INTEGER, last_error TEXT, color TEXT
 );
 CREATE TABLE IF NOT EXISTS mail_accounts (
-  id TEXT PRIMARY KEY, user_id TEXT NOT NULL UNIQUE, email TEXT NOT NULL,
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, email TEXT NOT NULL,
   imap_host TEXT NOT NULL, imap_port INTEGER NOT NULL,
   smtp_host TEXT NOT NULL, smtp_port INTEGER NOT NULL,
   password_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL,
-  last_checked_at INTEGER, last_error TEXT
+  last_checked_at INTEGER, last_error TEXT,
+  label TEXT, position INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS mail_accounts_user ON mail_accounts (user_id);
 CREATE TABLE IF NOT EXISTS mail_drafts (
   id TEXT PRIMARY KEY, user_id TEXT NOT NULL, "to" TEXT NOT NULL,
   subject TEXT NOT NULL, body TEXT NOT NULL,
   in_reply_to TEXT, "references" TEXT,
-  created_by TEXT NOT NULL, created_at INTEGER NOT NULL
+  created_by TEXT NOT NULL, created_at INTEGER NOT NULL,
+  account_id TEXT
 );
 CREATE INDEX IF NOT EXISTS mail_drafts_user ON mail_drafts (user_id);
 CREATE TABLE IF NOT EXISTS api_tokens (
@@ -135,8 +138,13 @@ CREATE TABLE IF NOT EXISTS webhooks (
  *   6  — api_tokens.scope: a token made by Connect to Claude is good for the
  *        MCP tools' routes only; an older build would take it for a full
  *        API token (2M, Nov 2026).
+ *   7  — more than one mail account: mail_accounts loses its one-per-user rule
+ *        (the table is rebuilt, every row kept as it was: `mailAccountsMany`) and
+ *        gains label, position and is_default; mail_drafts.account_id. An older
+ *        build would read one account per user and send from whichever row
+ *        came first (N1, Nov 2026).
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** `ALTER TABLE … ADD COLUMN` for each column its table lacks; a failure throws with the statement. */
 export function addColumns(sqlite: Database.Database, columns: [table: string, column: string, decl: string][]): void {
@@ -150,6 +158,43 @@ export function addColumns(sqlite: Database.Database, columns: [table: string, c
       throw new Error(`Schema upgrade failed at \`${sql}\`: ${(err as Error).message}. The database was not marked upgraded; fix the cause and start again.`);
     }
   }
+}
+
+/**
+ * Schema 7: a person may have more than one mail account. Up to schema 6 `mail_accounts.user_id`
+ * was UNIQUE, and SQLite cannot drop a column's UNIQUE (its index belongs to the table), so the
+ * table is made again without it and every row copied across column by column, the encrypted
+ * password included, unchanged. Each row an older build left is that person's only account, so
+ * it becomes their default. Runs only while the old rule is there; in one transaction.
+ */
+export function mailAccountsMany(sqlite: Database.Database): void {
+  const indexes = sqlite.prepare("PRAGMA index_list(mail_accounts)").all() as { name: string; unique: number }[];
+  const oneEach = indexes.some(
+    (i) => i.unique === 1 && (sqlite.prepare(`PRAGMA index_info(${JSON.stringify(i.name)})`).all() as { name: string }[]).map((c) => c.name).join(",") === "user_id",
+  );
+  if (!oneEach) return;
+  const cols = "id, user_id, email, imap_host, imap_port, smtp_host, smtp_port, password_encrypted, created_at, last_checked_at, last_error, label, position";
+  const step = (sql: string) => {
+    try {
+      sqlite.exec(sql);
+    } catch (err) {
+      throw new Error(`Schema upgrade failed at \`${sql.split("\n")[0]}\`: ${(err as Error).message}. The database was not marked upgraded; fix the cause and start again.`);
+    }
+  };
+  sqlite.transaction(() => {
+    step(`CREATE TABLE mail_accounts_v7 (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, email TEXT NOT NULL,
+  imap_host TEXT NOT NULL, imap_port INTEGER NOT NULL,
+  smtp_host TEXT NOT NULL, smtp_port INTEGER NOT NULL,
+  password_encrypted TEXT NOT NULL, created_at INTEGER NOT NULL,
+  last_checked_at INTEGER, last_error TEXT,
+  label TEXT, position INTEGER NOT NULL DEFAULT 0, is_default INTEGER NOT NULL DEFAULT 0
+)`);
+    step(`INSERT INTO mail_accounts_v7 (${cols}, is_default) SELECT ${cols}, 1 FROM mail_accounts`);
+    step("DROP TABLE mail_accounts");
+    step("ALTER TABLE mail_accounts_v7 RENAME TO mail_accounts");
+    step("CREATE INDEX IF NOT EXISTS mail_accounts_user ON mail_accounts (user_id)");
+  })();
 }
 
 /** How many copies made before a schema upgrade are kept, newest first. */
@@ -249,7 +294,13 @@ export function createDb(file = dbPath()) {
       ["ics_feeds", "color", "TEXT"],
       // What a token is good for: null everything a token may do, "mcp" the MCP tools (mcpScope.ts).
       ["api_tokens", "scope", "TEXT"],
+      // More than one mail account (N1): what each is called, its place in the list, the default.
+      ["mail_accounts", "label", "TEXT"],
+      ["mail_accounts", "position", "INTEGER NOT NULL DEFAULT 0"],
+      ["mail_accounts", "is_default", "INTEGER NOT NULL DEFAULT 0"],
+      ["mail_drafts", "account_id", "TEXT"],
     ]);
+    mailAccountsMany(sqlite);
   } catch (err) {
     sqlite.close();
     throw err;
