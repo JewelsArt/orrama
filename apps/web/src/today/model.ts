@@ -8,7 +8,7 @@
 import { addDays, daysTo } from "@orrama/core/dates";
 import type { CalEvent, Contact, DashboardTask, GraphRelations, HomeData, ProjectRow } from "@orrama/schema/responses";
 import { isProjectActive } from "../categories.js";
-import { repeatWords } from "../planning/model.js";
+import { onceEachSeries, repeatWords } from "../planning/model.js";
 
 /* ---- Due ------------------------------------------------------------------------------------ */
 
@@ -102,15 +102,9 @@ export function comingUp(
   const inRange = (d: string | null | undefined): d is string => !!d && d >= from && d <= to;
   const rows: ComingRow[] = [];
   // A repeating event of yours is one line, on its next day, saying how it repeats: a weekly
-  // standup took every line of the module (three weeks, four rows).
-  const nextOf = new Map<string, CalEvent>();
-  for (const e of events) {
-    if (!inRange(e.date) || !e.seriesId) continue;
-    const had = nextOf.get(e.seriesId);
-    if (!had || e.date < had.date || (e.date === had.date && e.startMin < had.startMin)) nextOf.set(e.seriesId, e);
-  }
-  for (const e of events) {
-    if (!inRange(e.date) || (e.seriesId && nextOf.get(e.seriesId) !== e)) continue;
+  // standup took every line of the module (three weeks, four rows). Planning's next three
+  // weeks says it the same way, through the same function.
+  for (const e of onceEachSeries(events.filter((e) => inRange(e.date)), (e) => e)) {
     const source = e.seriesId && e.repeat ? repeatWords(e.repeat) : (e.feedLabel ?? null);
     rows.push({ id: `e:${e.id}:${e.date}`, kind: "event", date: e.date, start: e.allDay ? null : e.startMin, title: e.title, source });
   }

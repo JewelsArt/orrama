@@ -10,7 +10,7 @@ import { addDays, dayOf } from "../calendarMath.js";
 import { Button, DeadlineChip } from "../ui/controls.js";
 import { minutesLabel } from "../ui/dates.js";
 import { Orr } from "../ui/orr/Orr.js";
-import { DATED_LANE, bookedOn, hoursLabel, itemsOn, money, nextWeeks, nowAlong, weekLanes, type Item } from "./model.js";
+import { DATED_LANE, bookedOn, hoursLabel, itemsOn, money, nextWeeks, nowAlong, repeatWords, weekLanes, type Item } from "./model.js";
 import { ITEM_MIME, TimeItem } from "./TimeItem.js";
 
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -231,6 +231,8 @@ const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSta
 function futureSub(i: Item): string {
   if (i.kind === "mn") return money(i.amount ?? 0, i.currency);
   const time = i.startMin !== null && !i.allDay ? minutesLabel(i.startMin) : "";
-  return [time, i.project].filter(Boolean).join(" · ") || (i.kind === "ev" ? "event" : "");
+  // A repeating event is said once (nextWeeks), with how it repeats, as Today's Coming up says it.
+  const repeats = i.event?.seriesId && i.event.repeat ? repeatWords(i.event.repeat) : "";
+  return [time, repeats || i.project].filter(Boolean).join(" · ") || (i.kind === "ev" ? "event" : "");
 }
 

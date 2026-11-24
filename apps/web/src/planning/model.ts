@@ -187,12 +187,36 @@ function laneNote(items: Item[]): string {
 }
 
 /**
+ * A repeating event of yours once: of each series (`seriesId`, the days `/api/events` expanded)
+ * only its first day in the list, every other thing as it is. Today's Coming up and Planning's
+ * next three weeks both say a series this way, on its next day with how it repeats (2L: the
+ * next three weeks left a weekly event out altogether).
+ */
+export function onceEachSeries<T>(list: T[], eventOf: (t: T) => Pick<CalEvent, "seriesId" | "date" | "startMin"> | undefined): T[] {
+  const first = new Map<string, { t: T; date: string; startMin: number }>();
+  for (const t of list) {
+    const e = eventOf(t);
+    if (!e?.seriesId) continue;
+    const had = first.get(e.seriesId);
+    if (!had || e.date < had.date || (e.date === had.date && e.startMin < had.startMin)) first.set(e.seriesId, { t, date: e.date, startMin: e.startMin });
+  }
+  return list.filter((t) => {
+    const id = eventOf(t)?.seriesId;
+    return !id || first.get(id)?.t === t;
+  });
+}
+
+/**
  * What the next three weeks hold, down the week's right edge: key deadlines, milestones, due
- * steps, money and your own one-off events. A thing that happens every day (a standup, a
- * lecture series) is not news, so a title that repeats three times in the span is left out.
+ * steps, money and your own events, a repeating one once, on its next day (`onceEachSeries`).
+ * A title typed again and again by hand (a standup, a lecture series written as rows) is not
+ * news, so a one-off title that comes three times in the span is left out.
  */
 export function nextWeeks(items: Item[], from: string, to: string, cap = 9): { shown: Item[]; more: number } {
-  const span = items.filter((i) => i.date >= from && i.date <= to && i.kind !== "bk" && i.kind !== "pp" && i.kind !== "fd");
+  const span = onceEachSeries(
+    items.filter((i) => i.date >= from && i.date <= to && i.kind !== "bk" && i.kind !== "pp" && i.kind !== "fd"),
+    (i) => (i.kind === "ev" ? i.event : undefined),
+  );
   const seen = new Map<string, number>();
   for (const i of span) if (i.kind === "ev") seen.set(i.title, (seen.get(i.title) ?? 0) + 1);
   const news = span.filter((i) => i.kind !== "ev" || (seen.get(i.title) ?? 0) < 3).sort((a, b) => a.date.localeCompare(b.date) || byDay(a, b));
